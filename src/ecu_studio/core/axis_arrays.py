@@ -67,11 +67,17 @@ def _raw_arrays(data: bytes, lo: int, hi: int) -> list[CountAxis]:
         else:
             counts = b[heads].astype(np.int64) | (b[heads + 1].astype(np.int64) << 8)
         ok = (counts >= MIN_POINTS) & (counts <= MAX_POINTS) & (heads + width + counts * width <= hi)
-        for h, n in zip(heads[ok].tolist(), counts[ok].tolist()):
-            a = h + width
-            v = (b[a:a + n] if width == 1 else np.frombuffer(data[a:a + 2 * n], '<u2')).astype(np.int64)
-            if _increasing(v):
-                out.append(CountAxis(h, a, n, width, tuple(int(x) for x in v)))
+        found = []
+        # Same test as _increasing, evaluated for all headers of one count at once.
+        for n in np.unique(counts[ok]).tolist():
+            h = heads[ok & (counts == n)]
+            pos = (h + width)[:, None] + width * np.arange(n)[None, :]
+            v = b[pos].astype(np.int64) if width == 1 else                 b[pos].astype(np.int64) | (b[pos + 1].astype(np.int64) << 8)
+            d = np.diff(v, axis=1)
+            good = np.all(d >= 0, axis=1) & (np.sum(d > 0, axis=1) >= n - 1 - n // 8) & (v[:, -1] - v[:, 0] >= n - 1)
+            found += [(int(hh), vv) for hh, vv in zip(h[good].tolist(), v[good].tolist())]
+        found.sort(key=lambda t: t[0])
+        out += [CountAxis(hh, hh + width, len(vv), width, tuple(vv)) for hh, vv in found]
     return out
 
 

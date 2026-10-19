@@ -98,3 +98,68 @@ def test_bundled_candidate_model_scores_smooth_table_above_noise():
     smooth=score(candidate_features(image,MapDefinition('t',0x400,8,10,dtype='u8')),model)
     noise=score(candidate_features(image,MapDefinition('n',0x800,8,10,dtype='u8')),model)
     assert smooth>noise
+
+
+def _code_image():
+    """Code-like noise with one smooth data block holding a map at 0x1000."""
+    data=bytearray(np.random.default_rng(9).integers(0,256,0x4000,dtype=np.uint8).tobytes())
+    t=np.array([[20+r+c for c in range(16)] for r in range(16)],np.uint8)
+    data[0x1000:0x1100]=t.tobytes()
+    return BinaryImage(bytes(data)),[MapDefinition('KF',0x1000,16,16,dtype='u8')]
+
+
+def test_run_partly_in_map_does_not_hide_code_bytes():
+    # Regression: one contiguous edit from the map into code was judged as a whole
+    # and passed because it touched the map.
+    image,maps=_code_image()
+    image.write(0x10F8,bytes(0x18))                   # 8 bytes map + 16 bytes code
+    report=run_preflight(image,maps)
+    code=[f for f in report.findings if f.code=='code']
+    assert code and code[0].offset==0x1100 and code[0].detail.startswith('16 Byte')
+    assert report.status=='rot'
+    assert any(f.code=='unmapped' and f.title.startswith('16 ') for f in report.findings)
+
+
+def test_change_crossing_calibration_window_reports_outside_bytes_only():
+    image,maps=_image()
+    image.write(0x0FFC,bytes(b^0xFF for b in image.original[0x0FFC:0x1004]))   # 4 before window, 4 inside
+    report=run_preflight(image,maps,cal_window=(0x1000,0x4000))
+    code=[f for f in report.findings if f.code=='code']
+    assert len(code)==1 and code[0].offset==0x0FFC and code[0].detail.startswith('4 Byte')
+
+
+def test_many_code_changes_are_counted_not_truncated():
+    image,maps=_image()
+    for k in range(15):
+        image.write(0x100+0x20*k,bytes([image.byte(0x100+0x20*k)^0xFF]))
+    report=run_preflight(image,maps,cal_window=(0x1000,0x4000))
+    code=[f for f in report.findings if f.code=='code']
+    assert len(code)==11 and 'insgesamt 15 Byte in 15 Bereichen' in code[-1].title
+
+
+def test_changes_are_taken_from_bytes_not_edit_log():
+    image,maps=_image()
+    image._patches[0x200]=image.original[0x200]       # logged but identical: no change
+    assert run_preflight(image,maps,cal_window=(0x1000,0x4000)).changed_bytes==0
+    image.write(0x300,bytes([image.byte(0x300)^1]))
+    report=run_preflight(image,maps,cal_window=(0x1000,0x4000))
+    assert report.changed_bytes==1 and any(f.code=='code' and f.offset==0x300 for f in report.findings)
+
+
+def test_unverified_heuristic_candidate_does_not_excuse_code_changes():
+    image,_=_code_image()
+    guess=MapDefinition('Kandidat',0x2000,8,8,dtype='u8',source='heuristic')
+    image.write(0x2004,b'\x00')
+    report=run_preflight(image,[guess])
+    assert any(f.code=='code-candidate' and f.level=='gelb' for f in report.findings)
+
+
+def test_green_without_verified_checksum_is_never_flash_ready():
+    image,maps=_image()
+    report=run_preflight(image,maps)
+    assert report.status=='grün' and not report.flash_ready
+    assert 'nicht flashbereit' in report.text()
+    image.write(0x1000+9,bytes([image.byte(0x1000+9)+1]))
+    image.write(0x2000+9,bytes([image.byte(0x2000+9)+1]))
+    report=run_preflight(image,maps,cal_window=(0,0x4000))
+    assert not report.flash_ready and any(f.code=='checksum' for f in report.findings)

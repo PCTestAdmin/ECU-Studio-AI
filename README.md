@@ -33,7 +33,7 @@ Kennfelder finden, verstehen und nachvollziehbar bearbeiten, auch ohne Definitio
 |---|---|
 | 🔍 **Kennfeldsuche ohne Definition** | Findet Kennfelder, Kennlinien und Achsen direkt in den Rohdaten – über Datenmuster, Achsen-Arrays und Verweise im Programmcode. |
 | 📊 **Kalibrierte Konfidenz** | Jede Fundstelle zeigt die *gemessene* Trefferquote ihrer Beweisart: **gesichert**, **wahrscheinlich** oder **Vermutung**. |
-| 🛡️ **Flash-Preflight** | Prüft vor dem Export: unveränderte Zwillings- und Überwachungskopien, Änderungen im Programmcode, zerstörte Achsen, ungewöhnliche Sprünge, Checksummenstatus. |
+| 🛡️ **Flash-Preflight** | Prüft jede geänderte Byteposition: Programmcode, unveränderte Zwillings- und Überwachungskopien, zerstörte Achsen, ungewöhnliche Sprünge. Ohne verifizierte Checksumme nie „flashbereit“. |
 | 🕸️ **Funktionsgraph** | Zeigt, welche Kennfelder dieselbe Code-Routine liest oder dieselben Achsen nutzt. |
 | 📡 **Signal-Tracing** | Ermittelt die RAM-Eingänge jedes Kennfeldzugriffs – direkt als Logger-Liste nutzbar. |
 | 📐 **Achsen-Semantik** | Schlägt Größe und Skalierung von Stützstellen vor (Drehzahl, Temperatur, Last …). |
@@ -85,7 +85,14 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Bosch ME7.5 (VAG 8E0909518AK) | 57 % (vorher 43 %) | 37 (vorher 16), Kennlinien 41 | nicht belastbar¹ |
 | Denso SH-2 (Subaru 5EAT, 9 ROMs) | **93–100 %** (vorher 35–53 %) | **147–178** (vorher 15–27) | nicht belastbar¹ |
 | GM P01 (68k) | 35 % (vorher 21 %) | 10 (vorher 1), Kennlinien 21 | nicht belastbar¹ |
-| Volvo M4.4 (8051) · Opel E78 (PowerPC) | 54 % · 26 % | 8 · 1 | nicht belastbar¹ |
+| Volvo M4.4 (8051) | 54 % | 8 | nicht belastbar¹ |
+
+Nicht gewertet: Opel E78 und Peugeot IAW 8P – deren XDFs sind selbst nur Ergebnisse einer Tabellensuche
+(z. B. „Candidate047DC2“), also keine unabhängige Referenz.
+
+**Fehlalarme auf Daten ohne Kennfelder** (Zufallsdaten 512 KB und 2 MB, komprimierte Daten 1 MB,
+gelöschter Flash, Nullen + Zufall): 0 / 0 / 5 / 0 / 0 Kandidaten, keiner davon als „gesichert“ oder
+„wahrscheinlich“ eingestuft.
 
 **Trefferquote je Beweisart** (MS43, MS42, Hyundai, MSS54; Anteil der Funde, die exakt an einem echten Objekt beginnen):
 
@@ -117,7 +124,7 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Denso (Subaru) | SH-2 | ✅ Beschreibungsblöcke | ✅ | gemessen |
 | GM P01 / E-Steuergeräte | 68k | ✅ Absolutoperanden | – | gemessen |
 | Bosch M4.4 (Volvo) | 8051 | ◐ bestätigend | – | gemessen |
-| Bosch/Continental E78 (Opel) | PowerPC | ❌ | – | gemessen; Code-Verweise offen |
+| Bosch/Continental E78 (Opel) | PowerPC | ❌ | – | ungemessen (keine unabhängige Referenz) |
 | Bosch Motronic (Porsche 911/944/928/964) | 8051 | – | – | gemessen; XDF 1.x lesbar |
 | Renault Fenix 1B/3, Peugeot 205 Turbo | 68HC11 | ◐ bestätigend | – | gemessen |
 | Continental SIM2K (Hyundai) | TriCore | ❌ | ◐ | gemessen, Lernmodell; Code-Verweise offen |
@@ -181,8 +188,10 @@ Beiträge sind willkommen – besonders **Messungen an weiteren Steuergeräten**
 ## Wichtige Hinweise
 
 > [!WARNING]
-> **Keine Checksummen-Korrektur, nicht flash-validiert.** Geänderte Dateien vor dem Flashen mit einem
-> geeigneten Werkzeug prüfen. Eingriffe in Steuergeräte können Typgenehmigung, Abgasverhalten und
+> **Nicht flash-validiert.** Checksummen werden nur mit einem manuell geprüften, an die Original-Firmware
+> gebundenen Profil verifiziert; eine Korrektur ist vorbereitet (`plan_checksum_correction`) und verweigert,
+> wenn das Profil schon am Original nicht stimmt. Ohne Profil gilt eine Datei nie als flashbereit.
+> Geänderte Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen. Eingriffe in Steuergeräte können Typgenehmigung, Abgasverhalten und
 > Versicherungsschutz betreffen.
 
 - **Keine Steuergeräte-Firmware im Repository.** `.gitignore` schließt `*.bin` außerhalb von `examples/` aus.

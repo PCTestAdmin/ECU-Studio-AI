@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# Least privilege: the tests only need to read the repository.
+permissions:
+  contents: read
+
 jobs:
   pytest:
     runs-on: windows-latest
@@ -15,6 +19,8 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}

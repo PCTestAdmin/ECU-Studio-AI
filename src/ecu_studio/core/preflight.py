@@ -29,10 +29,17 @@ class Finding:
 @dataclass
 class PreflightReport:
     findings: list[Finding] = field(default_factory=list)
+    changed_bytes: int = 0
+    checksum_verified: bool = False
 
     @property
     def status(self) -> str:
         return max((f.level for f in self.findings), key=LEVELS.index, default='grün')
+
+    @property
+    def flash_ready(self) -> bool:
+        """Never true without verified checksums: green alone is no flash readiness."""
+        return self.status == 'grün' and self.checksum_verified
 
     def add(self, *args, **kwargs):
         self.findings.append(Finding(*args, **kwargs))
@@ -44,20 +51,49 @@ class PreflightReport:
             lines.append(f'[{f.level.upper()}] {f.title}{where}\n      {f.detail}')
         if not self.findings:
             lines.append('Keine Befunde in den geprüften Punkten.')
-        lines += ['', 'Grün bedeutet nur: keiner der geprüften Fehler gefunden. Keine Flash-, '
-                      'Abgas- oder Straßenfreigabe; Checksummen werden nicht korrigiert.']
+        lines.append('')
+        lines.append(f'Geprüft: {self.changed_bytes} geänderte Byte, jede Position einzeln.')
+        lines.append('Checksummen: ' + ('alle deklarierten Prüffelder verifiziert.' if self.checksum_verified
+                                         else 'NICHT verifiziert – Datei ist nicht flashbereit.'))
+        lines += ['Grün bedeutet nur: keiner der geprüften Fehler gefunden. Keine Flash-, '
+                  'Abgas- oder Straßenfreigabe.']
         return '\n'.join(lines)
 
 
-def _changed_runs(image: BinaryImage) -> list[tuple[int, int]]:
-    pos = sorted(image._patches)
-    runs = []
-    for p in pos:
-        if runs and p == runs[-1][1]:
-            runs[-1] = (runs[-1][0], p + 1)
-        else:
-            runs.append((p, p + 1))
-    return runs
+def _changed_positions(original: bytes, modified: bytes) -> np.ndarray:
+    """Every byte position that differs, from the bytes themselves (not the edit log)."""
+    if len(original) != len(modified):
+        raise ValueError('Original und geänderte Datei sind unterschiedlich groß')
+    a, b = np.frombuffer(original, np.uint8), np.frombuffer(modified, np.uint8)
+    return np.flatnonzero(a != b)
+
+
+def _runs(pos: np.ndarray) -> list[tuple[int, int]]:
+    if not len(pos):
+        return []
+    breaks = np.flatnonzero(np.diff(pos) != 1)
+    starts = np.r_[pos[0], pos[breaks + 1]]
+    ends = np.r_[pos[breaks], pos[-1]] + 1
+    return list(zip(starts.tolist(), ends.tolist()))
+
+
+def _covered(pos: np.ndarray, intervals) -> np.ndarray:
+    """Per position: inside any of the [start, end) intervals (overlaps allowed)."""
+    marks = np.zeros(len(pos) + 1, np.int64)
+    for s, e in intervals:
+        marks[np.searchsorted(pos, s)] += 1
+        marks[np.searchsorted(pos, e)] -= 1
+    return np.cumsum(marks)[:-1] > 0
+
+
+def _report_runs(report, level, code, title, detail, pos, limit=10):
+    """One finding per run (first `limit`), plus a total so nothing is hidden."""
+    runs = _runs(pos)
+    for s, e in runs[:limit]:
+        report.add(level, code, title, f'{e - s} Byte; {detail}', s)
+    if len(runs) > limit:
+        report.add(level, code, f'{title}: insgesamt {len(pos)} Byte in {len(runs)} Bereichen',
+                   f'Weitere {len(runs) - limit} Bereiche nicht einzeln aufgeführt.', runs[limit][0])
 
 
 def _overlaps(m: MapDefinition, s: int, e: int) -> bool:
@@ -67,32 +103,42 @@ def _overlaps(m: MapDefinition, s: int, e: int) -> bool:
 def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_profile=None,
                   cal_window: tuple[int, int] | None = None) -> PreflightReport:
     report = PreflightReport()
-    runs = _changed_runs(image)
-    if not runs:
-        return report
     original = image.original
     modified = image.materialize()
+    pos = _changed_positions(original, modified)
+    runs = _runs(pos)
+    report.changed_bytes = len(pos)
 
-    # 1. Checksums
+    # 1. Checksums (also for an unchanged file: a broken read must not look fine)
     status = verify_checksums(image, checksum_profile)
+    report.checksum_verified = status['status'] == 'match'
     if status['status'] == 'mismatch':
         report.add('rot', 'checksum', 'Checksumme stimmt nicht', status['message'])
-    elif status['status'] != 'match':
+    elif status['status'] != 'match' and runs:
         report.add('gelb', 'checksum', 'Checksumme unbekannt',
                    'Kein Checksummenprofil geladen; vor dem Flashen mit geeignetem Werkzeug korrigieren.')
+    if not runs:
+        return report
 
-    # 2. Changes in program code
+    # 2. Changes in program code, decided per byte: a run that touches a map or
+    # a data block must not hide its other bytes.
+    in_map = _covered(pos, [(m.offset, m.offset + m.length) for m in maps])
     if cal_window and cal_window[0] is not None:
-        outside = [(s, e) for s, e in runs if s < cal_window[0] or e > cal_window[1]]
-        for s, e in outside[:10]:
-            report.add('rot', 'code', 'Änderung außerhalb des Kalibrierbereichs',
-                       f'{e - s} Byte; dort liegt bei diesem Steuergerät Programmcode.', s)
+        outside = (pos < cal_window[0]) | (pos >= cal_window[1])
+        _report_runs(report, 'rot', 'code', 'Änderung außerhalb des Kalibrierbereichs',
+                     'dort liegt bei diesem Steuergerät Programmcode.', pos[outside])
     else:
         mask = data_mask(original)
-        for s, e in runs:
-            if not mask[s:e].any() and not any(_overlaps(m, s, e) for m in maps):
-                report.add('rot', 'code', 'Änderung im vermuteten Programmcode',
-                           f'{e - s} Byte in einem Block ohne Datenstruktur und ohne Kennfeld.', s)
+        in_data = mask[pos]
+        _report_runs(report, 'rot', 'code', 'Änderung im vermuteten Programmcode',
+                     'in einem Block ohne Datenstruktur und ohne Kennfeld.', pos[~in_data & ~in_map])
+        # Unconfirmed automatic candidates do not prove that code bytes are data.
+        guessed = [m.source == 'heuristic' and not m.verified for m in maps]
+        by_guess = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if g])
+        by_def = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if not g])
+        _report_runs(report, 'gelb', 'code-candidate', 'Änderung in ungeprüftem Kandidaten im vermuteten Code',
+                     'nur ein automatischer Kandidat deckt diese Bytes ab; der Block sieht nach Programmcode aus.',
+                     pos[~in_data & by_guess & ~by_def])
 
     # 3. Twins: unchanged copies of a modified map
     changed_maps = [m for m in maps if any(_overlaps(m, s, e) for s, e in runs)]
@@ -102,7 +148,8 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
             continue
         hit = original.find(block)
         while hit != -1:
-            if hit != m.offset and not any(hit <= p < hit + len(block) for p in image._patches):
+            k = int(np.searchsorted(pos, hit))
+            if hit != m.offset and not (k < len(pos) and pos[k] < hit + len(block)):
                 report.add('rot', 'twin', f'Zwilling von „{m.name}“ nicht angepasst',
                            f'Identische Kopie bei 0x{hit:08X} ist unverändert; Überwachungs- oder '
                            'Variantenkopien führen sonst oft zu Notlauf/Fehlerspeicher.', hit)
@@ -155,8 +202,8 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
                        f'Größter Nachbarsprung {after:g} statt bisher {before:g} (Rohwerte); Tippfehler prüfen.', m.offset)
 
     # 6. Changes that belong to no known map
-    loose = [(s, e) for s, e in runs if not any(_overlaps(m, s, e) for m in maps)]
-    if loose:
-        report.add('gelb', 'unmapped', f'{sum(e - s for s, e in loose)} geänderte Byte außerhalb bekannter Kennfelder',
-                   'Änderungen ohne Definition lassen sich nicht auf Plausibilität prüfen.', loose[0][0])
+    loose = pos[~in_map]
+    if len(loose):
+        report.add('gelb', 'unmapped', f'{len(loose)} geänderte Byte außerhalb bekannter Kennfelder',
+                   'Änderungen ohne Definition lassen sich nicht auf Plausibilität prüfen.', int(loose[0]))
     return report

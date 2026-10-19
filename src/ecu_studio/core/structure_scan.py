@@ -111,27 +111,49 @@ def _block_cost(m: np.ndarray) -> float | None:
     return None if r is None else r[0] + r[1]
 
 
+def _sliding_extreme(x: np.ndarray, k: int, fn) -> np.ndarray:
+    """fn (np.maximum/np.minimum) over every window of k values, O(n) (van Herk/Gil-Werman)."""
+    n = len(x)
+    pad = (-n) % k
+    fill = -np.inf if fn is np.maximum else np.inf
+    blocks = np.concatenate([x, np.full(pad, fill)]).reshape(-1, k)
+    prefix = fn.accumulate(blocks, axis=1).reshape(-1)
+    suffix = fn.accumulate(blocks[:, ::-1], axis=1)[:, ::-1].reshape(-1)
+    m = n - k + 1
+    return fn(suffix[:m], prefix[k - 1:k - 1 + m])
+
+
+def _window_sums(v: np.ndarray, k: int) -> np.ndarray:
+    """Exact sums of every window of k integer values (int64 prefix sums)."""
+    c = np.concatenate([[0], np.cumsum(v, dtype=np.int64)])
+    return c[k:] - c[:-k]
+
+
 def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None) -> list[tuple]:
     """(score, offset, rows, cols, dtype, endian, width) from row-pitch runs."""
     out = []
     for dtype, w, endian in VIEWS:
         x = _values(buf, w, endian, dtype[0] == "s")
+        xi = x.astype(np.int64)
         n = len(x)
         maxv = 255 if w == 1 else 65535
+        at_max = (x == maxv).astype(np.int64)
         for c in COLS:
             if cancelled and cancelled():
                 return []
             if n < 3 * c:
                 continue
-            win = sliding_window_view(x, 2 * c)
-            span = win.max(1) - win.min(1)
-            d = x[c:] - x[:-c]
-            pair = sliding_window_view(np.abs(d), c).sum(1)[:len(span)] / c
+            # Window statistics in O(n) per pitch; integer sums keep them exact.
+            span = _sliding_extreme(x, 2 * c, np.maximum) - _sliding_extreme(x, 2 * c, np.minimum)
+            m = len(span)
+            d = (xi[c:] - xi[:-c])
+            pair = _window_sums(np.abs(d), c)[:m] / c
             # Rows offset by a near-constant step (monotone grids) share their shape.
-            dm = sliding_window_view(d, c).mean(1)[:len(span)]
-            dsd = np.sqrt(np.maximum(sliding_window_view(d * d, c).mean(1)[:len(span)] - dm * dm, 0))
+            dm = _window_sums(d, c)[:m] / c
+            dsd = np.sqrt(np.maximum(_window_sums(d * d, c)[:m] / c - dm * dm, 0))
             similar = (pair <= PAIR_TOL * span) | ((dsd <= SHAPE_TOL * span) & (np.abs(dm) <= .6 * span))
-            good = (span >= (6 if w == 1 else 12)) & similar & ((win == maxv).mean(1) < .5)
+            saturated = _window_sums(at_max, 2 * c) / (2 * c)
+            good = (span >= (6 if w == 1 else 12)) & similar & (saturated < .5)
             good = np.concatenate([good, np.zeros(n - len(good), bool)])
             run = _runs_forward(good, c)
             prev = np.concatenate([np.zeros(c, bool), good[:-c]])
@@ -324,7 +346,9 @@ MIN_DESCRIPTORS = 5
 
 def _increasing_axis(data: bytes, offset: int, n: int, width: int) -> CountAxis | None:
     dt = {1: '>u1', 2: '>u2', 4: '>f4'}[width]
-    v = np.frombuffer(data[offset:offset + n * width], dt)
+    # Widen before differencing: unsigned differences wrap (5 - 10 = 251 as u8),
+    # which made falling or zig-zag arrays pass as increasing.
+    v = np.frombuffer(data[offset:offset + n * width], dt).astype(np.float64)
     if len(v) != n or not np.all(np.isfinite(v)) or not np.all(np.diff(v) > 0):
         return None
     return CountAxis(offset, offset, n, width, tuple(float(x) if width == 4 else int(x) for x in v))
@@ -603,7 +627,8 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                 cost, n, w, endian, dtype = curve
                 proposals.append((ANCHOR_SCORE + .3 - cost / 2, a, 1, n, dtype, endian, w, None))
     pitched = []
-    for lo, hi in (regions or [(start, end)]):
+    # An empty list means "no data-like block": nothing to search, not everything.
+    for lo, hi in ([(start, end)] if regions is None else regions):
         lo, hi = max(lo, start), min(hi, end)
         if hi - lo >= 64:
             # Even start keeps 16-bit views aligned with the image.

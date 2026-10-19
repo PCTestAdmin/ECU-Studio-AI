@@ -3,6 +3,7 @@
 This is NOT semantic recognition; XDF/A2L metadata supplies functional labels.
 """
 from __future__ import annotations
+import bisect
 from .model import BinaryImage, MapDefinition
 from .detection import discover_maps
 from .detection_extended import scan_u8
@@ -18,6 +19,21 @@ from .confidence import apply_confidence, tier_for
 from .candidate_model import load_model, score_candidates
 
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor')
+
+
+def _merged(spans):
+    """Sorted, merged [start, end) intervals as (starts, ends) lists."""
+    merged=[]
+    for s,e in sorted(spans):
+        if merged and s<=merged[-1][1]:merged[-1][1]=max(merged[-1][1],e)
+        else:merged.append([s,e])
+    return [m[0] for m in merged],[m[1] for m in merged]
+
+
+def _overlaps_any(lo,hi,merged):
+    starts,ends=merged
+    k=bisect.bisect_left(starts,hi)-1
+    return k>=0 and ends[k]>lo
 
 
 def scan_calibration_candidates(image: BinaryImage, *,
@@ -105,7 +121,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
     ranked=rank_candidates(image,candidates,max_results=sum(limits)+structure_limit,diagnostics=diagnostics)
     spans=[(m.candidate_region_start if m.candidate_region_start is not None else m.offset,m.offset+m.length) for m in lines]
     # Legacy grid windows must not swallow a detected axis or referenced curve.
-    result=sorted([m for m in ranked if not any(m.offset<e and s<m.offset+m.length for s,e in spans)]+lines,
+    merged=_merged(spans)
+    result=sorted([m for m in ranked if not _overlaps_any(m.offset,m.offset+m.length,merged)]+lines,
                   key=lambda m:m.offset)
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: learned scorer (family-out validated) replaces the

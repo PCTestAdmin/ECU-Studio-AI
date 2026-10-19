@@ -2662,7 +2662,8 @@ class Window(QMainWindow):
             self.warning('Preflight fehlgeschlagen',exc);return
         self.diff_view.setPlainText(report.text())
         self.tabs.setCurrentWidget(self.diff_view)
-        self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde',8000)
+        self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde · '
+                                     +('Checksummen verifiziert' if report.checksum_verified else 'Checksummen NICHT verifiziert – nicht flashbereit'),8000)
 
     def export_bin(self):
         if not self.require_image():return

@@ -90,3 +90,72 @@ def test_vectorised_runs_match_naive_count():
             while p + k * c < len(good) and good[p + k * c]:
                 k += 1
             assert run[p] == k
+
+
+def test_descriptor_axes_must_really_increase_for_unsigned_widths():
+    # Regression: np.diff on unsigned arrays wraps (5 - 10 = 251 for u8,
+    # 0x0005 - 0x000A = 65531 for u16), so falling axes passed as increasing.
+    from ecu_studio.core.structure_scan import _increasing_axis
+    for width, fmt in ((1, 'B'), (2, '>H')):
+        size = struct.calcsize(fmt)
+        def pack(*vals):
+            return b''.join(struct.pack(fmt, v) for v in vals)
+        assert _increasing_axis(pack(1, 2, 3, 4), 0, 4, size) is not None
+        assert _increasing_axis(pack(10, 5, 20, 30), 0, 4, size) is None      # falls once
+        assert _increasing_axis(pack(40, 30, 20, 10), 0, 4, size) is None     # falling
+        assert _increasing_axis(pack(3, 3, 4, 5), 0, 4, size) is None         # repeated
+    assert _increasing_axis(struct.pack('>4f', 1, 2, float('nan'), 4), 0, 4, 4) is None
+    assert _increasing_axis(struct.pack('>2H', 1, 2), 0, 4, 2) is None        # truncated
+
+
+def test_descriptor_with_falling_u16_axis_is_rejected():
+    data = bytearray(_denso_image())
+    # Make the X axis of every table fall: no descriptor may survive.
+    for k in range(6):
+        x_ptr = 0x1000 + 0x200 * k
+        data[x_ptr:x_ptr + 16] = struct.pack('>4f', 3000, 2000, 1000, 0)
+    assert pointer_descriptors(bytes(data)) == {}
+
+
+def test_fast_window_statistics_and_overlap_match_brute_force():
+    from numpy.lib.stride_tricks import sliding_window_view
+    from ecu_studio.core.structure_scan import _sliding_extreme, _window_sums
+    from ecu_studio.core.scoped_scan import _merged, _overlaps_any
+    rng = np.random.default_rng(2)
+    x = rng.integers(0, 65536, 997).astype(np.float64)
+    for k in (2, 8, 13, 32):
+        win = sliding_window_view(x, k)
+        assert np.array_equal(_sliding_extreme(x, k, np.maximum), win.max(1))
+        assert np.array_equal(_sliding_extreme(x, k, np.minimum), win.min(1))
+        assert np.array_equal(_window_sums(x.astype(np.int64), k), win.sum(1).astype(np.int64))
+    spans = [(int(a), int(a + b)) for a, b in zip(rng.integers(0, 5000, 60), rng.integers(1, 80, 60))]
+    merged = _merged(spans)
+    for lo in range(0, 5100, 7):
+        hi = lo + 5
+        assert _overlaps_any(lo, hi, merged) == any(lo < e and s < hi for s, e in spans)
+
+
+def test_vectorised_axis_search_matches_reference_rule():
+    from ecu_studio.core.axis_arrays import _raw_arrays, _increasing
+    data = bytes(np.random.default_rng(8).integers(0, 256, 20000, dtype=np.uint8))
+    data += bytes([5, 1, 2, 3, 4, 9]) + bytes([3, 0, 1, 0, 5, 0, 9, 0])
+    found = {(a.header, a.width): a for a in _raw_arrays(data, 0, len(data))}
+    b = np.frombuffer(data, np.uint8)
+    for width in (1, 2):
+        for h in range(0, len(data) - width, width):
+            n = int(b[h]) if width == 1 else int(b[h]) | int(b[h + 1]) << 8
+            if not 2 <= n <= 32 or h + width + n * width > len(data):
+                continue
+            v = (b[h + width:h + width + n] if width == 1 else
+                 np.frombuffer(data[h + width:h + width + 2 * n], '<u2')).astype(np.int64)
+            assert ((h, width) in found) == _increasing(v)
+
+
+def test_empty_data_region_list_searches_nothing():
+    # Regression: an empty region list fell back to a pitch search over the whole file.
+    data = bytearray(_noise(0x4000))
+    t = np.add.outer(np.arange(8) * 9, np.arange(8) * 4).astype(np.uint8) + 10
+    data[0x800:0x840] = t.tobytes()
+    image = BinaryImage(bytes(data))
+    assert any(m.offset == 0x800 for m in scan_structures(image, regions=None))
+    assert not any(m.offset == 0x800 for m in scan_structures(image, regions=[]))

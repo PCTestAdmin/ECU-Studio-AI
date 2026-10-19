@@ -2,7 +2,12 @@
 
 A generic CRC does not establish ECU flash checksum validity. Only a locally
 reviewed manifest pinned to the ORIGINAL binary hash can validate its declared
-regions. Neither this module nor the UI repairs or guesses checksum locations.
+regions. Checksum locations are never guessed.
+
+Correction is prepared, not improvised: ``plan_checksum_correction`` refuses
+unless the reviewed profile verifies on the unmodified original (proving that
+algorithm, ranges and storage are right), and ``apply_checksum_correction``
+writes the planned values only if every slot verifies afterwards.
 """
 from __future__ import annotations
 
@@ -15,7 +20,13 @@ import zlib
 
 from .model import BinaryImage, MapDefinition
 
-SUPPORTED = {'crc32-ieee': 4, 'sum16-bytes': 2, 'sum32-bytes': 4}
+# algorithm -> width of the stored value in bytes
+SUPPORTED = {'crc32-ieee': 4, 'crc16-ccitt': 2, 'sum16-bytes': 2, 'sum32-bytes': 4,
+             'sum16-words-be': 2, 'sum16-words-le': 2, 'sum32-words-be': 4, 'sum32-words-le': 4,
+             'sum32-dwords-be': 4, 'sum32-dwords-le': 4}
+WORD_ALIGN = {'sum16-words-be': 2, 'sum16-words-le': 2, 'sum32-words-be': 2, 'sum32-words-le': 2,
+              'sum32-dwords-be': 4, 'sum32-dwords-le': 4}
+COMPLEMENTS = ('none', 'ones', 'twos')   # stored value, ~value, or -value (sum + stored = 0)
 MAX_PROFILE_BYTES = 1024 * 1024
 
 
@@ -27,19 +38,43 @@ class ChecksumSlot:
     end: int           # end-exclusive
     storage_offset: int
     endian: str = 'big'
+    # Further [start, end) ranges covered by the same value (e.g. split blocks).
+    extra_ranges: tuple[tuple[int, int], ...] = ()
+    complement: str = 'none'
+
+    @property
+    def ranges(self) -> tuple[tuple[int, int], ...]:
+        return ((self.start, self.end),) + tuple(self.extra_ranges)
+
+    @property
+    def width(self) -> int:
+        return SUPPORTED[self.algorithm]
 
     def check(self, size: int) -> None:
         if not self.name.strip() or self.algorithm not in SUPPORTED:
             raise ValueError('Ungültiger Prüfbereich oder nicht unterstützter Algorithmus')
         width = SUPPORTED[self.algorithm]
-        if not all(type(v) is int for v in (self.start, self.end, self.storage_offset)):
+        if not all(type(v) is int for r in self.ranges for v in r) or type(self.storage_offset) is not int:
             raise ValueError('Offsets müssen Ganzzahlen sein')
-        if not (0 <= self.start < self.end <= size and 0 <= self.storage_offset <= size - width):
+        if len(self.ranges) > 16:
+            raise ValueError('Höchstens 16 Teilbereiche je Prüffeld')
+        if not 0 <= self.storage_offset <= size - width:
             raise ValueError('Prüfbereich oder Feld außerhalb der Datei')
-        if self.end > self.storage_offset and self.start < self.storage_offset + width:
-            raise ValueError('Prüffeld liegt im geprüften Bereich (Selbstreferenz nicht unterstützt)')
+        for start, end in self.ranges:
+            if not 0 <= start < end <= size:
+                raise ValueError('Prüfbereich oder Feld außerhalb der Datei')
+            if end > self.storage_offset and start < self.storage_offset + width:
+                raise ValueError('Prüffeld liegt im geprüften Bereich (Selbstreferenz nicht unterstützt)')
+            align = WORD_ALIGN.get(self.algorithm, 1)
+            if (end - start) % align:
+                raise ValueError('Bereichslänge passt nicht zur Wortbreite des Algorithmus')
+        spans = sorted(self.ranges)
+        if any(b[0] < a[1] for a, b in zip(spans, spans[1:])):
+            raise ValueError('Teilbereiche überlappen sich')
         if self.endian not in ('big','little'):
             raise ValueError('Unbekannte Byte-Reihenfolge')
+        if self.complement not in COMPLEMENTS:
+            raise ValueError('Unbekannte Komplementbildung')
 
 
 @dataclass(frozen=True)
@@ -66,6 +101,14 @@ class ChecksumProfile:
             slot.check(image.size)
             if slot.name in seen: raise ValueError('Doppelter Bereichsname')
             seen.add(slot.name)
+        # A stored value inside another slot's range makes the result depend on
+        # the correction order; not supported rather than silently wrong.
+        for slot in self.slots:
+            for other in self.slots:
+                if other is not slot and any(e > slot.storage_offset and s < slot.storage_offset + slot.width
+                                             for s, e in other.ranges):
+                    raise ValueError(f'Prüffeld „{slot.name}“ liegt im Bereich von „{other.name}“ '
+                                     '(verkettete Prüfsummen nicht unterstützt)')
 
 
 def load_checksum_profile(path: str | Path, image: BinaryImage) -> ChecksumProfile:
@@ -79,9 +122,14 @@ def load_checksum_profile(path: str | Path, image: BinaryImage) -> ChecksumProfi
     items=[]
     for row in slots:
         if not isinstance(row,dict): raise ValueError('Ungültiger Prüffeldeintrag')
-        if any(key not in ('name','algorithm','start','end','storage_offset','endian') for key in row):
+        if any(key not in ('name','algorithm','start','end','storage_offset','endian','extra_ranges','complement')
+               for key in row):
             raise ValueError('Unbekanntes Checksum-Feld')
-        items.append(ChecksumSlot(**row))
+        row=dict(row)
+        extra=row.pop('extra_ranges',[])
+        if not isinstance(extra,list) or not all(isinstance(r,list) and len(r)==2 for r in extra):
+            raise ValueError('extra_ranges muss eine Liste von [start, end] sein')
+        items.append(ChecksumSlot(**row,extra_ranges=tuple(tuple(r) for r in extra)))
     profile=ChecksumProfile(
         firmware_sha256=obj['firmware_sha256'],source=obj['source'],
         reviewer=obj['reviewer'],reviewed=obj['reviewed'],slots=tuple(items))
@@ -89,11 +137,63 @@ def load_checksum_profile(path: str | Path, image: BinaryImage) -> ChecksumProfi
     return profile
 
 
+def _crc16_ccitt(payload: bytes, crc: int = 0xFFFF) -> int:
+    """CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), table-driven."""
+    table = _CRC16_TABLE
+    for b in payload:
+        crc = ((crc << 8) & 0xFFFF) ^ table[((crc >> 8) ^ b) & 0xFF]
+    return crc
+
+
+def _crc16_table():
+    out = []
+    for i in range(256):
+        c = i << 8
+        for _ in range(8):
+            c = ((c << 1) ^ 0x1021) if c & 0x8000 else c << 1
+        out.append(c & 0xFFFF)
+    return tuple(out)
+
+
+_CRC16_TABLE = _crc16_table()
+
+
 def _checksum(payload: bytes, algorithm: str) -> int:
+    import numpy as np
     if algorithm == 'crc32-ieee': return zlib.crc32(payload) & 0xFFFFFFFF
+    if algorithm == 'crc16-ccitt': return _crc16_ccitt(payload)
     if algorithm == 'sum16-bytes': return sum(payload) & 0xFFFF
     if algorithm == 'sum32-bytes': return sum(payload) & 0xFFFFFFFF
+    if algorithm in WORD_ALIGN:
+        size = WORD_ALIGN[algorithm]
+        order = '>' if algorithm.endswith('-be') else '<'
+        words = np.frombuffer(payload, order + ('u2' if size == 2 else 'u4')).astype(np.uint64)
+        total = int(words.sum(dtype=np.uint64))
+        return total & (0xFFFF if algorithm.startswith('sum16') else 0xFFFFFFFF)
     raise ValueError('Nicht unterstützter Algorithmus')
+
+
+def slot_value(image: BinaryImage, slot: ChecksumSlot) -> int:
+    """The value the ECU expects in the storage field for the current bytes."""
+    algorithm = slot.algorithm
+    mask = (1 << (8 * slot.width)) - 1
+    if algorithm.startswith('crc'):
+        if algorithm == 'crc32-ieee':
+            value = 0
+            for s, e in slot.ranges:
+                value = zlib.crc32(image.read(s, e - s), value)
+            value &= 0xFFFFFFFF
+        else:
+            value = 0xFFFF
+            for s, e in slot.ranges:
+                value = _crc16_ccitt(image.read(s, e - s), value)
+    else:
+        value = sum(_checksum(image.read(s, e - s), algorithm) for s, e in slot.ranges) & mask
+    if slot.complement == 'ones':
+        value = ~value & mask
+    elif slot.complement == 'twos':
+        value = -value & mask
+    return value
 
 
 def verify_checksums(image: BinaryImage, profile: ChecksumProfile | None = None) -> dict:
@@ -104,8 +204,8 @@ def verify_checksums(image: BinaryImage, profile: ChecksumProfile | None = None)
     profile.check(image)
     regions=[]
     for slot in profile.slots:
-        expected=_checksum(image.read(slot.start,slot.end-slot.start),slot.algorithm)
-        width=SUPPORTED[slot.algorithm]
+        expected=slot_value(image,slot)
+        width=slot.width
         stored=int.from_bytes(image.read(slot.storage_offset,width),slot.endian)
         regions.append({'name':slot.name,'algorithm':slot.algorithm,'start':slot.start,'end':slot.end,
                         'storage_offset':slot.storage_offset,'expected':expected,'stored':stored,
@@ -115,6 +215,53 @@ def verify_checksums(image: BinaryImage, profile: ChecksumProfile | None = None)
             'regions':regions,'message':('Alle deklarierten Prüffelder stimmen überein. '
             'Keine Flash- oder Herstellerfreigabe.' if good else
             'Mindestens ein deklariertes Prüffeld stimmt NICHT überein.')}
+
+
+@dataclass(frozen=True)
+class CorrectionStep:
+    slot: str
+    storage_offset: int
+    old: bytes
+    new: bytes
+
+
+def plan_checksum_correction(image: BinaryImage, profile: ChecksumProfile) -> list[CorrectionStep]:
+    """Storage-field values that make every declared slot match the current bytes.
+
+    Refused unless the profile verifies on the unmodified original: a profile
+    that does not explain the factory file must not be used to "repair" a
+    modified one. Nothing is written here.
+    """
+    if profile is None:
+        raise ValueError('Ohne geprüftes Checksummenprofil keine Korrektur')
+    profile.check(image)
+    original = BinaryImage(image.original)
+    if not verify_checksums(original, profile)['verified']:
+        raise ValueError('Profil stimmt bereits am Original nicht – Korrektur verweigert')
+    steps = []
+    for slot in profile.slots:
+        new = slot_value(image, slot).to_bytes(slot.width, slot.endian)
+        old = image.read(slot.storage_offset, slot.width)
+        if new != old:
+            steps.append(CorrectionStep(slot.name, slot.storage_offset, old, new))
+    return steps
+
+
+def apply_checksum_correction(image: BinaryImage, profile: ChecksumProfile,
+                              steps: list[CorrectionStep]) -> dict:
+    """Write a plan from plan_checksum_correction and verify; rolled back on any doubt."""
+    fresh = plan_checksum_correction(image, profile)
+    if [(s.slot, s.storage_offset, s.new) for s in fresh] != [(s.slot, s.storage_offset, s.new) for s in steps]:
+        raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
+    before = {s.storage_offset: image.read(s.storage_offset, len(s.new)) for s in steps}
+    for s in steps:
+        image.write(s.storage_offset, s.new)
+    result = verify_checksums(image, profile)
+    if not result['verified']:
+        for offset, old in before.items():
+            image.write(offset, old)
+        raise ValueError('Nach der Korrektur stimmen nicht alle Prüffelder – zurückgesetzt')
+    return result
 
 
 def audit_export(image: BinaryImage, maps: list[MapDefinition],
