@@ -1,0 +1,3 @@
+﻿name;kind;xdf_address;bin_offset;status;reason
+Demo Last-Sollwert (nur Testdaten);Tabelle;0x10;0x10;importiert;
+Demo Zahlenkonstante;Konstante;0x30;0x30;importiert;

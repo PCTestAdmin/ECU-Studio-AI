@@ -1,0 +1,42 @@
+{
+  "purpose": "Research and local held-out testing candidates only; no OEM images included, none automatically accepted for semantic training",
+  "reviewed_on": "2026-10-16",
+  "training_approved": false,
+  "sources": [
+    {
+      "domain":"tcu", "maker":"Subaru", "family":"Hitachi M32R / 5EAT", "firmware_count_reported":17,
+      "source":"https://github.com/TomFLV/5eat-tcu-reverse-engineering",
+      "definition_path":"definitions/5eat_tcu_romraider_defs.xml", "firmware_path":"rom/",
+      "rights":"Repository MIT covers original definitions/tools, explicitly excludes OEM ROM files. Do not redistribute ROMs.",
+      "data_status":"located_online_not_imported", "labels_verified_by_ecu_studio":false
+    },
+    {
+      "domain":"tcu", "maker":"Subaru", "family":"Denso SH705x / 5EAT", "firmware_count_reported":9,
+      "source":"https://github.com/TomFLV/5eat-tcu-reverse-engineering",
+      "definition_path":"definitions/", "firmware_path":"rom-denso/",
+      "rights":"OEM ROMs explicitly excluded from repository's MIT scope. Do not redistribute.",
+      "data_status":"located_online_not_imported", "labels_verified_by_ecu_studio":false
+    },
+    {
+      "domain":"ecu", "maker":"Volvo", "family":"Bosch ME7",
+      "source":"https://github.com/kForth/Volvo-ME7-BINs",
+      "definition_path":"assets/", "firmware_path":"assets/bins/stock/",
+      "rights":"Repository MIT metadata/code, firmware origin generally not independently verifiable; distribution and semantic use unapproved.",
+      "data_status":"located_online_not_imported", "labels_verified_by_ecu_studio":false
+    },
+    {
+      "domain":"ecu", "maker":"Hyundai", "family":"Continental SIM2K",
+      "source":"https://github.com/naamons/HyundaiN-TuningLib",
+      "definition_path":"software-ID folders", "firmware_path":"software-ID folders",
+      "rights":"Repository GPL-3.0; independently confirm OEM firmware usage rights and definition/software-ID matches.",
+      "data_status":"located_online_not_imported", "labels_verified_by_ecu_studio":false
+    },
+    {
+      "domain":"tcu", "maker":"Volkswagen/Audi", "family":"DQ250-MQB DSG",
+      "source":"https://github.com/TheFlashBold/DQ250-MQB-Bench-Flash",
+      "definition_path":"not supplied as a verified paired mapping", "firmware_path":"none included in project confirmed",
+      "rights":"Tool documentation available; firmware rights and binary pairing to be verified.",
+      "data_status":"reference_documentation_only", "labels_verified_by_ecu_studio":false
+    }
+  ]
+}

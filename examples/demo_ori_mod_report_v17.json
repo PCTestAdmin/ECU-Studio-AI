@@ -1,0 +1,86 @@
+{
+  "original_sha256": "f4d37a9868c0c1a5247dfa8acd629a8aa794e85a8a455c17f643ada3c3002255",
+  "modified_sha256": "19f1805fa9f25a9a0ace10f6f59a348d12c9b161abce20c1f88ae6033741acc2",
+  "file_size": 32768,
+  "changed_bytes": 3,
+  "changed_ranges": [
+    [
+      768,
+      1
+    ],
+    [
+      4111,
+      1
+    ],
+    [
+      8253,
+      1
+    ]
+  ],
+  "changed_ranges_count": 3,
+  "changed_ranges_truncated": false,
+  "changed_bytes_outside_maps": 1,
+  "maps_changed": 2,
+  "maps_total": 2,
+  "identity_consistent": false,
+  "identity_warning": "Mindestens eine Firmware ohne überprüften ECU-Fingerprint: Softwaregleichheit unbekannt; Kennfeldadressen NICHT bestätigt.",
+  "maps": [
+    {
+      "name": "SYNTHETIC Boost demo",
+      "offset": 4096,
+      "dimensions": "16x16",
+      "kind": "Boost",
+      "provenance": "CSV-Definition (ungeprüft)",
+      "changed_cells": 1,
+      "total_cells": 256,
+      "changed_bytes": 1,
+      "max_abs_raw_delta": 10,
+      "max_abs_physical_delta": 10.0,
+      "max_relative_percent": 0.8953,
+      "status": "GEÄNDERT"
+    },
+    {
+      "name": "SYNTHETIC AGR demo",
+      "offset": 8192,
+      "dimensions": "16x16",
+      "kind": "AGR",
+      "provenance": "CSV-Definition (ungeprüft)",
+      "changed_cells": 1,
+      "total_cells": 256,
+      "changed_bytes": 1,
+      "max_abs_raw_delta": 10,
+      "max_abs_physical_delta": 10.0,
+      "max_relative_percent": 18.5185,
+      "status": "GEÄNDERT"
+    }
+  ],
+  "cell_changes": [
+    {
+      "map_name": "SYNTHETIC Boost demo",
+      "map_offset": "0x00001000",
+      "cell_offset": "0x0000100E",
+      "row": 0,
+      "col": 7,
+      "raw_before": 1117,
+      "raw_after": 1127,
+      "physical_before": 1117.0,
+      "physical_after": 1127.0,
+      "unit": "arbitrary",
+      "source": "CSV-Definition (ungeprüft)"
+    },
+    {
+      "map_name": "SYNTHETIC AGR demo",
+      "map_offset": "0x00002000",
+      "cell_offset": "0x0000203C",
+      "row": 1,
+      "col": 14,
+      "raw_before": 54,
+      "raw_after": 64,
+      "physical_before": 54.0,
+      "physical_after": 64.0,
+      "unit": "arbitrary",
+      "source": "CSV-Definition (ungeprüft)"
+    }
+  ],
+  "cell_changes_truncated": false
+}

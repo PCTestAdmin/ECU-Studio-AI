@@ -1,0 +1,5 @@
+* text=auto
+*.bin binary
+*.sqlite3 binary
+# Bundled third-party definitions: large, generated, not project code
+*.xdf -diff linguist-vendored

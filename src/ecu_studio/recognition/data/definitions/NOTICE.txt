@@ -1,0 +1,32 @@
+ECU Studio AI 1.13 - bundled offline calibration definitions
+
+Copyright MS4x Dev Team. GPL-3.0; full license: ../COPYING.GPL-3.
+16 UNMODIFIED Standard XDF files, exact pinned URLs, versions, Git blob hashes,
+author and calibration windows: manifest.json in this directory.
+MS41 1429861: full 256K / partial 24K.
+MS42 0110C6: full 512K / partial 32K.
+MS43 430037 / 430055 / 430056 / 430064 / 430066 / 430069: full 512K / partial 64K.
+Repositories: https://github.com/ms4x-net/ms41
+https://github.com/ms4x-net/ms42
+https://github.com/ms4x-net/ms43
+MS43 files are Standard v1.14 from the pinned historic commit, not Extended Load.
+All original sources accompany both source and Windows distributions.
+
+Software/size matching plus a distributed monotone-axis quorum is required for
+automatic proposals. Standalone axes, constants, unsupported layouts and maps
+without consistent axes are excluded. Identity/axis agreement is not independent
+verification or patch-variant proof. All proposals remain unverified; none enters
+semantic training automatically. No ECU binary or vehicle identity is bundled.
+MS41 memory mapping is taken from its XDF and has no real BIN regression yet.
+
+New structural model: ../calibration_ranker_v113.json.
+Open-ECU preset sources: ../training/sources; extracted corpus and attribution:
+../training/calibration_corpus.json and ../training/NOTICE.txt.
+Full upstream license including additional terms: ../training/RUSEFI_LICENSE.txt.
+Small held-out preset evaluation is not universal OEM map accuracy.
+
+RomRaider/Subaru XML format support is an independent local importer.
+https://github.com/RomRaider/SubaruDefs
+No Subaru XML or OEM BIN is bundled or used as training data.
+Other manufacturers can use compatible local XDF/A2L definitions; no automatic
+Bosch/Denso/SIMOS map-pack coverage or verified OEM model is claimed.

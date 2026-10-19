@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<XDFFORMAT version="1.60">
+<XDFHEADER><deftitle>ECU Studio synthetischer Stride-Test</deftitle>
+<CATEGORY index="0" name="Demo-Antrieb" /></XDFHEADER>
+<XDFTABLE uniqueid="0x01"><title>Demo Last-Sollwert (nur Testdaten)</title>
+ <CATEGORYMEM index="0" category="0"/>
+ <XDFAXIS id="x"><indexcount>3</indexcount>
+ <LABEL index="0" value="1000"/><LABEL index="1" value="2000"/>
+ <LABEL index="2" value="3000"/></XDFAXIS>
+ <XDFAXIS id="y"><indexcount>2</indexcount>
+ <LABEL index="0" value="20"/><LABEL index="1" value="80"/></XDFAXIS>
+ <XDFAXIS id="z"><EMBEDDEDDATA mmedaddress="0x10"
+ mmedelementsizebits="8" mmedrowcount="2" mmedcolcount="3"
+ mmedmajorstridebits="8" mmedminorstridebits="16"/>
+ <units>Demo-Einheit</units><MATH equation="X*0.5"/></XDFAXIS>
+</XDFTABLE>
+<XDFCONSTANT uniqueid="0x02"><title>Demo Zahlenkonstante</title>
+ <EMBEDDEDDATA mmedaddress="0x30" mmedelementsizebits="16" />
+ <MATH equation="X" /></XDFCONSTANT>
+</XDFFORMAT>

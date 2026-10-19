@@ -1,0 +1,53 @@
+{
+  "version": "1.10.0",
+  "based_on": "1.9.0",
+  "tests": {
+    "passed": 174,
+    "skipped": 4,
+    "environment": "Linux, Python; PySide6/Windows GUI not run"
+  },
+  "model": {
+    "file": "src/ecu_studio/recognition/data/structure_rejector_v110.json",
+    "sha256": "32f1cc3d1f1b0b2ba1ad3d91eb3eb71d5a5b74308234f56864760249180ec3b9",
+    "model_type": "24-tree ExtraTrees structure-only, synthetic-domain",
+    "train_records": 4000,
+    "validation_records": 1000,
+    "holdout_records": 1000,
+    "validation": {
+      "TP": 499,
+      "FP": 7,
+      "FN": 1,
+      "TN": 493,
+      "precision": 0.9862,
+      "recall": 0.998,
+      "false_positive_rate": 0.014
+    },
+    "synthetic_holdout": {
+      "TP": 500,
+      "FP": 0,
+      "FN": 0,
+      "TN": 500,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "verified_real_firmware_labels": 0,
+    "real_firmware_holdout": 0,
+    "semantic_type_trained": false
+  },
+  "safety": {
+    "model_scores_are_real_map_probabilities": false,
+    "auto_map_type_identification_released": false,
+    "new_model_only_reranks_no_removal": true,
+    "external_firmware_included": false
+  },
+  "new_safety_checks": [
+    "LOFO firmware-based evaluation before verified semantic model release",
+    "corrected double-normalized OOD features",
+    "malformed JSON tree rejection"
+  ],
+  "available_reports": [
+    "TRAINING_REPORT_V110.json",
+    "SYNTHETIC_COMPARISON_V110.json"
+  ]
+}

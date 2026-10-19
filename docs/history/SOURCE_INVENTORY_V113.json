@@ -1,0 +1,685 @@
+{
+  "version": "1.13.0",
+  "files": [
+    {
+      "path": "src/ecu_studio/__init__.py",
+      "size": 24,
+      "sha256": "dd5c65e85009b7fd77a18de9e19c7e61df7ef78545ee8b57083a046ab0398e10"
+    },
+    {
+      "path": "src/ecu_studio/core/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/ecu_studio/core/a2l.py",
+      "size": 19374,
+      "sha256": "f3aea0aa9356ed2a7485b92d2a2d2321db12d897e9c57c507d9a2a70660e426f"
+    },
+    {
+      "path": "src/ecu_studio/core/addressing.py",
+      "size": 2826,
+      "sha256": "1cbabd501f99c9a44b898ae52bf09ea2da2c055b1b6835427b5e2e87ce18151c"
+    },
+    {
+      "path": "src/ecu_studio/core/analysis.py",
+      "size": 2686,
+      "sha256": "a8c1d6def7ac2ca8e7ab81c4b68aa750de1c55c6135afe30006e2c26ca03dece"
+    },
+    {
+      "path": "src/ecu_studio/core/atlas.py",
+      "size": 2388,
+      "sha256": "e9a34287b46c1344cfeff89bb14007d1f12ca8f4196ee2deed6271bb041aeaa6"
+    },
+    {
+      "path": "src/ecu_studio/core/axis_inference.py",
+      "size": 4017,
+      "sha256": "cdc3f7aca4aa8188bab95522514809b8ad49de845e18606028a345852820f0f8"
+    },
+    {
+      "path": "src/ecu_studio/core/axis_records.py",
+      "size": 3899,
+      "sha256": "214708fb377a094113c93192b6842351ce39a228ceeb29069f4bf17bef8814f1"
+    },
+    {
+      "path": "src/ecu_studio/core/checksum_audit.py",
+      "size": 8629,
+      "sha256": "d45afe0be5c51dbec2c4de6fd30920be14c20bc79dab7b165018d4dae191dd6f"
+    },
+    {
+      "path": "src/ecu_studio/core/compare_maps.py",
+      "size": 8261,
+      "sha256": "8c29c5de8ad0008dbc773412db4a04a7cca2a9a7adb7970b82f601f1ba492b8e"
+    },
+    {
+      "path": "src/ecu_studio/core/definition_registry.py",
+      "size": 4863,
+      "sha256": "b014614c6072cf2c0dedbfd770b903427ed1fdf4ab58cb0e3d8a40c852f11c58"
+    },
+    {
+      "path": "src/ecu_studio/core/definitions.py",
+      "size": 2339,
+      "sha256": "8b4160ba6dde02da5d0b79c3e7ee2eb7cd4f3c12b552855ed4c0ffa773860f43"
+    },
+    {
+      "path": "src/ecu_studio/core/demo.py",
+      "size": 1546,
+      "sha256": "724b55159cb19f8583ce7f00e047ad59a10ff789ab1f6de2b2db32acb86eb7ae"
+    },
+    {
+      "path": "src/ecu_studio/core/detection.py",
+      "size": 7176,
+      "sha256": "0795fb8cc6c2fa6155396b95b3934eceb4e4c94a6cd81959bafd80e8e2803f87"
+    },
+    {
+      "path": "src/ecu_studio/core/detection_32.py",
+      "size": 2979,
+      "sha256": "fe4c973ada0b865cfaad56131ac9a9e25aa2e538b3958267b37c17f96bf4e6c4"
+    },
+    {
+      "path": "src/ecu_studio/core/detection_extended.py",
+      "size": 2354,
+      "sha256": "7c725fbd0606091b1a5a60b3dd62162a03454d0879a946dbde39b0c1940b0507"
+    },
+    {
+      "path": "src/ecu_studio/core/detection_signed.py",
+      "size": 3159,
+      "sha256": "968389b8d2d96bd8ab336f234f298350a2622a8670656a328da5f6bfe33dfc89"
+    },
+    {
+      "path": "src/ecu_studio/core/editing.py",
+      "size": 5445,
+      "sha256": "222d976736c1b6003f9108d3ae52fb325c028a0cc37152d80c207c5aabbe26df"
+    },
+    {
+      "path": "src/ecu_studio/core/equations.py",
+      "size": 3854,
+      "sha256": "2f52f5b01563f9cd3bf8b30f45a1bbcedfd7e5ba3bd89b2a34892a661de92852"
+    },
+    {
+      "path": "src/ecu_studio/core/extended_demo.py",
+      "size": 3589,
+      "sha256": "6cb1e0489dd2494f2224c8fbe835866fd48ae32b0b08f14e63032bc4821a78df"
+    },
+    {
+      "path": "src/ecu_studio/core/impact.py",
+      "size": 4187,
+      "sha256": "d0739bcff848522bd191fd0df536ea70bd8dbddf1bc4aa5d8be3de32f975dd93"
+    },
+    {
+      "path": "src/ecu_studio/core/intelligence.py",
+      "size": 17574,
+      "sha256": "84eaf2a71a133a5570a1d840e711381b60ed66f1bff28b6426ea93745625ed5a"
+    },
+    {
+      "path": "src/ecu_studio/core/library.py",
+      "size": 5263,
+      "sha256": "e88bddcc1ab01c31c09849c799a8707fd0917ff8c9190141442ff0ac40ef21dd"
+    },
+    {
+      "path": "src/ecu_studio/core/log_analyzer.py",
+      "size": 13307,
+      "sha256": "b2cf0e89da30fb1c9be62ba8aef209a7998b81edc43650c6ea008d2cc069ea6f"
+    },
+    {
+      "path": "src/ecu_studio/core/map_groups.py",
+      "size": 4603,
+      "sha256": "4b622972f6d1a7bed14090fae4d25f40beb49ac0dfb098faa2fab41682112510"
+    },
+    {
+      "path": "src/ecu_studio/core/model.py",
+      "size": 18583,
+      "sha256": "1c5ba2bbc17abf3fe93c262536005dfc78ade5ebb78f2855573dd87de2af124d"
+    },
+    {
+      "path": "src/ecu_studio/core/plot_axes.py",
+      "size": 993,
+      "sha256": "b1980fd96d7caf92d41b134fb0ace0da3e9ac0f2b4ecfc93d35ca8da7be3a8c8"
+    },
+    {
+      "path": "src/ecu_studio/core/plugins.py",
+      "size": 2158,
+      "sha256": "efc54f8f686af37b6eba0f8f9b8bd55be05fe00be7d2ae251b188a52bf6df641"
+    },
+    {
+      "path": "src/ecu_studio/core/precision.py",
+      "size": 7767,
+      "sha256": "714b4c7ab57785b6cd98ebddb144c9a6aad80cca383dcbdb154c724bca9d70db"
+    },
+    {
+      "path": "src/ecu_studio/core/profiles.py",
+      "size": 9313,
+      "sha256": "58c59e2f671345481a3ba428060fa98eb65ab0cf281e0d649c4d199a477fa698"
+    },
+    {
+      "path": "src/ecu_studio/core/project_store.py",
+      "size": 2753,
+      "sha256": "37b7881b9883b20e41aed07710937255ba119967aafed724a51d1113fe004eea"
+    },
+    {
+      "path": "src/ecu_studio/core/quality.py",
+      "size": 5736,
+      "sha256": "c7411bf324a87757f2c6e4ed1739184dd747ac32d8347512877211a838378ebb"
+    },
+    {
+      "path": "src/ecu_studio/core/raw_trace.py",
+      "size": 3545,
+      "sha256": "5589cac4f344c222fef9328eb08c1097e7aed85095271a2a98303999938faea2"
+    },
+    {
+      "path": "src/ecu_studio/core/report.py",
+      "size": 3665,
+      "sha256": "53503baaf7a24c4b3bf1b39b0c5a8141b8a6d5c6241061869744b1771bfd6614"
+    },
+    {
+      "path": "src/ecu_studio/core/romraider.py",
+      "size": 8218,
+      "sha256": "33cf00f73c3d23d2796d02c3616fedb432c84407ed9fb35cdb0e78616977280a"
+    },
+    {
+      "path": "src/ecu_studio/core/scoped_scan.py",
+      "size": 2340,
+      "sha256": "0a95625c854af4d4ff4ec3a189b65d64cbaaa87f0a20a6e383bd9d91820d47ce"
+    },
+    {
+      "path": "src/ecu_studio/core/search.py",
+      "size": 4624,
+      "sha256": "93d7bcb33c2d2377f7aa7d22ab1ec0935ed92ffd79fd8f5aba15964ac22e7f14"
+    },
+    {
+      "path": "src/ecu_studio/core/smart_transfer.py",
+      "size": 9457,
+      "sha256": "05a26696ae4e129c56a73a0875b69efc88e7b1f3e2f2a483b5d5dfb9021d3fa6"
+    },
+    {
+      "path": "src/ecu_studio/core/storage.py",
+      "size": 2049,
+      "sha256": "e55db5ca19c864dde83567343ca7bda802bae2b54576ffe432d376c361323ab6"
+    },
+    {
+      "path": "src/ecu_studio/core/versioning.py",
+      "size": 5097,
+      "sha256": "d89eccb8aaac9645eb8922272d98a6fa69b92f83c3bf510059c4049608bca79f"
+    },
+    {
+      "path": "src/ecu_studio/core/workflows.py",
+      "size": 6622,
+      "sha256": "40c422c841532f987a6d87eb1d445695f6f56ff0bc4a77ae1b8d10362c4e672f"
+    },
+    {
+      "path": "src/ecu_studio/core/xdf.py",
+      "size": 16917,
+      "sha256": "01d23afa6b02d5eb31c7c96d38a45cbebd72bc172a570200bbe344378738e904"
+    },
+    {
+      "path": "src/ecu_studio/formats/__init__.py",
+      "size": 66,
+      "sha256": "802bf5d6812b0e67ba2d7f5f126c41c106deaceb8ed8e2e2f59f4103251c910f"
+    },
+    {
+      "path": "src/ecu_studio/formats/archive.py",
+      "size": 1453,
+      "sha256": "c319a1441b91e0f236cf053092386dafc15c58682929bf2e357920237452a187"
+    },
+    {
+      "path": "src/ecu_studio/formats/importer.py",
+      "size": 4482,
+      "sha256": "3acdba624a28acda29984116f7487c0cf6514dea7a6f6faf7b13fe97538201a1"
+    },
+    {
+      "path": "src/ecu_studio/formats/records.py",
+      "size": 7353,
+      "sha256": "050597edc459074884fcd992ae5c27234380265a6961a6e3838e3747126a960a"
+    },
+    {
+      "path": "src/ecu_studio/main.py",
+      "size": 836,
+      "sha256": "8900aab33cd57e9cd94e5bc1e333d637ce2d7e55d997b546e77f59405f31662a"
+    },
+    {
+      "path": "src/ecu_studio/recognition/__init__.py",
+      "size": 206,
+      "sha256": "713f2a7c2f98913d3bbb5239ae944c3b2cb146a35a89f4f068a6d73e183cf80a"
+    },
+    {
+      "path": "src/ecu_studio/recognition/bundled_definitions.py",
+      "size": 3616,
+      "sha256": "97a3624240299c846802b0898e351ba00db1a70af32114571c7de1ca90787475"
+    },
+    {
+      "path": "src/ecu_studio/recognition/calibration_ranker.py",
+      "size": 932,
+      "sha256": "0e4d1520ebd2552af1b2f97291c63ccab3c4af63bc93982a5a4db1a7964a9ae8"
+    },
+    {
+      "path": "src/ecu_studio/recognition/catalog.py",
+      "size": 13265,
+      "sha256": "b61cfc06cd9d0a98afd0655757987f71e036bd5081e8d4213adba26b66515221"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ATTRIBUTION.txt",
+      "size": 2590,
+      "sha256": "66e12ffbbe80c25cece448dc2b012d0ef5b519b6c9764b58cff4ff2bbc256006"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/brand_sources.json",
+      "size": 3271,
+      "sha256": "e6edfa9ccf2f0496484613731e32367ac1f76e35e7f1cc3eaeda9fb696cde5fc"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/calibration_ranker_v113.json",
+      "size": 130052,
+      "sha256": "db8e16a83359f2c6bae61caa703ca0927109a071fb9be478026019e881ea3661"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/COPYING.GPL-3",
+      "size": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/manifest.json",
+      "size": 9880,
+      "sha256": "2888f4461704e4f0b88869a8553df7549f37ccaf0e5cc20d0bfd0ae65e1b088d"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430037_512K.xdf",
+      "size": 3269276,
+      "sha256": "bc8648e4cd0318269f66510e7c46f4bb107e93aaaaeeab5b0b532cf89932f020"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430037_64K.xdf",
+      "size": 3269270,
+      "sha256": "f82467c12c3727936195ca3ef6e2bce2d970cd50e6fd4adc9f8658bdccdd6ce0"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430055_512K.xdf",
+      "size": 3453597,
+      "sha256": "cd2b67df571983f29a5fe9d96f3c16b4a7f44640f6d1ad94fb84eaa0636e7037"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430055_64K.xdf",
+      "size": 3453591,
+      "sha256": "a9e40516e23b26a428d1f8329a6e2de49e42bba71b9dbb32317b7eef28fb99cb"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430056_512K.xdf",
+      "size": 3462554,
+      "sha256": "49233d3dae527a928a292dea528b3b6d0af58e568c509fab2e18f9dd3101c61c"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430056_64K.xdf",
+      "size": 3462548,
+      "sha256": "058a800ae0ba364313791c456f922f8e0b0b1fa62dfc439ebdf7072cbf1bf009"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430064_512K.xdf",
+      "size": 3520224,
+      "sha256": "19aff29f8e263cd159672a469c5eedb187b124c408f3ee187b91cc417ebe51b9"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430064_64K.xdf",
+      "size": 3520218,
+      "sha256": "b6e2e22c6b7555f1f20dddaa87b5a44fce4f8c4551496a7518f9d7504e1ba077"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430066_512K.xdf",
+      "size": 3572049,
+      "sha256": "fd30146ab1989f377faab322069a495374625eaa1ff189c6a5446b3f34ad83be"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430066_64K.xdf",
+      "size": 3572043,
+      "sha256": "7b58ded71c6c7011637a17ce5254add3cf9cd494bf385b56f9a6910ec4b234d2"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430069_512K.xdf",
+      "size": 3579218,
+      "sha256": "a71addfe43e341310f0808b0d740daa828c8853b613dd3734b0bdf4064110a33"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430069_64K.xdf",
+      "size": 3579212,
+      "sha256": "3ed195d6c0bbc028ae6b12b423732bf800fba96a782324051973a0294c472afe"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/NOTICE.txt",
+      "size": 1880,
+      "sha256": "8a07823560ff6a4eac3b9c4a78bcdf7f213c8cce8dca3c96a4769be84e5e891d"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS41_1429861_ENG_24K_v1.0.xdf",
+      "size": 968388,
+      "sha256": "abf1b0c2d418ed3dbf00e56e72e7951262113201572d6b58bd0d5a6fba63b437"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS41_1429861_ENG_256K_v1.0.xdf",
+      "size": 968392,
+      "sha256": "4dd5a5c0f933c9c4891d4e7baf3f81803a09ea13258659afa22a04e739d9248f"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS42_0110C6_ENG_32K_v1.3.xdf",
+      "size": 2321565,
+      "sha256": "a0da696814ef25f4e70b33133be749b1734f56ccb013a54ef2c3917992f4af81"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS42_0110C6_ENG_512K_v1.3.xdf",
+      "size": 2321571,
+      "sha256": "ab94fbfc9c21f2e8829e338df9f214e992c7bc9acbefdab3a5799eafdf5a41bb"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ms41_ms42_samples.tsv",
+      "size": 2700,
+      "sha256": "5ebe41bf3bcde8e3ae2d76b097edb6229a8280dd711b420828c3caaa7bef8155"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ms43_430069_3d_sample.tsv",
+      "size": 4719,
+      "sha256": "eee062a8d7f8c3dc651d188f9937307018078eb7fa292c3921a7dfb864378247"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ms43_430069_structure_model.json",
+      "size": 56836,
+      "sha256": "e183e7f2e1147b407673c59edcee5ec5a2b8f9f00902edda2af9f52e5f33583b"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/new_ecu_tcu_sources.json",
+      "size": 2524,
+      "sha256": "3691a02c75ebc75a8731f57f009d44afe6f194403b5c3f93cc92e561b0162090"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/public_sources.json",
+      "size": 4007,
+      "sha256": "529cffdfad649779c256d92415225160450e35b49093d3605227925dec522039"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/structure_rejector_v110.json",
+      "size": 40851,
+      "sha256": "32f1cc3d1f1b0b2ba1ad3d91eb3eb71d5a5b74308234f56864760249180ec3b9"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/calibration_corpus.json",
+      "size": 206784,
+      "sha256": "c1042bfc2d7a1c45ef93cce23ae40b2a3308d970bd7e20e82d7c876ebaf72568"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/NOTICE.txt",
+      "size": 1409,
+      "sha256": "cb15eaf508ff9f39b08e933c7b121db6b03c25447c49e4ca894198c3fa1b7bf3"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/RUSEFI_LICENSE.txt",
+      "size": 35495,
+      "sha256": "c00933d6e786a01b553cb1b15d6fb6b32e5a4720f4b167ee9b24fa4fb418dde6"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__honda_obd1_canned_tables.cpp",
+      "size": 2404,
+      "sha256": "471b334e420b2b0312e086fb3d891f9a8dd27027b4180198ab3e1faebaa039c5"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__hyundai_coupe_canned_tables.cpp",
+      "size": 5746,
+      "sha256": "63c4b63525586ddb6ac8af52fc1c9567d94a8a50dce2b25c0b32f76d03848738"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__hyundai_pb_canned_tables.cpp",
+      "size": 11328,
+      "sha256": "eca75ef660ee6c12d2e1c5e8d0bd806d356802f17a761259fa000d96052ee1f0"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_1_6.cpp",
+      "size": 18857,
+      "sha256": "338519cff787cb50c06d971a76321379ff4b8e883fa6ee35c6bee1dc48850629"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_base_maps.cpp",
+      "size": 7426,
+      "sha256": "db347b7d19cba0967f87d651b5dcdc0f1dc2a1072619281e1f860d03821f652e"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_vvt.cpp",
+      "size": 24134,
+      "sha256": "e6eecde17769e71f03b1f91b28ea75d6896d460b57e480ac50b4da1efa065f85"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_console__ui__src__test__resources__26october.msq",
+      "size": 246141,
+      "sha256": "5e1e36b4189c465cce1bb55336adff477f98953741ea42442cccc8a47e3e77f4"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_console__ui__src__test__resources__january_tune.msq",
+      "size": 192617,
+      "sha256": "6325b505fcb90863a7b7f6307e3ac483c917dea1dc19a3ddf0f968089cbd9ffe"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_tools__tune-tools__src__test__resources__test-CurrentTune.msq",
+      "size": 137993,
+      "sha256": "d16065cb697d56492dc7a2729ce0a3624a11051861c223021d5ff62beb961889"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune.msq",
+      "size": 204339,
+      "sha256": "408a2681b3830c18186b0fa949e69e22111910e06f5da7af43fe6eea6477b018"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune_HONDA_K.msq",
+      "size": 204513,
+      "sha256": "d55f7ec760736b3dcfc492a7b47defbcaf42d9b31f212b75599e818777163019"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune_HYUNDAI_PB.msq",
+      "size": 204626,
+      "sha256": "76a2f91416bb614626c81788cb26864e8ae38f13a9db1d1f5f2029b7f4025a53"
+    },
+    {
+      "path": "src/ecu_studio/recognition/evaluation.py",
+      "size": 9082,
+      "sha256": "ba474d3b102babc75b9cbc53223f6547bc025e348dbbec1553042069875b7150"
+    },
+    {
+      "path": "src/ecu_studio/recognition/families.py",
+      "size": 3553,
+      "sha256": "d5094627505a95a6bfbc31b7e17a8a7830c185271fac4762ececbdc5177d38b1"
+    },
+    {
+      "path": "src/ecu_studio/recognition/holdout_eval.py",
+      "size": 7899,
+      "sha256": "878c3295b80d18e1aa1fd27e690afe0de4fed4863cf028b14e21336e364f1663"
+    },
+    {
+      "path": "src/ecu_studio/recognition/identity_registry.py",
+      "size": 7952,
+      "sha256": "59b4f83ae44e9d247c9935b3971624783fdbff2e32d648753b3f2f72374b72d3"
+    },
+    {
+      "path": "src/ecu_studio/recognition/intake.py",
+      "size": 4549,
+      "sha256": "d897c2a8f3bb3898ce86edd681c28b7ca0c0f5c7c427d41532f9dad35ea6ca84"
+    },
+    {
+      "path": "src/ecu_studio/recognition/ml.py",
+      "size": 13129,
+      "sha256": "0c24a4212d4aa2750314220d2752193d8c187390b34baedfb6de0ed7a4e1943e"
+    },
+    {
+      "path": "src/ecu_studio/recognition/public_sources.py",
+      "size": 9753,
+      "sha256": "a49922e26d1f820823cc6b57a306bd1db1f2d06669c95e18861dbff746707acf"
+    },
+    {
+      "path": "src/ecu_studio/recognition/review.py",
+      "size": 2476,
+      "sha256": "9e30cef3eff8db7ff485ce21953bf190f7abfdef614aa280401cacc277b3bacb"
+    },
+    {
+      "path": "src/ecu_studio/recognition/safe_classifier.py",
+      "size": 3321,
+      "sha256": "e083586b02b5aa03c5dac139e2a9fc1c7ac8927a5046ab72bdaa889c78099086"
+    },
+    {
+      "path": "src/ecu_studio/recognition/source_registry.py",
+      "size": 2633,
+      "sha256": "b7788939cef91c3b1189f9421b66cdaeba9b89540698ab0757935a54b6d076e4"
+    },
+    {
+      "path": "src/ecu_studio/recognition/structure_model.py",
+      "size": 9012,
+      "sha256": "8d1196aa63f918445dd812d798c84c1377c7eec0ba38dd22f9de752c2b0a43ed"
+    },
+    {
+      "path": "src/ecu_studio/recognition/structure_rejector.py",
+      "size": 5808,
+      "sha256": "bc3b744950689504d621118b846d90be1b4470de9194839ab81e733ed876f9de"
+    },
+    {
+      "path": "src/ecu_studio/recognition/tcu_curves.py",
+      "size": 4568,
+      "sha256": "7ccb780afa22c20d448f7197e305fad24040f9aedc93e278577bf00889043647"
+    },
+    {
+      "path": "src/ecu_studio/recognition/train_structure_rejector.py",
+      "size": 8236,
+      "sha256": "a9b26648a12110d15da82a08f98cbca7d942083375074c029f7d9e33262fd82f"
+    },
+    {
+      "path": "src/ecu_studio/recognition/transfer.py",
+      "size": 6519,
+      "sha256": "e8830f1c9fff7c5827b970aebf0f46331332f4321dd548d514af0de7401c2832"
+    },
+    {
+      "path": "src/ecu_studio/tools/__init__.py",
+      "size": 69,
+      "sha256": "0e414b1549ddbf38e8fc216d2732ce555c57c6a249a1578a895fff2c01659574"
+    },
+    {
+      "path": "src/ecu_studio/tools/benchmark_2d.py",
+      "size": 1330,
+      "sha256": "d0f50b2edbdcd98f438a59c772e5f3b3c4793faa3c41a857ac24a50d0c2892a6"
+    },
+    {
+      "path": "src/ecu_studio/tools/benchmark_next.py",
+      "size": 4929,
+      "sha256": "7d51264411b5a93aa31ab157d120f59f6944e92d1f1aa4efb036064ed6f754e9"
+    },
+    {
+      "path": "src/ecu_studio/tools/build_portable_runtime.py",
+      "size": 5683,
+      "sha256": "5d8900f26800ee6b764bfaf753917ec50563e7d9b8937512eaa4f6c0cfd77c8a"
+    },
+    {
+      "path": "src/ecu_studio/tools/calibration_v18.py",
+      "size": 2778,
+      "sha256": "4cfb3d4f33f6a1f9e9dfc87b72189161bd4d5bec3392178f7dc0f88edb6ca9cb"
+    },
+    {
+      "path": "src/ecu_studio/tools/detection_audit.py",
+      "size": 3479,
+      "sha256": "2862ec29113c0d8c874b9a51be4de4a5542a0a637001213aa8f6c8ab526f97e7"
+    },
+    {
+      "path": "src/ecu_studio/tools/detection_snapshot.py",
+      "size": 1289,
+      "sha256": "71d6d13e63af8db59df8f5e89e3d4fc8975c101c714a5be083ab9757e2f48fb2"
+    },
+    {
+      "path": "src/ecu_studio/tools/firmware_holdout.py",
+      "size": 2310,
+      "sha256": "4a9f0d13674ace751c9accf77713eafe0d997a041655020f9e00d52f32395b44"
+    },
+    {
+      "path": "src/ecu_studio/tools/gui_smoke.py",
+      "size": 11995,
+      "sha256": "f20ba258023cd5b0c34cbd8fcfe2cca6fbf0df13ae4826bc65f30725fc359d53"
+    },
+    {
+      "path": "src/ecu_studio/tools/next_workflows.py",
+      "size": 6717,
+      "sha256": "917324ea019064758d4c286f7bbca9447c0de8c1578e9b5c6a21b17e98de833e"
+    },
+    {
+      "path": "src/ecu_studio/tools/precision_benchmark.py",
+      "size": 2396,
+      "sha256": "bcf0190623a1e6a0958cf2bbf9bd08b7f252071e691d567c35631324dfe227d0"
+    },
+    {
+      "path": "src/ecu_studio/tools/pro_workflows.py",
+      "size": 5095,
+      "sha256": "7fa4e440fe00b8a3a4f9db760a5858af15f8349386cdfc98f9800f1fdf669193"
+    },
+    {
+      "path": "src/ecu_studio/tools/public_definitions.py",
+      "size": 2035,
+      "sha256": "a05b0b4cd0fc205037604c773ccb83306961ac565d5775ebe1cc88689e2d1a76"
+    },
+    {
+      "path": "src/ecu_studio/tools/recognition_diagnostics.py",
+      "size": 3746,
+      "sha256": "9d9acff2288f2e6397b467e2a6dbdd1ae1f937a57f430a7cb0ff915cdbf63643"
+    },
+    {
+      "path": "src/ecu_studio/tools/recognition_v13.py",
+      "size": 6043,
+      "sha256": "5fd72d10ce379df4ebfd8bc096a7db3d6c3170f4d786d89fc32f5b745b532e0c"
+    },
+    {
+      "path": "src/ecu_studio/tools/safe_learning.py",
+      "size": 7020,
+      "sha256": "033838e516bf59d5f4401184d897074316dce471f34cb6520674a1449808b28e"
+    },
+    {
+      "path": "src/ecu_studio/tools/train_calibration_ranker.py",
+      "size": 7904,
+      "sha256": "63d8ad1b69483c4ed25d4cd31b8ae848ac61cb9db6ece1baabec980d33d24ce4"
+    },
+    {
+      "path": "src/ecu_studio/tools/value_audit.py",
+      "size": 1862,
+      "sha256": "f39f0dcd68c9cddf061156606d270e44b6fdd55806cdeaa259b2d5a6606bb35b"
+    },
+    {
+      "path": "src/ecu_studio/tools/xdf_audit.py",
+      "size": 1748,
+      "sha256": "1c9a24b3b214561d4267fc4f746e88b115ecdc7279f4ef0105a8626d66fe4e26"
+    },
+    {
+      "path": "src/ecu_studio/ui/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/ecu_studio/ui/catalogue.py",
+      "size": 1936,
+      "sha256": "31dd73155b5d0cd91a816cc6018deb12f02c1e58b17d41c5e5617ddba2727883"
+    },
+    {
+      "path": "src/ecu_studio/ui/main_window.py",
+      "size": 167349,
+      "sha256": "81f32db974aada46dc9d09aa1d2cd8191cf657669f8dc0b9d0c2ca26bf95bfb2"
+    },
+    {
+      "path": "src/ecu_studio/ui/next_dialogs.py",
+      "size": 32727,
+      "sha256": "6eafafb90f0c7e671186b1db5f4ae0eee32ae372c6e7514a731ddd37fb0cf03f"
+    },
+    {
+      "path": "src/ecu_studio/ui/raw_2d.py",
+      "size": 15817,
+      "sha256": "204085bca4e6d99f55ac177c0ec90fe5809159adbd6c7c065457a44d6e8bb71b"
+    },
+    {
+      "path": "src/ecu_studio/ui/theme.py",
+      "size": 5700,
+      "sha256": "2282db76a7a1ba9487731f10d3e0262beb58688c588313ba2ba71e0264f4bb3b"
+    },
+    {
+      "path": "src/ecu_studio/ui/tools_dialogs.py",
+      "size": 15328,
+      "sha256": "79d9227543128594b11ced06cea0904c01830112692ca8e838e09e26cacad3f5"
+    },
+    {
+      "path": "src/ecu_studio/ui/views.py",
+      "size": 29001,
+      "sha256": "3bcbb1c78d91356373b258113a1912245177c703ebff66b3e50c08b442b28249"
+    }
+  ]
+}

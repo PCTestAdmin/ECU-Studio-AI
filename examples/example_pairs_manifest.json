@@ -1,0 +1,8 @@
+{
+  "pairs": [
+    {
+      "bin": "xdf_stride_demo.bin",
+      "xdf": "xdf_stride_demo.xdf"
+    }
+  ]
+}

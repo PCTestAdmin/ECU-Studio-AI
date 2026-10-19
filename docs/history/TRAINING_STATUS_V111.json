@@ -1,0 +1,38 @@
+{
+  "version": "1.11.0",
+  "reviewed_on": "2026-10-17",
+  "new_weights_activated": false,
+  "new_semantic_training_run": false,
+  "new_verified_real_labels": 0,
+  "independent_real_test_firmwares": 0,
+  "measured_real_precision": null,
+  "measured_real_recall": null,
+  "measured_real_f1": null,
+  "measured_real_false_alarms_per_mb": null,
+  "existing_weights_preserved": [
+    "src/ecu_studio/recognition/data/structure_rejector_v110.json",
+    "src/ecu_studio/recognition/data/ms43_430069_structure_model.json"
+  ],
+  "synthetic_training_history": "TRAINING_REPORT_V110.json describes the existing 4000 generated training surfaces, 1000 validation surfaces and 1000 synthetic holdout surfaces. These are NOT real ECU metrics.",
+  "new_work": [
+    "Explicit rights and firmware lineage required for safe semantic training",
+    "ORI/MOD lineages remain in the same held-out fold",
+    "Candidate weights are saved inactive; existing active user models are not overwritten",
+    "Strict exact-layout precision, recall, F1, false alarms per MiB and address metrics",
+    "Per-family evaluation and optional complete family-held-out strategy",
+    "Cross-split exact/near-duplicate firmware and shared-block rejection",
+    "Partial reference catalogues cannot claim precision or false-positive rates"
+  ],
+  "source_review": [
+    {
+      "url": "https://github.com/ms4x-net/ms43",
+      "definitions_license": "GPL-3.0 according to repository README",
+      "firmware_rights": "Firmware binaries are described separately as preservation/repair materials. No blanket training or redistribution permission established.",
+      "independent_labels_verified": false,
+      "firmware_imported": false,
+      "promoted_to_ground_truth": false
+    }
+  ],
+  "blocking_evidence_gap": "No supplied, rights-reviewed, independently expert-verified multi-family firmware/definition corpus. No fabricated accuracy claim or replacement weights.",
+  "flash_approved": false
+}

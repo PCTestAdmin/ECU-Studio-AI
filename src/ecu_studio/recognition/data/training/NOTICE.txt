@@ -1,0 +1,18 @@
+ECU Studio AI 1.13 open-calibration structural training
+Source: rusEFI contributors, https://github.com/rusefi/rusefi
+Pinned commit cf2988a62a9799ce38b3171a32b93a3b4a6eedd6.
+64 deduplicated numeric calibration tables extracted from 12 unmodified C++/MSQ
+source files; source URLs, Git blob identifiers, engine groups, raw values and
+surface fingerprints are recorded in calibration_corpus.json. Originals are in
+sources/; all sources contributing extracted tables are redistributed unchanged.
+License: GPL-3.0 with upstream additional terms; see RUSEFI_LICENSE.txt in full.
+The extracted JSON is a modified data subset, omitting source code and unrelated
+configuration. Model weights are derived from the attributed table values plus
+generated encodings/corruptions. No OEM or user firmware enters this training.
+Trainer: ecu_studio.tools.train_calibration_ranker (optional scikit-learn dependency).
+Complete split, duplicate purge, threshold selection and metrics: model JSON and
+TRAINING_REPORT_V113.json in release root. Honda/Hyundai source groups are held
+out; Mazda is validation only. 320 augmented holdout examples are eight original
+tables, not 320 independent ECUs. Generated negatives are not real executable code.
+The ranker only prioritises structural proposals. It cannot name maps, identify
+an OEM ECU, supply scaling/axes, confirm firmware compatibility or authorise tuning.

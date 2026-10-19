@@ -1,0 +1,122 @@
+{
+  "version": "1.11.0",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "python": "3.13.2",
+  "baseline": {
+    "passed": 174,
+    "skipped": 3,
+    "failures": 0,
+    "deselected": 1,
+    "note": "Original Qt guard test blocked on its interactive close/save prompt. Excluded from baseline CLI; its cleanup was fixed and it passes in the final suite."
+  },
+  "final_tests": {
+    "passed": 233,
+    "skipped": 3,
+    "failures": 0,
+    "errors": 0,
+    "seconds": 16.012,
+    "skip_reasons": [
+      {
+        "test": "test_cross_ecu_candidates_never_mismatch_gs20",
+        "reason": "User samples not mounted"
+      },
+      {
+        "test": "test_sample_hints_only_with_consent_stay_unverified",
+        "reason": "User MS43 not mounted"
+      },
+      {
+        "test": "test_bad_patch_variant_requires_explicit_review",
+        "reason": "User MS43 not mounted"
+      }
+    ]
+  },
+  "source_gui": {
+    "checks": [
+      "main window / map tab / numeric surface / undo / redo",
+      "virtual catalogue filter and favorites",
+      "CSV channel mapping / analysis / heatmap dialog",
+      "transfer dialog / cell preview / confirmed transaction",
+      "project persistence / original backup / searchable index"
+    ],
+    "data": "synthetic GUI integration; not real ECU validation",
+    "passed": true
+  },
+  "packaged_exe_gui": {
+    "checks": [
+      "main window / map tab / numeric surface / undo / redo",
+      "virtual catalogue filter and favorites",
+      "CSV channel mapping / analysis / heatmap dialog",
+      "transfer dialog / cell preview / confirmed transaction",
+      "project persistence / original backup / searchable index"
+    ],
+    "data": "synthetic GUI integration; not real ECU validation",
+    "passed": true
+  },
+  "exe": {
+    "path": "dist/ECU-Studio-AI-1.11/ECU-Studio-AI-1.11.exe",
+    "sha256": "a6722f8cb56acc4e3e88374d1bd9544dd1b5fbc7da1dc43b096ed571ee358f2f",
+    "bytes": 5385291,
+    "signed": false,
+    "bundle_bytes": 152956397
+  },
+  "synthetic_detection_outputs_identical": true,
+  "performance": {
+    "baseline": "baseline-performance.json",
+    "current": "next-performance.json",
+    "analysis_repeats_per_size": 3,
+    "data_kind": "synthetic",
+    "sizes_mib": [
+      1,
+      4,
+      8,
+      16
+    ]
+  },
+  "model_weights": [
+    {
+      "path": "src/ecu_studio/recognition/data/structure_rejector_v110.json",
+      "preserved": true,
+      "sha256": "32f1cc3d1f1b0b2ba1ad3d91eb3eb71d5a5b74308234f56864760249180ec3b9"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ms43_430069_structure_model.json",
+      "preserved": true,
+      "sha256": "e183e7f2e1147b407673c59edcee5ec5a2b8f9f00902edda2af9f52e5f33583b"
+    }
+  ],
+  "database": {
+    "schema": 2,
+    "previous_table_counts": {
+      "firmware": 1,
+      "definition": 81,
+      "public_source": 14,
+      "public_map_hint": 118
+    },
+    "current_table_counts": {
+      "firmware": 1,
+      "definition": 81,
+      "public_source": 14,
+      "public_map_hint": 118
+    },
+    "existing_rows_retained": true,
+    "stats": {
+      "firmwares": 1,
+      "definitions": 81,
+      "verified_maps": 0,
+      "families": {
+        "Siemens MS43": 1
+      },
+      "public_sources": 14,
+      "public_map_hints": 118,
+      "public_families": 4
+    },
+    "training_provenance_records": 0,
+    "new_verified_reference_maps": 0,
+    "note": "Public source hints are not verified firmware definitions. No new confirmed reference labels were invented."
+  },
+  "real_firmware_evaluation_cases": 0,
+  "new_verified_training_labels": 0,
+  "new_model_weights_promoted": false,
+  "flash_approved": false,
+  "acceptance": "Implemented offline development release. Full master-request acceptance remains open, especially independent real ECU/TCU accuracy and broader verified references."
+}

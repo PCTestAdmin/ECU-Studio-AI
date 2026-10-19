@@ -1,0 +1,35 @@
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Build and release output (publish ZIPs as GitHub Releases instead)
+build/
+dist/
+release/
+qa-artifacts/
+*.spec
+
+# Local QA material: contains real ECU firmware and machine-specific logs
+.qa/
+
+# Generated benchmark/test output (contains local paths)
+baseline-*.json
+baseline-*.xml
+next-*.json
+next-*.xml
+*-tests.xml
+
+# Backups and editor files
+*.v110-backup.sqlite3
+.vscode/
+.idea/
+
+# Never commit ECU firmware reads; synthetic demo files live in examples/
+*.bin
+*.BIN
+*.ori
+*.ols
+!examples/*.bin

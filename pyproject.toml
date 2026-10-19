@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecu-studio-ai"
+version = "1.14.0"
+description = "ECU workbench with auditable definition database, cross-firmware suggestions and abstaining ML"
+license = {text = "GPL-3.0-only"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["PySide6>=6.6,<7", "numpy>=1.24,<3", "defusedxml>=0.7.1,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "psutil>=5.9"]
+train = ["scikit-learn>=1.6,<2"]
+
+[project.scripts]
+ecu-studio = "ecu_studio.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+"ecu_studio.recognition" = ["data/*", "data/definitions/*", "data/training/*", "data/training/sources/*"]

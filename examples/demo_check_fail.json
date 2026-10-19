@@ -1,0 +1,43 @@
+{
+  "original_sha256": "97645b661af5eee63cf5c80433357b838448d54e90cecbbe4a5106345faa1426",
+  "modified_sha256": "2e768d41f79f61e04f9c342656fbc3086e45072f0ba6df3e84c6460d8c7483a2",
+  "size": 4096,
+  "dirty_bytes": 2,
+  "map_count": 0,
+  "map_decode_issues": 0,
+  "map_review_hints": 0,
+  "changed_outside_maps": 2,
+  "changed_maps": [],
+  "changed_map_count": 0,
+  "checksums": {
+    "status": "mismatch",
+    "verified": false,
+    "regions": [
+      {
+        "name": "DEMO CRC32 Calibration Segment",
+        "algorithm": "crc32-ieee",
+        "start": 0,
+        "end": 2048,
+        "storage_offset": 4092,
+        "expected": 1420041457,
+        "stored": 1225662232,
+        "match": false
+      }
+    ],
+    "message": "Mindestens ein deklariertes Prüffeld stimmt NICHT überein."
+  },
+  "issues": [
+    {
+      "level": "warning",
+      "code": "checksum-mismatch",
+      "message": "Mindestens ein deklariertes Prüffeld stimmt NICHT überein."
+    },
+    {
+      "level": "warning",
+      "code": "unmapped-patches",
+      "message": "2 veränderte Bytes außerhalb bekannter Kennfelder."
+    }
+  ],
+  "flash_approved": false,
+  "note": "Prüfergebnis ist keine Aussage zur Flashbarkeit, Motor-/Abgassicherheit oder Straßenzulassung."
+}

@@ -1,0 +1,396 @@
+{
+  "from": "1.12.0",
+  "to": "1.13.0",
+  "changes": [
+    {
+      "path": "package_release.py",
+      "before": "6b3f29066d34be98699d9110335bc49e0339f49003dae03c3ca027f776b187db",
+      "after": "c893aa949bd7fd64bd742a225ad0418de0494ed38b1a41f74c522621d23f282a",
+      "change": "modified"
+    },
+    {
+      "path": "build_release.ps1",
+      "before": "e17bf8df8cfc7830b26ce02b199541cbcc85b2e6019be3a67a67c674b88bf978",
+      "after": "aabd3ad1386b510ff0d05597d4bbd7842ad3643d204f8c2fc3c0fb706c191a91",
+      "change": "modified"
+    },
+    {
+      "path": "pyproject.toml",
+      "before": "58b020f96b14176dab5d3606a2ff953f9e29cdede5dbad19eaa96a25d1417774",
+      "after": "da9eaeb17ea4b0420d030f67b546e0e0b86f73f68ddd956248b2376172decfd7",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/__init__.py",
+      "before": "a2351ccd934e9a09200185d174327f6e8f2075f9933d4e734d86cd3183163cb8",
+      "after": "dd5c65e85009b7fd77a18de9e19c7e61df7ef78545ee8b57083a046ab0398e10",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/compare_maps.py",
+      "before": "cc8cc6914e0b74c95878cd49542d53fb9b822a3774fea9aae5e8e308c983852d",
+      "after": "8c29c5de8ad0008dbc773412db4a04a7cca2a9a7adb7970b82f601f1ba492b8e",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/editing.py",
+      "before": "2b48daec95a691644113719cf4655d62c6dc3bca71461c9d6966b967253cc663",
+      "after": "222d976736c1b6003f9108d3ae52fb325c028a0cc37152d80c207c5aabbe26df",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/model.py",
+      "before": "fbf4f8362be6de100964164096b8e34646147b485f18e107a5fada4be8621278",
+      "after": "1c5ba2bbc17abf3fe93c262536005dfc78ade5ebb78f2855573dd87de2af124d",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/precision.py",
+      "before": "1d0d98c4ed808268dfdcd8f0204bff50f832d79e2445d463a8e103c2275ccbaa",
+      "after": "714b4c7ab57785b6cd98ebddb144c9a6aad80cca383dcbdb154c724bca9d70db",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/profiles.py",
+      "before": "c766f9549993e845dbea90f05febf76a86033c0e8d6479fc0f8dbf646f0bcc6f",
+      "after": "58c59e2f671345481a3ba428060fa98eb65ab0cf281e0d649c4d199a477fa698",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/quality.py",
+      "before": "c9b58713c15e9e45b9b169bde743e4f3f5b7907328ad7323f02f47190e25f5ea",
+      "after": "c7411bf324a87757f2c6e4ed1739184dd747ac32d8347512877211a838378ebb",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/raw_trace.py",
+      "before": "43219618e1a6d396c4b576742c1fbe088def654a2c68e674b33e0b67b6e9bda4",
+      "after": "5589cac4f344c222fef9328eb08c1097e7aed85095271a2a98303999938faea2",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/romraider.py",
+      "before": null,
+      "after": "33cf00f73c3d23d2796d02c3616fedb432c84407ed9fb35cdb0e78616977280a",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/core/smart_transfer.py",
+      "before": "192c0b7c765e3c4e99d535064f9addde3609eee82a9561402e751d20198e2081",
+      "after": "05a26696ae4e129c56a73a0875b69efc88e7b1f3e2f2a483b5d5dfb9021d3fa6",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/workflows.py",
+      "before": "fdab69d3b98b8d03bd33e2742eaccd56b122706856385afbae8edcd6626ee091",
+      "after": "40c422c841532f987a6d87eb1d445695f6f56ff0bc4a77ae1b8d10362c4e672f",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/core/xdf.py",
+      "before": "ed0a5861c1eed10671fbbf12c6a909ed8317a0352809d693fe0faffa01cb15db",
+      "after": "01d23afa6b02d5eb31c7c96d38a45cbebd72bc172a570200bbe344378738e904",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/bundled_definitions.py",
+      "before": "6680e831cec6f17fbdd5afc502c87be3303bd01b33a95f597ca991a81c53dca8",
+      "after": "97a3624240299c846802b0898e351ba00db1a70af32114571c7de1ca90787475",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/calibration_ranker.py",
+      "before": null,
+      "after": "0e4d1520ebd2552af1b2f97291c63ccab3c4af63bc93982a5a4db1a7964a9ae8",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/families.py",
+      "before": "2b4f2b1ea850ce52cb0149573d86da6104431417290fb047831a22b0a0e74a65",
+      "after": "d5094627505a95a6bfbc31b7e17a8a7830c185271fac4762ececbdc5177d38b1",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/tools/build_portable_runtime.py",
+      "before": "014b9aa424ccf0ed26885fbc3ad682acbd9e74edd0b49026d69e17aaea1d0f69",
+      "after": "5d8900f26800ee6b764bfaf753917ec50563e7d9b8937512eaa4f6c0cfd77c8a",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/tools/detection_audit.py",
+      "before": "aea1cbff2aff3cb3208e6afc616c0e8d009949d3586dedccebb405763586e3a9",
+      "after": "2862ec29113c0d8c874b9a51be4de4a5542a0a637001213aa8f6c8ab526f97e7",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/tools/gui_smoke.py",
+      "before": "56ddfd1f64adb1f8eb97d7f5bfce52edf2ae0bd35a6806f452e58bd3cace0470",
+      "after": "f20ba258023cd5b0c34cbd8fcfe2cca6fbf0df13ae4826bc65f30725fc359d53",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/tools/train_calibration_ranker.py",
+      "before": null,
+      "after": "63d8ad1b69483c4ed25d4cd31b8ae848ac61cb9db6ece1baabec980d33d24ce4",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/ui/main_window.py",
+      "before": "14c015cbf4f9cbdc4856555c738dc668fd01dc875c9e4b232e140391e255f388",
+      "after": "81f32db974aada46dc9d09aa1d2cd8191cf657669f8dc0b9d0c2ca26bf95bfb2",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/ui/next_dialogs.py",
+      "before": "8fa540a22bb8445218ba50aba11c2ccc94b348f17fae160f1f428dc4f4ac34bc",
+      "after": "6eafafb90f0c7e671186b1db5f4ae0eee32ae372c6e7514a731ddd37fb0cf03f",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/ui/raw_2d.py",
+      "before": "18aa9c68c9a6a72074f5b1a89defe1e2b23a1e62bc269aec49df0d78f3d2d489",
+      "after": "204085bca4e6d99f55ac177c0ec90fe5809159adbd6c7c065457a44d6e8bb71b",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/ui/views.py",
+      "before": "7e52d93498b210804f9a0822bca8a70642ed9c052ecbd1bb559a4b5165b3e4dd",
+      "after": "3bcbb1c78d91356373b258113a1912245177c703ebff66b3e50c08b442b28249",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/ATTRIBUTION.txt",
+      "before": "5904d33159f3bcc5a0cf8b54bdc9321b5eed32ac97ec6c54149d8da22eb5bf6d",
+      "after": "66e12ffbbe80c25cece448dc2b012d0ef5b519b6c9764b58cff4ff2bbc256006",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/calibration_ranker_v113.json",
+      "before": null,
+      "after": "db8e16a83359f2c6bae61caa703ca0927109a071fb9be478026019e881ea3661",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/manifest.json",
+      "before": "4b4628fc369f8cfab0c64a91adf697dd720962a4681fccb310c18f9422f05aac",
+      "after": "2888f4461704e4f0b88869a8553df7549f37ccaf0e5cc20d0bfd0ae65e1b088d",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430037_512K.xdf",
+      "before": null,
+      "after": "bc8648e4cd0318269f66510e7c46f4bb107e93aaaaeeab5b0b532cf89932f020",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430037_64K.xdf",
+      "before": null,
+      "after": "f82467c12c3727936195ca3ef6e2bce2d970cd50e6fd4adc9f8658bdccdd6ce0",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430055_512K.xdf",
+      "before": null,
+      "after": "cd2b67df571983f29a5fe9d96f3c16b4a7f44640f6d1ad94fb84eaa0636e7037",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430055_64K.xdf",
+      "before": null,
+      "after": "a9e40516e23b26a428d1f8329a6e2de49e42bba71b9dbb32317b7eef28fb99cb",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430056_512K.xdf",
+      "before": null,
+      "after": "49233d3dae527a928a292dea528b3b6d0af58e568c509fab2e18f9dd3101c61c",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430056_64K.xdf",
+      "before": null,
+      "after": "058a800ae0ba364313791c456f922f8e0b0b1fa62dfc439ebdf7072cbf1bf009",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430064_512K.xdf",
+      "before": null,
+      "after": "19aff29f8e263cd159672a469c5eedb187b124c408f3ee187b91cc417ebe51b9",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430064_64K.xdf",
+      "before": null,
+      "after": "b6e2e22c6b7555f1f20dddaa87b5a44fce4f8c4551496a7518f9d7504e1ba077",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430066_512K.xdf",
+      "before": null,
+      "after": "fd30146ab1989f377faab322069a495374625eaa1ff189c6a5446b3f34ad83be",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/MS430066_64K.xdf",
+      "before": null,
+      "after": "7b58ded71c6c7011637a17ce5254add3cf9cd494bf385b56f9a6910ec4b234d2",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/NOTICE.txt",
+      "before": "55ec6b238b6047ee05792b5167963e4f747ddb276f119e4dded1c266824eb087",
+      "after": "8a07823560ff6a4eac3b9c4a78bcdf7f213c8cce8dca3c96a4769be84e5e891d",
+      "change": "modified"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS41_1429861_ENG_24K_v1.0.xdf",
+      "before": null,
+      "after": "abf1b0c2d418ed3dbf00e56e72e7951262113201572d6b58bd0d5a6fba63b437",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS41_1429861_ENG_256K_v1.0.xdf",
+      "before": null,
+      "after": "4dd5a5c0f933c9c4891d4e7baf3f81803a09ea13258659afa22a04e739d9248f",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS42_0110C6_ENG_32K_v1.3.xdf",
+      "before": null,
+      "after": "a0da696814ef25f4e70b33133be749b1734f56ccb013a54ef2c3917992f4af81",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/definitions/Siemens_MS42_0110C6_ENG_512K_v1.3.xdf",
+      "before": null,
+      "after": "ab94fbfc9c21f2e8829e338df9f214e992c7bc9acbefdab3a5799eafdf5a41bb",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/calibration_corpus.json",
+      "before": null,
+      "after": "c1042bfc2d7a1c45ef93cce23ae40b2a3308d970bd7e20e82d7c876ebaf72568",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/NOTICE.txt",
+      "before": null,
+      "after": "cb15eaf508ff9f39b08e933c7b121db6b03c25447c49e4ca894198c3fa1b7bf3",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/RUSEFI_LICENSE.txt",
+      "before": null,
+      "after": "c00933d6e786a01b553cb1b15d6fb6b32e5a4720f4b167ee9b24fa4fb418dde6",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__honda_obd1_canned_tables.cpp",
+      "before": null,
+      "after": "471b334e420b2b0312e086fb3d891f9a8dd27027b4180198ab3e1faebaa039c5",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__hyundai_coupe_canned_tables.cpp",
+      "before": null,
+      "after": "63c4b63525586ddb6ac8af52fc1c9567d94a8a50dce2b25c0b32f76d03848738",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__hyundai_pb_canned_tables.cpp",
+      "before": null,
+      "after": "eca75ef660ee6c12d2e1c5e8d0bd806d356802f17a761259fa000d96052ee1f0",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_1_6.cpp",
+      "before": null,
+      "after": "338519cff787cb50c06d971a76321379ff4b8e883fa6ee35c6bee1dc48850629",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_base_maps.cpp",
+      "before": null,
+      "after": "db347b7d19cba0967f87d651b5dcdc0f1dc2a1072619281e1f860d03821f652e",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/firmware__config__engines__mazda__mazda_miata_vvt.cpp",
+      "before": null,
+      "after": "e6eecde17769e71f03b1f91b28ea75d6896d460b57e480ac50b4da1efa065f85",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_console__ui__src__test__resources__26october.msq",
+      "before": null,
+      "after": "5e1e36b4189c465cce1bb55336adff477f98953741ea42442cccc8a47e3e77f4",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_console__ui__src__test__resources__january_tune.msq",
+      "before": null,
+      "after": "6325b505fcb90863a7b7f6307e3ac483c917dea1dc19a3ddf0f968089cbd9ffe",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/java_tools__tune-tools__src__test__resources__test-CurrentTune.msq",
+      "before": null,
+      "after": "d16065cb697d56492dc7a2729ce0a3624a11051861c223021d5ff62beb961889",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune.msq",
+      "before": null,
+      "after": "408a2681b3830c18186b0fa949e69e22111910e06f5da7af43fe6eea6477b018",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune_HONDA_K.msq",
+      "before": null,
+      "after": "d55f7ec760736b3dcfc492a7b47defbcaf42d9b31f212b75599e818777163019",
+      "change": "added"
+    },
+    {
+      "path": "src/ecu_studio/recognition/data/training/sources/simulator__generated__simulator_tune_HYUNDAI_PB.msq",
+      "before": null,
+      "after": "76a2f91416bb614626c81788cb26864e8ae38f13a9db1d1f5f2029b7f4025a53",
+      "change": "added"
+    },
+    {
+      "path": "tests/test_detection_v113.py",
+      "before": null,
+      "after": "984e53eb28f0a8ae38546e6c6eecdb07a68ec9057e0f584e310a984d51684254",
+      "change": "added"
+    },
+    {
+      "path": "tests/test_local_definition_candidates.py",
+      "before": "25791883973103c7f19bc44b426f7f7ac06907317b9347c0174e2cec2d80cbe3",
+      "after": "a7d0e84fa7641d185eadec5e01687877145c218d8c908c643a0310135db379a5",
+      "change": "modified"
+    },
+    {
+      "path": "tests/test_ms43_xdf.py",
+      "before": "5a9c6d6568f413a6c514e8d05f6dc1ba73ca28b5edfd5b14f82d186978b40ae3",
+      "after": "05e6e13fea7138b51cbeb1c3da5270d4f914bcdb9937c2eef5d90a54c563aac6",
+      "change": "modified"
+    },
+    {
+      "path": "tests/test_quality_and_performance.py",
+      "before": "b2682355d72c5fdc7b933ac26d365cca777ee3cf48255171bbdfdce4a0d24e2a",
+      "after": "6126e5e73bc9f64049ac6d8c527c0f95573dfc66307fbf74e5dc5e0408c2a7ce",
+      "change": "modified"
+    },
+    {
+      "path": "tests/test_recognition_v13.py",
+      "before": "bd9b11f3d2ce38725fe9c15a6222ebccd02985ff43bf58d9593636f65571028c",
+      "after": "85b105fe1066be3f00fa419505b404b2479c85b7c91be04b6b28ef1b6a47364c",
+      "change": "modified"
+    },
+    {
+      "path": "tests/test_romraider.py",
+      "before": null,
+      "after": "648b0fe56d2523a3373a6ba1f5635463df8414b7f1a607f7644d2c0fae05cf2c",
+      "change": "added"
+    }
+  ]
+}

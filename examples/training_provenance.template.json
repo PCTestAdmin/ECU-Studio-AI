@@ -1,0 +1,13 @@
+[
+  {
+    "firmware_sha": "REQUIRED_EXACT_FIRMWARE_SHA256",
+    "independence_group": "REQUIRED_ORI_MOD_LINEAGE_GROUP",
+    "hardware": "REQUIRED",
+    "source_url": "REQUIRED",
+    "license": "REQUIRED_REVIEWED_RIGHTS_FOR_TRAINING",
+    "reviewer": "REQUIRED",
+    "reviewed_at": "REQUIRED_ISO_DATE",
+    "rights_confirmed": false,
+    "independence_reviewed": false
+  }
+]

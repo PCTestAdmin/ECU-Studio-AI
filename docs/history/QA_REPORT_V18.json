@@ -1,0 +1,32 @@
+{
+  "version": "1.8.0",
+  "date": "2026-10-16",
+  "base_version": "1.7.0",
+  "test_command": "PYTHONPATH=src pytest -q",
+  "tests_passed": 160,
+  "tests_skipped": 4,
+  "new_tests": 6,
+  "features": [
+    "clickable 2D heatmap and ORI/MOD curve with axis fallback",
+    "3D before-after wireframe with rotation tilt zoom",
+    "hash-pinned explicitly scoped checksum verification",
+    "read-only plausibility/change-impact export checks",
+    "auditable semantic and structural map groups",
+    "CLI and synthetic checksum match/mismatch example"
+  ],
+  "verified": [
+    "Existing Python test suite passes",
+    "Synthetic checksum positive and negative examples pass",
+    "Checksum profile rejects original hash mismatch and self-referential areas",
+    "Changes outside map definitions are detected",
+    "No function is inferred for unknown shape-only candidates",
+    "Python modules compile"
+  ],
+  "not_verified": [
+    "PySide6 GUI live interaction (module unavailable, network package installation unavailable)",
+    "Windows EXE assembly",
+    "Real OEM ECU checksum profiles and comprehensive coverage",
+    "Hardware flashing or engine/driving safety",
+    "New real firmware-trained ML labels"
+  ]
+}

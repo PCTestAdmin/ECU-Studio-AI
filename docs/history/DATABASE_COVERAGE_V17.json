@@ -1,0 +1,16 @@
+{
+  "brand": "alle",
+  "source_records": 7,
+  "source_records_by_brand": {
+    "Audi": 2,
+    "Mercedes-Benz": 1,
+    "BMW": 1,
+    "Opel": 2,
+    "Lamborghini": 1
+  },
+  "indexed_firmwares": 1,
+  "verified_firmware_maps_across_all_brands": 0,
+  "reviewed_hash_identities": 0,
+  "source_only_not_training": 7,
+  "note": "Eine Quellenreferenz ist KEIN geprüftes BIN/XDF-Trainingspaar. ECU-Familie belegt keine Fahrzeugmarke."
+}

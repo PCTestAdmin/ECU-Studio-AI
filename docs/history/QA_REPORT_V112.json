@@ -1,0 +1,118 @@
+{
+  "format": 1,
+  "version": "1.12.0",
+  "generated_utc": "2026-10-17T08:59:24.596145+00:00",
+  "environment": {
+    "os": "Windows",
+    "architecture": "AMD64",
+    "python": "3.13.2"
+  },
+  "final_tests": {
+    "tests": 248,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 247,
+    "seconds": 34.57
+  },
+  "skipped_tests": [
+    {
+      "test": "tests.test_public_seed_v14.test_cross_ecu_candidates_never_mismatch_gs20",
+      "reason": "User samples not mounted"
+    }
+  ],
+  "source_gui": {
+    "checks": [
+      "main window / map tab / numeric surface / undo / redo",
+      "virtual catalogue filter and favorites",
+      "CSV channel mapping / analysis / heatmap dialog",
+      "transfer dialog / cell preview / confirmed transaction",
+      "project persistence / original backup / searchable index",
+      "real MS43 worker / stale u32 replacement / manual preservation / linked axes / repeat scan"
+    ],
+    "data": "Synthetic GUI checks plus local real MS43 regression; no independent map verification",
+    "real_ms43": {
+      "sha256": "76010474fe2e3a4896724b6d0244173e49464e7b38758ccc6dc1bcaa53650421",
+      "maps": 856,
+      "spot_check": {
+        "offset": "0x76503",
+        "rows": 6,
+        "cols": 6,
+        "dtype": "u8",
+        "unit": "mA"
+      },
+      "unchanged": true,
+      "variant_verified": false
+    },
+    "passed": true
+  },
+  "packaged_exe_gui": {
+    "checks": [
+      "main window / map tab / numeric surface / undo / redo",
+      "virtual catalogue filter and favorites",
+      "CSV channel mapping / analysis / heatmap dialog",
+      "transfer dialog / cell preview / confirmed transaction",
+      "project persistence / original backup / searchable index",
+      "real MS43 worker / stale u32 replacement / manual preservation / linked axes / repeat scan"
+    ],
+    "data": "Synthetic GUI checks plus local real MS43 regression; no independent map verification",
+    "real_ms43": {
+      "sha256": "76010474fe2e3a4896724b6d0244173e49464e7b38758ccc6dc1bcaa53650421",
+      "maps": 856,
+      "spot_check": {
+        "offset": "0x76503",
+        "rows": 6,
+        "cols": 6,
+        "dtype": "u8",
+        "unit": "mA"
+      },
+      "unchanged": true,
+      "variant_verified": false
+    },
+    "passed": true
+  },
+  "exe": {
+    "path": "dist/ECU-Studio-AI-1.12-portable/ECU-Studio-AI-1.12.exe",
+    "sha256": "298410ceb856ba6172be008a17387f10677f23785c909717716f4fbce9c6293b",
+    "bytes": 4608,
+    "runtime_inventory_sha256": "a6be3bce2b801e4358515916b1a66769d80afc26184b15249d68575a4ed3142f",
+    "packaging": "C# process launcher plus unmodified isolated CPython and replaceable Qt/NumPy libraries",
+    "all_application_sources_match_tested_workspace": true
+  },
+  "real_binary": {
+    "size": 524288,
+    "sha256": "76010474fe2e3a4896724b6d0244173e49464e7b38758ccc6dc1bcaa53650421",
+    "unchanged": true,
+    "included_in_package": false,
+    "uploaded": false
+  },
+  "models": [
+    {
+      "file": "src/ecu_studio/recognition/data/ms43_430069_structure_model.json",
+      "sha256": "e183e7f2e1147b407673c59edcee5ec5a2b8f9f00902edda2af9f52e5f33583b",
+      "unchanged_since_1_11": true
+    },
+    {
+      "file": "src/ecu_studio/recognition/data/structure_rejector_v110.json",
+      "sha256": "32f1cc3d1f1b0b2ba1ad3d91eb3eb71d5a5b74308234f56864760249180ec3b9",
+      "unchanged_since_1_11": true
+    }
+  ],
+  "training_performed": false,
+  "definition_check": {
+    "standard_ms43_430069_full_and_partial": true,
+    "public_definition_ground_truth": false,
+    "independently_verified_maps": 0
+  },
+  "windows_security": {
+    "pyinstaller_attempt": "Blocked by Windows Defender, not distributed",
+    "portable_launcher": "Executed successfully, without antivirus exceptions or policy changes",
+    "qa_output": "Temporary directory; protected Documents writes remain governed by Windows controlled folder access"
+  },
+  "limitations": [
+    "403 2D tables and 453 curves are unverified community-definition assignments, not independent ground-truth precision.",
+    "Standard layout only; Extended Load/MS43X variants require their matching definitions.",
+    "No checksum correction or flashability claim. Generic discovery remains bounded and layout-specific."
+  ],
+  "legacy_private_fixture_names": "Removed from source; optional private MS43/GS20 paths supplied through environment variables."
+}

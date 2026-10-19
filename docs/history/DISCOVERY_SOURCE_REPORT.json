@@ -1,0 +1,104 @@
+{
+  "brands": [
+    "Audi",
+    "Mercedes-Benz",
+    "BMW",
+    "Opel",
+    "Lamborghini"
+  ],
+  "sources": [
+    {
+      "id": "audi-b5-me71-directory",
+      "brand": "Audi",
+      "family": "Bosch MED/ME",
+      "format": "XDF-Quelle",
+      "software_hint": "",
+      "ecu_variant": "Audi S4 B5, Bosch ME7.1 (Verzeichnis, genaue SW prüfen)",
+      "url": "https://github.com/sostisoft/ecu-definitions/tree/main/VAG/Audi_S4_B5_ME7.1",
+      "git_blob_sha1": "",
+      "status": "discovery_only",
+      "rights": "Einzellizenzen ungeklärt",
+      "training_approved": 0
+    },
+    {
+      "id": "audi-simos-8v0906264l",
+      "brand": "Audi",
+      "family": "Continental SIMOS",
+      "format": "XDF",
+      "software_hint": "8V0906264L",
+      "ecu_variant": "Simos 18.1, u.a. VAG Golf Sportwagen/Alltrack – nicht pauschal Audi-Kompatibilität",
+      "url": "https://github.com/joeFischetti/SimosDefinitions/blob/main/8v0906264L.xdf",
+      "git_blob_sha1": "a4a7e32cfeb59ced206eeeced79d6f41f2173943",
+      "status": "reference_only",
+      "rights": "Individuelle Dateilizenz ungeklärt, nicht gebündelt",
+      "training_approved": 0
+    },
+    {
+      "id": "bmw-b58-gen1-mg1-reference",
+      "brand": "BMW",
+      "family": "Bosch MG1",
+      "format": "XDF",
+      "software_hint": "00003076501103",
+      "ecu_variant": "MG1CS003 (B58 Gen1, repository description)",
+      "url": "https://github.com/sostisoft/ecu-definitions/blob/main/BMW/B58_Gen1/00003076501103.xdf",
+      "git_blob_sha1": "92cd2cd450f71c7b7916555b44130b5f4a1f764d",
+      "status": "reference_only",
+      "rights": "Individuelle Dateilizenz ungeklärt, nicht gebündelt",
+      "training_approved": 0
+    },
+    {
+      "id": "lamborghini-med171-platform",
+      "brand": "Lamborghini",
+      "family": "Bosch MED/ME",
+      "format": "Plattformhinweis, keine XDF/BIN",
+      "software_hint": "",
+      "ecu_variant": "Huracán 5.2 V10 / MED17.1 wird als mögliche Plattform genannt, fahrzeugspezifisch prüfen",
+      "url": "https://github.com/TracqiTechnology/MxT",
+      "git_blob_sha1": "",
+      "status": "platform_only",
+      "rights": "Keine überprüfte Lamborghini-Trainingsquelle",
+      "training_approved": 0
+    },
+    {
+      "id": "mercedes-awaiting-pair",
+      "brand": "Mercedes-Benz",
+      "family": "Bosch MED/ME",
+      "format": "Kein geprüftes BIN+Definition-Paar",
+      "software_hint": "",
+      "ecu_variant": "Steuergerät, Softwarestand und rechtmäßig nutzbare Definition fehlen",
+      "url": "",
+      "git_blob_sha1": "",
+      "status": "awaiting_verified_source",
+      "rights": "Keine bekannte freigegebene Trainingsquelle",
+      "training_approved": 0
+    },
+    {
+      "id": "opel-generic-xdf",
+      "brand": "Opel",
+      "family": "Unbekannt",
+      "format": "XDF (Altformat)",
+      "software_hint": "",
+      "ecu_variant": "Nicht zugeordnet, keine SW-/ECU-Signatur verifiziert",
+      "url": "https://github.com/sostisoft/ecu-definitions/blob/main/Opel/opel.xdf",
+      "git_blob_sha1": "9f3a6dfb7ef91a866662cce69e64fed0d59329bb",
+      "status": "reference_only",
+      "rights": "Individuelle Dateilizenz ungeklärt, nicht gebündelt",
+      "training_approved": 0
+    },
+    {
+      "id": "opel-generic-xdf2",
+      "brand": "Opel",
+      "family": "Unbekannt",
+      "format": "XDF (Altformat)",
+      "software_hint": "",
+      "ecu_variant": "Nicht zugeordnet, keine SW-/ECU-Signatur verifiziert",
+      "url": "https://github.com/sostisoft/ecu-definitions/blob/main/Opel/opel2.xdf",
+      "git_blob_sha1": "c74c576db7d07705e2da10d62ffffadc0173d20f",
+      "status": "reference_only",
+      "rights": "Individuelle Dateilizenz ungeklärt, nicht gebündelt",
+      "training_approved": 0
+    }
+  ],
+  "training_approved": 0,
+  "notice": "Nur Quellhinweise. Kein ECU-BIN, keine automatische Zuordnung oder verifizierte KI-Labels."
+}

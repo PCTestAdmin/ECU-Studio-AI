@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "split_strategy": "family-held-out",
+  "cases": [{
+    "id": "REPLACE_WITH_REVIEWED_CASE", "binary": "firmware.bin", "sha256": "REQUIRED",
+    "definitions": "confirmed-definitions.json", "definitions_sha256": "REQUIRED",
+    "family": "REQUIRED", "software": "REQUIRED", "independence_group": "REQUIRED_ORI_MOD_LINEAGE",
+    "data_kind": "real", "split": "test", "source_url": "REQUIRED", "source_license": "REQUIRED",
+    "license_reviewed": false, "license_reviewer": "REQUIRED",
+    "definitions_verified": false, "definition_reviewer": "REQUIRED", "exhaustive": false
+  }]
+}

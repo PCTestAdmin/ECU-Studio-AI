@@ -1,0 +1,37 @@
+ms42-0110c6-512;id_maf_tab__v_maf_1__v_maf_2;17a6;16;16;16;2;0.015625*X;-
+ms42-0110c6-512;ip_lam_cp__n__maf_cor;1d38;10;12;16;2;X*0.0000152588;-
+ms42-0110c6-512;ip_tqi_maf__n__maf;2a00;16;2;16;2;X;Nm
+ms42-0110c6-512;ip_t_dly_lam_pos_1__n__maf;3756;8;8;16;2;X*0.0000781237;s
+ms42-0110c6-512;ip_isapwm_pvs_tco_2__pvs__n;3bb6;10;12;16;2;0.001526 * X;-
+ms42-0110c6-512;ip_ti_fac_cat_at__tco__t_ast;430a;8;8;16;2;0.000244 * X+ 0.500000;-
+ms42-0110c6-512;ip_t_seg_grd_st_2_aj__n__maf;49fe;10;3;16;2;X*0.0000038147-0.125;-
+ms42-0110c6-512;ip_fac_knk_1__n__maf;508b;16;4;8;0;0.031247 * X;-
+ms42-0110c6-512;ip_fac_ivvt_ch__n__maf_ivvt;5269;6;6;8;0;0.003906 * X;-
+ms42-0110c6-512;ip_maf_min_knk__n__tco;54c1;8;4;8;0;5.447059 * X;-
+ms42-0110c6-512;ip_fac_cam_sp_in_pl__tco__tco_st;56e0;8;8;8;0;0.031255 * X+ -4.000000;-
+ms42-0110c6-512;ip_pvs_fac_ch_iga__igadifch__pvs;5ba2;6;2;8;0;0.007811 * X+ 0.000189;-
+ms42-0110c6-512;ip_t_ivvt_adc_ex__nw_dif_in__dly;5d68;8;6;8;0;0.625000 * X;ms
+ms42-0110c6-512;ip_ti_ad_add__tco_ti_ad_add;5fb7;5;5;8;0;0.003906 * X;-
+ms42-0110c6-512;ip_ti_cop_nr_1_2__n__maf;61f7;10;8;8;0;0.003906 * X;-
+ms42-0110c6-512;ip_ti_tco_neg_fast_wf__n__tco;654b;8;8;8;0;0.500000 * X;-
+ms42-0110c6-512;ip_t_vls_cycnr_afr_max__n__maf;6871;8;8;8;0;10.000000 * X;ms
+ms42-0110c6-512;ip_iga_ch_cat_var__n__maf;6c18;8;8;8;0;0.375000 * X+ -48.000000;-
+ms42-0110c6-512;id_lshpwm_up_1__n__maf;773c;8;6;8;0;0.390627 * X;%
+ms41-1429861-256;id_fac_knk_0__n__maf;2442;16;4;8;0;0.031247 * X;-
+ms41-1429861-256;id_fac_knk_4__n__maf;2552;16;4;8;0;0.031247 * X;-
+ms41-1429861-256;ip_cppwm_max__n__maf;2a6c;7;8;8;0;X*0.390627;%
+ms41-1429861-256;ip_crlc_pur__n__maf_mes;1606;4;4;8;0;X*0.00390627;-
+ms41-1429861-256;ip_fac_tia_tco__tco__tia;852;6;6;8;0;X*0.003905882;-
+ms41-1429861-256;ip_iga_tcs__n__maf;f1e;4;4;8;0;X*0.375-48;-
+ms41-1429861-256;ip_isapwm_accin_n_maf__n__pq;1e70;4;4;8;0;X*0.0625098;-
+ms41-1429861-256;ip_isapwm_ch_2_n__tco__ndif_ch_2;1dc8;8;6;8;0;X*0.390627;%
+ms41-1429861-256;ip_isapwm_n_sp__n__n_sp_dif;9e4;4;4;8;0;X*0.390588;%
+ms41-1429861-256;ip_isapwm_pvs_lda_2__n__pvs_av;96c;7;5;8;0;X*0.390627;%
+ms41-1429861-256;ip_lam_pos_i__n__maf;2190;8;8;8;0;X*0.00390622;-
+ms41-1429861-256;ip_maf_isapwm_diag_1__n__isapwm_mmv;3de;6;8;8;0;X*5.447058823529;mg/stroke
+ms41-1429861-256;ip_maf_pvs_fac_diag_1__n__pvs_av;3a2;6;8;8;0;X*0.003906275;-
+ms41-1429861-256;ip_ti_ad_fac__tco__ti_ad_fac;22c2;5;5;8;0;X * 0.003905882;-
+ms41-1429861-256;ip_ti_cr_cast__cyc__tco;1ae8;6;8;8;0;0.003906 * X;-
+ms41-1429861-256;ip_ti_cycnr_pur__n__tco;1888;4;4;16;2;X;cycles
+ms41-1429861-256;ip_ti_fac_pvs_ae__tco__pvs_grd;165c;6;6;8;0;0.007813 * X;-
+ms41-1429861-256;ip_ti_tco_wup__tco__tco_st;17f4;8;3;8;0;0.007813 * X;-

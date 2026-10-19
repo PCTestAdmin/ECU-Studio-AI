@@ -1,0 +1,32 @@
+{
+  "original_sha256": "97645b661af5eee63cf5c80433357b838448d54e90cecbbe4a5106345faa1426",
+  "modified_sha256": "97645b661af5eee63cf5c80433357b838448d54e90cecbbe4a5106345faa1426",
+  "size": 4096,
+  "dirty_bytes": 0,
+  "map_count": 0,
+  "map_decode_issues": 0,
+  "map_review_hints": 0,
+  "changed_outside_maps": 0,
+  "changed_maps": [],
+  "changed_map_count": 0,
+  "checksums": {
+    "status": "match",
+    "verified": true,
+    "regions": [
+      {
+        "name": "DEMO CRC32 Calibration Segment",
+        "algorithm": "crc32-ieee",
+        "start": 0,
+        "end": 2048,
+        "storage_offset": 4092,
+        "expected": 1225662232,
+        "stored": 1225662232,
+        "match": true
+      }
+    ],
+    "message": "Alle deklarierten Prüffelder stimmen überein. Keine Flash- oder Herstellerfreigabe."
+  },
+  "issues": [],
+  "flash_approved": false,
+  "note": "Prüfergebnis ist keine Aussage zur Flashbarkeit, Motor-/Abgassicherheit oder Straßenzulassung."
+}

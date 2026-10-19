@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "id": "subaru_5eat_m32r_unseen",
+      "bin": "local_firmware/UNIQUE_NAME.ori",
+      "definition": "local_definitions/5eat_map_records.json",
+      "domain": "tcu",
+      "split": "test",
+      "sha256": "REPLACE_WITH_SHA256_OF_YOUR_LOCAL_ROM",
+      "source_license": "Rights checked locally, not for redistribution",
+      "definition_status": "community-unverified-until-manually-reviewed"
+    },
+    {
+      "id": "volvo_me7_unseen",
+      "bin": "local_firmware/OTHER_NAME.bin",
+      "definition": "local_definitions/MATCHING_SOFTWARE.xdf",
+      "domain": "ecu",
+      "split": "test",
+      "sha256": "REPLACE_WITH_SHA256_OF_YOUR_LOCAL_ROM",
+      "source_license": "Rights checked locally, not for redistribution",
+      "definition_status": "community-unverified-until-manually-reviewed"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+﻿Name;Offset;Typ / Vorschlag;Quelle;Nachweisart;Regelstaerke_keine_Wahrscheinlichkeit;Manuell_verifiziert;Begruendung;Alternativen;Datentyp;Groesse
+BOOST_REQUEST;0x1000;Ladedruck-Sollwert;a2l;Metadaten-Regel;0.90;nein;"Name enthält „boost pressure target“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+EGR_RATE;0x1500;AGR-Sollwert / Rate;a2l;Metadaten-Regel;0.90;nein;"Name enthält „egr rate“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+TORQUE_MAX;0x2000;Drehmomentbegrenzung;a2l;Metadaten-Regel;0.90;nein;"Name enthält „torque limiter“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+INJECTION_QUANTITY;0x2800;Einspritzmenge;a2l;Metadaten-Regel;0.80;nein;"Name enthält „injection quantity“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";Einspritzdauer;u16;16x16
+IGNITION_ADVANCE;0x3000;Zündwinkel;a2l;Metadaten-Regel;0.90;nein;"Name enthält „ignition advance“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;s16;16x16
+LAMBDA_TARGET;0x3800;Lambda-Sollwert;a2l;Metadaten-Regel;0.79;nein;"Name enthält „lambda target“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+WASTEGATE_REQUEST;0x4000;Wastegate-Steuerung;a2l;Metadaten-Regel;0.79;nein;"Name enthält „wastegate request“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+IDLE_SPEED_REQUEST;0x4800;Leerlauf-Sollwert;a2l;Metadaten-Regel;0.85;nein;"Name enthält „idle speed request“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;1x16
+THERMAL_PROTECTION;0x5000;Temperaturschutz;a2l;Metadaten-Regel;0.90;nein;"Name enthält „temperature protection“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+RAIL_PRESSURE_REQUEST;0x5800;Raildruck-Sollwert;a2l;Metadaten-Regel;0.90;nein;"Name enthält „rail pressure request“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+DRIVER_WISH_PEDAL;0x6000;Fahrerwunsch / Pedal;a2l;Metadaten-Regel;0.90;nein;"Name enthält „pedal position“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+SMOKE_LIMITER;0x6800;Lambda-Begrenzung / Rauch;a2l;Metadaten-Regel;0.90;nein;"Name enthält „smoke limiter“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u16;16x16
+NOX_MODEL;0x7000;NOx-Sensorik / Modell;a2l;Metadaten-Regel;0.90;nein;"Name enthält „nox model“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u8;1x16
+DIAGNOSTIC_THRESHOLD;0x7200;Diagnoseschwelle / DTC;a2l;Metadaten-Regel;0.90;nein;"Name enthält „diagnostic threshold“; A2L/Definition und ECU-Softwarestand unabhängig prüfen.";;u32;1x1

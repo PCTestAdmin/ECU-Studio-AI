@@ -1,0 +1,14 @@
+{
+  "cases": [
+    {
+      "id": "synthetic_tcu_heldout",
+      "bin": "holdout_synthetic_tcu.bin",
+      "definition": "holdout_synthetic_tcu_reference.json",
+      "domain": "tcu",
+      "split": "test",
+      "sha256": "ab419af460fb0bc8d91b57a70ba9a5138fa1cb3ef12ac8f8183bd4d7e8a44786",
+      "source_license": "synthetic code-generated demo, no OEM firmware",
+      "definition_status": "synthetic-exact-geometry"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "records": [],
+  "example_not_imported": {
+    "firmware_sha256": "REPLACE_WITH_SHA256_OF_BIN",
+    "byte_count": 524288,
+    "brand": "BMW",
+    "model": "EXACT_KNOWN_MODEL",
+    "engine": "EXACT_KNOWN_ENGINE",
+    "ecu": "EXACT_ECU_VARIANT",
+    "family": "Siemens MS43",
+    "software": "EXACT_KNOWN_SW_VERSION",
+    "source": "DOCUMENTED_PROVENANCE_REFERENCE",
+    "reviewer": "HUMAN_REVIEWER_ID",
+    "firmware_file": "FILE_RELATIVE_TO_MANIFEST.bin",
+    "reviewed": false
+  },
+  "note": "Nur records werden importiert. Beispiel wurde absichtlich nicht als verifizierte ECU eingebunden. reviewed=true erst nach menschlicher Prüfung und Hash-Verifikation."
+}

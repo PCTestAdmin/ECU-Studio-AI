@@ -1,0 +1,36 @@
+The MS43 sample of 81 table definitions is a REDUCED, MODIFIED metadata
+extract of the Siemens MS43 430069 Extended Load 512K XDF v1.14,
+Copyright MS4x Dev Team, under GPL-3.0.
+Original source: https://github.com/ms4x-net/ms43/tree/main/definitions
+Specific file: definitions/Siemens_MS43_430069_Extended_Load_512K.xdf
+Git blob SHA1: 9b76a7f9887cd4bc2fafe50c9313f01e7d9ca4e0
+Changes: only a selection of 81 Z-axis entries retained, X/Y axis data and
+most other entries omitted, HTML unit entities normalized to textual units.
+See COPYING.GPL-3 for the license. This metadata extract is NOT verified against
+the user's firmware and is never marked as independently verified.
+The reference source registry contains links and metadata only; third-party
+GS20 data is NOT redistributed here. Check its upstream permissions before use.
+
+Additionally 37 reduced metadata entries derive from GPL-3.0 XDFs:
+https://github.com/ms4x-net/ms42/blob/main/definitions/Siemens_MS42_0110C6_ENG_512K_v1.3.xdf
+Git blob: f65d7ba827326f29893a2fc01a5736965aa46248
+https://github.com/ms4x-net/ms41/blob/main/definitions/Siemens_MS41_1429861_ENG_256K_v1.0.xdf
+Git blob: 18f60c7b1397e2c51351f4ef0c07ef7b4b5f8ce4
+Modified: only some Z-axis names/addresses/counts/scaling fields retained;
+X/Y axis and other XDF features omitted. GPL-3.0 applies to data subset.
+
+ECU Studio v1.6: brand_sources.json contains LINKS AND GIT-BLOB IDENTIFIERS ONLY.
+BMW/Opel hints: https://github.com/sostisoft/ecu-definitions ; per-file license must be confirmed before use.
+Audi/SIMOS hint: https://github.com/joeFischetti/SimosDefinitions ; per-file license must be confirmed.
+Lamborghini MED17.1 platform compatibility hint: https://github.com/TracqiTechnology/MxT ; no Lamborghini XDF/BIN included.
+Mercedes: no third-party material bundled or claimed.
+Nothing from these external references has been trained on, distributed as ECU binary, or marked verified.
+
+ECU Studio 1.12 additionally bundles UNMODIFIED STANDARD MS43 430069 XDFs
+v1.14 (64K/512K), Copyright MS4x Dev Team, GPL-3.0. Exact immutable source
+URLs, Git blob hashes, modifications (none) and attribution are in
+definitions/manifest.json and definitions/NOTICE.txt; COPYING.GPL-3 applies.
+These are not the Extended Load definitions on the repository's current main.
+Runtime identity/axis checks propose unverified layouts, never training labels.
+
+Version 1.13: 16 unmodified MS41/MS42/MS43 XDFs; see definitions/manifest.json and NOTICE.txt. New open-preset corpus and model: training/NOTICE.txt and training/RUSEFI_LICENSE.txt. No additional OEM binaries bundled.

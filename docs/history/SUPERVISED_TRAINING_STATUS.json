@@ -1,0 +1,12 @@
+{
+  "verified_total": 0,
+  "verified_by_family": {
+    "Siemens MS43": 0
+  },
+  "required": "Mindestens 2 Klassen und pro Klasse 12 unabhängig bestätigte Karten aus mindestens 4 Firmwareständen; erfolgreicher Firmware-Holdout",
+  "unverified_public_hints": 118,
+  "version": "1.6.0",
+  "new_verified_samples": 0,
+  "brand_source_leads": 7,
+  "new_supervised_model": false
+}
