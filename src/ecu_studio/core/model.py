@@ -62,6 +62,10 @@ class MapDefinition:
     folder: str = ""
     favorite: bool = False
     candidate_region_start: int | None = None
+    # Measured hit rate of this candidate's evidence class on reference
+    # firmware (see core/confidence.py); None = not calibrated. Not a guarantee.
+    evidence_tier: str = ""
+    calibrated_rate: float | None = None
 
     def raw_from_physical(self, value: float) -> int | float:
         if self.equation:

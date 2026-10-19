@@ -34,9 +34,32 @@ class CatalogueModel(QAbstractListModel):
             star='★ ' if m.favorite else ''
             folder=f' [{m.folder}]' if m.folder else ''
             status=(' · geprüft' if m.verified else ' · XDF-Zuordnung (ungeprüft)'
-                    if m.source=='bundled-definition' else ' · Vorschlag' if m.label_origin else '')
+                    if m.source=='bundled-definition' else
+                    f' · {m.evidence_tier} {m.calibrated_rate:.0%}' if m.calibrated_rate is not None else
+                    f' · {m.evidence_tier}' if m.evidence_tier else ' · Vorschlag' if m.label_origin else '')
             return (f"{marker} {star}{m.name}{'  [geändert]' if changed else ''}{folder}\n"
                     f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}  | Typ: {m.kind}{status}')
+        if role==Qt.ItemDataRole.DecorationRole and m.evidence_tier:
+            return _tier_dot(m.evidence_tier)
         if role==Qt.ItemDataRole.ToolTipRole:
-            return (f'{m.kind}\n{m.label_origin or m.source}\n{m.label_evidence or m.notes}\n'
-                    f'Strukturwert: {m.confidence:.2f} (keine Wahrscheinlichkeit)')
+            rate=(f'Gemessene Trefferquote dieser Evidenzklasse: {m.calibrated_rate:.0%} ({m.evidence_tier})'
+                  if m.calibrated_rate is not None else
+                  f'Evidenzklasse ohne ausreichende Messung ({m.evidence_tier})' if m.evidence_tier else
+                  f'Strukturwert: {m.confidence:.2f} (keine Wahrscheinlichkeit)')
+            return f'{m.kind}\n{m.label_origin or m.source}\n{m.label_evidence or m.notes}\n{rate}'
+
+
+TIER_COLORS={'gesichert':'#2EA043','wahrscheinlich':'#D29922','Vermutung':'#8B949E','nicht kalibriert':'#6E7681'}
+
+
+def _tier_dot(tier):
+    from PySide6.QtGui import QColor,QPainter,QPixmap
+    pixmap=QPixmap(10,10)
+    pixmap.fill(QColor(0,0,0,0))
+    painter=QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(QColor(TIER_COLORS.get(tier,'#6E7681')))
+    painter.setPen(QColor(0,0,0,0))
+    painter.drawEllipse(1,1,8,8)
+    painter.end()
+    return pixmap

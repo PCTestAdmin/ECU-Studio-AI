@@ -9,7 +9,8 @@ import numpy as np
 from functools import lru_cache
 from .model import BinaryImage, MapDefinition
 
-STRUCTURAL_LAYOUTS = ('candidate:nx,ny,x,y,z', 'candidate:code-reference', 'candidate:row-pitch')
+STRUCTURAL_LAYOUTS = ('candidate:nx,ny,x,y,z', 'candidate:code-reference', 'candidate:row-pitch',
+                      'candidate:code-reference-generic')
 
 
 @lru_cache(maxsize=1)

@@ -106,6 +106,15 @@ def scan_count_axes(data: bytes, lo: int = 0, hi: int | None = None) -> list[Cou
     return sorted(chosen, key=lambda a: a.header)
 
 
+def quantity_hint(ax: CountAxis) -> str:
+    """Ranked scaling suggestion for an axis (MS43: 58 % top-1, 78 % top-3), as text."""
+    from .axis_semantics import guess_axis
+    guesses = guess_axis(ax.values, ax.width)
+    if not guesses:
+        return ''
+    return 'Vermutung: ' + ' / '.join(g.describe() for g in guesses[:2])
+
+
 def axis_definitions(axes: list[CountAxis]) -> list[MapDefinition]:
     """Editable 1 x n candidates for detected breakpoint arrays."""
     return [MapDefinition(
@@ -116,5 +125,6 @@ def axis_definitions(axes: list[CountAxis]) -> list[MapDefinition]:
         label_origin='Stützstellen-Array mit Anzahl-Präfix (ungeprüft)',
         label_evidence=(f'{ax.count} aufsteigende Werte nach Anzahl-{"Byte" if ax.width == 1 else "Wort"} '
                         f'@ 0x{ax.header:X}, in einer Kette weiterer Arrays. Achsen-Hypothese, Einheit unbekannt.'),
-        notes='Vermutete Kennfeld-/Kennlinienachse (Stützstellen); Einheit und Skalierung ungeprüft.')
+        notes='Vermutete Kennfeld-/Kennlinienachse (Stützstellen); Einheit und Skalierung ungeprüft.',
+        axes_info=quantity_hint(ax))
         for ax in axes]

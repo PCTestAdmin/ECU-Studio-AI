@@ -3,3 +3,6 @@
 *.sqlite3 binary
 # Bundled third-party definitions: large, generated, not project code
 *.xdf -diff linguist-vendored
+# Pinned by Git blob hash (manifest.json, calibration_corpus.json): must stay
+# byte-identical, so never convert line endings here.
+src/ecu_studio/recognition/data/** -text

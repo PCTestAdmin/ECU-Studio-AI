@@ -20,6 +20,16 @@ bearbeiten. Die Originaldatei wird nie überschrieben; jede Änderung bleibt im 
   - Achsen, die der Code vor einem Kennfeld lädt, legen dessen Größe und Rohachsen fest
     (Siemens MS43: Y/X/Kennfeld-Ladefolge; Bosch ME7: Lookup-Aufruf mit Kennfeld- und Achsenzeiger)
   - Code/Daten-Trennung für Dateien ohne bekanntes Steuergeräteprofil
+- **Kalibrierte Konfidenz** – jede automatische Fundstelle zeigt die gemessene Trefferquote ihrer
+  Evidenzklasse (z. B. Code-Verweis + Achsen 100 %, nur Datenglätte 30 %) als gesichert / wahrscheinlich / Vermutung
+- **Flash-Preflight** – vor dem Export: unveränderte Zwillings-/Überwachungskopien, Änderungen im Programmcode,
+  zerstörte Achsen, ungewöhnliche Sprünge, Checksummenstatus – als Ampel mit Begründung
+- **Funktionsgraph** – welche Kennfelder dieselbe Code-Routine liest oder dieselben Achsen nutzt
+- **Signal-Tracing** – RAM-Eingänge jedes Kennfeldzugriffs; gleiche Variable = gleiche physikalische Größe,
+  direkt als Logger-Liste nutzbar
+- **Achsen-Semantik** – Vorschläge für Größe und Skalierung von Stützstellen (Drehzahl, Temperatur, Last …)
+- **Weitere Prozessoren** – C16x (Siemens MS4x, Bosch ME7) vollständig; 68HC11 und 8051 mit automatischer
+  Speicherbasis als bestätigende Evidenz
 - **Definitionen koppeln** – TunerPro XDF, A2L/DAMOS, RomRaider-XML, CSV; mitgelieferte
   Standard-XDFs für Siemens MS41/MS42/MS43
 - **Ansichten** – Hex-Editor, 2D-Rohdaten, Kennfeldtabelle, Heatmap, 3D-Fläche, ORI/MOD-Kurven, Speicheratlas

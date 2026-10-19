@@ -20,7 +20,8 @@ import re
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from .model import BinaryImage, MapDefinition
-from .axis_arrays import scan_count_axes, axis_at
+from .axis_arrays import scan_count_axes, axis_at, quantity_hint
+from .cpu_refs import detect_cpu, GENERIC_LAYOUT
 
 # Signed views: two's-complement tables (e.g. Bosch ME7 ignition maps) wrap around
 # zero when read unsigned and look rough.
@@ -327,7 +328,10 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         axes = scan_count_axes(data, start, end)
     refs = c16x_reference_positions(data, start, end)
     descriptors = lookup_descriptors(data, start, end)
-    anchors = sorted(set(refs) | set(descriptors))
+    # Other CPUs (HC11, 8051): address loads with an auto-detected memory map.
+    cpu, generic = detect_cpu(data)
+    generic_only = {a for a in generic if start <= a < end} - set(refs) - set(descriptors)
+    anchors = sorted(set(refs) | set(descriptors) | generic_only)
     axes_by_header = {ax.header: ax for ax in axes}
     axis_spans = sorted((ax.header, ax.end) for ax in axes)
 
@@ -339,8 +343,8 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     for a, b in zip(anchors, anchors[1:] + [end]):
         if cancelled and cancelled():
             return []
-        if in_axis(a):
-            continue
+        if in_axis(a) or a in generic_only:
+            continue    # other-CPU references only confirm data-found tables (below)
         if a in descriptors:
             # Lookup call names the axis data: X fixes the columns; the rows come
             # from the following axis or the data, whichever reads smoother.
@@ -390,7 +394,14 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             # Even start keeps 16-bit views aligned with the image.
             lo -= lo % 2
             pitched += pitch_candidates(data[lo:hi], lo, cancelled=cancelled)
+    generic_sorted = sorted(generic_only)
+    generic_confirmed = set()
     for score, off, rows, c, dtype, endian, w in pitched:
+        k = bisect.bisect_left(generic_sorted, off - 2)
+        if k < len(generic_sorted) and generic_sorted[k] <= off + 2 and generic_sorted[k] % w == 0:
+            # A code load of (almost) this start confirms the table and fixes its start.
+            off, score = generic_sorted[k], score + 1.
+            generic_confirmed.add(off)
         i = bisect.bisect_right(anchors, off)
         if i < len(anchors) and anchors[i] < off + rows * c * w:
             # A referenced address inside the run usually starts the next table.
@@ -424,6 +435,11 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             evidence = ('Startadresse im Programmcode referenziert; Spaltenzahl passt zur zuvor geladenen Achse '
                         f'X @ 0x{pair[0].header:X}, Zeilenzahl aus Datenwiederholung abgeleitet.')
             origin = 'Code-Referenz + X-Achse (ungeprüft)'
+        elif off in generic_confirmed:
+            evidence = (f'Startadresse von {cpu.family}-Ladebefehlen referenziert (Speicherbasis '
+                        f'0x{cpu.base:04X}, automatisch erkannt; Prozessorfamilie nicht kalibriert); '
+                        f'Zeilenabstand {c} Werte aus Datenwiederholung abgeleitet.')
+            origin = f'{cpu.family}-Code-Referenz + Zeilenabstand (ungeprüft)'
         else:
             evidence = ('Startadresse im Programmcode referenziert (Seite+Offset-Ladebefehle); '
                         if referenced else '') + f'Zeilenabstand {c} Werte aus Datenwiederholung abgeleitet.'
@@ -431,16 +447,19 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         m = MapDefinition(
             name=f'Strukturkandidat @ 0x{off:08X}', offset=off, rows=rows, cols=c, dtype=dtype, endian=endian,
             source='heuristic', confidence=round(min(.45, .45 * (score - ANCHOR_SCORE if referenced else score / 8)), 3),
-            record_layout=REFERENCE_LAYOUT if referenced else PITCH_LAYOUT,
+            record_layout=(GENERIC_LAYOUT if off in generic_confirmed else
+                           REFERENCE_LAYOUT if referenced else PITCH_LAYOUT),
             label_origin=origin,
             label_evidence=evidence + ' Geometrie-Hypothese, KEIN identifiziertes Kennfeld.',
             notes=evidence)
         if pair:
             m.axes_x = [float(v) for v in pair[0].values]
             m.axes_y = [float(v) for v in pair[1].values] if pair[1] else []
+            hints = [f'X {quantity_hint(pair[0])}'] + ([f'Y {quantity_hint(pair[1])}'] if pair[1] else [])
             m.axes_info = (f'Rohachsen aus Code-Referenz: X @ 0x{pair[0].offset:X}'
                            + (f', Y @ 0x{pair[1].offset:X}' if pair[1] else '')
-                           + '; Einheiten und Skalierung ungeprüft')
+                           + '; Einheiten und Skalierung ungeprüft. '
+                           + ' · '.join(h for h in hints if not h.endswith(' ')))
         chosen.append(m)
         if len(chosen) >= max_results:
             break

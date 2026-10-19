@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from .theme import stylesheet, palette
 from .icons import line_icon
+from ..core.preflight import run_preflight
 from ..formats.records import read_memory_file
 from ..formats.importer import convert_to_binary, read_import_segments
 from ..core.model import BinaryImage, MapDefinition, TYPES, FORMATS, save_project, load_project, read_project_snapshots
@@ -610,6 +611,7 @@ class Window(QMainWindow):
         act(file,"Projektdatenbank durchsuchen …",self.browse_projects,"Ctrl+Shift+D")
         act(file,"ZIP mit BIN / ORI importieren …",self.import_zip)
         act(file,"Projekt speichern …",self.save_project,"Ctrl+S")
+        act(file,"Flash-Preflight prüfen …",self.flash_preflight,"Ctrl+Shift+F")
         act(file,"Gepatchte BIN exportieren …",self.export_bin,"Ctrl+Shift+S")
         act(file,"Kennfelddefinitionen importieren …",self.import_maps)
         act(file,"A2L / textuelles DAMOS koppeln …",self.import_a2l,"Ctrl+Shift+L")
@@ -639,6 +641,8 @@ class Window(QMainWindow):
         act(tools,"Achsen und Log-Eingangssignale …",self.edit_axes)
         act(tools,"Bearbeitungsrezept ausführen …",self.execute_recipe)
         act(tools,"Intelligente Kennfeldsuche (Struktur + Referenz)",self.scan_maps,"Ctrl+K")
+        act(tools,"Funktionsgraph: zusammengehörige Kennfelder …",self.show_function_graph,"Ctrl+G")
+        act(tools,"Signal-Tracing: Achseingänge aus dem Code …",self.show_signal_trace)
         self.scan32_action=act(tools,'Zusätzliche 32-Bit-Rohsuche (experimentell)',lambda checked:None)
         self.scan32_action.setCheckable(True)
         act(tools,'Letzten Erkennungsbericht als JSON speichern …',self.export_scan_report)
@@ -2620,15 +2624,60 @@ class Window(QMainWindow):
         close.clicked.connect(dialog.accept)
         dialog.exec()
 
+    def _preflight(self):
+        profile=identify_profile(self.image)
+        return run_preflight(self.image,self.maps,checksum_profile=self.checksum_profile,
+                             cal_window=(profile.cal_start,profile.cal_end) if profile.cal_start is not None else None)
+
+    def _code_window(self):
+        profile=identify_profile(self.image)
+        return ((profile.cal_start,profile.cal_end) if profile.cal_start is not None else (0,self.image.size))
+
+    def show_function_graph(self):
+        if not self.require_image():return
+        from ..core.function_graph import build_function_graph
+        from .function_graph_dialog import FunctionGraphDialog
+        try:graph=build_function_graph(self.image,self.maps,*self._code_window())
+        except Exception as exc:
+            self.warning('Funktionsgraph fehlgeschlagen',exc);return
+        if not graph['groups'] and not graph['shared_axes']:
+            QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise auf die geladenen Kennfelder gefunden. '
+                                    'Derzeit wird C16x-Code (Siemens MS4x, Bosch ME7) ausgewertet.')
+            return
+        FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m)).exec()
+
+    def show_signal_trace(self):
+        if not self.require_image():return
+        from ..core.signal_trace import trace_inputs, trace_report
+        try:traces=trace_inputs(self.image,self.maps,*self._code_window())
+        except Exception as exc:
+            self.warning('Signal-Tracing fehlgeschlagen',exc);return
+        self.diff_view.setPlainText(trace_report(traces,self.maps))
+        self.tabs.setCurrentWidget(self.diff_view)
+
+    def flash_preflight(self):
+        if not self.require_image():return
+        try:report=self._preflight()
+        except Exception as exc:
+            self.warning('Preflight fehlgeschlagen',exc);return
+        self.diff_view.setPlainText(report.text())
+        self.tabs.setCurrentWidget(self.diff_view)
+        self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde',8000)
+
     def export_bin(self):
         if not self.require_image():return
         try:
             check=audit_export(self.image,self.maps,self.checksum_profile)
+            preflight=self._preflight()
         except Exception as exc:
             self.warning('Exportprüfung fehlgeschlagen',exc)
             return
         check_state=check['checksums']['status']
-        msg=(f"Prüfsummenstatus: {check_state.upper()}\n"
+        red=[f for f in preflight.findings if f.level=='rot']
+        msg=(f"FLASH-PREFLIGHT: {preflight.status.upper()} – {len(preflight.findings)} Befunde"
+             + ("".join(f"\n  • {f.title}" for f in red[:6]) if red else "")
+             + "\nDetails: Datei → Flash-Preflight prüfen.\n\n"
+             f"Prüfsummenstatus: {check_state.upper()}\n"
              f"Geänderte Bytes: {check['dirty_bytes']}\n"
              f"Geänderte Bytes außerhalb erkannter Tabellen: {check['changed_outside_maps']}\n"
              f"Definitionen mit Prüfhilfen: {check['map_review_hints']}\n\n"

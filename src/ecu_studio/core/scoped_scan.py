@@ -14,8 +14,9 @@ from .axis_records import scan_axis_records
 from .structure_scan import scan_structures, lookup_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
+from .confidence import apply_confidence
 
-INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:count-axis','candidate:nx,ny,x,y,z')
+INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z')
 
 
 def scan_calibration_candidates(image: BinaryImage, *,
@@ -105,6 +106,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # Legacy grid windows must not swallow a detected axis or referenced curve.
     result=sorted([m for m in ranked if not any(m.offset<e and s<m.offset+m.length for s,e in spans)]+lines,
                   key=lambda m:m.offset)
+    apply_confidence(result)
     if diagnostics is not None:diagnostics['accepted_count']=len(result)
     if progress:
         progress(100)

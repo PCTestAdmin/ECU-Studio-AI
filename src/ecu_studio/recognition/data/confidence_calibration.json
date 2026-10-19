@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "measured_on": "2026-10-19",
+  "definition": "share of candidates starting exactly at a reference object",
+  "sources": [
+    {
+      "sha256": "76010474fe2e3a4896724b6d0244173e49464e7b38758ccc6dc1bcaa53650421",
+      "family": "Siemens MS43",
+      "reference": "MS430069_512K.xdf"
+    },
+    {
+      "sha256": "010d6bf17bcfe46a9f436ba8e11dff375466ee948aaaf10d43a1d8325757b2cc",
+      "family": "Siemens MS42",
+      "reference": "Siemens_MS42_0110C6_ENG_512K_v1.3.xdf"
+    }
+  ],
+  "classes": {
+    "axis:count": {
+      "n": 1020,
+      "hits": 991,
+      "rate": 0.9716,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43"
+      ]
+    },
+    "code:1d:axis1": {
+      "n": 23,
+      "hits": 21,
+      "rate": 0.913,
+      "families": [
+        "Siemens MS43"
+      ]
+    },
+    "code:2d:axes2": {
+      "n": 227,
+      "hits": 227,
+      "rate": 1.0,
+      "families": [
+        "Siemens MS43"
+      ]
+    },
+    "code:2d:axis1": {
+      "n": 12,
+      "hits": 12,
+      "rate": 1.0,
+      "families": [
+        "Siemens MS43"
+      ]
+    },
+    "code:2d:noaxes": {
+      "n": 35,
+      "hits": 34,
+      "rate": 0.9714,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43"
+      ]
+    },
+    "header:nxny": {
+      "n": 3,
+      "hits": 0,
+      "rate": 0.0,
+      "families": [
+        "Siemens MS42"
+      ]
+    },
+    "pitch": {
+      "n": 210,
+      "hits": 62,
+      "rate": 0.2952,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43"
+      ]
+    },
+    "raster": {
+      "n": 15,
+      "hits": 4,
+      "rate": 0.2667,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43"
+      ]
+    }
+  }
+}
