@@ -199,6 +199,41 @@ def recognize_ms43(image:BinaryImage) -> dict:
             'full_read': image.size==524288}
 
 
+def _parse_root(source: Path):
+    """XML root; ET does not perform network fetches/resolve external entities."""
+    try:
+        return ET.parse(source).getroot()
+    except ET.ParseError:
+        # TunerPro tolerates Latin-1 bytes (e.g. "°C") in files read as UTF-8 and
+        # stray "&" in descriptions; repair both, keep defusedxml protections.
+        raw=source.read_bytes()
+        try:text=raw.decode('utf-8')
+        except UnicodeDecodeError:text=raw.decode('latin-1')
+        text=re.sub(r'^<\?xml[^>]*\?>','',text.lstrip('﻿'))
+        text=re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)','&amp;',text)
+        return ET.fromstring(text)
+
+
+def xdf_axis_offsets(path: str) -> set[int]:
+    """BIN offsets of embedded X/Y axis data of XML XDF tables (empty for XDF 1.x)."""
+    source=Path(path)
+    with source.open('rb') as fp:
+        if fp.read(3)==b'XDF':return set()
+    root=_parse_root(source)
+    header=root.find('XDFHEADER')
+    base,subtract=0,False
+    if header is not None and header.find('BASEOFFSET') is not None:
+        base=_integer(header.find('BASEOFFSET').get('offset'))
+        subtract=bool(_integer(header.find('BASEOFFSET').get('subtract')))
+    out=set()
+    for table in root.iter('XDFTABLE'):
+        for axis in table.findall('XDFAXIS'):
+            emb=axis.find('EMBEDDEDDATA')
+            if axis.get('id') in ('x','y') and emb is not None and emb.get('mmedaddress'):
+                out.add(_mapped(_integer(emb.get('mmedaddress')),base,subtract))
+    return out
+
+
 def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XDFResult:
     """Read tables and constants with contiguous 8/16/32 bit storage only.
 
@@ -210,18 +245,7 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
     with source.open('rb') as fp:
         if fp.read(3)==b'XDF':
             return read_legacy_xdf(source,image,include_constants=include_constants)
-    # ET does not perform network fetches/resolve external general entities.
-    try:
-        root=ET.parse(source).getroot()
-    except ET.ParseError:
-        # TunerPro tolerates Latin-1 bytes (e.g. "°C") in files read as UTF-8 and
-        # stray "&" in descriptions; repair both, keep defusedxml protections.
-        raw=source.read_bytes()
-        try:text=raw.decode('utf-8')
-        except UnicodeDecodeError:text=raw.decode('latin-1')
-        text=re.sub(r'^<\?xml[^>]*\?>','',text.lstrip('﻿'))
-        text=re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)','&amp;',text)
-        root=ET.fromstring(text)
+    root=_parse_root(source)
     if root.tag.upper()!='XDFFORMAT':raise ValueError('Kein TunerPro-XDF (XDFFORMAT)')
     result=XDFResult()
     header=root.find('XDFHEADER')

@@ -78,8 +78,8 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 
 | Datei | gefunden | exakt (Start, Größe, Breite) | Präzision |
 |---|---|---|---|
-| Siemens MS43 430069 | **67 %** (vorher 4,5 %) | **197** von 379 (vorher 1) | 76 % |
-| Siemens MS42 0110C6 | **55 %** (vorher 13 %) | 22 von 213 (vorher 5) | 67 % |
+| Siemens MS43 430069 | **66 %** (vorher 4,5 %) | **197** von 379 (vorher 1) | **80 %** |
+| Siemens MS42 0110C6 | **50 %** (vorher 13 %) | 22 von 213 (vorher 5) | **72 %** |
 | Bosch ME7 (Volvo, 3 Stände) | **54–71 %** (vorher 5–10 %) | je 6 (vorher 0) | nicht belastbar¹ |
 
 **Trefferquote je Beweisart** (MS43 + MS42, Anteil der Funde, die exakt an einem echten Objekt beginnen):
@@ -90,7 +90,16 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Code-Verweis ohne Achsen | 35 | 97 % |
 | Achsen-Arrays mit Anzahl-Präfix | 1020 | 97 % |
 | Code-Verweis + Achse (Kennlinie) | 23 | 91 % |
-| nur Datenmuster | 210 | 30 % |
+| nur Datenmuster | 210 | 30 % → **Lernmodell**, s. u. |
+
+**Lernmodell für Datenmuster-Funde** – geprüft auf einer beim Training ausgelassenen Familie (Präzision bei 80 % Trefferquote):
+
+| Familie | ohne Modell | mit Modell |
+|---|---:|---:|
+| Hyundai SIM2K (TriCore) | 14 % | **34 %** |
+| BMW MSS54 (68k) | 7 % | **32 %** |
+| alte 8-Bit-Motronic/Fenix | 5 % | **35 %** |
+| Siemens MS42/MS43 | 29 % | **50 %** |
 
 <sub>¹ Die ME7-XDFs definieren nur einen kleinen Teil der Kennfelder. Details und Verlauf: [CHANGELOG](CHANGELOG.md).</sub>
 
@@ -100,10 +109,10 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 |---|---|:---:|:---:|---|
 | Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | gemessen, Standard-XDFs inklusive |
 | Bosch ME7 | C167 | ✅ Lookup-Aufrufe | ✅ | gemessen |
-| Bosch Motronic (Porsche 911/944/928/964) | 8051 | – | – | Datenmuster; XDF 1.x lesbar |
-| Renault Fenix 1B/3, Peugeot 205 Turbo | 68HC11 | ◐ bestätigend | – | Datenmuster |
-| Continental SIM2K (Hyundai) | TriCore | ❌ | ◐ | XDF lesbar, Erkennung schwach |
-| BMW MSS54 | 68k (CPU32) | ❌ | – | XDF lesbar, in Arbeit |
+| Bosch Motronic (Porsche 911/944/928/964) | 8051 | – | – | gemessen; XDF 1.x lesbar |
+| Renault Fenix 1B/3, Peugeot 205 Turbo | 68HC11 | ◐ bestätigend | – | gemessen |
+| Continental SIM2K (Hyundai) | TriCore | ❌ | ◐ | gemessen, Lernmodell; Code-Verweise offen |
+| BMW MSS54 | 68k (CPU32) | ❌ | ✅ Header | gemessen, Lernmodell; Code-Verweise offen |
 
 ## Installation
 
@@ -149,7 +158,7 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 - [x] Rasterfreie Kennfeldsuche, Achsen-Arrays, Code-Verweise (C16x)
 - [x] Kalibrierte Konfidenz, Flash-Preflight, Funktionsgraph, Signal-Tracing
 - [x] XDF-Textformat 1.x und tolerantes XML
-- [ ] Lernmodell für Datenmuster-Funde, familienübergreifend geprüft *(in Arbeit)*
+- [x] Lernmodell für Datenmuster-Funde, familienübergreifend geprüft
 - [ ] Code-Verweise für TriCore und 68k (CPU32)
 - [ ] Schnellere Suche bei großen Dateien (2–4 MB)
 - [ ] Logger-Anbindung für Signal-Tracing

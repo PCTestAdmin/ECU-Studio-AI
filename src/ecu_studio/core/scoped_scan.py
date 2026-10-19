@@ -107,7 +107,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # Legacy grid windows must not swallow a detected axis or referenced curve.
     result=sorted([m for m in ranked if not any(m.offset<e and s<m.offset+m.length for s,e in spans)]+lines,
                   key=lambda m:m.offset)
-    apply_confidence(result)
+    apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: learned scorer (family-out validated) replaces the
     # coarse class rate with the held-out hit rate of the candidate's score.
     model=load_model()

@@ -1,0 +1,221 @@
+{
+ "format": 1,
+ "trained_on": "2026-10-19",
+ "features": [
+  "log_cells",
+  "rows",
+  "cols",
+  "width",
+  "signed",
+  "little",
+  "h",
+  "v",
+  "tail",
+  "period",
+  "unique",
+  "span_rel",
+  "zero_frac",
+  "max_frac",
+  "mean_rel",
+  "monotone_rows",
+  "edge_before",
+  "edge_after",
+  "align16",
+  "data_frac"
+ ],
+ "mean": [
+  6.41322,
+  13.265648,
+  10.993294,
+  1.615872,
+  0.218703,
+  0.405365,
+  0.090347,
+  0.102201,
+  0.236839,
+  1.467545,
+  0.416427,
+  0.522639,
+  0.108747,
+  0.006342,
+  0.158732,
+  0.389289,
+  0.446974,
+  0.448441,
+  0.202683,
+  0.992463
+ ],
+ "std": [
+  1.243571,
+  23.234995,
+  3.386761,
+  0.486388,
+  0.413367,
+  0.490963,
+  0.051432,
+  0.055027,
+  0.154722,
+  1.502362,
+  0.274316,
+  0.352925,
+  0.191799,
+  0.028865,
+  0.226775,
+  0.400594,
+  0.331096,
+  0.331827,
+  0.401998,
+  0.062714
+ ],
+ "coef": [
+  0.020395,
+  -0.152158,
+  0.051966,
+  -0.889661,
+  -0.540589,
+  0.537962,
+  -0.241513,
+  -0.609513,
+  -0.338264,
+  -0.751044,
+  0.333091,
+  0.329998,
+  -0.999971,
+  0.068913,
+  -0.25997,
+  0.794212,
+  1.009175,
+  0.321706,
+  -0.001611,
+  -0.00025
+ ],
+ "intercept": -1.531839,
+ "heldout_rate_table": [
+  [
+   0.0,
+   0.015,
+   0.0036,
+   274
+  ],
+  [
+   0.015,
+   0.0419,
+   0.0074,
+   269
+  ],
+  [
+   0.0419,
+   0.091,
+   0.011,
+   273
+  ],
+  [
+   0.091,
+   0.158,
+   0.0221,
+   272
+  ],
+  [
+   0.158,
+   0.3006,
+   0.0812,
+   271
+  ],
+  [
+   0.3006,
+   0.5173,
+   0.1033,
+   271
+  ],
+  [
+   0.5173,
+   0.735,
+   0.1103,
+   272
+  ],
+  [
+   0.735,
+   0.9216,
+   0.223,
+   269
+  ],
+  [
+   0.9216,
+   0.9856,
+   0.2761,
+   268
+  ],
+  [
+   0.9856,
+   0.9998,
+   0.3792,
+   269
+  ]
+ ],
+ "families": {
+  "hyundai": {
+   "n": 1385,
+   "positives": 189,
+   "base_rate": 0.136,
+   "lr": {
+    "auc": 0.828,
+    "precision_at_recall_80": 0.342
+   },
+   "gb": {
+    "auc": 0.875,
+    "precision_at_recall_80": 0.428
+   }
+  },
+  "mss54": {
+   "n": 925,
+   "positives": 66,
+   "base_rate": 0.071,
+   "lr": {
+    "auc": 0.907,
+    "precision_at_recall_80": 0.321
+   },
+   "gb": {
+    "auc": 0.963,
+    "precision_at_recall_80": 0.461
+   }
+  },
+  "old8bit": {
+   "n": 146,
+   "positives": 7,
+   "base_rate": 0.048,
+   "lr": {
+    "auc": 0.917,
+    "precision_at_recall_80": 0.353
+   },
+   "gb": {
+    "auc": 0.956,
+    "precision_at_recall_80": 0.429
+   }
+  },
+  "siemens": {
+   "n": 228,
+   "positives": 66,
+   "base_rate": 0.289,
+   "lr": {
+    "auc": 0.843,
+    "precision_at_recall_80": 0.495
+   },
+   "gb": {
+    "auc": 0.817,
+    "precision_at_recall_80": 0.491
+   }
+  }
+ },
+ "samples": 2684,
+ "positives": 328,
+ "note": "Family-out evaluation; rates are held-out hit rates of data-only candidates, not guarantees.",
+ "drop_below": 0.042,
+ "drop_rationale": "Held-out (family-out) deciles below 0.042 hit 0.4-0.7 % (about 2 of 543). Sweep MS43/MS42: precision 0.76->0.80 / 0.67->0.72, recall 0.673->0.665 / 0.549->0.498, exact layouts unchanged (197/22). Higher thresholds cost too much MS42 recall.",
+ "training_sources": [
+  "Siemens MS43 430069 + MS42 0110C6 (bundled GPL XDFs)",
+  "Hyundai SIM2K x4 (naamons/HyundaiN-TuningLib, GPL-3.0)",
+  "BMW MSS54 partial dumps x12 (saildot4k/MSS54-XDFs)",
+  "TunerPro Porsche/Peugeot/Renault x6"
+ ],
+ "firmware_bytes_included": false
+}

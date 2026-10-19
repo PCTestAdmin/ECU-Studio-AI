@@ -67,3 +67,34 @@ def test_confidence_uses_measured_rates_and_marks_small_samples():
     assert (a.evidence_tier,a.calibrated_rate)==('Vermutung',.3)
     assert (b.evidence_tier,b.calibrated_rate)==('gesichert',1.0)
     assert evidence_class(c)=='code:2d:axis1' and c.evidence_tier=='nicht kalibriert' and c.calibrated_rate is None
+
+
+def test_family_specific_rates_take_precedence_over_pooled():
+    table={'classes':{'axis:count':{'n':2263,'rate':.44,'families':['A','B']}},
+           'families':{'Siemens MS43':{'axis:count':{'n':601,'rate':.98}},
+                       'Unbekannt':{'axis:count':{'n':1263,'rate':.18}}}}
+    a=MapDefinition('a',0,1,6,source='heuristic',record_layout='candidate:count-axis')
+    b=MapDefinition('b',0,1,6,source='heuristic',record_layout='candidate:count-axis')
+    c=MapDefinition('c',0,1,6,source='heuristic',record_layout='candidate:count-axis')
+    apply_confidence([a],table,family='Siemens MS43')
+    apply_confidence([b],table,family=None)
+    apply_confidence([c],table,family='Bosch ME7')          # unmeasured family -> pooled
+    assert (a.calibrated_rate,a.evidence_tier)==(.98,'gesichert')
+    assert (b.calibrated_rate,b.evidence_tier)==(.18,'Vermutung')
+    assert c.calibrated_rate==.44
+
+
+def test_bundled_candidate_model_scores_smooth_table_above_noise():
+    import numpy as np
+    from ecu_studio.core.candidate_model import load_model, score
+    from ecu_studio.core.candidate_features import candidate_features
+    model=load_model()
+    assert model is not None and model['drop_below']<.5
+    rng=np.random.default_rng(3)
+    data=bytearray(rng.integers(0,256,4096,dtype=np.uint8).tobytes())
+    t=np.array([[30+6*r+4*c for c in range(10)] for r in range(8)],np.uint8)
+    data[0x400:0x400+t.size]=t.tobytes()
+    image=BinaryImage(bytes(data))
+    smooth=score(candidate_features(image,MapDefinition('t',0x400,8,10,dtype='u8')),model)
+    noise=score(candidate_features(image,MapDefinition('n',0x800,8,10,dtype='u8')),model)
+    assert smooth>noise

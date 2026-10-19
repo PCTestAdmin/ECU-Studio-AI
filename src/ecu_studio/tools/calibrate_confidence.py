@@ -21,25 +21,36 @@ from ecu_studio.tools.structure_benchmark import _reference
 
 
 def measure(pairs) -> dict:
+    """Rates per evidence class, pooled and per ECU family (profile family name;
+    'Unbekannt' collects images without a known profile)."""
     counts = collections.defaultdict(lambda: [0, 0, set()])
+    by_family = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0]))
     sources = []
     for bin_path, ref_path in pairs:
         image = BinaryImage.from_file(bin_path)
         family = identify_profile(image).family
         starts = {m.offset for m in _reference(ref_path, image)}
+        if Path(ref_path).suffix.lower() == '.xdf':
+            # Axes referenced by tables count as reference objects too.
+            from ecu_studio.core.xdf import xdf_axis_offsets
+            starts |= xdf_axis_offsets(ref_path)
         for m in scan_calibration_candidates(image, use_definitions=False):
             if m.source != 'heuristic':
                 continue
-            row = counts[evidence_class(m)]
-            row[0] += 1
-            row[1] += m.offset in starts
-            row[2].add(family)
+            cls, hit = evidence_class(m), m.offset in starts
+            row = counts[cls]
+            row[0] += 1; row[1] += hit; row[2].add(family)
+            fam = by_family[family][cls]
+            fam[0] += 1; fam[1] += hit
         sources.append({'sha256': image.digest, 'family': family, 'reference': Path(ref_path).name})
-    return {'format': 1, 'measured_on': datetime.date.today().isoformat(),
+    def table(rows):
+        return {k: {'n': n, 'hits': h, 'rate': round(h / n, 4)} for k, (n, h) in sorted(rows.items())}
+    return {'format': 2, 'measured_on': datetime.date.today().isoformat(),
             'definition': 'share of candidates starting exactly at a reference object',
             'sources': sources,
             'classes': {k: {'n': n, 'hits': h, 'rate': round(h / n, 4), 'families': sorted(f)}
-                        for k, (n, h, f) in sorted(counts.items())}}
+                        for k, (n, h, f) in sorted(counts.items())},
+            'families': {fam: table({k: tuple(v) for k, v in rows.items()}) for fam, rows in sorted(by_family.items())}}
 
 
 def main(argv=None):

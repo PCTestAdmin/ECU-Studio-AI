@@ -50,20 +50,32 @@ def tier_for(rate: float) -> str:
     return next(name for name, low in TIERS if rate >= low)
 
 
-def apply_confidence(maps: list[MapDefinition], table: dict | None = None) -> list[MapDefinition]:
-    """Annotate heuristic candidates with measured rate and tier (in place)."""
-    classes = (table or calibration()).get('classes', {})
+def apply_confidence(maps: list[MapDefinition], table: dict | None = None,
+                     family: str | None = None) -> list[MapDefinition]:
+    """Annotate heuristic candidates with measured rate and tier (in place).
+
+    Rates of the image's ECU family are used when measured often enough; images
+    without a known profile use the rates measured on such images ('Unbekannt').
+    The pooled rate is only the last fallback.
+    """
+    table = table or calibration()
+    classes = table.get('classes', {})
+    family_rows = table.get('families', {}).get(family or 'Unbekannt', {})
     for m in maps:
         if m.source != 'heuristic':
             continue
-        row = classes.get(evidence_class(m))
+        cls = evidence_class(m)
+        row, scope = family_rows.get(cls), (family or 'Unbekannt')
+        if not row or row.get('n', 0) < MIN_SAMPLES:
+            row = classes.get(cls)
+            scope = 'alle Familien: ' + ', '.join(row.get('families', [])) if row else ''
         if not row or row.get('n', 0) < MIN_SAMPLES:
             m.evidence_tier, m.calibrated_rate = 'nicht kalibriert', None
             continue
         m.calibrated_rate = round(float(row['rate']), 3)
         m.evidence_tier = tier_for(m.calibrated_rate)
-        note = (f"Evidenzklasse {evidence_class(m)}: {m.calibrated_rate:.0%} Treffer "
-                f"(n={row['n']}, {', '.join(row.get('families', []))}) – {m.evidence_tier}.")
+        note = (f"Evidenzklasse {cls}: {m.calibrated_rate:.0%} Treffer "
+                f"(n={row['n']}, gemessen: {scope}) – {m.evidence_tier}.")
         if note not in m.notes:
             m.notes = (m.notes + ' ' + note).strip()
     return maps
