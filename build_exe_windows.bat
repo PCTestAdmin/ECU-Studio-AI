@@ -6,10 +6,8 @@ if not exist .venv\Scripts\python.exe (
   pause
   exit /b 1
 )
-call .venv\Scripts\activate.bat
-python -m pip install pyinstaller || goto :error
 powershell -NoProfile -ExecutionPolicy Bypass -File build_release.ps1 || goto :error
-echo EXE liegt in dist\ECU-Studio-AI-1.11\
+echo Portables Paket liegt in dist\ECU-Studio-AI-1.14-portable\
 pause
 exit /b 0
 :error

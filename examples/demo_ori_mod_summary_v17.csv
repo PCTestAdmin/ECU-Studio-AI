@@ -1,3 +1,0 @@
-﻿name;offset;dimensions;kind;provenance;changed_cells;total_cells;changed_bytes;max_abs_raw_delta;max_abs_physical_delta;max_relative_percent;status
-SYNTHETIC Boost demo;4096;16x16;Boost;CSV-Definition (ungeprüft);1;256;1;10;10.0;0.8953;GEÄNDERT
-SYNTHETIC AGR demo;8192;16x16;AGR;CSV-Definition (ungeprüft);1;256;1;10;10.0;18.5185;GEÄNDERT

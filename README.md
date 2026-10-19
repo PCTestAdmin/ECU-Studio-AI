@@ -140,7 +140,7 @@ pip install -e .[dev]
 python -m ecu_studio.main
 ```
 
-Eigenständige EXE: `build_exe_windows.bat` (PyInstaller). Fertige Pakete erscheinen unter
+Portables Windows-Paket mit EXE-Starter: `build_exe_windows.bat` (Tests, Paket unter `dist`, Selbsttest der EXE). Fertige Pakete erscheinen unter
 [Releases](https://github.com/PCTestAdmin/ecu-studio-ai/releases).
 
 ## Entwicklung

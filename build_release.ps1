@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) {
-    & py -3.13 -m venv .venv
-    if ($LASTEXITCODE -ne 0) { throw 'Python 3.13 Umgebung konnte nicht erstellt werden.' }
+    & py -3 -m venv .venv
+    if ($LASTEXITCODE -ne 0) { throw 'Python-Umgebung konnte nicht erstellt werden.' }
 }
 & $python -m pip install -r requirements-lock-windows.txt
 if ($LASTEXITCODE -ne 0) { throw 'Abhängigkeiten konnten nicht installiert werden.' }

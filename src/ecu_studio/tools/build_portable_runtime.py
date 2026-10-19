@@ -68,7 +68,6 @@ def build():
             copytree(path,packages/path.name)
     copytree(root/'src'/'ecu_studio',app/'ecu_studio')
     shutil.copy2(root/'launcher.py',app/'launch.py')
-    shutil.copy2(root/'recognition_public_index.sqlite3',output/'recognition_public_index.sqlite3')
     shutil.copy2(root/'packaging'/'windows_launcher.cs',output/'windows_launcher.cs')
     compiler=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
     exe=output/'ECU-Studio-AI-1.14.exe'
