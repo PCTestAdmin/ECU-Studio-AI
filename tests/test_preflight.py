@@ -13,7 +13,7 @@ def _image():
     t=_table(8,8,20)
     data[0x1000:0x1040]=t.tobytes()            # table
     data[0x2000:0x2040]=t.tobytes()            # identical monitoring copy
-    axes=bytes([6,10,20,30,40,50,60])+bytes([4,1,2,3,4])
+    axes=bytes([6,10,20,30,40,50,60])+bytes([4,1,2,3,4])+bytes([3,5,9,13])+bytes([3,2,4,6])
     data[0x3000:0x3000+len(axes)]=axes
     m=MapDefinition('KF',0x1000,8,8,dtype='u8')
     return BinaryImage(bytes(data)),[m]

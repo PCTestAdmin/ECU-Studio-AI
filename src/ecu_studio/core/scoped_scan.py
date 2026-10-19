@@ -14,7 +14,8 @@ from .axis_records import scan_axis_records
 from .structure_scan import scan_structures, lookup_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
-from .confidence import apply_confidence
+from .confidence import apply_confidence, tier_for
+from .candidate_model import load_model, score_candidates
 
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z')
 
@@ -107,6 +108,26 @@ def scan_calibration_candidates(image: BinaryImage, *,
     result=sorted([m for m in ranked if not any(m.offset<e and s<m.offset+m.length for s,e in spans)]+lines,
                   key=lambda m:m.offset)
     apply_confidence(result)
+    # Data-only candidates: learned scorer (family-out validated) replaces the
+    # coarse class rate with the held-out hit rate of the candidate's score.
+    model=load_model()
+    if model is not None:
+        full_mask=mask if mask is not None else data_mask(raw)
+        scores=score_candidates(image,result,full_mask)
+        drop_below=model.get('drop_below')
+        keep=[]
+        for i,m in enumerate(result):
+            if i in scores:
+                p,rate=scores[i]
+                if drop_below is not None and p<drop_below:
+                    continue
+                m.calibrated_rate=round(rate,3)
+                m.evidence_tier=tier_for(rate)
+                m.notes=(m.notes+f' Lernmodell (familienübergreifend geprüft): Score {p:.2f}, '
+                         f'gemessene Trefferquote dieses Score-Bereichs {rate:.0%}.').strip()
+            keep.append(m)
+        if diagnostics is not None:diagnostics['model_dropped']=len(result)-len(keep)
+        result=keep
     if diagnostics is not None:diagnostics['accepted_count']=len(result)
     if progress:
         progress(100)

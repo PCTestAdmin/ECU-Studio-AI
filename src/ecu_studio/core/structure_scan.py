@@ -31,6 +31,7 @@ MIN_ROWS = 4
 PAIR_TOL = .30
 SHAPE_TOL = .08
 TAIL_MAX = .50
+PRESCREEN_V = .45
 MIN_PITCH_SCORE = 1.  # rejects small smooth-by-chance windows in random data
 ANCHOR_SCORE = 10.
 AXIS_LOOKBACK = 128   # code bytes between the axis loads and the table load
@@ -99,6 +100,11 @@ def _roughness(m: np.ndarray):
     return None if s[0] <= 0 else (float(h[0]), float(v[0]), float(tail[0]))
 
 
+def _redundant_signed(dtype: str, block: np.ndarray) -> bool:
+    """A signed reading without negative values duplicates the unsigned one."""
+    return dtype[0] == 's' and block.size > 0 and block.min() >= 0
+
+
 def _block_cost(m: np.ndarray) -> float | None:
     r = _roughness(m)
     return None if r is None else r[0] + r[1]
@@ -136,6 +142,14 @@ def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None) -> list[tuple
                 if p0 < covered and stop <= covered_stop:
                     continue
                 covered, covered_stop = int(p0) + c, stop
+                # Cheap pre-screen before the robust per-phase evaluation: runs
+                # whose rows differ on average by far more than the final limit
+                # (v <= .30 of a span never larger than this one) are skipped.
+                # Generous factor; benchmarks unchanged (MS43/MS42/ME7).
+                seg = x[int(p0):stop]
+                plain = seg.max() - seg.min()
+                if plain <= 0 or np.abs(seg[c:] - seg[:-c]).mean() > PRESCREEN_V * plain:
+                    continue
                 # Column phase: a wrong start puts the row-wrap jump inside rows.
                 # All shifts are compared on the same row count, in one pass.
                 common = (stop - int(p0) - (c - 1)) // c
@@ -157,7 +171,7 @@ def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None) -> list[tuple
                 if w == 1 and _interleaved_constant(buf[p:p + min(64, rows * c)]):
                     continue
                 score = (1 - min(1., 2 * (h + v))) * np.log2(rows * c)
-                if score < MIN_PITCH_SCORE:
+                if score < MIN_PITCH_SCORE or _redundant_signed(dtype, x[p:p + rows * c]):
                     continue
                 out.append((float(score), int(p) * w + base, rows, c, dtype, endian, w))
     return out
@@ -219,7 +233,7 @@ def _fixed_cols_fit(data: bytes, a: int, cols: int, end: int):
             continue
         x = _values(raw, w, endian, dtype[0] == "s")
         rows = _rows_from(x, cols, len(x) // cols) if len(x) >= 2 * cols else 0
-        if rows < 2:
+        if rows < 2 or _redundant_signed(dtype, x[:rows * cols]):
             continue
         cost = _block_cost(x[:rows * cols].reshape(rows, cols))
         if cost is not None and cost < AXIS_FIT_MAX and (best is None or cost < best[0]):
@@ -254,6 +268,8 @@ def _axis_fit(data: bytes, a: int, rows: int, cols: int, end: int):
         if w == 1 and _interleaved_constant(data[a:a + min(64, rows * cols)]):
             continue
         x = _values(data[a:a + rows * cols * w], w, endian, dtype[0] == "s")
+        if _redundant_signed(dtype, x):
+            continue
         if rows == 1:
             span = x.max() - x.min()
             cost = float(np.abs(np.diff(x)).mean() / span) if span > 0 else None
@@ -292,6 +308,8 @@ def anchored_fit(data: bytes, a: int, b: int):
             continue
         x = _values(raw, w, endian, dtype[0] == "s")
         n = len(x)
+        if _redundant_signed(dtype, x):
+            continue
         for c in range(4, 25):
             # A gap exactly filled by r x c explains packed neighbouring tables.
             if n % c == 0 and n // c >= 4 and n * w == length:

@@ -207,8 +207,21 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
     """
     source=Path(path)
     if source.stat().st_size>25*1024*1024:raise ValueError('XDF über 25 MiB nicht unterstützt')
+    with source.open('rb') as fp:
+        if fp.read(3)==b'XDF':
+            return read_legacy_xdf(source,image,include_constants=include_constants)
     # ET does not perform network fetches/resolve external general entities.
-    root=ET.parse(source).getroot()
+    try:
+        root=ET.parse(source).getroot()
+    except ET.ParseError:
+        # TunerPro tolerates Latin-1 bytes (e.g. "°C") in files read as UTF-8 and
+        # stray "&" in descriptions; repair both, keep defusedxml protections.
+        raw=source.read_bytes()
+        try:text=raw.decode('utf-8')
+        except UnicodeDecodeError:text=raw.decode('latin-1')
+        text=re.sub(r'^<\?xml[^>]*\?>','',text.lstrip('﻿'))
+        text=re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)','&amp;',text)
+        root=ET.fromstring(text)
     if root.tag.upper()!='XDFFORMAT':raise ValueError('Kein TunerPro-XDF (XDFFORMAT)')
     result=XDFResult()
     header=root.find('XDFHEADER')
@@ -327,4 +340,80 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
         except (ValueError,SyntaxError,IndexError,OverflowError,TypeError) as exc:
             reject('Ungültige/komplexe Definition')
             record['reason'] += ': '+str(exc)[:110]
+    return result
+
+
+_LEGACY_LINE = re.compile(r'^\s*(\d{6})\s+(\w+)\s*=(.*)$', re.M)
+
+
+def read_legacy_xdf(path, image: BinaryImage, *, include_constants: bool = True) -> XDFResult:
+    """TunerPro XDF 1.x text format ("XDF\\n1.1x" + %%HEADER%%/%%TABLE%%/%%CONSTANT%% blocks).
+
+    Used by many older definitions (e.g. Bosch Motronic, Renault Fenix). Same
+    rules as the XML reader: contiguous 8/16/32-bit data, affine formulas only
+    for editing, anything else rejected instead of guessed.
+    """
+    source = Path(path)
+    text = source.read_bytes().decode('latin-1')
+    result = XDFResult(title=source.stem)
+    for kind, body in re.findall(r'%%(\w+)%%(.*?)%%END%%', text, re.S):
+        fields = {name: value.strip() for _, name, value in _LEGACY_LINE.findall(body)}
+        def string(key, default=''):
+            return fields.get(key, default).strip('"')
+        if kind == 'HEADER':
+            result.title = string('DefTitle') or source.stem
+            result.base_offset = _integer(fields.get('BaseOffset'), 0)
+            result.categories = {int(k[8:]): string(k) for k in fields if k.startswith('Category') and k[8:].isdigit()}
+            continue
+        if kind not in ('TABLE', 'CONSTANT'):
+            continue
+        table = kind == 'TABLE'
+        if table:
+            result.table_count += 1
+        else:
+            result.constant_count += 1
+            if not include_constants:
+                continue
+        name = string('Title') or 'Ohne Namen'
+        record = {'name': name, 'kind': 'Tabelle' if table else 'Konstante',
+                  'xdf_address': fields.get('Address', ''), 'bin_offset': '', 'status': 'abgelehnt', 'reason': ''}
+        result.entries.append(record)
+        try:
+            bits = _integer(fields.get('SizeInBits'), 8)
+            flags = _integer(fields.get('Flags'), 0)
+            if bits not in (8, 16, 32):
+                raise ValueError('Datentyp nicht darstellbar')
+            dtype = ('s' if flags & 1 else 'u') + str(bits)
+            endian = 'little' if flags & 2 else 'big'
+            rows, cols = (_integer(fields.get('Rows'), 1), _integer(fields.get('Cols'), 1)) if table else (1, 1)
+            equation = (fields.get('ZEq' if table else 'Equation') or 'X').split(',')[0].strip() or 'X'
+            nonlinear = ''
+            try:
+                factor, bias = _affine(equation)
+            except ValueError:
+                parse_equation(equation)
+                factor, bias, nonlinear = 1., 0., equation
+            ecu_address = _integer(fields.get('Address'))
+            offset = ecu_address + result.base_offset
+            record['bin_offset'] = f'0x{offset:X}'
+            category = result.categories.get(_integer(fields.get('Cat0ID'), -1) - 1) or ''
+            desc = string('Desc')
+            m = MapDefinition(name=name, offset=offset, rows=rows, cols=cols, dtype=dtype, endian=endian,
+                              factor=factor, bias=bias, unit=string('ZUnits') or string('Units'),
+                              source='xdf', verified=False, ecu_address=ecu_address, equation=nonlinear,
+                              storage_order='column-major' if fields.get('PopByCol', '0') not in ('', '0', '0x0') else 'row-major',
+                              folder=category, axis_x_unit=string('XUnits'), axis_y_unit=string('YUnits'),
+                              notes=('XDF 1.x: ' + ' | '.join(filter(None, [desc[:500], category])) + f' | Formel: {equation}'),
+                              axes_info='XDF 1.x; Achsen nicht gelesen')
+            m.validate(image.size)
+            label_from_metadata(m, description=' | '.join(filter(None, [desc, category])))
+            if m.kind == 'Unbekannt' and category:
+                m.kind = 'XDF-Kategorie: ' + category[:65]
+            m.label_origin = 'XDF 1.x: benannter Eintrag' + (f' · {m.label_origin}' if m.label_origin else '')
+            m.label_evidence = ('Name/Adresse/Skalierung aus XDF 1.x; Firmware-Variante prüfen. ' + m.label_evidence)[:800]
+            result.maps.append(m)
+            record['status'] = 'importiert'
+        except (ValueError, SyntaxError, IndexError, OverflowError, TypeError) as exc:
+            result.excluded['Ungültige/komplexe Definition'] += 1
+            record['reason'] = str(exc)[:110]
     return result

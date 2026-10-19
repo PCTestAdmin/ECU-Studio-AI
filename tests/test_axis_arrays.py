@@ -20,7 +20,8 @@ def _mov(addr):
 
 def test_chained_count_prefixed_axes_are_found_in_both_widths():
     data=bytearray(np.random.default_rng(5).integers(0,256,4096,dtype=np.uint8).tobytes())
-    chain=_u8_axis([10,20,40,80,120,160])+_u8_axis([0,25,50,75])+_u16_axis([500,1000,2000,4000,6000])
+    chain=(_u8_axis([10,20,40,80,120,160])+_u8_axis([0,25,50,75])+_u16_axis([500,1000,2000,4000,6000])
+           +_u16_axis([100,200,300]))
     data[0x400:0x400+len(chain)]=chain
     found=scan_count_axes(bytes(data))
     got={(a.header,a.count,a.width,a.values) for a in found}
@@ -42,7 +43,7 @@ def _image_with_lookup(gap_y_x):
     loads Y, then X, then the table, like Siemens MS43 lookups."""
     data=bytearray(0x80000)
     y=[5,10,20,30,40,50,60,70]; x=[100,130,160,190,220,250]
-    axes=_u8_axis(y)+_u8_axis(x)+_u8_axis([1,2,3,4])
+    axes=_u8_axis(y)+_u8_axis(x)+_u8_axis([1,2,3,4])+_u8_axis([2,4,6])
     data[0x74000:0x74000+len(axes)]=axes
     t=np.array([[10+3*r+5*c for c in range(6)] for r in range(8)],np.uint8)
     data[0x75000:0x75000+t.size]=t.tobytes()
@@ -59,7 +60,7 @@ def test_code_loaded_axes_fix_table_shape_and_values():
     assert m.axes_y==[5,10,20,30,40,50,60,70] and m.axes_x==[100,130,160,190,220,250]
     assert m.record_layout==REFERENCE_LAYOUT and not m.verified and m.kind=='Unbekannt'
     # The breakpoint arrays themselves are not reported as 2-D tables.
-    assert not any(0x74000<=o<0x74014 for o in found)
+    assert not any(0x74000<=o<0x74018 for o in found)
 
 
 def test_scoped_scan_reports_axes_as_one_line_candidates():

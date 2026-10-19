@@ -11,6 +11,7 @@ import numpy as np
 from .model import MapDefinition
 
 MIN_POINTS, MAX_POINTS = 2, 32
+MIN_CHAIN = 4   # MS43/MS42 keep 592/398 true axes; 75 chance axes on old 8-bit ECUs drop to 0
 AXIS_LAYOUT = 'candidate:count-axis'
 
 
@@ -103,7 +104,18 @@ def scan_count_axes(data: bytes, lo: int = 0, hi: int | None = None) -> list[Cou
             continue
         taken.append((ax.header, ax.end))
         chosen.append(ax)
-    return sorted(chosen, key=lambda a: a.header)
+    chosen.sort(key=lambda a: a.header)
+    # Keep only runs of MIN_CHAIN or more directly adjacent arrays: real axis
+    # blocks are long, chance matches in other data rarely chain that far.
+    kept, run = [], []
+    for ax in chosen + [None]:
+        if ax is not None and run and run[-1].end == ax.header:
+            run.append(ax)
+            continue
+        if len(run) >= MIN_CHAIN:
+            kept.extend(run)
+        run = [ax] if ax is not None else []
+    return kept
 
 
 def quantity_hint(ax: CountAxis) -> str:
