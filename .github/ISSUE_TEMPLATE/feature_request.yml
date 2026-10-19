@@ -1,0 +1,19 @@
+name: Idee / Funktionswunsch
+description: Vorschlag für eine neue Funktion
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem soll gelöst werden?
+      description: Beschreibe die Situation im Arbeitsalltag.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Vorschlag
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Bisheriger Umweg / Alternativen

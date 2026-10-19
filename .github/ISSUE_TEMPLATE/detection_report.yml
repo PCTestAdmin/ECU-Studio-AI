@@ -1,0 +1,40 @@
+name: Erkennungsbericht
+description: Messergebnis der Kennfelderkennung für ein Steuergerät teilen
+labels: [detection]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Messen! **Keine Original-Firmware anhängen** – nur Ergebnisse und Quellen.
+        Messung: `python -m ecu_studio.tools.structure_benchmark <bin> <xdf>`
+  - type: input
+    id: ecu
+    attributes:
+      label: Steuergerät und Software
+      placeholder: z. B. Bosch ME7.5, 8E0909518AL 0005
+    validations:
+      required: true
+  - type: input
+    id: cpu
+    attributes:
+      label: Prozessor (falls bekannt)
+      placeholder: z. B. C167, TriCore, PowerPC, 68HC11
+  - type: input
+    id: source
+    attributes:
+      label: Quelle der Definition und Lizenz
+      placeholder: z. B. öffentliches GitHub-Repository … , GPL-3.0
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Benchmark-Ergebnis (JSON)
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Auffälligkeiten
+      description: Welche Kennfelder fehlen oder sind falsch? Adressen und Größen helfen.

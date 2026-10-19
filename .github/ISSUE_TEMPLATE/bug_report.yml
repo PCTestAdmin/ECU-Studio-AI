@@ -1,0 +1,37 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie erwartet
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Bitte keine Original-Firmware (BIN/ORI/OLS) anhängen.** Prüfsumme, Größe und Kennung reichen.
+  - type: textarea
+    id: what
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, was hast du erwartet, was kam stattdessen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Nachstellen
+      placeholder: |
+        1. BIN öffnen …
+        2. Scan starten …
+  - type: input
+    id: version
+    attributes:
+      label: Version / Commit
+      placeholder: z. B. 1.14.0 oder Commit-Hash
+  - type: input
+    id: ecu
+    attributes:
+      label: Steuergerät (falls relevant)
+      placeholder: z. B. Siemens MS43 430069, 512 KB, SHA-256 …
+  - type: textarea
+    id: log
+    attributes:
+      label: Fehlermeldung / Log
+      render: text
