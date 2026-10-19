@@ -57,7 +57,7 @@ flowchart LR
     W --> E
     M --> E
     subgraph E[Evidenz sammeln]
-        C[Code-Verweise<br/>C16x · HC11 · 8051]
+        C[Code-Verweise<br/>C16x · 68k · HC11 · 8051<br/>Denso-Zeigerblöcke]
         A[Achsen-Arrays<br/>mit Anzahl-Präfix]
         L[Lookup-Aufrufe<br/>Kennfeld + Achsenzeiger]
         D[Datenmuster<br/>Zeilenabstand · Glätte]
@@ -81,16 +81,21 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Siemens MS43 430069 | **66 %** (vorher 4,5 %) | **197** von 379 (vorher 1) | **80 %** |
 | Siemens MS42 0110C6 | **50 %** (vorher 13 %) | 22 von 213 (vorher 5) | **72 %** |
 | Bosch ME7 (Volvo, 3 Stände) | **54–71 %** (vorher 5–10 %) | je 6 (vorher 0) | nicht belastbar¹ |
+| Bosch ME7.5 (VAG 06A906032HS) | 46 % (vorher 36 %) | 50 (vorher 16), Kennlinien 132 | nicht belastbar¹ |
+| Bosch ME7.5 (VAG 8E0909518AK) | 57 % (vorher 43 %) | 37 (vorher 16), Kennlinien 41 | nicht belastbar¹ |
+| Denso SH-2 (Subaru 5EAT, 9 ROMs) | **93–100 %** (vorher 35–53 %) | **147–178** (vorher 15–27) | nicht belastbar¹ |
+| GM P01 (68k) | 35 % (vorher 21 %) | 10 (vorher 1), Kennlinien 21 | nicht belastbar¹ |
+| Volvo M4.4 (8051) · Opel E78 (PowerPC) | 54 % · 26 % | 8 · 1 | nicht belastbar¹ |
 
-**Trefferquote je Beweisart** (MS43 + MS42, Anteil der Funde, die exakt an einem echten Objekt beginnen):
+**Trefferquote je Beweisart** (MS43, MS42, Hyundai, MSS54; Anteil der Funde, die exakt an einem echten Objekt beginnen):
 
 | Beweisart | Anzahl | Trefferquote |
 |---|---:|---:|
 | Code-Verweis + zwei Achsen | 227 | 100 % |
 | Code-Verweis ohne Achsen | 35 | 97 % |
 | Achsen-Arrays mit Anzahl-Präfix | 1020 | 97 % |
-| Code-Verweis + Achse (Kennlinie) | 23 | 91 % |
-| nur Datenmuster | 210 | 30 % → **Lernmodell**, s. u. |
+| Code-Verweis + Achse (Kennlinie) | 159 | 99 % |
+| nur Datenmuster | 732 | 19 % → **Lernmodell**, s. u. |
 
 **Lernmodell für Datenmuster-Funde** – geprüft auf einer beim Training ausgelassenen Familie (Präzision bei 80 % Trefferquote):
 
@@ -101,14 +106,18 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | alte 8-Bit-Motronic/Fenix | 5 % | **35 %** |
 | Siemens MS42/MS43 | 29 % | **50 %** |
 
-<sub>¹ Die ME7-XDFs definieren nur einen kleinen Teil der Kennfelder. Details und Verlauf: [CHANGELOG](CHANGELOG.md).</sub>
+<sub>¹ Diese Definitionen enthalten nur einen Teil der Kennfelder (Subaru: 147–183 von 250–317 Beschreibungsblöcken). Details und Verlauf: [CHANGELOG](CHANGELOG.md).</sub>
 
 ## Unterstützte Steuergeräte
 
 | Familie | Prozessor | Code-Verweise | Achsen | Status |
 |---|---|:---:|:---:|---|
 | Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | gemessen, Standard-XDFs inklusive |
-| Bosch ME7 | C167 | ✅ Lookup-Aufrufe | ✅ | gemessen |
+| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ Lookup-Aufrufe, Basis auto | ✅ Kopf | gemessen |
+| Denso (Subaru) | SH-2 | ✅ Beschreibungsblöcke | ✅ | gemessen |
+| GM P01 / E-Steuergeräte | 68k | ✅ Absolutoperanden | – | gemessen |
+| Bosch M4.4 (Volvo) | 8051 | ◐ bestätigend | – | gemessen |
+| Bosch/Continental E78 (Opel) | PowerPC | ❌ | – | gemessen; Code-Verweise offen |
 | Bosch Motronic (Porsche 911/944/928/964) | 8051 | – | – | gemessen; XDF 1.x lesbar |
 | Renault Fenix 1B/3, Peugeot 205 Turbo | 68HC11 | ◐ bestätigend | – | gemessen |
 | Continental SIM2K (Hyundai) | TriCore | ❌ | ◐ | gemessen, Lernmodell; Code-Verweise offen |
@@ -159,8 +168,9 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 - [x] Kalibrierte Konfidenz, Flash-Preflight, Funktionsgraph, Signal-Tracing
 - [x] XDF-Textformat 1.x und tolerantes XML
 - [x] Lernmodell für Datenmuster-Funde, familienübergreifend geprüft
-- [ ] Code-Verweise für TriCore und 68k (CPU32)
-- [ ] Schnellere Suche bei großen Dateien (2–4 MB)
+- [x] Code-Verweise 68k (GM P01), ME7.5-Speicherbasis, Denso-Beschreibungsblöcke
+- [x] Schnellere Suche bei großen Dateien (2- bis 5-mal)
+- [ ] Code-Verweise für TriCore, PowerPC und CPU32 (MSS54)
 - [ ] Logger-Anbindung für Signal-Tracing
 
 ## Mitmachen

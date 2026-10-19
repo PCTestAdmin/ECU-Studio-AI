@@ -27,6 +27,13 @@
 - Offen: Code-Verweise für TriCore (Hyundai) und 68k/CPU32 (MSS54) – Daten werden dort über Basisregister adressiert; Laufzeit bei 2,6-MB-Dateien ~100 s.
 - Oberfläche: Farbskala kalt→heiß für Heatmap (mit Werten, Achsen, Legende), Tabelle (Zellen eingefärbt, Nachkommastellen nach Skalierung) und 3D (gefüllte Fläche); eigene Liniensymbole in der Werkzeugleiste; überarbeitetes Hell/Dunkel-Theme. `tools/screenshot.py` rendert die Oberfläche offscreen.
 - Repository: historische Berichte nach `docs/history/`, neue README, `.gitignore`/`.gitattributes` (keine Firmware, keine Build-Artefakte), GitHub-Actions-Workflow für pytest.
+- Neue Referenzfamilien (öffentliche BIN/XDF-Paare, nur lokal genutzt): VAG ME7.5 (06A906032HS, 8E0909518AK), Opel E78 (PowerPC), GM P01 (68k), Volvo M4.4 (8051), Peugeot IAW 8P (XDF selbst spekulativ, nicht belastbar), Subaru 5EAT Denso (SH-2).
+- C16x-Speicherbasis automatisch (`c16x_base`, Abstimmung über Lookup-Aufrufe mit gültiger Achse): VAG ME7.5 liegt bei 0x800000. ME7-Datensätze mit vorangestelltem Kopf (`[nx][ny][X][Y][Z]`, Kennlinien `[n][X][Z]`) werden an Code-Verweisen gelesen. VAG 06A906032HS: 2D exakt 16 → 50, Kennlinien exakt 5 → 132, Präzision 38 % → 46 %; 8E0909518AK: 2D exakt 16 → 37, Kennlinien 13 → 41.
+- 68k-Absolutoperanden (`abs.L`, `#imm.L`, `m68k_targets`) als verankernde Code-Verweise; Kennlinien ohne Achsenkopf aus dem Abstand zweier referenzierter Adressen (`gap_curve`). GM P01: Trefferquote 21 % → 35 %, 2D exakt 1 → 10, Kennlinien 0 → 21. PowerPC (Opel E78) wird zu Recht nicht als 68k erkannt.
+- Denso/SH-2-Beschreibungsblöcke (`pointer_descriptors`: Anzahl X/Y, Zeiger auf X-, Y-Achse und Daten, Typ-Byte; eigene Evidenzklasse `pointer:descriptor`): Subaru 5EAT Denso (9 ROMs) Trefferquote 35–53 % → 93–100 %, exakte Layouts 15–27 → 147–178. Die RomRaider-Definition ist eine Auswahl (147–183 von 250–317 Blöcken je ROM), daher keine Kalibrierung dieser Klasse (Untergrenze 58 %). Blöcke mit Typ 0 bleiben aus (Definition dort widersprüchlich). Auf allen anderen Familien kein einziger Fehltreffer.
+- Mustersuche gebündelt und vektorisiert, identisches Ergebnis: MS43 14,5 → 6 s, 3-MB-Opel 67 → 32 s. 2D-Kennfelder und Kennlinien haben getrennte Ergebnisbudgets. Breitere Spaltenbereiche (bis 40, 17/33) gemessen und verworfen (MS42 exakt 22 → 15/18).
+- Konfidenz neu kalibriert (MS43, MS42, Hyundai ×2, MSS54): Code-Kennlinie mit Achse 99 % (n=159), nur Datenmuster 19 % (n=732). Benchmark liest auch RomRaider-XML.
+- Offen: Code-Verweise für TriCore und PowerPC (Opel E78, Recall 26 %), 8051 mit Bankumschaltung (Volvo M4.4); Lernmodell nicht neu trainiert, weil die neuen Definitionen unvollständig sind (verrauschte Labels).
 
 ## 1.11.0 (17.10.2026)
 

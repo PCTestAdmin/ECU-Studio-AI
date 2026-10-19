@@ -40,6 +40,7 @@ AXIS_FIT_MAX = .75
 ANCHORING_FAMILIES = ('68k',)   # other-CPU references strong enough to fix a start
 REFERENCE_LAYOUT = 'candidate:code-reference'
 PITCH_LAYOUT = 'candidate:row-pitch'
+POINTER_LAYOUT = 'candidate:pointer-descriptor'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -317,6 +318,48 @@ def inline_records(data: bytes, a: int, end: int) -> list[tuple]:
     return out
 
 
+DENSO_TYPES = {0x04: ('u8', 1), 0x08: ('u16', 2), 0x10: ('u16', 2)}
+MIN_DESCRIPTORS = 5
+
+
+def _increasing_axis(data: bytes, offset: int, n: int, width: int) -> CountAxis | None:
+    dt = {1: '>u1', 2: '>u2', 4: '>f4'}[width]
+    v = np.frombuffer(data[offset:offset + n * width], dt)
+    if len(v) != n or not np.all(np.isfinite(v)) or not np.all(np.diff(v) > 0):
+        return None
+    return CountAxis(offset, offset, n, width, tuple(float(x) if width == 4 else int(x) for x in v))
+
+
+def pointer_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, tuple]:
+    """Denso (SH-2) table descriptors: ``nx, ny (u16), &X, &Y, &Z (u32), type``.
+
+    All big endian on 4-byte boundaries; the axes lie directly in front of the
+    data (&Y - &X = nx values, &Z - &Y = ny values), so a descriptor names start,
+    shape and axes. Returns {data_offset: (rows, cols, dtype, width, x, y)}.
+    On Subaru 5EAT Denso ROMs every RomRaider table is reached this way.
+    """
+    hi = len(data) if hi is None else hi
+    v = np.frombuffer(data[:len(data) // 4 * 4], '>u4').astype(np.int64)
+    if len(v) < 5:
+        return {}
+    nx, ny = v[:-4] >> 16, v[:-4] & 0xFFFF
+    p1, p2, p3 = v[1:-3], v[2:-2], v[3:-1]
+    sel = (nx >= 2) & (nx <= MAX_POINTS) & (ny >= 2) & (ny <= MAX_POINTS) & (p1 < p2) & (p2 < p3) & (p3 < len(data))
+    found = {}
+    for i in np.nonzero(sel)[0].tolist():
+        rx, ry, z = int(nx[i]), int(ny[i]), int(p3[i])
+        aw = (int(p2[i]) - int(p1[i])) // rx
+        kind = DENSO_TYPES.get(data[i * 4 + 16]) if i * 4 + 16 < len(data) else None
+        if aw not in (1, 2, 4) or aw * rx != p2[i] - p1[i] or aw * ry != z - p2[i] or not kind or \
+                not lo <= z < hi or z % kind[1] or z + rx * ry * kind[1] > len(data):
+            continue
+        x = _increasing_axis(data, int(p1[i]), rx, aw)
+        y = x and _increasing_axis(data, int(p2[i]), ry, aw)
+        if x and y:
+            found[z] = (ry, rx, kind[0], kind[1], x, y)
+    return found if len(found) >= MIN_DESCRIPTORS else {}
+
+
 CURVE_POINTS = range(4, 33)
 CURVE_COST_MAX = .25   # GM P01 / VAG ME7.5: same exact curves as .35 with ~15 % fewer candidates
 
@@ -469,7 +512,9 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     # Other CPUs (HC11, 8051): address loads with an auto-detected memory map.
     cpu, generic = detect_cpu(data)
     generic_only = {a for a in generic if start <= a < end} - set(refs) - set(descriptors)
-    anchors = sorted(set(refs) | set(descriptors) | generic_only)
+    # Pointer descriptors (Denso SH-2) name start, shape, type and axes outright.
+    pointed = pointer_descriptors(data, start, end)
+    anchors = sorted(set(refs) | set(descriptors) | generic_only | set(pointed))
     axes_by_header = {ax.header: ax for ax in axes}
     axis_spans = sorted((ax.header, ax.end) for ax in axes)
 
@@ -480,10 +525,14 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     # Firmware with ME7-style lookup calls also stores records with their axes in front.
     with_inline = len(descriptors) >= MIN_BASE_VOTES
     inline_starts, generic_confirmed = set(), set()
-    proposals = []   # (score, offset, rows, cols, dtype, endian, width, (x_axis, y_axis) | None)
+    proposals = [(ANCHOR_SCORE + 2.5, z, r, c, dtype, 'big', w, (x, y))
+                 for z, (r, c, dtype, w, x, y) in pointed.items()]
+    # (score, offset, rows, cols, dtype, endian, width, (x_axis, y_axis) | None)
     for a, b in zip(anchors, anchors[1:] + [end]):
         if cancelled and cancelled():
             return []
+        if a in pointed:
+            continue
         if with_inline and a in refs and a not in descriptors:
             records = inline_records(data, a, end)
             if records:
@@ -592,7 +641,12 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             continue
         taken.insert(k, (off, stop))
         referenced = score >= ANCHOR_SCORE
-        if off in inline_starts and pair:
+        if off in pointed:
+            evidence = ('Beschreibungsblock mit Zeigern auf Achsen und Daten (Anzahl X/Y, Datentyp) '
+                        f'nennt Start und Größe; X @ 0x{pair[0].offset:X} ({pair[0].count} Punkte), '
+                        f'Y @ 0x{pair[1].offset:X} ({pair[1].count} Punkte).')
+            origin = 'Zeiger-Beschreibungsblock + Achsen (ungeprüft)'
+        elif off in inline_starts and pair:
             evidence = ('Datensatz im Programmcode referenziert; Größe und Achsen aus dem vorangestellten '
                         f'Kopf (Anzahl + Stützstellen) @ 0x{pair[0].header:X}'
                         + (f', {pair[0].count}×{pair[1].count} Punkte.' if pair[1] else f', {pair[0].count} Punkte.'))
@@ -622,7 +676,7 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         m = MapDefinition(
             name=f'Strukturkandidat @ 0x{off:08X}', offset=off, rows=rows, cols=c, dtype=dtype, endian=endian,
             source='heuristic', confidence=round(min(.45, .45 * (score - ANCHOR_SCORE if referenced else score / 8)), 3),
-            record_layout=(GENERIC_LAYOUT if off in generic_confirmed else
+            record_layout=(POINTER_LAYOUT if off in pointed else GENERIC_LAYOUT if off in generic_confirmed else
                            REFERENCE_LAYOUT if referenced else PITCH_LAYOUT),
             label_origin=origin,
             label_evidence=evidence + ' Geometrie-Hypothese, KEIN identifiziertes Kennfeld.',

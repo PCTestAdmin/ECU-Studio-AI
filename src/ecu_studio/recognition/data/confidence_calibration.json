@@ -41,9 +41,9 @@
       ]
     },
     "code:1d:axis1": {
-      "n": 23,
-      "hits": 21,
-      "rate": 0.913,
+      "n": 159,
+      "hits": 157,
+      "rate": 0.9874,
       "families": [
         "Siemens MS43"
       ]
@@ -84,9 +84,9 @@
       ]
     },
     "pitch": {
-      "n": 550,
-      "hits": 132,
-      "rate": 0.24,
+      "n": 732,
+      "hits": 139,
+      "rate": 0.1899,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -94,9 +94,9 @@
       ]
     },
     "raster": {
-      "n": 59,
+      "n": 77,
       "hits": 10,
-      "rate": 0.1695,
+      "rate": 0.1299,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -122,14 +122,14 @@
         "rate": 0.0
       },
       "pitch": {
-        "n": 102,
-        "hits": 45,
-        "rate": 0.4412
+        "n": 130,
+        "hits": 47,
+        "rate": 0.3615
       },
       "raster": {
-        "n": 7,
+        "n": 8,
         "hits": 4,
-        "rate": 0.5714
+        "rate": 0.5
       }
     },
     "Siemens MS43": {
@@ -139,9 +139,9 @@
         "rate": 0.985
       },
       "code:1d:axis1": {
-        "n": 23,
-        "hits": 21,
-        "rate": 0.913
+        "n": 159,
+        "hits": 157,
+        "rate": 0.9874
       },
       "code:2d:axes2": {
         "n": 227,
@@ -164,12 +164,12 @@
         "rate": 0.0
       },
       "pitch": {
-        "n": 27,
-        "hits": 12,
-        "rate": 0.4444
+        "n": 38,
+        "hits": 13,
+        "rate": 0.3421
       },
       "raster": {
-        "n": 1,
+        "n": 2,
         "hits": 0,
         "rate": 0.0
       }
@@ -186,14 +186,14 @@
         "rate": 0.8684
       },
       "pitch": {
-        "n": 421,
-        "hits": 75,
-        "rate": 0.1781
+        "n": 564,
+        "hits": 79,
+        "rate": 0.1401
       },
       "raster": {
-        "n": 51,
+        "n": 67,
         "hits": 6,
-        "rate": 0.1176
+        "rate": 0.0896
       }
     }
   }

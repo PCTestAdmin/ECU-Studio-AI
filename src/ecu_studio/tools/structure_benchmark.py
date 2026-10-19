@@ -17,6 +17,9 @@ def _reference(path: str, image: BinaryImage) -> list[MapDefinition]:
     if Path(path).suffix.lower() == '.xdf':
         from ecu_studio.core.xdf import read_xdf
         return read_xdf(path, image, include_constants=False).maps
+    if Path(path).suffix.lower() == '.xml':
+        from ecu_studio.core.romraider import read_romraider
+        return [m for m in read_romraider(path, image).maps if 0 <= m.offset < image.size]
     from ecu_studio.core.definitions import import_definitions
     return import_definitions(path, image.size)
 

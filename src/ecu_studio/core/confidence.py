@@ -29,6 +29,8 @@ def evidence_class(m: MapDefinition) -> str:
         return f"code:{'1d' if one_d else '2d'}:{axes}"
     if layout == 'candidate:code-reference-generic':
         return 'code:generic'
+    if layout == 'candidate:pointer-descriptor':
+        return 'pointer:descriptor'
     if layout == 'candidate:count-axis':
         return 'axis:count'
     if layout == 'candidate:nx,ny,x,y,z':
