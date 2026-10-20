@@ -96,3 +96,19 @@ def test_profile_file_with_extra_ranges_and_complement(tmp_path):
                                 'start': 0, 'end': 0x100, 'storage_offset': 0x3F0, 'endian': 'big',
                                 'extra_ranges': [[0x200, 0x280]], 'complement': 'ones'}]}))
     assert verify_checksums(img, load_checksum_profile(path, img))['verified']
+
+
+def test_preview_lists_every_written_byte_and_correction_is_undoable():
+    from ecu_studio.core.checksum_audit import correction_preview
+    slot = ChecksumSlot('main', 'sum16-bytes', 0, 0x100, 0x3F0)
+    img = _store(_image(), slot)
+    profile = _profile(img, [slot])
+    assert 'nichts zu schreiben' in correction_preview(plan_checksum_correction(img, profile))
+    img.write(0x20, b'\x00')
+    steps = plan_checksum_correction(img, profile)
+    text = correction_preview(steps)
+    assert '0x000003F0' in text and steps[0].new.hex(' ').upper() in text and 'Keine Flashfreigabe' in text
+    apply_checksum_correction(img, profile, steps)
+    assert img.original[0x3F0:0x3F2] != img.read(0x3F0, 2) or steps[0].old == steps[0].new
+    assert img.undo()                                   # the correction is one undoable edit
+    assert verify_checksums(img, profile)['status'] == 'mismatch'

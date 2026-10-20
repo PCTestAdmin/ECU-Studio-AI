@@ -154,12 +154,12 @@ def test_unverified_heuristic_candidate_does_not_excuse_code_changes():
     assert any(f.code=='code-candidate' and f.level=='gelb' for f in report.findings)
 
 
-def test_green_without_verified_checksum_is_never_flash_ready():
+def test_green_without_verified_checksum_is_never_checks_passed():
     image,maps=_image()
     report=run_preflight(image,maps)
-    assert report.status=='grün' and not report.flash_ready
+    assert report.status=='grün' and not report.checks_passed
     assert 'nicht flashbereit' in report.text()
     image.write(0x1000+9,bytes([image.byte(0x1000+9)+1]))
     image.write(0x2000+9,bytes([image.byte(0x2000+9)+1]))
     report=run_preflight(image,maps,cal_window=(0,0x4000))
-    assert not report.flash_ready and any(f.code=='checksum' for f in report.findings)
+    assert not report.checks_passed and any(f.code=='checksum' for f in report.findings)

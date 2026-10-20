@@ -247,6 +247,19 @@ def plan_checksum_correction(image: BinaryImage, profile: ChecksumProfile) -> li
     return steps
 
 
+def correction_preview(steps: list[CorrectionStep]) -> str:
+    """Human-readable plan shown before anything is written."""
+    if not steps:
+        return 'Alle deklarierten Prüffelder stimmen bereits – nichts zu schreiben.'
+    lines = [f'{len(steps)} Prüffeld(er) würden geschrieben (nur diese Bytes, rückgängig machbar):', '']
+    for s in steps:
+        lines.append(f'• {s.slot} @ 0x{s.storage_offset:08X}: {s.old.hex(" ").upper()}  →  {s.new.hex(" ").upper()}')
+    lines += ['', 'Grundlage: geprüftes Profil, am unveränderten Original bestätigt. Nur die im Profil '
+              'deklarierten Prüfsummen werden korrigiert; Signaturen oder weitere ECU-Prüfungen nicht. '
+              'Keine Flashfreigabe.']
+    return '\n'.join(lines)
+
+
 def apply_checksum_correction(image: BinaryImage, profile: ChecksumProfile,
                               steps: list[CorrectionStep]) -> dict:
     """Write a plan from plan_checksum_correction and verify; rolled back on any doubt."""

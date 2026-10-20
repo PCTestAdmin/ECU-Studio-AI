@@ -1,10 +1,22 @@
-param([switch]$SkipTests)
+﻿param([switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
-$python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+# The portable package bundles the interpreter itself (python313.dll, python313._pth),
+# so packaging needs exactly CPython 3.13 x64. It uses its own environment and
+# leaves the development .venv (any supported version) alone.
+$venv = Join-Path $PSScriptRoot '.venv-build'
+$python = Join-Path $venv 'Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) {
-    & py -3 -m venv .venv
-    if ($LASTEXITCODE -ne 0) { throw 'Python-Umgebung konnte nicht erstellt werden.' }
+    & py -3.13 -c "import sys" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Für das portable Paket wird CPython 3.13 (64 Bit) benötigt: https://www.python.org/downloads/ – danach erneut starten.'
+    }
+    & py -3.13 -m venv $venv
+    if ($LASTEXITCODE -ne 0) { throw 'Build-Umgebung (.venv-build, Python 3.13) konnte nicht erstellt werden.' }
+}
+$check = & $python -c "import sys,struct;print(sys.version_info[:2]==(3,13) and struct.calcsize('P')==8)"
+if ($check -ne 'True') {
+    throw '.venv-build ist nicht CPython 3.13 x64. Ordner .venv-build löschen und erneut starten.'
 }
 & $python -m pip install -r requirements-lock-windows.txt
 if ($LASTEXITCODE -ne 0) { throw 'Abhängigkeiten konnten nicht installiert werden.' }

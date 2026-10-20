@@ -43,7 +43,8 @@ from ..core.definitions import import_definitions, export_definitions, parse_off
 from ..core.search import hex_pattern_search, compare_reference, export_patch_csv
 from ..core.compare_maps import compare_images, export_map_comparison_csv, export_cell_comparison_csv
 from ..core.axis_inference import suggest_adjacent_axes
-from ..core.checksum_audit import load_checksum_profile, audit_export, write_audit_json
+from ..core.checksum_audit import (load_checksum_profile, audit_export, write_audit_json,
+                                  plan_checksum_correction, apply_checksum_correction, correction_preview)
 from ..core.map_groups import group_maps, export_groups_csv
 from ..recognition.identity_registry import identify_vehicle, import_identity_manifest, identity_stats
 from ..core.library import MapLibrary
@@ -678,6 +679,7 @@ class Window(QMainWindow):
         act(tools,"Kennfelder automatisch gruppieren …",self.open_map_groups,"Ctrl+Shift+G")
         act(tools,"ECU-Checksummenprofil importieren …",self.load_checksum_manifest)
         act(tools,"Checksum- und Plausibilitätsprüfung …",self.open_checksum_audit,"Ctrl+Shift+Q")
+        act(tools,"Checksummen korrigieren (mit Vorschau) …",self.correct_checksums)
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
@@ -2578,6 +2580,27 @@ class Window(QMainWindow):
                 'Nur die deklarierten Bereiche werden geprüft; keine ECU-Gesamtfreigabe.')
         except Exception as exc:self.warning('Profil abgewiesen',exc)
 
+    def correct_checksums(self):
+        """Plan, show every byte, ask, write, verify – or leave the file untouched."""
+        if not self.require_image():return
+        if self.checksum_profile is None:
+            QMessageBox.information(self,'Checksummen-Korrektur','Zuerst ein geprüftes Checksummenprofil laden.');return
+        try:steps=plan_checksum_correction(self.image,self.checksum_profile)
+        except Exception as exc:self.warning('Korrektur verweigert',exc);return
+        text=correction_preview(steps)
+        if not steps:
+            QMessageBox.information(self,'Checksummen-Korrektur',text);return
+        box=QMessageBox(self)
+        box.setWindowTitle('Checksummen-Korrektur – Vorschau')
+        box.setText(text)
+        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec()!=QMessageBox.StandardButton.Yes:return
+        try:apply_checksum_correction(self.image,self.checksum_profile,steps)
+        except Exception as exc:self.warning('Korrektur nicht übernommen',exc);return
+        self.on_edited()
+        self.statusBar().showMessage(f'{len(steps)} Prüffeld(er) geschrieben und verifiziert · rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+
     def open_checksum_audit(self):
         if not self.require_image():return
         try:report=audit_export(self.image,self.maps,self.checksum_profile)
@@ -2610,11 +2633,15 @@ class Window(QMainWindow):
         layout.addWidget(out,1)
         row=QHBoxLayout()
         import_btn=QPushButton('Geprüftes Checksum-Profil laden …')
+        correct_btn=QPushButton('Prüffelder korrigieren (Vorschau) …')
+        correct_btn.setEnabled(self.checksum_profile is not None and state['status']=='mismatch')
+        correct_btn.setToolTip('Nur mit geprüftem Profil, das am Original stimmt; zeigt vorher jedes Byte.')
         export_btn=QPushButton('Prüfbericht als JSON speichern …')
         close=QPushButton('Schließen')
-        row.addWidget(import_btn);row.addWidget(export_btn);row.addStretch();row.addWidget(close)
+        row.addWidget(import_btn);row.addWidget(correct_btn);row.addWidget(export_btn);row.addStretch();row.addWidget(close)
         layout.addLayout(row)
         import_btn.clicked.connect(lambda:(dialog.accept(),self.load_checksum_manifest()))
+        correct_btn.clicked.connect(lambda:(dialog.accept(),self.correct_checksums()))
         def save():
             target,_=self.save_destination(dialog,'Prüfbericht speichern','ecu_check_report_v18.json','JSON (*.json)')
             if target:
@@ -2663,7 +2690,7 @@ class Window(QMainWindow):
         self.diff_view.setPlainText(report.text())
         self.tabs.setCurrentWidget(self.diff_view)
         self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde · '
-                                     +('Checksummen verifiziert' if report.checksum_verified else 'Checksummen NICHT verifiziert – nicht flashbereit'),8000)
+                                     +('deklarierte Prüffelder stimmen – keine Flashfreigabe' if report.checksum_verified else 'Checksummen NICHT verifiziert – nicht flashbereit'),8000)
 
     def export_bin(self):
         if not self.require_image():return

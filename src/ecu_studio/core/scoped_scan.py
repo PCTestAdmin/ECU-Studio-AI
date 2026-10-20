@@ -18,6 +18,7 @@ from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence, tier_for
 from .candidate_model import load_model, score_candidates
 
+RECORD_LIMIT=200   # header records (nx,ny,X,Y,Z): was 55; 200 measured better on ME9 (complete A2L) and VAG ME7.5, MS4x unchanged
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor')
 
 
@@ -59,7 +60,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
     start=profile.cal_start
     end=profile.cal_end
     target=BinaryImage(image.read(start,end-start)) if start is not None and end is not None else image
-    candidates=scan_axis_records(target,max_results=sum(limits)//3,cancelled=cancelled,include_u32=include_u32)
+    candidates=scan_axis_records(target,max_results=RECORD_LIMIT,cancelled=cancelled,include_u32=include_u32)
     for i,scanner in enumerate((discover_maps,scan_u8,scan_32,scan_s16)):
         if scanner is scan_32 and not include_u32:continue
         if cancelled and cancelled():

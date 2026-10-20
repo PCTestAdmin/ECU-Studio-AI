@@ -139,3 +139,14 @@ def test_unsigned_8bit_structural_scan():
     found=scan_u8(BinaryImage(bytes(data)),max_results=20,scan_mb=1)
     assert found and any(abs(m.offset-0x600)<100 for m in found)
     assert all(m.dtype=='u8' and m.kind=='Unbekannt' and not m.verified for m in found)
+
+
+def test_a2l_with_byte_undefined_in_cp1252_is_readable(tmp_path):
+    # Regression: a real BMW A2L contains 0x81 in a comment; cp1252 rejected it.
+    from ecu_studio.core.a2l import read_a2l
+    text = (b'/begin PROJECT P "" /begin MODULE M "\x81 Kommentar \xe4" '
+            b'/begin CHARACTERISTIC K "x" VALUE 0x100 RL 0 CM 0 255 /end CHARACTERISTIC '
+            b'/end MODULE /end PROJECT')
+    path = tmp_path / 'x.a2l'
+    path.write_bytes(text)
+    assert [c.name for c in read_a2l(str(path)).characteristics] == ['K']

@@ -1,4 +1,4 @@
-"""Blind 2-D detection benchmark against reference definitions (XDF or CSV).
+"""Blind 2-D detection benchmark against reference definitions (XDF, A2L, RomRaider XML or CSV).
 
 The reference is only used for scoring, never as scan input. A CSV in the
 definitions format (name,offset,rows,cols,dtype,...) can hold any external map
@@ -20,8 +20,26 @@ def _reference(path: str, image: BinaryImage) -> list[MapDefinition]:
     if Path(path).suffix.lower() == '.xml':
         from ecu_studio.core.romraider import read_romraider
         return [m for m in read_romraider(path, image).maps if 0 <= m.offset < image.size]
+    if Path(path).suffix.lower() == '.a2l':
+        return a2l_reference(path, image)
     from ecu_studio.core.definitions import import_definitions
     return import_definitions(path, image.size)
+
+
+def a2l_reference(path: str, image: BinaryImage) -> list[MapDefinition]:
+    """Records of an A2L at the anchor the firmware confirms (see suggest_anchor).
+
+    Raw values are enough for geometry, so unsupported conversions do not drop
+    an object here. Raises if the A2L does not describe this file.
+    """
+    from ecu_studio.core.a2l import read_a2l, suggest_anchor
+    catalog = read_a2l(path)
+    data = image.read(0, image.size)
+    found = suggest_anchor(catalog, data)
+    if found is None:
+        raise ValueError('A2L passt nicht zu dieser BIN (Achsen an keiner Basis aufsteigend)')
+    return catalog.link(file_size=image.size, ecu_anchor=found['anchor'], data=data,
+                        raw_unsupported_conversions=True).maps
 
 
 def reference_tables(path: str, image: BinaryImage, min_dim: int = 4) -> list[MapDefinition]:

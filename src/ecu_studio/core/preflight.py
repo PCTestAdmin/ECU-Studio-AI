@@ -37,8 +37,13 @@ class PreflightReport:
         return max((f.level for f in self.findings), key=LEVELS.index, default='grün')
 
     @property
-    def flash_ready(self) -> bool:
-        """Never true without verified checksums: green alone is no flash readiness."""
+    def checks_passed(self) -> bool:
+        """Green AND every *declared* checksum slot verified.
+
+        This is NOT a flash approval: a profile may declare only some of the
+        checksums, signatures or monitoring blocks an ECU actually checks, and
+        the preflight covers a fixed list of plausibility tests only.
+        """
         return self.status == 'grün' and self.checksum_verified
 
     def add(self, *args, **kwargs):
@@ -53,10 +58,12 @@ class PreflightReport:
             lines.append('Keine Befunde in den geprüften Punkten.')
         lines.append('')
         lines.append(f'Geprüft: {self.changed_bytes} geänderte Byte, jede Position einzeln.')
-        lines.append('Checksummen: ' + ('alle deklarierten Prüffelder verifiziert.' if self.checksum_verified
+        lines.append('Checksummen: ' + ('alle im Profil deklarierten Prüffelder stimmen (das Profil kann '
+                                         'unvollständig sein; weitere ECU-Prüfungen bleiben ungeprüft).'
+                                         if self.checksum_verified
                                          else 'NICHT verifiziert – Datei ist nicht flashbereit.'))
-        lines += ['Grün bedeutet nur: keiner der geprüften Fehler gefunden. Keine Flash-, '
-                  'Abgas- oder Straßenfreigabe.']
+        lines += ['Grün bedeutet nur: keiner der geprüften Fehler gefunden. Auch mit verifizierten '
+                  'Prüffeldern ist das KEINE Flash-, Abgas- oder Straßenfreigabe.']
         return '\n'.join(lines)
 
 

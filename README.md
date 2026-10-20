@@ -32,12 +32,13 @@ Kennfelder finden, verstehen und nachvollziehbar bearbeiten, auch ohne Definitio
 | | |
 |---|---|
 | 🔍 **Kennfeldsuche ohne Definition** | Findet Kennfelder, Kennlinien und Achsen direkt in den Rohdaten – über Datenmuster, Achsen-Arrays und Verweise im Programmcode. |
+| 🧮 **Checksummen** | Prüfen mit geprüften Profilen (CRC16/32, Wort-/Doppelwortsummen, Komplement, Teilbereiche), Korrektur mit Byte-Vorschau, Suche unbekannter Layouts mit Zufallsniveau (`tools/checksum_search`). |
 | 📊 **Kalibrierte Konfidenz** | Jede Fundstelle zeigt die *gemessene* Trefferquote ihrer Beweisart: **gesichert**, **wahrscheinlich** oder **Vermutung**. |
 | 🛡️ **Flash-Preflight** | Prüft jede geänderte Byteposition: Programmcode, unveränderte Zwillings- und Überwachungskopien, zerstörte Achsen, ungewöhnliche Sprünge. Ohne verifizierte Checksumme nie „flashbereit“. |
 | 🕸️ **Funktionsgraph** | Zeigt, welche Kennfelder dieselbe Code-Routine liest oder dieselben Achsen nutzt. |
 | 📡 **Signal-Tracing** | Ermittelt die RAM-Eingänge jedes Kennfeldzugriffs – direkt als Logger-Liste nutzbar. |
 | 📐 **Achsen-Semantik** | Schlägt Größe und Skalierung von Stützstellen vor (Drehzahl, Temperatur, Last …). |
-| 🔗 **Definitionen koppeln** | TunerPro XDF (XML und Textformat 1.x), A2L/DAMOS, RomRaider-XML, CSV; Standard-XDFs für Siemens MS41/42/43 inklusive. |
+| 🔗 **Definitionen koppeln** | TunerPro XDF (XML und Textformat 1.x), A2L/DAMOS mit Datensätzen samt gespeicherter Achsen (`STD_AXIS`, `COM_AXIS`) und Speicherbasis aus der Firmware, RomRaider-XML, CSV; Standard-XDFs für Siemens MS41/42/43 inklusive. |
 | 🎨 **Ansichten** | Hex-Editor, 2D-Rohdaten, farbcodierte Tabelle, Heatmap, 3D-Fläche, ORI/MOD-Kurven, Speicheratlas – hell und dunkel. |
 | ↩️ **Sicher bearbeiten** | Original bleibt unverändert, Undo/Redo, Projektstände, Batch mit Vorschau, Änderungsprotokoll. |
 
@@ -86,6 +87,13 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Denso SH-2 (Subaru 5EAT, 9 ROMs) | **93–100 %** (vorher 35–53 %) | **147–178** (vorher 15–27) | nicht belastbar¹ |
 | GM P01 (68k) | 35 % (vorher 21 %) | 10 (vorher 1), Kennlinien 21 | nicht belastbar¹ |
 | Volvo M4.4 (8051) | 54 % | 8 | nicht belastbar¹ |
+| **BMW ME9 (Hersteller-A2L)** | 35 % | 38 von 233 | **50 %** |
+| **BMW ME9.2.1 (Hersteller-A2L)** | 38 % | 56 von 460 | **63 %** |
+| **Siemens MS45 (Hersteller-A2L)** | 18 % | 28 von 472 | **67 %** |
+| Bosch MED17.1.62 (TriCore, 6 Stände) | 11–16 % | 38–53 | nicht belastbar¹ |
+| Bosch MED9 (PowerPC) | 51 % | 9 | nicht belastbar¹ |
+
+Die A2L-Zeilen sind die einzigen vollständigen Herstellerreferenzen; dort ist die Präzision belastbar.
 
 Nicht gewertet: Opel E78 und Peugeot IAW 8P – deren XDFs sind selbst nur Ergebnisse einer Tabellensuche
 (z. B. „Candidate047DC2“), also keine unabhängige Referenz.
@@ -147,7 +155,7 @@ pip install -e .[dev]
 python -m ecu_studio.main
 ```
 
-Portables Windows-Paket mit EXE-Starter: `build_exe_windows.bat` (Tests, Paket unter `dist`, Selbsttest der EXE). Fertige Pakete erscheinen unter
+Portables Windows-Paket mit EXE-Starter: `build_exe_windows.bat` – benötigt **CPython 3.13 x64** (die Laufzeit wird mitgeliefert), legt dafür eine eigene `.venv-build` an, führt die Tests aus und prüft die fertige EXE. Fertige Pakete erscheinen unter
 [Releases](https://github.com/PCTestAdmin/ecu-studio-ai/releases).
 
 ## Entwicklung
@@ -168,6 +176,7 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 | `tests` | pytest-Suite (läuft bei jedem Push unter Python 3.11 und 3.12) |
 | `examples` | synthetische Demo-Dateien – keine echte Firmware |
 | `docs/history` | Berichte früherer Versionen |
+| `docs/KONKURRENZANALYSE.md` | Vergleich mit quelloffenen ECU-Editoren, übernommene Ansätze |
 
 ## Roadmap
 
