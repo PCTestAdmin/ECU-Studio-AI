@@ -38,7 +38,7 @@ liegen nicht im Repository.
 ## Definitionen und Identität
 
 - **A2L/ASAP2:** RECORD_LAYOUT (STD/COM/FIX_AXIS, Ausrichtung), Speicherbasis aus der Firmware, **EPK-Prüfung**
-  (`MOD_PAR EPK` an `ADDR_EPK`): passt die EPK nicht, wird nichts verknüpft. Ältere A2L ohne EPK (ME9, MS45, ME7.2)
+  (`MOD_PAR EPK` an `ADDR_EPK`, aufgelöst über Anker **oder** Segmenttabelle): passt die EPK nicht, wird nichts verknüpft; liegt `ADDR_EPK` nicht in der Abbildung, gibt es eine Warnung. Ältere A2L ohne EPK (ME9, MS45, ME7.2)
   werden nur über die Achsprüfung gekoppelt – das belegt die Adresslage, nicht den Softwarestand.
 - **Abgewiesen statt vorgetäuscht:** WinOLS-Projekte (`.ols`), WinOLS-Mappacks (`.kp`), ZIP, ELF/EXE, sowie HEX/S19
   beim Öffnen als Rohdatei (dafür gibt es den Speicherabbild-Import).

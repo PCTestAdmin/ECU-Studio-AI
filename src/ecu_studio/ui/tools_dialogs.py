@@ -186,7 +186,7 @@ class A2LLinkDialog(QDialog):
             if self.multi.isChecked():
                 segments=parse_segments(self.segment_text.toPlainText(),self.image.size)
                 result=self.catalog.link(file_size=self.image.size,segments=segments,data=self.image.original)
-                ident=None
+                ident=self.catalog.identity(self.image.original,segments=segments)
             else:
                 ecu,off=parse_offset(self.ecu.text()),parse_offset(self.offset.text())
                 # Original bytes: record counts and axes come from the file itself.
@@ -201,7 +201,7 @@ class A2LLinkDialog(QDialog):
         self.model.set_maps(result.maps)
         epk={'match':'EPK stimmt mit der Datei überein','mismatch':'EPK PASST NICHT – andere Software',
              'not-declared':'A2L deklariert keine EPK – Softwarestand nicht belegt',
-             'outside':'EPK-Adresse liegt außerhalb der Datei'}.get((ident or {}).get('status'),'EPK bei Segmentkopplung nicht geprüft')
+             'outside':'EPK-Adresse liegt nicht in Datei/Segmenttabelle – Softwarestand nicht geprüft'}[ident['status']]
         self.summary.setText(f'{len(result.maps):,} verknüpfbar · {len(result.unsupported):,} Layout/Umrechnung offen · '
             f'{len(result.out_of_range):,} außerhalb BIN · {len(result.unlinked):,} nicht verknüpft · {epk}. '
             'Alle Treffer sind UNBESTÄTIGT. Filter anwenden und gewünschte Kennfelder markieren.')

@@ -88,3 +88,28 @@ def test_epk_identifies_software_version_and_blocks_foreign_files():
     r = cat.link(file_size=len(data), ecu_anchor=0x800000, data=bytes(data))
     assert not r.maps and 'EPK passt nicht' in r.unlinked[0]
     assert parse_a2l(A2L).identity(bytes(data), 0x800000)['status'] == 'not-declared'
+
+
+def test_epk_is_checked_through_segment_tables_too():
+    # Regression: with a segment table the EPK check was skipped entirely.
+    from ecu_studio.core.addressing import AddressSegment
+    cat = parse_a2l(EPK_A2L)
+    data = bytearray(_bin())
+    segments = [AddressSegment(0x800000, 0x800FFF, 0x0)]
+    data[0x800:0x806] = b'SW4712'                                    # other software
+    assert cat.identity(bytes(data), segments=segments)['status'] == 'mismatch'
+    r = cat.link(file_size=len(data), segments=segments, data=bytes(data))
+    assert not r.maps and 'EPK passt nicht' in r.unlinked[0]
+    data[0x800:0x806] = b'SW4711'
+    assert cat.identity(bytes(data), segments=segments)['status'] == 'match'
+    assert cat.link(file_size=len(data), segments=segments, data=bytes(data)).maps
+    # A segment table that does not cover ADDR_EPK cannot prove the version: warned, not hidden.
+    partial = [AddressSegment(0x800000, 0x8007FF, 0x0)]
+    assert cat.identity(bytes(data), segments=partial)['status'] == 'outside'
+    r = cat.link(file_size=len(data), segments=partial, data=bytes(data))
+    assert 'nicht in der Datei/Segmenttabelle' in r.warnings[0]
+
+
+def test_link_without_data_says_epk_was_not_checked():
+    r = parse_a2l(EPK_A2L).link(file_size=0x1000, ecu_anchor=0x800000)
+    assert any('ohne Dateidaten nicht geprüft' in w for w in r.warnings)

@@ -156,17 +156,21 @@ class A2LCatalog:
     epk: str | None = None          # MOD_PAR EPK: software identifier stored in the ECU
     epk_address: int | None = None  # MOD_PAR ADDR_EPK
 
-    def identity(self, data: bytes, ecu_anchor: int = 0, file_anchor: int = 0) -> dict:
+    def identity(self, data: bytes, ecu_anchor: int = 0, file_anchor: int = 0,
+                 segments: list[AddressSegment] | None = None) -> dict:
         """Does the EPK declared by the A2L stand at ADDR_EPK in this file?
 
-        'match' / 'mismatch' / 'not-declared' (older A2L) / 'outside' (address
-        not in the file). Only 'match' proves the software version.
+        ADDR_EPK is resolved like every other address: through the segment table
+        when one is given, else through the anchor. 'match' / 'mismatch' /
+        'not-declared' (older A2L) / 'outside' (address not mapped into the file).
+        Only 'match' proves the software version.
         """
         if not self.epk or self.epk_address is None:
             return {'status': 'not-declared', 'declared': self.epk, 'found': None}
         want = self.epk.encode('latin-1', 'replace')
-        off = self.epk_address - ecu_anchor + file_anchor
-        if not 0 <= off <= len(data) - len(want):
+        off = (locate_range(self.epk_address, len(want), segments) if segments is not None
+               else self.epk_address - ecu_anchor + file_anchor)
+        if off is None or not 0 <= off <= len(data) - len(want):
             return {'status': 'outside', 'declared': self.epk, 'found': None}
         found = data[off:off + len(want)]
         return {'status': 'match' if found == want else 'mismatch', 'declared': self.epk,
@@ -190,17 +194,25 @@ class A2LCatalog:
         if data is not None:
             if len(data) != file_size:
                 raise ValueError('Dateigröße passt nicht zu den übergebenen Daten')
-            ident = self.identity(data, ecu_anchor, file_anchor) if segments is None else None
-            if ident and ident['status'] == 'mismatch':
+            # Checked for anchor AND segment addressing: a segment table must not
+            # be a way around the software-version check.
+            ident = self.identity(data, ecu_anchor, file_anchor, segments)
+            if ident['status'] == 'mismatch':
                 result = LinkResult(total=len(self.characteristics))
                 result.unlinked = [f'EPK passt nicht: A2L „{ident["declared"]}“, Datei „{ident["found"]}“ – '
                                    'andere Softwareversion, nichts verknüpft']
                 return result
-            return self._link_records(data, ecu_anchor, file_anchor, source, segments,
-                                      raw_unsupported_conversions)
+            result = self._link_records(data, ecu_anchor, file_anchor, source, segments,
+                                        raw_unsupported_conversions)
+            if ident['status'] == 'outside':
+                result.warnings.insert(0, f'EPK „{self.epk}“ (ECU 0x{self.epk_address:X}) liegt nicht in der '
+                                          'Datei/Segmenttabelle – Softwarestand nicht geprüft')
+            return result
         if segments is not None:
             validate_segments(segments, file_size)
         result = LinkResult(total=len(self.characteristics))
+        if self.epk:
+            result.warnings.append(f'EPK „{self.epk}“ ohne Dateidaten nicht geprüft – Softwarestand nicht belegt')
         if self.byte_order not in ('MSB_FIRST', 'MSB_LAST'):
             raise ValueError(f'Byte-Reihenfolge {self.byte_order!r} nicht unterstützt – keine sichere Abbildung')
         endian = 'big' if self.byte_order == 'MSB_FIRST' else 'little'
