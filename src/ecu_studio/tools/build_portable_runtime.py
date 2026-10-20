@@ -19,6 +19,15 @@ def copytree(source, target, *, extra_ignored=()):
         '__pycache__','*.pyc','tests','test',*extra_ignored))
 
 
+def qt_modules_used(package: Path) -> set[str]:
+    """Names of PySide6 modules imported anywhere in the package (e.g. {'QtCore', 'QtSvg'})."""
+    import re
+    found=set()
+    for path in package.rglob('*.py'):
+        found|=set(re.findall(r'PySide6\.(Qt[A-Za-z0-9]+)',path.read_text(encoding='utf-8',errors='replace')))
+    return found
+
+
 def build():
     if sys.version_info[:2] != (3,13):raise RuntimeError('CPython 3.13 x64 required')
     root=Path(__file__).resolve().parents[3]
@@ -49,7 +58,12 @@ def build():
     qt_source=installed/'PySide6'
     qt=packages/'PySide6';qt.mkdir()
     copytree(qt_source/'support',qt/'support')
+    # Every Qt module the application imports must ship, or the EXE dies at start
+    # (QtSvg was missing once). Derived from the source, checked against PySide6.
     modules={'QtCore.pyd','QtGui.pyd','QtWidgets.pyd','QtNetwork.pyd','QtTest.pyd'}
+    modules|={f'{name}.pyd' for name in qt_modules_used(root/'src'/'ecu_studio')}
+    missing=[m for m in modules if not (qt_source/m).is_file()]
+    if missing:raise RuntimeError(f'PySide6-Module fehlen in der Build-Umgebung: {missing}')
     dlls={'Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','Qt6Network.dll','Qt6Test.dll',
           'Qt6OpenGL.dll','Qt6Svg.dll','opengl32sw.dll','pyside6.abi3.dll'}
     for path in qt_source.iterdir():

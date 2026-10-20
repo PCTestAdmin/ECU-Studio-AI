@@ -47,6 +47,13 @@
 - Checksummen-Korrektur in der Oberfläche (Werkzeuge → „Checksummen korrigieren (mit Vorschau)“ und im Prüfbericht): zeigt jedes zu schreibende Byte, Standard „Nein“, rückgängig machbar, Hinweis „keine Flashfreigabe“.
 - Windows-Build: eigenes `.venv-build` mit CPython 3.13 x64 (die portable Laufzeit bündelt python313), Versionsprüfung vorab; `build_release.ps1` mit UTF-8-BOM (Umlaute unter PowerShell 5.1).
 - Konkurrenzanalyse in `docs/KONKURRENZANALYSE.md` (ZedSuite, romHEX14, bimmerstein, RomRaider, UniversalPatcher, MxT, tune-editor, xdfkit, medc17-checksum-tool).
+- Zwillingskennfelder: Eine identische Kopie gilt nur noch als angepasst, wenn sie **genau gleich** geändert wurde (vorher reichte ein beliebiges geändertes Byte); abweichende Anpassung ist rot mit Anzahl abweichender Byte. Ähnliche Kennfelder, die an verschiedenen Stellen geändert wurden, sind gelb. Paare werden nur einmal gemeldet.
+- Prüfstatus in drei getrennten Stufen: Prüfsummen (deklarierte Prüffelder) · Preflight · Flashvalidierung (immer „nicht durchgeführt“, `flash_validated = False`).
+- A2L-Identität: `MOD_PAR EPK` an `ADDR_EPK` wird mit der Datei verglichen; bei abweichender EPK wird nichts verknüpft. A2L ohne EPK werden als „Softwarestand nicht belegt“ gekennzeichnet. Der A2L-Dialog nutzt jetzt die Datensatz-Auswertung (vorher nur einfache Wertefelder: ME9 0 → 2612 verknüpfbare Kennfelder) und bestimmt die Basis auf Knopfdruck aus der Firmware.
+- Dateiformate ehrlich abgewiesen statt roh geöffnet: WinOLS-Projekt (.ols), WinOLS-Mappack (.kp), ZIP, ELF/EXE, HEX/S19 (Hinweis auf den Speicherabbild-Import), Definitionsdateien. Keine der 214 vorhandenen Referenz-BINs wird fälschlich abgewiesen.
+- Inhaltsgleiche Kennfelder (Dubletten/Überwachungskopien) werden im Katalog vermerkt (`map_groups.content_twins`); MS43: 22 Gruppen unter den Funden, 87 XDF-Kennfelder in 32 Gruppen.
+- **Portabler Windows-Build behoben:** Die EXE startete gar nicht (`PySide6.QtSvg` fehlte im Paket, seit die Werkzeugleisten-Symbole SVG nutzen). Benötigte Qt-Module werden jetzt aus den Imports abgeleitet und vor dem Bau geprüft. In frischer `.venv-build` (CPython 3.13): 372 Tests bestanden, Paket gebaut, EXE-Selbsttest bestanden.
+- `docs/ECU_SUPPORT.md`: gemessene, unvollständig gemessene und nicht unterstützte ECU-Varianten mit konkreten Dateien (MED17-Dumps: 8V0907404A/E/H/J, 8S0907404G/L). EDC17, MD1, MG1, Simos 18/19: keine frei verfügbaren Referenzpaare, daher ungemessen.
 - Offen: Code-Verweise für TriCore und PowerPC, 8051 mit Bankumschaltung (Volvo M4.4); Lernmodell nicht neu trainiert, weil die neuen Definitionen unvollständig sind (verrauschte Labels).
 
 ## 1.11.0 (17.10.2026)

@@ -159,3 +159,17 @@ def test_empty_data_region_list_searches_nothing():
     image = BinaryImage(bytes(data))
     assert any(m.offset == 0x800 for m in scan_structures(image, regions=None))
     assert not any(m.offset == 0x800 for m in scan_structures(image, regions=[]))
+
+
+def test_content_twins_are_marked_and_trivial_blocks_ignored():
+    from ecu_studio.core.map_groups import content_twins, mark_twins
+    from ecu_studio.core.model import MapDefinition
+    data = bytearray(0x1000)
+    t = bytes(np.add.outer(np.arange(4) * 9, np.arange(8)).astype(np.uint8).ravel())
+    data[0x100:0x120] = t; data[0x400:0x420] = t                       # real copies
+    maps = [MapDefinition('a', 0x100, 4, 8, dtype='u8'), MapDefinition('b', 0x400, 4, 8, dtype='u8'),
+            MapDefinition('z1', 0x800, 4, 8, dtype='u8'), MapDefinition('z2', 0x900, 4, 8, dtype='u8')]  # zeros
+    assert [[m.name for m in g] for g in content_twins(bytes(data), maps)] == [['a', 'b']]
+    assert mark_twins(bytes(data), maps) == 1
+    assert 'Inhaltsgleich mit 0x400' in maps[0].notes and 'Inhaltsgleich mit 0x100' in maps[1].notes
+    assert 'Inhaltsgleich' not in maps[2].notes

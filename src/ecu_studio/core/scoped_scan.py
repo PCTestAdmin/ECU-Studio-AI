@@ -17,6 +17,7 @@ from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence, tier_for
 from .candidate_model import load_model, score_candidates
+from .map_groups import mark_twins
 
 RECORD_LIMIT=200   # header records (nx,ny,X,Y,Z): was 55; 200 measured better on ME9 (complete A2L) and VAG ME7.5, MS4x unchanged
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor')
@@ -146,7 +147,10 @@ def scan_calibration_candidates(image: BinaryImage, *,
             keep.append(m)
         if diagnostics is not None:diagnostics['model_dropped']=len(result)-len(keep)
         result=keep
-    if diagnostics is not None:diagnostics['accepted_count']=len(result)
+    twins=mark_twins(raw,result)
+    if diagnostics is not None:
+        diagnostics['accepted_count']=len(result)
+        diagnostics['content_twin_groups']=twins
     if progress:
         progress(100)
     return result

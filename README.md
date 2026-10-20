@@ -125,6 +125,8 @@ gelöschter Flash, Nullen + Zufall): 0 / 0 / 5 / 0 / 0 Kandidaten, keiner davon 
 
 ## Unterstützte Steuergeräte
 
+Details mit konkreten Softwareständen und Messwerten: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md).
+
 | Familie | Prozessor | Code-Verweise | Achsen | Status |
 |---|---|:---:|:---:|---|
 | Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | gemessen, Standard-XDFs inklusive |
@@ -177,6 +179,7 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 | `examples` | synthetische Demo-Dateien – keine echte Firmware |
 | `docs/history` | Berichte früherer Versionen |
 | `docs/KONKURRENZANALYSE.md` | Vergleich mit quelloffenen ECU-Editoren, übernommene Ansätze |
+| `docs/ECU_SUPPORT.md` | Welche ECU-Varianten gemessen sind und welche nicht |
 
 ## Roadmap
 

@@ -153,6 +153,24 @@ class A2LCatalog:
     warnings: list[str] = field(default_factory=list)
     axis_pts: dict[str, AxisPts] = field(default_factory=dict)
     alignment: dict[str, int] = field(default_factory=dict)
+    epk: str | None = None          # MOD_PAR EPK: software identifier stored in the ECU
+    epk_address: int | None = None  # MOD_PAR ADDR_EPK
+
+    def identity(self, data: bytes, ecu_anchor: int = 0, file_anchor: int = 0) -> dict:
+        """Does the EPK declared by the A2L stand at ADDR_EPK in this file?
+
+        'match' / 'mismatch' / 'not-declared' (older A2L) / 'outside' (address
+        not in the file). Only 'match' proves the software version.
+        """
+        if not self.epk or self.epk_address is None:
+            return {'status': 'not-declared', 'declared': self.epk, 'found': None}
+        want = self.epk.encode('latin-1', 'replace')
+        off = self.epk_address - ecu_anchor + file_anchor
+        if not 0 <= off <= len(data) - len(want):
+            return {'status': 'outside', 'declared': self.epk, 'found': None}
+        found = data[off:off + len(want)]
+        return {'status': 'match' if found == want else 'mismatch', 'declared': self.epk,
+                'found': found.decode('latin-1', 'replace')}
 
     def link(self, *, file_size: int, ecu_anchor: int = 0, file_anchor: int = 0,
              source: str = 'a2l', segments: list[AddressSegment] | None = None,
@@ -172,6 +190,12 @@ class A2LCatalog:
         if data is not None:
             if len(data) != file_size:
                 raise ValueError('Dateigröße passt nicht zu den übergebenen Daten')
+            ident = self.identity(data, ecu_anchor, file_anchor) if segments is None else None
+            if ident and ident['status'] == 'mismatch':
+                result = LinkResult(total=len(self.characteristics))
+                result.unlinked = [f'EPK passt nicht: A2L „{ident["declared"]}“, Datei „{ident["found"]}“ – '
+                                   'andere Softwareversion, nichts verknüpft']
+                return result
             return self._link_records(data, ecu_anchor, file_anchor, source, segments,
                                       raw_unsupported_conversions)
         if segments is not None:
@@ -667,6 +691,16 @@ def parse_a2l(source: str) -> A2LCatalog:
             if value:
                 try: alignment[key] = parse_num(value[0])
                 except ValueError: pass
+    epk = epk_address = None
+    mod_par = next(iter(descendants(root, 'MOD_PAR')), None)
+    if mod_par:
+        value = attr(mod_par, 'EPK')
+        if value:
+            epk = unquote(value[0])
+        addr = attr(mod_par, 'ADDR_EPK')
+        if addr:
+            try: epk_address = parse_num(addr[0])
+            except ValueError: pass
     axis_pts = {}
     for block in descendants(root, 'AXIS_PTS'):
         h = block.head
@@ -715,4 +749,4 @@ def parse_a2l(source: str) -> A2LCatalog:
                                         (ydim, xdim), axes, axis_descriptors))
         except (ValueError, IndexError) as exc:
             warnings.append(f'{h[0] if h else "?"}: {exc}')
-    return A2LCatalog(chars, layouts, conversions, byte_order, warnings, axis_pts, alignment)
+    return A2LCatalog(chars, layouts, conversions, byte_order, warnings, axis_pts, alignment, epk, epk_address)

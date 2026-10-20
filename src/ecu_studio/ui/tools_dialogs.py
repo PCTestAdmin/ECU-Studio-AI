@@ -99,9 +99,15 @@ class A2LLinkDialog(QDialog):
         self.segment_text.setMaximumHeight(80)
         self.segment_text.setVisible(False)
         outer.addWidget(self.segment_text)
+        row=QHBoxLayout()
+        auto=QPushButton('Basis aus der Firmware bestimmen')
+        auto.setToolTip('Sucht die ECU-Adresse, an der die gespeicherten Achsen der A2L-Datensätze aufsteigen. '
+                        'Findet sich keine, beschreibt die A2L diese Datei nicht.')
+        auto.clicked.connect(self.auto_anchor)
         calc=QPushButton('Adresskopplung prüfen / Vorschau aktualisieren')
         calc.clicked.connect(self.preview)
-        outer.addWidget(calc)
+        row.addWidget(auto);row.addWidget(calc)
+        outer.addLayout(row)
         self.summary=QLabel('Bitte Vorschau berechnen.')
         self.summary.setWordWrap(True)
         outer.addWidget(self.summary)
@@ -155,6 +161,17 @@ class A2LLinkDialog(QDialog):
             self.multi.setChecked(True)
         self.preview()
 
+    def auto_anchor(self):
+        from ..core.a2l import suggest_anchor
+        found=suggest_anchor(self.catalog,self.image.original)
+        if found is None:
+            self.summary.setText('Keine Basis gefunden, an der die Achsen aufsteigen: Die A2L passt '
+                                 'vermutlich nicht zu dieser Datei (anderer Softwarestand).')
+            return
+        self.multi.setChecked(False)
+        self.ecu.setText(f'0x{found["anchor"]:X}');self.offset.setText('0x0')
+        self.preview()
+
     def on_mode_changed(self,active):
         self.ecu.setEnabled(not active)
         self.offset.setEnabled(not active)
@@ -168,18 +185,25 @@ class A2LLinkDialog(QDialog):
         try:
             if self.multi.isChecked():
                 segments=parse_segments(self.segment_text.toPlainText(),self.image.size)
-                result=self.catalog.link(file_size=self.image.size,segments=segments)
+                result=self.catalog.link(file_size=self.image.size,segments=segments,data=self.image.original)
+                ident=None
             else:
-                result=self.catalog.link(file_size=self.image.size,
-                    ecu_anchor=parse_offset(self.ecu.text()),file_anchor=parse_offset(self.offset.text()))
+                ecu,off=parse_offset(self.ecu.text()),parse_offset(self.offset.text())
+                # Original bytes: record counts and axes come from the file itself.
+                result=self.catalog.link(file_size=self.image.size,ecu_anchor=ecu,file_anchor=off,
+                                         data=self.image.original)
+                ident=self.catalog.identity(self.image.original,ecu,off)
         except Exception as exc:
             self.summary.setText('Fehler: '+str(exc))
             self.model.set_maps([])
             return
         self.result_data=result
         self.model.set_maps(result.maps)
+        epk={'match':'EPK stimmt mit der Datei überein','mismatch':'EPK PASST NICHT – andere Software',
+             'not-declared':'A2L deklariert keine EPK – Softwarestand nicht belegt',
+             'outside':'EPK-Adresse liegt außerhalb der Datei'}.get((ident or {}).get('status'),'EPK bei Segmentkopplung nicht geprüft')
         self.summary.setText(f'{len(result.maps):,} verknüpfbar · {len(result.unsupported):,} Layout/Umrechnung offen · '
-            f'{len(result.out_of_range):,} außerhalb BIN · {len(result.unlinked):,} nicht im Segment. '
+            f'{len(result.out_of_range):,} außerhalb BIN · {len(result.unlinked):,} nicht verknüpft · {epk}. '
             'Alle Treffer sind UNBESTÄTIGT. Filter anwenden und gewünschte Kennfelder markieren.')
         details=[*self.catalog.warnings,*result.warnings,*result.unsupported,*result.unlinked,*result.out_of_range]
         self.diagnostics.setPlainText('\n'.join(details[:250]) or 'Keine Parserwarnungen')

@@ -70,3 +70,21 @@ def test_anchor_is_only_suggested_when_many_axes_increase():
         assert suggest_anchor(cat, bytes(0x1000), step=0x100) is None   # nothing decodes
     finally:
         a2l.MIN_ANCHOR_AXES = old
+
+
+EPK_A2L = A2L.replace('/begin MODULE M ""', '/begin MODULE M "" /begin MOD_PAR "" EPK "SW4711" ADDR_EPK 0x800800 /end MOD_PAR')
+
+
+def test_epk_identifies_software_version_and_blocks_foreign_files():
+    data = bytearray(_bin())
+    cat = parse_a2l(EPK_A2L)
+    assert cat.epk == 'SW4711' and cat.epk_address == 0x800800
+    data[0x800:0x806] = b'SW4711'
+    assert cat.identity(bytes(data), 0x800000)['status'] == 'match'
+    assert cat.link(file_size=len(data), ecu_anchor=0x800000, data=bytes(data)).maps
+    data[0x800:0x806] = b'SW4712'
+    ident = cat.identity(bytes(data), 0x800000)
+    assert ident['status'] == 'mismatch' and ident['found'] == 'SW4712'
+    r = cat.link(file_size=len(data), ecu_anchor=0x800000, data=bytes(data))
+    assert not r.maps and 'EPK passt nicht' in r.unlinked[0]
+    assert parse_a2l(A2L).identity(bytes(data), 0x800000)['status'] == 'not-declared'

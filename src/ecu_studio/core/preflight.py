@@ -56,15 +56,26 @@ class PreflightReport:
             lines.append(f'[{f.level.upper()}] {f.title}{where}\n      {f.detail}')
         if not self.findings:
             lines.append('Keine Befunde in den geprüften Punkten.')
-        lines.append('')
-        lines.append(f'Geprüft: {self.changed_bytes} geänderte Byte, jede Position einzeln.')
-        lines.append('Checksummen: ' + ('alle im Profil deklarierten Prüffelder stimmen (das Profil kann '
-                                         'unvollständig sein; weitere ECU-Prüfungen bleiben ungeprüft).'
-                                         if self.checksum_verified
-                                         else 'NICHT verifiziert – Datei ist nicht flashbereit.'))
-        lines += ['Grün bedeutet nur: keiner der geprüften Fehler gefunden. Auch mit verifizierten '
+        lines += ['', f'Geprüft: {self.changed_bytes} geänderte Byte, jede Position einzeln.', '',
+                  'PRÜFSTATUS (drei getrennte Stufen):']
+        lines += [f'  {i}. {label}: {state}' for i, (label, state) in enumerate(self.stages(), 1)]
+        lines += ['', 'Grün bedeutet nur: keiner der geprüften Fehler gefunden. Auch mit verifizierten '
                   'Prüffeldern ist das KEINE Flash-, Abgas- oder Straßenfreigabe.']
         return '\n'.join(lines)
+
+    # ECU Studio AI performs no flash validation (no ECU-side signature, boot or
+    # monitoring check). The flag exists so callers cannot mistake the others for it.
+    flash_validated = False
+
+    def stages(self) -> list[tuple[str, str]]:
+        """The three statuses that must never be conflated, as (label, state)."""
+        return [
+            ('Prüfsummen', 'alle im Profil deklarierten Prüffelder stimmen (Profil kann unvollständig sein)'
+             if self.checksum_verified else 'NICHT verifiziert – Datei ist nicht flashbereit'),
+            ('Preflight', {'grün': 'ohne Befund', 'gelb': 'Befunde prüfen', 'rot': 'kritische Befunde'}[self.status]),
+            ('Flashvalidierung', 'nicht durchgeführt – ECU Studio AI validiert keine Flashbarkeit '
+             '(Signaturen, Bootloader, Überwachung bleiben ungeprüft)'),
+        ]
 
 
 def _changed_positions(original: bytes, modified: bytes) -> np.ndarray:
@@ -147,34 +158,54 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
                      'nur ein automatischer Kandidat deckt diese Bytes ab; der Block sieht nach Programmcode aus.',
                      pos[~in_data & by_guess & ~by_def])
 
-    # 3. Twins: unchanged copies of a modified map
+    # 3. Twins: copies of a modified map must carry the SAME change. A single
+    # touched byte in a copy is not an adaptation.
     changed_maps = [m for m in maps if any(_overlaps(m, s, e) for s, e in runs)]
+    reported = set()
     for m in changed_maps:
         block = original[m.offset:m.offset + m.length]
         if len(block) < MIN_TWIN_BYTES or len(set(block)) < 4:
             continue
+        new = modified[m.offset:m.offset + m.length]
         hit = original.find(block)
         while hit != -1:
-            k = int(np.searchsorted(pos, hit))
-            if hit != m.offset and not (k < len(pos) and pos[k] < hit + len(block)):
-                report.add('rot', 'twin', f'Zwilling von „{m.name}“ nicht angepasst',
-                           f'Identische Kopie bei 0x{hit:08X} ist unverändert; Überwachungs- oder '
-                           'Variantenkopien führen sonst oft zu Notlauf/Fehlerspeicher.', hit)
+            pair = tuple(sorted((hit, m.offset)))
+            if hit != m.offset and pair not in reported:
+                reported.add(pair)
+                twin_new = modified[hit:hit + len(block)]
+                if twin_new == block:
+                    report.add('rot', 'twin', f'Zwilling von „{m.name}“ nicht angepasst',
+                               f'Identische Kopie bei 0x{hit:08X} ist unverändert; Überwachungs- oder '
+                               'Variantenkopien führen sonst oft zu Notlauf/Fehlerspeicher.', hit)
+                elif twin_new != new:
+                    differ = sum(x != y for x, y in zip(twin_new, new))
+                    report.add('rot', 'twin-partial', f'Zwilling von „{m.name}“ anders angepasst',
+                               f'Kopie bei 0x{hit:08X} war identisch, weicht nach der Änderung aber in '
+                               f'{differ} von {len(block)} Byte ab; beide Kopien müssen gleich geändert werden.', hit)
             hit = original.find(block, hit + 1)
     # near-identical twins among known maps of the same shape
     for m in changed_maps:
         a0 = np.frombuffer(original[m.offset:m.offset + m.length], dtype=np.uint8)
+        a1 = np.frombuffer(modified[m.offset:m.offset + m.length], dtype=np.uint8)
         for o in maps:
             if o is m or o.offset == m.offset or (o.rows, o.cols, o.dtype) != (m.rows, m.cols, m.dtype):
                 continue
-            if any(_overlaps(o, s, e) for s, e in runs):
-                continue
             b0 = np.frombuffer(original[o.offset:o.offset + o.length], dtype=np.uint8)
             if len(b0) != len(a0) or bytes(b0) == bytes(a0):
-                continue   # exact copies are reported above
-            if np.std(a0) > 0 and np.std(b0) > 0 and np.corrcoef(a0.astype(float), b0.astype(float))[0, 1] > .995:
+                continue   # exact copies are handled above
+            if not (np.std(a0) > 0 and np.std(b0) > 0 and
+                    np.corrcoef(a0.astype(float), b0.astype(float))[0, 1] > .995):
+                continue
+            b1 = np.frombuffer(modified[o.offset:o.offset + o.length], dtype=np.uint8)
+            touched_m, touched_o = a0 != a1, b0 != b1
+            if not touched_o.any():
                 report.add('gelb', 'twin-similar', f'Sehr ähnliches Kennfeld zu „{m.name}“ unverändert',
                            f'„{o.name}“ bei 0x{o.offset:08X} hat fast denselben Inhalt (Korrelation > 0,995).', o.offset)
+            elif o.offset > m.offset and not np.array_equal(touched_m, touched_o):
+                report.add('gelb', 'twin-similar-partial', f'„{m.name}“ und „{o.name}“ an verschiedenen Stellen geändert',
+                           f'Die fast gleichen Kennfelder (Korrelation > 0,995) wurden in '
+                           f'{int(touched_m.sum())} bzw. {int(touched_o.sum())} Byte geändert, '
+                           f'davon {int((touched_m & touched_o).sum())} an denselben Positionen; prüfen.', o.offset)
 
     # 4. Axes that lost their ordering
     for ax in scan_count_axes(original):

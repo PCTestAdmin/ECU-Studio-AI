@@ -94,3 +94,34 @@ def export_groups_csv(path: str | Path, groups: list[MapGroup], maps: list[MapDe
                 m=maps[i]
                 writer.writerow([group.title,group.basis,f'0x{m.offset:08X}',m.name,m.kind,
                                  m.source,'geprüft' if m.verified else 'ungeprüft',group.note])
+
+
+MIN_TWIN_BYTES = 16
+
+
+def content_twins(data: bytes, maps: list[MapDefinition], *, min_bytes: int = MIN_TWIN_BYTES) -> list[list[MapDefinition]]:
+    """Groups of maps with byte-identical content (monitoring/variant copies).
+
+    Only non-trivial blocks count: at least ``min_bytes`` bytes and four
+    different byte values, so erased or constant areas do not pair up.
+    """
+    groups: dict[bytes, list[MapDefinition]] = {}
+    for m in maps:
+        block = data[m.offset:m.offset + m.length]
+        if len(block) >= min_bytes and len(set(block)) >= 4:
+            groups.setdefault(block, []).append(m)
+    return [sorted(g, key=lambda m: m.offset) for g in groups.values()
+            if len({m.offset for m in g}) > 1]
+
+
+def mark_twins(data: bytes, maps: list[MapDefinition]) -> int:
+    """Note content twins on each member (in place); returns the number of groups."""
+    twins = content_twins(data, maps)
+    for group in twins:
+        for m in group:
+            others = ', '.join(f'0x{o.offset:X}' for o in group if o.offset != m.offset)
+            note = f'Inhaltsgleich mit {others} – mögliche Überwachungs-/Variantenkopie; Änderungen auf alle Kopien prüfen.'
+            if note not in m.notes:
+                m.notes = (m.notes + ' ' + note).strip()
+    return len(twins)
+

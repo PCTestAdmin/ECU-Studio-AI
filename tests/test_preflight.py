@@ -163,3 +163,55 @@ def test_green_without_verified_checksum_is_never_checks_passed():
     image.write(0x2000+9,bytes([image.byte(0x2000+9)+1]))
     report=run_preflight(image,maps,cal_window=(0,0x4000))
     assert not report.checks_passed and any(f.code=='checksum' for f in report.findings)
+
+
+def test_one_byte_in_identical_twin_is_not_a_full_adaptation():
+    # Regression: any touched byte in the copy counted as "adapted".
+    image,maps=_image()
+    for k in range(0,8):
+        image.write(0x1000+8+k,bytes([image.byte(0x1000+8+k)+3]))     # whole row 1 of the map
+    image.write(0x2000+8,bytes([image.byte(0x2000+8)+3]))             # only one byte in the copy
+    report=run_preflight(image,maps,cal_window=(0,0x4000))
+    partial=[f for f in report.findings if f.code=='twin-partial']
+    assert partial and partial[0].offset==0x2000 and '7 von 64' in partial[0].detail
+    assert report.status=='rot'
+
+
+def test_twin_reported_once_per_pair_and_equal_change_passes():
+    image,maps=_image()
+    maps=maps+[MapDefinition('Kopie',0x2000,8,8,dtype='u8')]
+    for base in (0x1000,0x2000):
+        image.write(base+9,bytes([image.byte(base+9)+2]))
+    report=run_preflight(image,maps,cal_window=(0,0x4000))
+    assert not [f for f in report.findings if f.code.startswith('twin')]
+
+
+def test_similar_twins_changed_at_different_cells_are_flagged():
+    image,maps=_image()
+    data=bytearray(image.original)
+    t=_table(8,8,20).astype(np.int16)+np.eye(8,dtype=np.int16)        # near copy, not identical
+    data[0x2800:0x2840]=t.astype(np.uint8).tobytes()
+    image=BinaryImage(bytes(data))
+    maps=maps+[MapDefinition('Ähnlich',0x2800,8,8,dtype='u8')]
+    image.write(0x1000+3,bytes([image.byte(0x1000+3)+1]))
+    image.write(0x2000+3,bytes([image.byte(0x2000+3)+1]))              # keep exact twin consistent
+    image.write(0x2800+40,bytes([image.byte(0x2800+40)+1]))            # other cell in the similar map
+    report=run_preflight(image,maps,cal_window=(0,0x4000))
+    assert any(f.code=='twin-similar-partial' for f in report.findings)
+
+
+def test_three_status_levels_are_never_conflated():
+    import json
+    from ecu_studio.core.checksum_audit import ChecksumSlot, ChecksumProfile, slot_value
+    image,maps=_image()
+    data=bytearray(image.original)
+    slot=ChecksumSlot('cal','sum16-bytes',0x1000,0x1040,0x3FF0)
+    data[0x3FF0:0x3FF2]=slot_value(BinaryImage(bytes(data)),slot).to_bytes(2,'big')
+    image=BinaryImage(bytes(data))
+    profile=ChecksumProfile(image.digest,'test','reviewer',True,(slot,))
+    report=run_preflight(image,maps,checksum_profile=profile)
+    assert report.checksum_verified and report.status=='grün' and report.checks_passed
+    assert report.flash_validated is False
+    labels=[label for label,_ in report.stages()]
+    assert labels==['Prüfsummen','Preflight','Flashvalidierung']
+    assert 'nicht durchgeführt' in report.stages()[2][1] and 'PRÜFSTATUS' in report.text()

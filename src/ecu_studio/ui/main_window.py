@@ -22,6 +22,7 @@ from .theme import stylesheet, palette
 from .icons import line_icon
 from ..core.preflight import run_preflight
 from ..formats.records import read_memory_file
+from ..formats.sniff import check_raw_image
 from ..formats.importer import convert_to_binary, read_import_segments
 from ..core.model import BinaryImage, MapDefinition, TYPES, FORMATS, save_project, load_project, read_project_snapshots
 from ..core.detection import discover_maps
@@ -719,7 +720,9 @@ class Window(QMainWindow):
         if not self.ok_to_replace():return
         p,_=QFileDialog.getOpenFileName(self,"ECU-Datei öffnen","","Binärdateien (*.bin *.ori *.mod *.dat);;Alle Dateien (*)")
         if not p: return
-        try: image=BinaryImage.from_file(p)
+        try:
+            check_raw_image(p)
+            image=BinaryImage.from_file(p)
         except Exception as exc:
             self.warning("Import fehlgeschlagen",exc);return
         maps = []
@@ -1762,6 +1765,7 @@ class Window(QMainWindow):
                                        'Binärdateien (*.bin *.ori *.mod *.dat);;Alle Dateien (*)')
         if not p:return
         try:
+            check_raw_image(p)
             second=BinaryImage.from_file(p)
             report=compare_images(self.image,second,self.maps)
         except Exception as exc:self.warning('ORI/MOD Vergleich nicht möglich',exc);return
