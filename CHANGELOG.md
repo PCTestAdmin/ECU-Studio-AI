@@ -15,6 +15,13 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Kennlinien** (neu: Kennlinien-Datensätze `n, X[n], W[n]`, z. B. Bosch Cur_Xs16Ws16; 1D exakt, alt → neu)
+- *Test:* MSD85 642 → **1128**, MSD80 439 → **839**, EDC16C35 562 → **942**, EDC16C31 544 → **943** (Präzision 1D 89–96 %).
+- *Entwicklung:* EDC17CP09 946 → **1668** (93 %), ME9.2.1 385 → 597, ME9 205 → 271, MS45 176 → 200; 2D-Werte unverändert.
+- Nur in Datensatz-Ketten, an geraden Adressen und in der Byte-Reihenfolge, die die Kennfeld-Datensätze der Datei
+  dominiert; Achsenketten (Siemens MS4x) werden nicht als Kennlinie gelesen. Eigene Evidenzklasse `curve:record`
+  (gemessen 92 % Treffer). Negativkontrollen weiterhin 0 Kandidaten.
+
 **Geschwindigkeit** (gleicher Rechner, 16 Kerne; Ergebnisse bitgenau gleich, per Vergleich geprüft)
 - Kennfeldsuche nutzt mehrere CPU-Kerne: Zeilenabstands-Suche je Datenbereich und Lesart in eigenen Prozessen,
   Datensatz- und Raster-Suche laufen gleichzeitig dazu. EDC17CP09 (2 MB) 33 → **10 s**, MED17.1.62 25 → **7 s**,

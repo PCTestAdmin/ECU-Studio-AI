@@ -12,6 +12,7 @@ from .detection_signed import scan_s16
 from .profiles import identify_profile
 from .precision import rank_candidates
 from .axis_records import scan_axis_records, record_axes
+from .curve_records import scan_curve_records
 from .structure_scan import scan_structures, lookup_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
@@ -21,7 +22,7 @@ from .map_groups import mark_twins
 from . import parallel
 
 RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
-INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis')
+INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis','candidate:curve-record')
 
 
 def _merged(spans):
@@ -166,6 +167,18 @@ def scan_calibration_candidates(image: BinaryImage, *,
     taken=_merged([(m.offset,m.offset+m.length) for m in lines])
     extra=[a for m in kept for a in record_axes(image,m)
            if not _overlaps_any(a.offset,a.offset+a.length,taken)]
+    # Curve records (n, X, W) only fill gaps: they never displace a 2-D table, a
+    # line or a record axis (the record list gives byte order and chain neighbours).
+    occupied=_merged([((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
+                      for m in kept+lines+extra])
+    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z']
+    curves=[c for c in scan_curve_records(image,records,cancelled=cancelled)
+            if not _overlaps_any(c.candidate_region_start,c.offset+c.length,occupied)]
+    seen=set()
+    for c in curves:   # axis and values of one record, each once
+        key=(c.offset,c.cols,c.record_layout)
+        if key not in seen:
+            seen.add(key);extra.append(c)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: learned scorer (family-out validated) replaces the

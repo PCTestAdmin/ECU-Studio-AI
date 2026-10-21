@@ -61,9 +61,9 @@
       ]
     },
     "axis:record": {
-      "n": 1885,
-      "hits": 1691,
-      "rate": 0.8971,
+      "n": 2461,
+      "hits": 2231,
+      "rate": 0.9065,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -101,6 +101,14 @@
       "families": [
         "Siemens MS42",
         "Siemens MS43"
+      ]
+    },
+    "curve:record": {
+      "n": 543,
+      "hits": 501,
+      "rate": 0.9227,
+      "families": [
+        "Unbekannt"
       ]
     },
     "header:nxny": {
@@ -241,9 +249,14 @@
         "rate": 0.2965
       },
       "axis:record": {
-        "n": 1873,
-        "hits": 1690,
-        "rate": 0.9023
+        "n": 2449,
+        "hits": 2230,
+        "rate": 0.9106
+      },
+      "curve:record": {
+        "n": 543,
+        "hits": 501,
+        "rate": 0.9227
       },
       "header:nxny": {
         "n": 506,
