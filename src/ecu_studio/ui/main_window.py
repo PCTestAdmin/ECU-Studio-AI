@@ -716,6 +716,7 @@ class Window(QMainWindow):
         act(tools,"ECU-Checksummenprofil importieren …",self.load_checksum_manifest)
         act(tools,"Checksum- und Plausibilitätsprüfung …",self.open_checksum_audit,"Ctrl+Shift+Q")
         act(tools,"Checksummen korrigieren (mit Vorschau) …",self.correct_checksums)
+        act(tools,"Prüfsummen-Tabellen der Datei prüfen / korrigieren …",self.correct_table_checksums)
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
@@ -2689,6 +2690,39 @@ class Window(QMainWindow):
         except Exception as exc:self.warning('Korrektur nicht übernommen',exc);return
         self.on_edited()
         self.statusBar().showMessage(f'{len(steps)} Prüffeld(er) geschrieben und verifiziert · rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+
+    def correct_table_checksums(self):
+        """Self-describing checksum tables (ME7.x, MED9, ME9): proven on the original, then corrected."""
+        if not self.require_image():return
+        from ..core.checksum_tables import check_tables, plan_table_correction, apply_table_correction
+        state=check_tables(self.image)
+        if state['status']=='none':
+            QMessageBox.information(self,'Prüfsummen-Tabellen',
+                'In dieser Datei wurde keine Prüfsummen-Tabelle gefunden, deren Werte das unveränderte Original exakt '
+                'reproduziert. Für diese Datei gibt es daher keine automatische Prüfung oder Korrektur.');return
+        head=(f'{state["blocks"]} Prüfsummenblöcke sind am unveränderten Original bewiesen '
+              f'(Verfahren aus der Datei selbst bestätigt). Aktuell stimmen {state["blocks"]-state["mismatches"]} '
+              f'von {state["blocks"]}.')
+        if not state['mismatches']:
+            QMessageBox.information(self,'Prüfsummen-Tabellen',head+'\n\nNichts zu korrigieren. Keine Flashfreigabe: '
+                                    'Signaturen und weitere ECU-Prüfungen sind nicht abgedeckt.');return
+        try:steps=plan_table_correction(self.image)
+        except ValueError as exc:self.warning('Korrektur verweigert',exc);return
+        lines='\n'.join(f'• 0x{o:08X}: {old.hex(" ").upper()}  →  {new.hex(" ").upper()}' for o,old,new in steps[:20])
+        more=f'\n… und {len(steps)-20} weitere' if len(steps)>20 else ''
+        box=QMessageBox(self)
+        box.setWindowTitle('Prüfsummen-Tabellen – Vorschau')
+        box.setText(head+f'\n\n{len(steps)} Feld(er) würden geschrieben (Wert und invertierter Wert, rückgängig machbar):\n'
+                    +lines+more+'\n\nNur diese Tabellen-Prüfsummen; Signaturen (z. B. RSA) und weitere ECU-Prüfungen '
+                    'werden NICHT behandelt. Keine Flashfreigabe.')
+        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec()!=QMessageBox.StandardButton.Yes:return
+        try:apply_table_correction(self.image,steps)
+        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
+        self.on_edited()
+        self.statusBar().showMessage(f'{len(steps)} Tabellen-Prüfsumme(n) geschrieben, alle {state["blocks"]} Blöcke verifiziert · '
+                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
 
     def open_checksum_audit(self):
         if not self.require_image():return

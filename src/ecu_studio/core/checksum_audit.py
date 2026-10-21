@@ -287,6 +287,13 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
     if not status['verified']:
         issues.append({'level':'warning','code':'checksum-'+status['status'],
                        'message':status['message']})
+    # Self-describing checksum tables proven on the original (ME7.x, MED9, ME9).
+    from .checksum_tables import check_tables
+    tables=check_tables(image)
+    if tables['mismatches']:
+        issues.append({'level':'warning','code':'checksum-table-mismatch',
+                       'message':f"{tables['mismatches']} von {tables['blocks']} am Original bewiesenen Tabellen-Prüfsummen "
+                                 'stimmen nicht mehr (Werkzeuge → Prüfsummen-Tabellen der Datei prüfen / korrigieren).'})
     quality=audit_catalog(image,maps,sample_limit=48)
     warnings=sum(bool(q.warnings) for q in quality)
     bad=sum(q.decode_mismatches>0 for q in quality)
@@ -317,7 +324,8 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
                        'message':'Mindestens ein verändertes Kennfeld besitzt keine geprüfte Definition.'})
     if uncovered_count: issues.append({'level':'warning','code':'unmapped-patches',
                                        'message':f'{uncovered_count} veränderte Bytes außerhalb bekannter Kennfelder.'})
-    return {'original_sha256':image.digest,
+    return {'checksum_tables':{k:tables[k] for k in ('status','blocks','mismatches')},
+            'original_sha256':image.digest,
             'modified_sha256':hashlib.sha256(image.materialize()).hexdigest(),
             'size':image.size,'dirty_bytes':image.dirty_bytes,
             'map_count':len(maps),'map_decode_issues':bad,
