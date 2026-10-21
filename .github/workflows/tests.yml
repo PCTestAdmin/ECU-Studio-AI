@@ -25,5 +25,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[dev]"
-      - run: python -m pytest -q
+      - run: python -m pip install -e ".[dev]" pytest-github-actions-annotate-failures
+      # Failures appear as annotations on the run (readable without the full log).
+      - run: python -m pytest -q -rf
