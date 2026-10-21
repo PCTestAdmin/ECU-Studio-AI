@@ -15,6 +15,12 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Arbeitsoberfläche**
+- Hinweisbalken nach dem Öffnen: erkanntes Steuergerät mit Fundstelle und gemessener Unterstützungsstatus
+  (z. B. „Bosch EDC17CP09 … validiert – 463 von 703 Kennfeldern exakt, Präzision 85 %“), Knopf zur Matrix.
+- Kennfeldkatalog: Filter nach gemessener Konfidenz (gesichert / wahrscheinlich / Vermutung / geprüft bzw. aus Definition).
+- Tastenkürzel: Strg+G war doppelt belegt; Funktionsgraph jetzt Strg+Umschalt+U (ein Test verhindert Doppelbelegungen).
+
 **ORI/MOD-Vergleich**
 - Neuer Reiter **„Außerhalb bekannter Kennfelder“**: geänderte Bereiche, die zu keinem Katalog-Kennfeld gehören
   (zusammengefasst bei Lücken bis 16 Byte, größte zuerst), Doppelklick springt zur Stelle – dort stecken oft

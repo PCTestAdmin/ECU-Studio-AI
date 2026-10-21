@@ -74,6 +74,17 @@ from ..core.project_store import ProjectStore
 from .catalogue import CatalogueModel
 
 
+TIER_FILTERS=('Alle Konfidenzen','Gesichert (≥ 90 %)','Wahrscheinlich (60–90 %)','Vermutung (< 60 %)',
+              'Geprüft / aus Definition')
+
+
+def tier_matches(m,choice:str)->bool:
+    """Catalogue filter by measured evidence tier (core/confidence.py)."""
+    if choice==TIER_FILTERS[0]:return True
+    if choice==TIER_FILTERS[4]:return m.verified or m.source not in ('heuristic','reference-shape','transfer-proposed','ml-proposed')
+    return (m.evidence_tier or '').casefold()==choice.split(' (')[0].casefold()
+
+
 class ScanWorker(QThread):
     complete = Signal(list)
     failed = Signal(str)
@@ -282,6 +293,21 @@ class Window(QMainWindow):
         self.source_label.setObjectName('fileBadge')
         titlebar.addWidget(self.source_label)
         layout.addLayout(titlebar)
+        self.identity_banner=QFrame()
+        self.identity_banner.setObjectName('identityBanner')
+        banner=QHBoxLayout(self.identity_banner)
+        banner.setContentsMargins(10,5,6,5)
+        self.identity_banner_text=QLabel()
+        self.identity_banner_text.setWordWrap(True)
+        banner.addWidget(self.identity_banner_text,1)
+        matrix_button=QPushButton('Unterstützte Steuergeräte …')
+        matrix_button.clicked.connect(self.show_support_matrix)
+        banner.addWidget(matrix_button)
+        hide_button=QPushButton('Ausblenden')
+        hide_button.clicked.connect(self.identity_banner.hide)
+        banner.addWidget(hide_button)
+        self.identity_banner.hide()
+        layout.addWidget(self.identity_banner)
         self.tabs=QTabWidget()
         self.tabs.currentChanged.connect(self.sync_map_editor)
         self.tabs.setDocumentMode(True)
@@ -347,6 +373,11 @@ class Window(QMainWindow):
         self.kind_filter.addItems(['Alle Typen','Mit Definition','Nur Suchkandidaten','Verifiziert','Geändert','Favoriten',*dict.fromkeys([*TYPES, *(x[0] for x in LEXICON)])])
         self.kind_filter.currentIndexChanged.connect(self.refresh_map_list)
         filters.addWidget(self.kind_filter,2)
+        self.tier_filter=QComboBox()
+        self.tier_filter.addItems(TIER_FILTERS)
+        self.tier_filter.setToolTip('Nach gemessener Konfidenz der Beweisart filtern (Trefferquote auf Referenzdaten)')
+        self.tier_filter.currentIndexChanged.connect(self.refresh_map_list)
+        filters.addWidget(self.tier_filter,2)
         self.map_sort=QComboBox()
         self.map_sort.addItems(['Adresse','Name','Typ'])
         self.map_sort.setToolTip('Sortierung des Kennfeldkatalogs')
@@ -647,7 +678,7 @@ class Window(QMainWindow):
         act(tools,"Achsen und Log-Eingangssignale …",self.edit_axes)
         act(tools,"Bearbeitungsrezept ausführen …",self.execute_recipe)
         act(tools,"Intelligente Kennfeldsuche (Struktur + Referenz)",self.scan_maps,"Ctrl+K")
-        act(tools,"Funktionsgraph: zusammengehörige Kennfelder …",self.show_function_graph,"Ctrl+G")
+        act(tools,"Funktionsgraph: zusammengehörige Kennfelder …",self.show_function_graph,"Ctrl+Shift+U")
         act(tools,"Signal-Tracing: Achseingänge aus dem Code …",self.show_signal_trace)
         self.scan32_action=act(tools,'Zusätzliche 32-Bit-Rohsuche (experimentell)',lambda checked:None)
         self.scan32_action.setCheckable(True)
@@ -892,6 +923,7 @@ class Window(QMainWindow):
 
     def load_state(self,image,maps,bookmarks,notes,project_path):
         self.last_scan_report=None
+        QTimer.singleShot(0,self.update_identity_banner)
         for pane in self.map_editors:
             self.tabs.removeTab(self.tabs.indexOf(pane))
             pane.deleteLater()
@@ -951,6 +983,7 @@ class Window(QMainWindow):
             self.kind_filter.addItem(kind)
         self.kind_filter.blockSignals(False)
         category=self.kind_filter.currentText()
+        tier=self.tier_filter.currentText()
         indices=list(range(len(self.maps)))
         sortby=self.map_sort.currentText()
         if sortby=='Name':indices.sort(key=lambda i:(self.maps[i].name.casefold(),self.maps[i].offset))
@@ -970,6 +1003,7 @@ class Window(QMainWindow):
             elif category=="Favoriten":
                 if not m.favorite:continue
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
+            if not tier_matches(m,tier):continue
             visible.append(i)
         self.catalog_model.set_context(self.maps,visible,patch_offsets)
         for row,i in enumerate(visible):
@@ -1096,7 +1130,7 @@ class Window(QMainWindow):
                 self.map_list.selectionModel().blockSignals(False)
                 self.on_map_selection(show_table=show_table)
                 return
-        self.filter.clear();self.kind_filter.setCurrentIndex(0)
+        self.filter.clear();self.kind_filter.setCurrentIndex(0);self.tier_filter.setCurrentIndex(0)
         self.refresh_map_list()
         for i in range(self.catalog_model.rowCount()):
             item=self.catalog_model.index(i,0)
@@ -2832,12 +2866,42 @@ class Window(QMainWindow):
             self.statusBar().showMessage("Kennfeldtabelle exportiert",5000)
         except Exception as exc:self.warning("CSV-Export fehlgeschlagen",exc)
 
-    def identity_text(self) -> str:
-        """Identity markers found in the loaded image and the measured support status."""
+    def _identity(self):
+        """(identity, support entry) of the loaded image, cached per original content."""
         from ..core.identification import identify
         from ..core.support import lookup
-        ident = identify(self.image)
-        entry = lookup(ident.family)
+        key=self.image.digest
+        if getattr(self,'_identity_cache',(None,))[0]!=key:
+            ident=identify(BinaryImage(self.image.original))
+            self._identity_cache=(key,ident,lookup(ident.family))
+        return self._identity_cache[1],self._identity_cache[2]
+
+    def update_identity_banner(self):
+        """Hint bar after loading: what the file says about itself and what is measured for it."""
+        if self.image is None:
+            self.identity_banner.hide();return
+        ident,entry=self._identity()
+        if entry:
+            measured=[s for s in entry.software if s.get('exact_2d') is not None]
+            best=max(measured,key=lambda s:s['exact_2d'],default=None)
+            quality=(f" – gemessen an {len(measured)} {'Softwarestand' if len(measured)==1 else 'Softwareständen'}, z. B. {best['exact_2d']} von {best['reference_2d']} Kennfeldern exakt"
+                     + (f", Präzision {best['precision_2d']:.0%}" if best and best.get('precision_2d') is not None else '')
+                     if best else '')
+            text=f'<b>{entry.family}</b> erkannt ({ident.family_evidence}). Unterstützung: <b>{entry.status}</b>{quality}.'
+        elif ident.family:
+            text=(f'<b>{ident.family}</b> erkannt ({ident.family_evidence}). Für diese Familie gibt es <b>keine Messung</b> – '
+                  'Suchvorschläge sind ungeprüft.')
+        elif ident.ambiguous:
+            text='Familie <b>mehrdeutig</b> ('+', '.join(ident.ambiguous)+'). Suchvorschläge sind ungeprüft.'
+        else:
+            text=('Steuergerät nicht aus der Datei bestimmbar (z. B. reiner Kalibrierbereich). '
+                  'Eine passende A2L mit EPK-Prüfung belegt den Softwarestand.')
+        self.identity_banner_text.setText(text)
+        self.identity_banner.show()
+
+    def identity_text(self) -> str:
+        """Identity markers found in the loaded image and the measured support status."""
+        ident, entry = self._identity()
         status = (f'Unterstützung: {entry.status} – {entry.family}' if entry
                   else 'Unterstützung: keine Messung für diese Kennung' if ident.family
                   else 'Unterstützung: Familie nicht aus der Datei bestimmbar')

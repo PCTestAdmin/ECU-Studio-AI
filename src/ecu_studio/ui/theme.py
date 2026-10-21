@@ -96,6 +96,8 @@ def stylesheet(theme: str) -> str:
     QLabel#workspaceTitle { color: %(text)s; font-size: 16px; font-weight: 650; }
     QLabel#fileBadge { color: %(secondary)s; font-family: 'Cascadia Mono', 'Consolas'; font-size: 11px;
       background: %(well)s; border: 1px solid %(line)s; border-radius: 10px; padding: 3px 10px; }
+    QFrame#identityBanner { background: %(selection)s; border: 1px solid %(accent)s; border-radius: 8px; }
+    QFrame#identityBanner QLabel { color: %(text)s; }
     QLabel#sectionTitle { color: %(secondary)s; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding-top: 4px; }
     QLabel#hint { color: %(secondary)s; }
     QLabel#identificationTitle { color: %(accent)s; font-size: 13px; font-weight: 700;
