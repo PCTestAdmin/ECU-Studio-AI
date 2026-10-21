@@ -42,6 +42,32 @@ def _spans(a: bytes, b: bytes) -> list[tuple[int,int]]:
     return blocks
 
 
+REGION_GAP = 16        # changed bytes closer than this form one region
+MAX_REGIONS = 1000
+
+
+def changed_regions(mask: np.ndarray, gap: int = REGION_GAP, limit: int = MAX_REGIONS) -> list[dict]:
+    """Changed positions merged into regions (gaps up to ``gap`` bytes), largest first.
+
+    Meant for changes OUTSIDE known maps: often unknown tables that were tuned.
+    """
+    pos = np.flatnonzero(mask)
+    if not len(pos):
+        return []
+    breaks = np.flatnonzero(np.diff(pos) > gap)
+    starts = np.r_[pos[0], pos[breaks + 1]]
+    ends = np.r_[pos[breaks], pos[-1]] + 1
+    counts = np.diff(np.r_[0, breaks + 1, len(pos)])
+    regions = [{'offset': int(a), 'length': int(b - a), 'changed_bytes': int(c)} for a, b, c in zip(starts, ends, counts)]
+    regions.sort(key=lambda r: (-r['changed_bytes'], r['offset']))
+    return regions[:limit]
+
+
+def delta_matrix(original: BinaryImage, modified: BinaryImage, m: MapDefinition) -> np.ndarray:
+    """Raw MOD - ORI per cell of one map (for the difference heatmap)."""
+    return modified.matrix(m).astype(float) - original.matrix(m).astype(float)
+
+
 def compare_images(original: bytes|BinaryImage, modified: bytes|BinaryImage,
                    maps: list[MapDefinition] = ()) -> dict:
     """Exact common offset comparison; never modifies either input.
@@ -128,6 +154,7 @@ def compare_images(original: bytes|BinaryImage, modified: bytes|BinaryImage,
             'changed_ranges':changes,'changed_ranges_count':n_ranges,
             'changed_ranges_truncated':range_list_capped,
             'changed_bytes_outside_maps':int(np.count_nonzero(changed_mask & ~covered_changed)),
+            'unmapped_regions':changed_regions(changed_mask & ~covered_changed),
             'maps_changed':sum(m.changed_cells>0 for m in rows),
             'maps_total':len(rows),'identity_consistent':compatible,
             'identity_warning':('Abweichende ECU-/Softwaremarker: Kennfeldzuordnung für den Vergleich NICHT validiert.'

@@ -15,6 +15,12 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**ORI/MOD-Vergleich**
+- Neuer Reiter **„Außerhalb bekannter Kennfelder“**: geänderte Bereiche, die zu keinem Katalog-Kennfeld gehören
+  (zusammengefasst bei Lücken bis 16 Byte, größte zuerst), Doppelklick springt zur Stelle – dort stecken oft
+  unbekannte, aber angepasste Tabellen.
+- Neuer Reiter **„Differenz-Heatmap“**: Änderung je Zelle (MOD − ORI, roh) für das gewählte Kennfeld, rot höher, blau niedriger.
+
 **Kennfeldnamen aus Schwesterständen** (neu: *Werkzeuge → Softwarestände: Namen aus Schwesterstand übernehmen …*)
 - Namen und Layouts einer Definition (XDF/A2L/RomRaider/CSV) werden auf einen verwandten Softwarestand ohne Definition
   übertragen: Ausrichtung über Anker, die in beiden Dateien genau einmal vorkommen; Vorschlag nur mit Beleg am Zielort

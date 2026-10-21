@@ -2,6 +2,7 @@
 from __future__ import annotations
 import csv
 import hashlib
+import numpy as np
 import os
 import json
 import urllib.request
@@ -9,7 +10,7 @@ from pathlib import Path
 from bisect import bisect_left
 
 from PySide6.QtCore import Qt, QThread, Signal, QModelIndex, QSettings, QSize, QTimer
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget,
     QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem, QTableView,
@@ -43,7 +44,7 @@ from ..core.versioning import make_snapshot, plan_restore, apply_restore
 from .tools_dialogs import A2LLinkDialog, BatchEditDialog, CommandPalette
 from ..core.definitions import import_definitions, export_definitions, parse_offset
 from ..core.search import hex_pattern_search, compare_reference, export_patch_csv
-from ..core.compare_maps import compare_images, export_map_comparison_csv, export_cell_comparison_csv
+from ..core.compare_maps import compare_images, export_map_comparison_csv, export_cell_comparison_csv, delta_matrix
 from ..core.axis_inference import suggest_adjacent_axes
 from ..core.checksum_audit import (load_checksum_profile, audit_export, write_audit_json,
                                   plan_checksum_correction, apply_checksum_correction, correction_preview)
@@ -1823,6 +1824,44 @@ class Window(QMainWindow):
         cells.horizontalHeader().setStretchLastSection(True)
         cells.resizeColumnsToContents()
         tabs.addTab(cells,'Geänderte Zellen'+(' (Ausschnitt)' if report['cell_changes_truncated'] or len(report['cell_changes'])>3000 else ''))
+        regions=report.get('unmapped_regions',[])
+        outside=QTableWidget(dialog)
+        outside.setColumnCount(3);outside.setHorizontalHeaderLabels(('Offset','Länge (Bytes)','Geänderte Bytes'))
+        outside.setRowCount(len(regions))
+        outside.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        outside.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for ridx,r in enumerate(regions):
+            for cidx,value in enumerate((f'0x{r["offset"]:08X}',str(r['length']),str(r['changed_bytes']))):
+                outside.setItem(ridx,cidx,QTableWidgetItem(value))
+        outside.horizontalHeader().setStretchLastSection(True)
+        outside.cellDoubleClicked.connect(lambda r,c:(dialog.accept(),self.jump(regions[r]['offset'])))
+        tabs.addTab(outside,f'Außerhalb bekannter Kennfelder ({len(regions)})')
+        heat=QTableWidget(dialog)
+        heat.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        heat_label=QLabel('Kennfeld in der Liste wählen: Änderung je Zelle (MOD − ORI, roh). Rot = höher, Blau = niedriger.')
+        heat_box=QWidget(dialog);heat_layout=QVBoxLayout(heat_box);heat_layout.addWidget(heat_label);heat_layout.addWidget(heat)
+        tabs.addTab(heat_box,'Differenz-Heatmap')
+        by_offset={m.offset:m for m in self.maps}
+        def show_heat():
+            row=table.currentRow()
+            if row<0:return
+            m=by_offset.get(report['maps'][row]['offset'])
+            if m is None:return
+            try:d=delta_matrix(self.image,second,m)
+            except (ValueError,IndexError) as exc:heat_label.setText(f'Keine Heatmap: {exc}');return
+            peak=float(np.max(np.abs(d))) or 1.
+            heat.setRowCount(d.shape[0]);heat.setColumnCount(d.shape[1])
+            for r in range(d.shape[0]):
+                for c in range(d.shape[1]):
+                    v=float(d[r,c]);item=QTableWidgetItem('' if v==0 else f'{v:+g}')
+                    k=int(200*abs(v)/peak)
+                    if v>0:item.setBackground(QColor(255,255-k,255-k))
+                    elif v<0:item.setBackground(QColor(255-k,255-k,255))
+                    heat.setItem(r,c,item)
+            heat.resizeColumnsToContents()
+            heat_label.setText(f'{m.name}: {int(np.count_nonzero(d))} von {d.size} Zellen geändert, '
+                               f'größte Änderung {peak:g} (roh). Rot = höher, Blau = niedriger.')
+        table.itemSelectionChanged.connect(show_heat)
         layout.addWidget(tabs)
         def jump_to_row():
             row=table.currentRow()
