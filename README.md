@@ -285,9 +285,10 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 
 ### 🗺️ Roadmap
 
-| 🚀 Kommt mit dem nächsten Update | 🔨 In Arbeit | 📋 Als Nächstes |
-|---|---|---|
-| Mehr erkannte Kennfelder und Kennlinien · 2–4× schneller · Steuergerät wird erkannt | Signierte Updates aktivieren · Prüfsummen EDC16/EDC17 | TunerStudio-Abstimmungen · Kennfelder aus dem Programmcode · Englisch |
+<a href="ROADMAP.md"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
+  <img alt="Roadmap: veröffentlicht, nächstes Update, in Arbeit, als Nächstes" src="docs/images/roadmap-light.svg" width="100%">
+</picture></a>
 
 **→ [Ganze Roadmap](ROADMAP.md)**
 
