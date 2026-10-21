@@ -13,7 +13,7 @@ from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget,
     QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem, QTableView,
-    QFileDialog, QMessageBox, QFormLayout, QComboBox, QSpinBox,
+    QFileDialog, QMessageBox, QFormLayout, QComboBox, QSpinBox, QApplication,
     QDoubleSpinBox, QPlainTextEdit, QInputDialog, QAbstractItemView, QGroupBox,
     QHeaderView, QMenu, QStatusBar, QDialog, QDialogButtonBox, QTextEdit, QCheckBox, QTableWidget, QTableWidgetItem,
     QDockWidget, QToolBar, QStyle, QScrollArea, QFrame, QTreeWidget, QTreeWidgetItem, QProgressBar, QListView
@@ -639,6 +639,7 @@ class Window(QMainWindow):
         act(tools,"Schnellbefehle / Kommandopalette …",self.command_palette,"Ctrl+Shift+P")
         act(tools,"AI Smart Map Transfer …",self.smart_transfer)
         act(tools,'Softwarestände: Kennfelder mathematisch abgleichen …',self.match_software_maps)
+        act(tools,'Softwarestände: Namen aus Schwesterstand übernehmen …',self.transfer_sister_names)
         act(tools,"AI Log-to-Map Analyzer …",self.log_to_map)
         act(tools,"Kennfeld in eigenem Tab öffnen",self.open_map_tab,"Ctrl+Return")
         act(tools,"Ausgewählte Zellen bearbeiten …",self.edit_selected_cells)
@@ -2912,6 +2913,44 @@ class Window(QMainWindow):
             transfer.links=dialog.selected_links;transfer.link_target_key=dialog.target_key
             transfer.source_name.setText(f'{len(transfer.links)} mathematische Paarungen ausgewählt')
             transfer.exec()
+
+    def transfer_sister_names(self):
+        """Names and layouts from a sister software version with a definition (proposals only)."""
+        if not self.require_image():return
+        from ..core.name_transfer import transfer_names, definition_maps, EVIDENCE, MEASURED
+        src_bin,_=QFileDialog.getOpenFileName(self,'Schwesterstand: BIN mit Definition',str(Path.home()),
+                                              'Firmware (*.bin *.ori);;Alle Dateien (*)')
+        if not src_bin:return
+        src_def,_=QFileDialog.getOpenFileName(self,'Definition des Schwesterstands',str(Path(src_bin).parent),
+                                              'Definitionen (*.xdf *.a2l *.xml *.csv);;Alle Dateien (*)')
+        if not src_def:return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            source=BinaryImage.from_file(src_bin)
+            maps=definition_maps(src_def,source)
+            result=transfer_names(source,self.image,maps)
+        except (OSError,ValueError) as exc:
+            QApplication.restoreOverrideCursor()
+            self.warning('Namensübertragung',exc);return
+        QApplication.restoreOverrideCursor()
+        counts={e:sum(t.evidence==e for t in result) for e in EVIDENCE}
+        lines='\n'.join(f'  {e}: {n} (gemessen richtig: {MEASURED[e]})' for e,n in counts.items() if n)
+        answer=QMessageBox.question(self,'Namen aus Schwesterstand',
+            f'{len(result)} von {len(maps)} Kennfeldern des Schwesterstands lassen sich in dieser Datei belegen:\n'
+            f'{lines or "  keine"}\n\nVerschoben wird nach Ankern, die in beiden Dateien genau einmal vorkommen. '
+            'Ohne Beleg am Zielort wird nichts vorgeschlagen.\n\nAls UNGEPRÜFTE Vorschläge übernehmen? '
+            '(BIN bleibt unverändert)',
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)
+        if answer!=QMessageBox.StandardButton.Yes:return
+        existing={(m.offset,m.rows,m.cols) for m in self.maps}
+        added=0
+        for t in result:
+            m=t.target
+            if (m.offset,m.rows,m.cols) in existing:continue
+            self.maps.append(m);existing.add((m.offset,m.rows,m.cols));added+=1
+        self.maps.sort(key=lambda m:m.offset)
+        self.refresh_map_list();self.update_status()
+        self.statusBar().showMessage(f'{added} Namensvorschläge aus dem Schwesterstand übernommen · ungeprüft',8000)
 
     def toggle_favorite(self):
         if self.selected:

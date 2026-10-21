@@ -15,6 +15,15 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Kennfeldnamen aus Schwesterständen** (neu: *Werkzeuge → Softwarestände: Namen aus Schwesterstand übernehmen …*)
+- Namen und Layouts einer Definition (XDF/A2L/RomRaider/CSV) werden auf einen verwandten Softwarestand ohne Definition
+  übertragen: Ausrichtung über Anker, die in beiden Dateien genau einmal vorkommen; Vorschlag nur mit Beleg am Zielort
+  (identisch · gleicher Kopf · ähnliche Werte · gleiche Umgebung), immer ungeprüft.
+- Gemessen gegen die eigene XDF des Zielstands (`tools/name_transfer_benchmark.py`): MED17.1.62 404A/H/L, 5 Richtungen,
+  60–80 % der gemeinsamen Namen übertragen, davon **92–96 % richtig** (über gleiche Adresse allein: 6 %); MSD80-Schwesterstände
+  99 % übertragen, 100 % richtig; nicht verwandte ME7.5-Stände: 14 von 110 übertragen (Zurückhaltung statt Raten).
+- Kein Funktionsklassifikator: Namen kommen nur aus einer Definition, nicht aus einem Modell.
+
 **Kennlinien** (neu: Kennlinien-Datensätze `n, X[n], W[n]`, z. B. Bosch Cur_Xs16Ws16; 1D exakt, alt → neu)
 - *Test:* MSD85 642 → **1128**, MSD80 439 → **839**, EDC16C35 562 → **942**, EDC16C31 544 → **943** (Präzision 1D 89–96 %).
 - *Entwicklung:* EDC17CP09 946 → **1668** (93 %), ME9.2.1 385 → 597, ME9 205 → 271, MS45 176 → 200; 2D-Werte unverändert.
