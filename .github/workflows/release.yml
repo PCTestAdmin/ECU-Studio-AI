@@ -56,6 +56,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
+          # A re-pushed tag (e.g. after a history clean-up) must not replace published downloads.
+          gh release view "${{ github.ref_name }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "::notice::Release ${{ github.ref_name }} existiert bereits – Dateien bleiben unverändert."
+            exit 0
+          }
           gh release create "${{ github.ref_name }}" --verify-tag --title "ECU Studio AI $version" --notes-file release-notes.md `
             "dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256" `
             "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256"
