@@ -7,11 +7,20 @@ __pycache__/
 *.egg-info/
 
 # Build and release output (publish ZIPs as GitHub Releases instead)
+*.exe
+*.dll
+*.zip
+*.msi
 build/
 dist/
 release/
 qa-artifacts/
 *.spec
+
+# Test scratch folders (pytest --basetemp, updater tests)
+pytest-*/
+*.update-staging/
+*.backup/
 
 # Local QA material: contains real ECU firmware and machine-specific logs
 .qa/
