@@ -27,7 +27,7 @@ def test_structural_scan_has_candidates_without_claiming_verification():
 def test_synthetic_demo_identifies_both_structures():
     # The demo is constructed to have simple 16x16 surfaces and is not ECU firmware.
     from ecu_studio.core.definitions import import_definitions
-    base=Path(__file__).resolve().parents[1]/"examples"
+    base=Path(__file__).resolve().parents[1]/"examples"/"demo"
     demo=BinaryImage((base/"demo_synthetic.bin").read_bytes())
     result=discover_maps(demo)
     inferred={(m.offset,m.kind,m.endian) for m in result}

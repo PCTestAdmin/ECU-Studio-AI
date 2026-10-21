@@ -26,15 +26,15 @@ def container_reason(head: bytes, name: str = '') -> str | None:
         return ('WinOLS-Mappack (.kp): proprietäres, nicht dokumentiertes Format, Import wird nicht '
                 'unterstützt. Kennfelder als XDF, A2L oder CSV exportieren.')
     if head[:4] == b'PK\x03\x04':
-        return 'ZIP-Archiv: bitte zuerst entpacken und die enthaltene BIN öffnen.'
+        return 'ZIP-Archiv: über „Datei → ZIP mit BIN / ORI importieren …“ öffnen.'
     if head[:4] == b'\x7fELF' or (head[:2] == b'MZ' and suffix in ('.exe', '.dll', '')):
         return 'Programmdatei (ELF/EXE), keine ECU-Rohdatei.'
     if _HEX_LINE.match(head):
-        return 'Intel-HEX-Text: über „Speicherabbild importieren (HEX/S19)“ öffnen, damit Adressen erhalten bleiben.'
+        return 'Intel-HEX-Text: über „Datei → Intel HEX / Motorola S-Record importieren …“ öffnen, damit Adressen erhalten bleiben.'
     if _SREC_LINE.match(head):
-        return 'Motorola-S-Record-Text (S19/S28/S37): über „Speicherabbild importieren (HEX/S19)“ öffnen.'
+        return 'Motorola-S-Record-Text (S19/S28/S37): über „Datei → Intel HEX / Motorola S-Record importieren …“ öffnen.'
     if suffix in ('.xdf', '.a2l', '.xml', '.csv', '.json'):
-        return f'Definitionsdatei ({suffix}), keine Firmware: über den Definitionsimport laden.'
+        return f'Definitionsdatei ({suffix}), keine Firmware: erst die BIN öffnen, dann über „Datei → … koppeln“ laden.'
     return None
 
 

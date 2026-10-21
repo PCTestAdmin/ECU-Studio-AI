@@ -5,11 +5,16 @@
 **Kalibrier-Workbench für Motor- und Getriebesteuergeräte –
 Kennfelder finden, verstehen und nachvollziehbar bearbeiten, auch ohne Definition.**
 
-[![Tests](https://github.com/PCTestAdmin/ecu-studio-ai/actions/workflows/tests.yml/badge.svg)](https://github.com/PCTestAdmin/ecu-studio-ai/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?label=Downloads)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
+[![Tests](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml/badge.svg)](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml)
 [![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-blue.svg)](LICENSE)
-[![Python 3.10–3.12](https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
+[![Python 3.10–3.13](https://img.shields.io/badge/Python-3.10%E2%80%933.13-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![Plattform: Windows](https://img.shields.io/badge/Plattform-Windows-0078D6.svg?logo=windows&logoColor=white)](#installation)
 [![Oberfläche: PySide6](https://img.shields.io/badge/UI-PySide6%20(Qt%206)-41CD52.svg?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
+
+**[⬇ Windows-Version herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)** –
+ZIP entpacken und `ECU-Studio-AI.exe` starten oder den Installer ausführen. Kein Python nötig, Updates kommen automatisch.
 
 ![Heatmap mit Farbskala](docs/images/dark-heatmap.png)
 
@@ -46,7 +51,7 @@ Kennfelder finden, verstehen und nachvollziehbar bearbeiten, auch ohne Definitio
 |---|---|
 | ![Tabelle](docs/images/light-table.png) | ![3D](docs/images/dark-3d.png) |
 
-<sub>Screenshots mit der synthetischen Demo-Datei `examples/demo_multi_map.bin`.</sub>
+<sub>Screenshots mit der synthetischen Demo-Datei `examples/demo/demo_multi_map.bin`.</sub>
 
 ## So funktioniert die Erkennung
 
@@ -212,15 +217,14 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 
 | Ordner | Inhalt |
 |---|---|
-| `src/ecu_studio/core` | Datenmodell, Formate, Erkennung (`structure_scan`, `axis_arrays`, `cpu_refs`, `preflight`, `function_graph`, `signal_trace`) |
+| `src/ecu_studio/core` | Datenmodell, Formate, Erkennung (`structure_scan`, `axis_records`, `axis_arrays`, `cpu_refs`), Prüfungen (`preflight`, `checksum_audit`), Updates |
 | `src/ecu_studio/recognition` | Definitionskatalog, mitgelieferte XDFs, Modelle und Kalibrierdaten |
-| `src/ecu_studio/ui` | PySide6-Oberfläche, Theme, Icons |
-| `src/ecu_studio/tools` | Kommandozeilenwerkzeuge (Benchmarks, Kalibrierung, Training, Screenshots) |
+| `src/ecu_studio/ui` | PySide6-Oberfläche, Theme, Icons, Update-Fenster |
+| `src/ecu_studio/tools` | Kommandozeilenwerkzeuge (Benchmarks, Kalibrierung, Checksummen-Suche, Paketbau) |
+| `packaging` | Windows-Paket: Startprogramm, Updater, Installer-Skript, gesperrte Abhängigkeiten |
 | `tests` | pytest-Suite (läuft bei jedem Push unter Python 3.11 und 3.12) |
-| `examples` | synthetische Demo-Dateien – keine echte Firmware |
-| `docs/history` | Berichte früherer Versionen |
-| `docs/KONKURRENZANALYSE.md` | Vergleich mit quelloffenen ECU-Editoren, übernommene Ansätze |
-| `docs/ECU_SUPPORT.md` | Welche ECU-Varianten gemessen sind und welche nicht |
+| `examples` | synthetische Demo-Dateien und Vorlagen – keine echte Firmware ([Übersicht](examples/README.md)) |
+| `docs` | [Dokumentation](docs/README.md): unterstützte Steuergeräte, Release-Ablauf, Modellkarte, Konkurrenzanalyse |
 
 ## Roadmap
 
@@ -230,6 +234,8 @@ python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche
 - [x] Lernmodell für Datenmuster-Funde, familienübergreifend geprüft
 - [x] Code-Verweise 68k (GM P01), ME7.5-Speicherbasis, Denso-Beschreibungsblöcke
 - [x] Schnellere Suche bei großen Dateien (2- bis 5-mal)
+- [x] Windows-Paket ohne Python, Installer, automatische Updates mit Rollback
+- [x] Benchmark-System gegen Hersteller-A2L (EDC17CP09, MSD80/85, EDC16)
 - [ ] Code-Verweise für TriCore, PowerPC und CPU32 (MSS54)
 - [ ] Logger-Anbindung für Signal-Tracing
 

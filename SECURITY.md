@@ -6,7 +6,7 @@ Dateien können ein Sicherheitsproblem sein.
 ## Schwachstelle melden
 
 Bitte **nicht** als öffentliches Issue, sondern über
-[GitHub Security Advisories](https://github.com/PCTestAdmin/ecu-studio-ai/security/advisories/new).
+[GitHub Security Advisories](https://github.com/PCTestAdmin/ECU-Studio-AI/security/advisories/new).
 Beschreibe, welche Datei bzw. welcher Ablauf das Problem auslöst – ohne Original-Firmware anzuhängen;
 eine minimale, selbst erzeugte Beispieldatei reicht.
 

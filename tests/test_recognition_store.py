@@ -117,8 +117,8 @@ def test_batch_index_real_xdf_fixture(tmp_path):
     from ecu_studio.tools.recognition_v13 import execute
     from types import SimpleNamespace
     import shutil
-    source=Path(__file__).parents[1]/'examples'/'xdf_stride_demo.xdf'
-    binary=Path(__file__).parents[1]/'examples'/'xdf_stride_demo.bin'
+    source=Path(__file__).parents[1]/'examples'/'demo'/'xdf_stride_demo.xdf'
+    binary=Path(__file__).parents[1]/'examples'/'demo'/'xdf_stride_demo.bin'
     shutil.copy2(source,tmp_path/'a.xdf')
     shutil.copy2(binary,tmp_path/'a.bin')
     (tmp_path/'manifest.json').write_text(json.dumps({'pairs':[

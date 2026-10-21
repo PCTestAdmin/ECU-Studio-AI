@@ -1,8 +1,0 @@
-{
-  "indexed": 81,
-  "rejected": [],
-  "firmware_sha": "76010474fe2e3a4896724b6d0244173e49464e7b38758ccc6dc1bcaa53650421",
-  "source_sha": "gitblob:9b76a7f9887cd4bc2fafe50c9313f01e7d9ca4e0:partial-z-metadata",
-  "rejected_preview": [],
-  "important": "Nur Quellhinweise! Vollständige XDF für Achsen, Strides und korrekte Patchvariante importieren."
-}

@@ -23,7 +23,7 @@
 ## Sichere Nachtrainingsstrategie
 
 1. Richtige, softwarestandspezifische BIN+XDF/A2L-Paare mit SHA-256 und Quellenachweis importieren; bei MD1/MG1 sind exakte ECU-Adresssegmente nötig.
-2. Unbekannte/mehrdeutige Treffer aus `ACTIVE_LEARNING_REVIEW_QUEUE.json` anhand unabhängiger Referenzen prüfen.
+2. Unbekannte/mehrdeutige Treffer aus der Prüfliste (früher `docs/history/ACTIVE_LEARNING_REVIEW_QUEUE.json`, bis v1.15.0 in der Git-Historie) anhand unabhängiger Referenzen prüfen.
 3. Ausschließlich fachlich bestätigte Beispiele in den Trainingskatalog freigeben; nie automatisch XDF-Import oder ML-Vorschläge als Ground Truth markieren.
 4. Train/Test nach realen Firmware-Hashes getrennt halten, Fehler nach Klasse und ECU-Familie erfassen und das Modell bei Qualitätsabfall verwerfen.
 5. Keine automatische Tuning-Bearbeitung, kein Flash ohne separate Prüfungen.

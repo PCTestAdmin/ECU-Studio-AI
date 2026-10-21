@@ -42,4 +42,4 @@ next-*.xml
 *.BIN
 *.ori
 *.ols
-!examples/*.bin
+!examples/**/*.bin

@@ -70,7 +70,7 @@ def test_existing_semantic_predict_uses_only_once_standardized_ood():
 
 def test_ranker_keeps_sample_maps_and_does_not_invent_type():
     here=Path(__file__).parents[1]
-    raw=(here/'examples/demo_synthetic.bin').read_bytes()
+    raw=(here/'examples/demo/demo_synthetic.bin').read_bytes()
     # sample map coordinates known from preexisting regression test
     from ecu_studio.core.scoped_scan import scan_calibration_candidates
     out=scan_calibration_candidates(BinaryImage(raw))

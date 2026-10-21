@@ -69,7 +69,7 @@ def test_existing_ms43_shape_model_abstains_on_synthetic_planes():
 def test_bundled_two_known_synthetic_maps_are_kept_and_noise_is_not_promoted():
     from pathlib import Path
     from ecu_studio.core.scoped_scan import scan_calibration_candidates
-    path=Path(__file__).parents[1]/'examples/demo_synthetic.bin'
+    path=Path(__file__).parents[1]/'examples/demo/demo_synthetic.bin'
     image=BinaryImage(path.read_bytes())
     candidates=scan_calibration_candidates(image)
     assert {0x1000,0x2000}.issubset({m.offset for m in candidates})

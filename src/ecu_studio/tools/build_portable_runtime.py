@@ -95,7 +95,7 @@ def build():
         if path.name.lower().startswith(('numpy-','defusedxml-','shiboken6-','pyside6-','pyside6_essentials-','pyside6_addons-')):
             copytree(path,packages/path.name)
     copytree(root/'src'/'ecu_studio',app/'ecu_studio')
-    shutil.copy2(root/'launcher.py',app/'launch.py')
+    shutil.copy2(root/'packaging'/'launcher.py',app/'launch.py')
     shutil.copy2(root/'packaging'/'windows_launcher.cs',output/'windows_launcher.cs')
     # Separate updater: the app copies it out of the install folder and runs it after closing.
     shutil.copy2(root/'packaging'/'updater.ps1',output/'_internal'/'updater.ps1')

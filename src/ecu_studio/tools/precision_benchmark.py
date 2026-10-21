@@ -23,7 +23,7 @@ def candidates(image):
 
 
 def run() -> dict:
-    fixtures=Path(__file__).resolve().parents[3]/'examples'
+    fixtures=Path(__file__).resolve().parents[3]/'examples'/'demo'
     tests=[]
     for label, payload, anchors in (
         ('synthetic_two_maps',(fixtures/'demo_synthetic.bin').read_bytes(),[0x1000,0x2000]),

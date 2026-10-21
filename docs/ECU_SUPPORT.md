@@ -8,7 +8,7 @@ liegen nicht im Repository.
 ## Validiert mit vollständiger Referenz
 
 Reproduzierbar mit `python -m ecu_studio.tools.benchmark_suite MANIFEST.json` (Vorlage:
-`examples/benchmark_manifest.template.json`). **Rolle:** *test* = nie zum Einstellen verwendet (unabhängig),
+`examples/templates/benchmark_manifest.template.json`). **Rolle:** *test* = nie zum Einstellen verwendet (unabhängig),
 *development* = Schwellen daran gemessen, *training* = Lernmodell/Kalibrierung daran trainiert.
 „Achsen richtig“ = exakt gefundene Kennfelder, deren Rohachsen linear zur Referenzachse passen.
 
@@ -62,7 +62,7 @@ MSD80 93–96 / 73–74 %, EDC16C35 91 / 64 %, EDC16C31 93 / 69 %; 1D exakt 0–
   (`MOD_PAR EPK` an `ADDR_EPK`, aufgelöst über Anker **oder** Segmenttabelle): passt die EPK nicht, wird nichts verknüpft; liegt `ADDR_EPK` nicht in der Abbildung, gibt es eine Warnung. Ältere A2L ohne EPK (ME9, MS45, ME7.2)
   werden nur über die Achsprüfung gekoppelt – das belegt die Adresslage, nicht den Softwarestand.
 - **Abgewiesen statt vorgetäuscht:** WinOLS-Projekte (`.ols`), WinOLS-Mappacks (`.kp`), ZIP, ELF/EXE, sowie HEX/S19
-  beim Öffnen als Rohdatei (dafür gibt es den Speicherabbild-Import).
+  beim Öffnen als Rohdatei (dafür gibt es „Intel HEX / Motorola S-Record importieren …“ bzw. den ZIP-Import).
 - **`.ols` geprüft, nicht importiert:** In 7 echten Projekten (Formatversionen 113–290) findet sich die in tune-editor
   (GPL-3.0) beschriebene Versionsstruktur. Die daraus gelesene „Original“-Version stimmt aber nur zu 30 % (EDC17CP09,
   Version 269) bzw. 40–54 % (EDC16C35, Version 113) mit der echten Originaldatei überein – der Inhalt ist offenbar

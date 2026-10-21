@@ -23,7 +23,7 @@ $check = & $python -c "import sys,struct;print(sys.version_info[:2]==(3,13) and 
 if ($check -ne 'True') {
     throw '.venv-build ist nicht CPython 3.13 x64. Ordner .venv-build löschen und erneut starten.'
 }
-& $python -m pip install -r requirements-lock-windows.txt
+& $python -m pip install -r (Join-Path $PSScriptRoot 'packaging\requirements-lock-windows.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Abhängigkeiten konnten nicht installiert werden.' }
 & $python -m pip install --no-deps -e .
 if ($LASTEXITCODE -ne 0) { throw 'Projekt konnte nicht installiert werden.' }
