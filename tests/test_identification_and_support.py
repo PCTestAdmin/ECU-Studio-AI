@@ -54,7 +54,7 @@ def test_support_matrix_is_measured_not_claimed():
     for e in entries:
         complete = [s for s in e.software if s['complete_reference']]
         if e.status == 'validiert':
-            assert complete and max(s['precision_2d'] for s in complete) >= .5, e.family
+            assert any(s['precision_2d'] >= .5 and s['exact_2d'] >= .2 * s['reference_2d'] for s in complete), e.family
         elif e.status == 'teilweise':
             # partial reference only, or complete reference with insufficient precision (said in limits)
             assert e.software and (not complete or 'unzureichend' in e.limits), e.family

@@ -140,22 +140,24 @@ xychart-beta
 
 | Steuergerät | M0 | M6 (1.15.0) | M7 (nächste Version) |
 |---|---:|---:|---:|
-| Bosch EDC17CP09 | 0 | 332 | **946** |
-| Siemens MSD85 · *Test* | 0 | 354 | **642** |
-| Bosch EDC16C31 | 0 | 242 | **544** |
-| BMW ME9.2.1 | 0 | 263 | **385** |
+| Bosch EDC17CP09 | 0 | 332 | **1668** |
+| Siemens MSD85 · *Test* | 0 | 354 | **1128** |
+| Bosch EDC16C31 | 0 | 242 | **943** |
+| BMW ME9.2.1 | 0 | 263 | **597** |
 | Siemens MS43 | 0 | 743 | **743** |
 | Bosch ME7.5 (VAG 06A906032HS) | 0 | 134 | **134** |
 
 ## Laufzeit je Datei (Sekunden, gleicher Rechner)
 
+<sub>Einkernig gemessen, damit alle Stände vergleichbar sind. In der App und im Benchmark nutzt die nächste Version mehrere Kerne: EDC17CP09 rund 9–10 s, MED17.1.62 rund 7 s (16 Kerne).</sub>
+
 | Steuergerät | M0 | M1 | M6 (1.15.0) | M7 (nächste Version) |
 |---|---:|---:|---:|---:|
-| Siemens MS43 | 1.4 | 14.18 | 4.98 | 3.82 |
-| Bosch EDC17CP09 | 16.35 | 101.53 | 43.02 | 31.75 |
-| Siemens MSD85 · *Test* | 4.39 | 44.22 | 14.86 | 10.91 |
-| Bosch ME7.5 (VAG 06A906032HS) | 7.3 | 26.63 | 13.32 | 10.07 |
-| Bosch MED17.1.62 (404A) | 11.38 | 92.98 | 30.22 | 24.22 |
+| Siemens MS43 | 1.4 | 14.18 | 4.98 | 4.07 |
+| Bosch EDC17CP09 | 16.35 | 101.53 | 43.02 | 33.05 |
+| Siemens MSD85 · *Test* | 4.39 | 44.22 | 14.86 | 11.85 |
+| Bosch ME7.5 (VAG 06A906032HS) | 7.3 | 26.63 | 13.32 | 10.62 |
+| Bosch MED17.1.62 (404A) | 11.38 | 92.98 | 30.22 | 26.55 |
 
 ## Grenzen dieser Messung
 

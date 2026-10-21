@@ -4,8 +4,9 @@ Usage: python -m ecu_studio.tools.support_matrix RESULT.json [RESULT.json ...] [
 
 Status rules (applied here, not chosen per family by hand):
 - validiert:      at least one pair with a COMPLETE reference (manufacturer A2L or
-                  complete community XDF) was measured, with precision >= MIN_PRECISION.
-                  Below that the family is 'teilweise' and says so.
+                  complete community XDF) was measured, with precision >= MIN_PRECISION and
+                  at least MIN_EXACT_SHARE of the reference tables found exactly. Below that
+                  the family is 'teilweise' and says so.
 - teilweise:      only partial references measured (recall and exact maps only).
 - experimentell:  scanned on real firmware of the family, but without any reference.
 - nicht validiert: no firmware of the family was available at all.
@@ -46,6 +47,10 @@ FAMILIES = [
     ('Hyundai/Kia SIM2K (Hyundai N)', [], 'Infineon TriCore', ['SIM2K'],
      'Community-XDF; zur Konfidenz-Kalibrierung verwendet. Code-Verweise über Basisregister nicht gelöst.', ''),
     ('BMW MSS54', ['MSS54'], 'Motorola CPU32', ['MSS54'], 'Community-XDF; zur Konfidenz-Kalibrierung verwendet.', ''),
+    ('Speeduino (Open Source, TunerStudio)', ['Speeduino'], 'AVR / ARM', ['Speeduino'],
+     'Kalibrierabbild aus offizieller Definition (GPL-2.0) und Abstimmungen (CC BY-NC 4.0), mit tools/tunerstudio_image '
+     'erzeugt. Tabellen liegen vor ihren Achsen (ohne Anzahl-Kopf); dieses Muster erkennt die Suche ohne Definition '
+     'nicht zuverlässig – für offene Steuergeräte ist die öffentliche .ini die Definition.', ''),
     # Families of the target list without any local firmware/reference pair.
     ('Bosch EDC17CP14 / CP20 / CP44 / CP45 / CP46', ['EDC17CP14', 'EDC17CP20', 'EDC17CP44', 'EDC17CP45', 'EDC17CP46'],
      'Infineon TriCore/AURIX', [], '', 'Original-BIN (vollständiger Flash) + passende Hersteller-A2L mit EPK, je 2 Softwarestände'),
@@ -70,6 +75,7 @@ FAMILIES = [
     ('Siemens MSS60', ['MSS60'], 'PowerPC', [], 'Nur WinOLS-Projekt (.ols) vorhanden.', 'Original-BIN + A2L'),
 ]
 MIN_PRECISION = .5
+MIN_EXACT_SHARE = .2   # at least a fifth of the reference tables found exactly
 # Families scanned on real firmware without any reference (identity and plausibility only).
 EXPERIMENTAL: set[str] = set()
 
@@ -104,12 +110,16 @@ def build(results: list[dict]) -> dict:
         software = [{'name': r['name'], 'role': r['role'], 'complete_reference': r['complete_reference'],
                      'group': r['group'], **_row_metrics(r)} for r in mine]
         complete = [r for r in mine if r['complete_reference']]
-        if complete and max(r['precision_2d'] for r in complete) >= MIN_PRECISION:
+        good = [r for r in complete if r['precision_2d'] >= MIN_PRECISION
+                and r['exact_2d'] >= MIN_EXACT_SHARE * max(1, r['reference_2d'])]
+        if good:
             status = 'validiert'
         elif complete:
             status = 'teilweise'
+            best = max(complete, key=lambda r: r['exact_2d'])
             limits = (limits + ' Gemessen, Erkennung unzureichend '
-                      f"(Präzision höchstens {max(r['precision_2d'] for r in complete):.0%}).").strip()
+                      f"(bestenfalls {best['exact_2d']} von {best['reference_2d']} exakt, "
+                      f"Präzision höchstens {max(r['precision_2d'] for r in complete):.0%}).").strip()
         elif mine:
             status = 'teilweise'
         elif experimental:

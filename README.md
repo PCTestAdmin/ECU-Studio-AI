@@ -196,19 +196,22 @@ Siemens MS4x 29 → 50 %. Details: [docs/MODELLKARTE.md](docs/MODELLKARTE.md).
 
 | Familie | Prozessor | Code-Verweise | Achsen | Status |
 |---|---|:---:|:---:|---|
-| Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | ✅ gemessen · Standard-XDFs inklusive |
+| Siemens MS43 (BMW) | C167 | ✅ | ✅ | ✅ validiert · Standard-XDFs inklusive |
+| Siemens MS41 / MS42 (BMW) | C167 | ✅ | ✅ | 🟡 gemessen, Erkennung gering (MS42: 22 von 213 exakt) |
 | Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | ✅ gemessen |
 | Bosch EDC17CP09 (BMW) | TriCore | – | ✅ | ✅ gemessen · Hersteller-A2L |
 | Siemens MSD80 / MSD85 (BMW) | PowerPC | – | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
 | Bosch EDC16C31 / C35 (BMW) | PowerPC | – | ✅ | ✅ gemessen · Hersteller-A2L |
-| BMW ME9 / ME9.2.1 · Siemens MS45 | – | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| BMW ME9 / ME9.2.1 | PowerPC | – | ✅ | ✅ validiert · Hersteller-A2L |
+| Siemens MS45 | C167 | – | ✅ | 🟡 gemessen, Erkennung gering (30 von 472 exakt) |
 | Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | ✅ gemessen |
 | GM P01 | 68k | ✅ | – | ✅ gemessen |
 | Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
 | Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
 | BMW MSS54 | CPU32 | – | ✅ | ✅ gemessen · vollständige XDF |
 | Continental SIM2K (Hyundai) | TriCore | – | 🟡 | 🟡 gemessen, Erkennung unzureichend |
-| EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos | – | – | – | ⚪ nicht validiert |
+| Speeduino (Open Source) | AVR / ARM | – | – | 🟡 gemessen (14 Abstimmungen), ohne Definition schwach – `.ini` ist öffentlich |
+| EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos · SID | – | – | – | ⚪ nicht validiert – keine rechtlich sicheren Referenzdaten öffentlich |
 
 <sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
 Konkrete Softwarestände und alle Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.md</a>.</sub>

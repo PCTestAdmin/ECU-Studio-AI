@@ -15,6 +15,18 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Rechtlich saubere Referenzdaten**
+- Recherche nach rechtmäßig verfügbaren Original/Definition-Paaren für MD1, MG1, Simos, SID, MED17.5/17.7: keine gefunden
+  (öffentliche Uploads Dritter ohne Lizenz wurden nicht heruntergeladen; Begründung in docs/ECU_SUPPORT.md).
+- Neu: `tools/tunerstudio_image.py` – Kalibrierabbild + vollständige Referenz aus TunerStudio-Definition (.ini) und
+  Abstimmung (.msq) für offene Steuergeräte (Speeduino, rusEFI, MegaSquirt); sichere Ausdrucksauswertung ohne `eval`,
+  versionsgenaue Definition wird erzwungen.
+- Speeduino gemessen (14 offizielle Abstimmungen, GPL-2.0/CC BY-NC 4.0): ohne Definition nur 0–2 von 18–20 Tabellen
+  exakt – Tabellen liegen vor ihren Achsen ohne Anzahl-Kopf. Ein Scanner dafür wurde gebaut, gemessen und verworfen
+  (auf anderen Familien hunderte Fehlfunde). Status „teilweise“.
+- Unterstützungsmatrix: „validiert“ verlangt jetzt zusätzlich ≥ 20 % exakt gefundene Referenztabellen; Siemens MS45
+  und MS42 stehen damit ehrlich auf „teilweise“.
+
 **Neue Steuergeräte-Familien validierbar machen**
 - Identifikation erkennt zusätzlich Klartext-Kennungen von Continental/Siemens (Simos, SID, MSV, MSD) und MD1/MG1;
   auf den 27 Referenzdateien keine falsche Familie. Matrix-Zuordnung fällt auf die übergeordnete Familie zurück

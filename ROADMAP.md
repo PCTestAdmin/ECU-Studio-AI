@@ -93,6 +93,7 @@ Im Hauptzweig umgesetzt und gemessen, noch nicht als Release veröffentlicht.
 | 🔬 | **Code-Verweise für PowerPC (MSD80/85, EDC16, MED9)** | Gleiches Prinzip, andere Adressierung (`lis`/`addi`, Small-Data-Bereiche über `r2`/`r13`) | wie oben, gemessen auf den Testdaten |
 | 🔬 | **Gruppenkennfelder mit gemeinsamen Achsen** (Bosch MapG / COM_AXIS) | Bei EDC17CP09 135 der übrigen Fehlstellen. Ein reiner Strukturansatz wurde gemessen und verworfen (132 Funde, nur 24 exakt). | erst mit Code-Verweisen sinnvoll |
 | 📋 | **Kleine Kopf-Datensätze (2 × N, 3 × N)** | 151 Kennfelder bei EDC17CP09 haben weniger als 4 Zeilen/Spalten | ohne mehr Fehlfunde in den Negativkontrollen |
+| 📋 | **TunerStudio-Definitionen importieren** (Speeduino, rusEFI, MegaSquirt) – die `.ini` ist dort öffentlich, Abstimmungen (.msq) direkt öffnen und speichern | Für offene Steuergeräte ist die Definition immer öffentlich | Grundlage vorhanden (`tools/tunerstudio_image.py`) |
 | 📋 | **Kennfeld-Gruppen und Überwachungskopien** sichtbarer machen | Doppelte Ablage (z. B. Funktions- und Überwachungspfad) gemeinsam bearbeiten | Zwillinge je Gruppe, gegen A2L geprüft |
 | 📋 | **Physikalische Skalierung vorschlagen** | Rohwerte → Einheiten (Drehzahl, Last, Temperatur) für Achsen ohne Definition | Top-1/Top-3-Treffer gegen A2L-Umrechnungen |
 
@@ -101,7 +102,7 @@ Im Hauptzweig umgesetzt und gemessen, noch nicht als Release veröffentlicht.
 | | Familie | Was fehlt |
 |:---:|---|---|
 | 📦 | **Bosch MED17.5 / 17.7 / MEVD17** | Original-BIN + passende A2L (EPK gleich) |
-| 📦 | **Bosch MD1 / MG1** | Original-BIN + passende A2L/DAMOS, möglichst 2 Softwarestände |
+| 📦 | **Bosch MD1 / MG1** | Original-BIN + passende A2L/DAMOS, möglichst 2 Softwarestände – öffentlich gibt es keine rechtlich sicheren (Recherche 21.10.2026) |
 | 📦 | **Bosch EDC17 außer CP09** (CP14, CP20, CP44–46, C46, C64, C74) | Original-BIN + A2L |
 | 📦 | **Continental Simos 8–19, SID208/807/310/321** | Original-BIN + A2L |
 | 📦 | **Siemens MSD81, MSV70/80 · Bosch EDC16C34/CP34** | Original-BIN + A2L |
