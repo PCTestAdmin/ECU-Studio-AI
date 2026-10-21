@@ -168,14 +168,43 @@ class UpdateController:
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.pending = (path, digest)
+        self.pending = ('update', path, digest)
         self.window.close()          # closeEvent asks about unsaved work and calls launch_pending()
+
+    # -- restore the previous version ---------------------------------------------------------
+    def backup_version(self, root: Path | None = None) -> str | None:
+        """Version kept by the last update in <install>.backup, or None."""
+        root = root or updates.install_root(sys.executable)
+        if root is None:
+            return None
+        backup = root.parent / (root.name + '.backup')
+        if not (backup / 'ECU-Studio-AI.exe').is_file():
+            return None
+        try:
+            return (backup / 'VERSION.txt').read_text(encoding='ascii').strip() or '?'
+        except OSError:
+            return '?'
+
+    def request_restore(self):
+        version = self.backup_version()
+        if version is None:
+            QMessageBox.information(self.window, 'Vorherige Version',
+                                    'Es gibt keine gesicherte vorherige Version (erst nach einem Update vorhanden).')
+            return
+        answer = QMessageBox.question(
+            self.window, 'Vorherige Version wiederherstellen',
+            f'ECU Studio AI {version} wiederherstellen? Die aktuelle Version {__version__} bleibt als Sicherung '
+            'erhalten und kann genauso zurückgeholt werden.\n\nDas Programm wird dafür geschlossen und neu gestartet.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.pending = ('restore',)
+            self.window.close()
 
     def launch_pending(self) -> bool:
         """Start the copied updater detached; called from closeEvent once closing is accepted."""
         if not self.pending:
             return False
-        archive, digest = self.pending
+        kind, *args = self.pending
         self.pending = None
         root = updates.install_root(sys.executable)
         if root is None:
@@ -185,8 +214,13 @@ class UpdateController:
         script = work / 'updater.ps1'
         shutil.copy2(root / '_internal' / 'updater.ps1', script)   # run outside the folder it replaces
         command = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
-                   '-File', str(script), '-InstallDir', str(root), '-Archive', str(archive), '-Sha256', digest,
+                   '-File', str(script), '-InstallDir', str(root),
                    '-WaitPid', str(os.getpid()), '-LogFile', str(work / 'update.log'), '-Relaunch']
+        if kind == 'restore':
+            command.append('-Restore')
+        else:
+            archive, digest = args
+            command += ['-Archive', str(archive), '-Sha256', digest]
         flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
         # Windows PowerShell must not inherit a PowerShell 7 module path (see updater.ps1).
         env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}

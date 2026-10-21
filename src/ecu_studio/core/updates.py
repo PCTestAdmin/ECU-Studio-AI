@@ -78,7 +78,9 @@ def parse_release(payload: dict) -> Release | None:
         if not _official_download(asset.get('browser_download_url', '')):
             return None
     digest = archive.get('digest')
-    return Release(text, str(payload.get('body') or '').strip(), str(payload.get('html_url') or ''),
+    # The generic installation footer (after '---') belongs on the release page, not in the update dialog.
+    notes = str(payload.get('body') or '').split('\n---\n', 1)[0].strip()
+    return Release(text, notes, str(payload.get('html_url') or ''),
                    name, archive['browser_download_url'], int(archive.get('size') or 0),
                    checksum['browser_download_url'],
                    digest if isinstance(digest, str) and digest.startswith('sha256:') else None)

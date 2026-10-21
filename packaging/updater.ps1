@@ -15,15 +15,20 @@ application has closed (it never overwrites a running EXE).
 Projects and settings live outside the installation (%USERPROFILE%\.ecu_studio_ai,
 registry) and are not touched. Exit codes: 0 updated, 2 verification failed
 (nothing changed), 3 install failed and was rolled back, 4 rollback failed.
+
+-Restore swaps the installation with <folder>.backup instead (the previous
+version; afterwards the replaced version is the new backup), runs the same
+self-check and swaps back if the restored version does not start.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
-    [Parameter(Mandatory = $true)][string]$Archive,
-    [Parameter(Mandatory = $true)][string]$Sha256,
+    [string]$Archive = '',
+    [string]$Sha256 = '',
     [int]$WaitPid = 0,
     [string]$LogFile = '',
     [string]$CheckArguments = '--self-check',
-    [switch]$Relaunch
+    [switch]$Relaunch,
+    [switch]$Restore
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell started from a PowerShell 7 session inherits PSModulePath and may then
@@ -68,7 +73,9 @@ function Fail([int]$code, [string]$text) {
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir.TrimEnd('\'))
 $backup = $InstallDir + '.backup'
 $staging = $InstallDir + '.update-staging'
-Log "Update gestartet: $Archive -> $InstallDir"
+if ($Restore) { Log "Wiederherstellung gestartet: $backup -> $InstallDir" }
+elseif (-not $Archive -or -not $Sha256) { Fail 2 'Archive und Sha256 sind für ein Update erforderlich.' }
+else { Log "Update gestartet: $Archive -> $InstallDir" }
 
 # 1. Wait for the running application to end.
 if ($WaitPid -gt 0) {
@@ -77,6 +84,39 @@ if ($WaitPid -gt 0) {
     if (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue) { Fail 2 'ECU Studio AI läuft noch – Update nicht installiert.' }
 }
 if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $ExeName))) { Fail 2 "Keine Installation gefunden in $InstallDir." }
+
+function Test-Start([string]$folder) {
+    $p = Start-Process -FilePath (Join-Path $folder $ExeName) -ArgumentList $CheckArguments -PassThru -WindowStyle Hidden
+    $ok = $p.WaitForExit(180000) -and $p.ExitCode -eq 0
+    if (-not $ok) { try { $p.Kill() } catch { } }
+    return $ok
+}
+
+if ($Restore) {
+    if (-not (Test-Path -LiteralPath (Join-Path $backup $ExeName))) { Fail 2 'Keine Sicherung einer vorherigen Version vorhanden.' }
+    $swap = $InstallDir + '.restore-swap'
+    if (Test-Path -LiteralPath $swap) { Remove-Item -LiteralPath $swap -Recurse -Force }
+    try {
+        Rename-Item -LiteralPath $InstallDir -NewName (Split-Path $swap -Leaf)
+        Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
+        Rename-Item -LiteralPath $swap -NewName (Split-Path $backup -Leaf)
+    } catch {
+        if ((Test-Path -LiteralPath $swap) -and -not (Test-Path -LiteralPath $InstallDir)) { Rename-Item -LiteralPath $swap -NewName (Split-Path $InstallDir -Leaf) }
+        Fail 2 ('Wiederherstellung nicht möglich (Ordner in Benutzung?): ' + $_.Exception.Message)
+    }
+    if (-not (Test-Start $InstallDir)) {
+        Log 'Wiederhergestellte Version startet nicht – zurück zur vorherigen Installation.'
+        try {
+            Rename-Item -LiteralPath $InstallDir -NewName (Split-Path $swap -Leaf)
+            Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
+            Rename-Item -LiteralPath $swap -NewName (Split-Path $backup -Leaf)
+        } catch { Fail 4 ('Zurücktauschen fehlgeschlagen; Versionen liegen in ' + $InstallDir + ' und ' + $backup) }
+        Fail 3 'Die gesicherte Version startete nicht – die bisherige Version bleibt aktiv.'
+    }
+    Log "Vorherige Version wiederhergestellt; die ersetzte Version liegt jetzt in $backup."
+    if ($Relaunch) { Start-Process -FilePath (Join-Path $InstallDir $ExeName) -WorkingDirectory $InstallDir | Out-Null }
+    exit 0
+}
 
 # 2. Archive integrity.
 $actual = Get-Sha256 $Archive
@@ -143,10 +183,8 @@ try {
 
 # 7. Self-check of the new version; roll back on failure.
 $exe = Join-Path $InstallDir $ExeName
-$check = Start-Process -FilePath $exe -ArgumentList $CheckArguments -PassThru -WindowStyle Hidden
-if (-not $check.WaitForExit(180000) -or $check.ExitCode -ne 0) {
-    try { $check.Kill() } catch { }
-    Log "Selbsttest der neuen Version fehlgeschlagen (Exit $($check.ExitCode)) – Rollback."
+if (-not (Test-Start $InstallDir)) {
+    Log 'Selbsttest der neuen Version fehlgeschlagen – Rollback.'
     try {
         Remove-Item -LiteralPath $InstallDir -Recurse -Force
         Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)

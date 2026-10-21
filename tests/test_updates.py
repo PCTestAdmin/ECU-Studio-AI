@@ -255,3 +255,44 @@ def test_updater_survives_foreign_powershell7_module_path(setup, tmp_path, monke
     result = _run(install, archive, digest)
     assert result.returncode == 0, result.stdout + result.stderr
     assert (install / 'VERSION.txt').read_text() == '1.15.0'
+
+
+def _restore(install, check='/c exit 0'):
+    env = dict(os.environ, ECU_UPDATER_QUIET='1')
+    return subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(UPDATER),
+                           '-InstallDir', str(install), '-Restore', '-CheckArguments', check],
+                          capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, timeout=240)
+
+
+@windows
+def test_restore_swaps_back_to_previous_version_and_forward_again(setup):
+    install, archive, digest, _ = setup
+    assert _run(install, archive, digest).returncode == 0
+    backup = install.parent / 'ECU-Studio-AI.backup'
+    result = _restore(install)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.14.0' and (backup / 'VERSION.txt').read_text() == '1.15.0'
+    assert _restore(install).returncode == 0                       # and forward again
+    assert (install / 'VERSION.txt').read_text() == '1.15.0'
+
+
+@windows
+def test_restore_keeps_current_version_when_backup_does_not_start(setup):
+    install, archive, digest, _ = setup
+    assert _run(install, archive, digest).returncode == 0
+    result = _restore(install, check='/c exit 5')
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.15.0'
+    assert (install.parent / 'ECU-Studio-AI.backup' / 'VERSION.txt').read_text() == '1.14.0'
+
+
+@windows
+def test_restore_without_backup_changes_nothing(setup):
+    install, *_ = setup
+    assert _restore(install).returncode == 2 and (install / 'VERSION.txt').read_text() == '1.14.0'
+
+
+def test_dialog_notes_drop_the_generic_release_footer():
+    from ecu_studio.tools.release_notes import FOOTER
+    r = updates.parse_release(_payload(body='## Neu\n- A2L-Import\n' + FOOTER))
+    assert r.notes == '## Neu\n- A2L-Import' and 'Windows-Warnung' not in r.notes

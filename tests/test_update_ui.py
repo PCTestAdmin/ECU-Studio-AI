@@ -78,3 +78,41 @@ def test_source_checkout_opens_release_page_instead_of_installing(window, monkey
     c._checked(RELEASE, '', manual=True)
     assert opened == [RELEASE.page_url] and c.pending is None
     assert c.launch_pending() is False                # nothing to hand over
+
+
+def _installed(tmp_path, with_backup=True):
+    root = tmp_path / 'ECU-Studio-AI'
+    for folder, version in ((root, '1.15.0'), (tmp_path / 'ECU-Studio-AI.backup', '1.14.0'))[:2 if with_backup else 1]:
+        (folder / '_internal').mkdir(parents=True)
+        (folder / 'ECU-Studio-AI.exe').write_bytes(b'')
+        (folder / '_internal' / 'updater.ps1').write_text('# updater')
+        (folder / 'VERSION.txt').write_text(version + '\n')
+    return root
+
+
+def test_restore_names_backup_version_and_hands_over_to_updater(window, tmp_path, monkeypatch):
+    root = _installed(tmp_path)
+    c = ui.UpdateController(window)
+    assert c.backup_version(root) == '1.14.0'
+    monkeypatch.setattr(ui.updates, 'install_root', lambda exe: root)
+    monkeypatch.setattr(ui, 'data_dir', lambda: tmp_path / 'data')
+    asked = []
+    monkeypatch.setattr(QMessageBox, 'question', lambda *a, **k: (asked.append(a[2]), QMessageBox.StandardButton.Yes)[1])
+    started = []
+    monkeypatch.setattr(ui.subprocess, 'Popen', lambda cmd, **k: started.append((cmd, k.get('env', {}))))
+    c.request_restore()
+    assert '1.14.0 wiederherstellen' in asked[0] and c.pending == ('restore',)
+    assert c.launch_pending() is True
+    cmd, env = started[0]
+    assert '-Restore' in cmd and '-Archive' not in cmd and str(root) in cmd
+    assert not any(k.upper() == 'PSMODULEPATH' for k in env)          # no inherited PowerShell 7 module path
+
+
+def test_restore_without_backup_only_informs(window, tmp_path, monkeypatch):
+    root = _installed(tmp_path, with_backup=False)
+    monkeypatch.setattr(ui.updates, 'install_root', lambda exe: root)
+    infos = []
+    monkeypatch.setattr(QMessageBox, 'information', lambda *a, **k: infos.append(a[2]))
+    c = ui.UpdateController(window)
+    c.request_restore()
+    assert c.pending is None and 'keine gesicherte' in infos[0]

@@ -166,6 +166,18 @@ Details mit konkreten Softwareständen und Messwerten: [docs/ECU_SUPPORT.md](doc
    `%LOCALAPPDATA%\Programs\ECU-Studio-AI`, mit Startmenü-Eintrag und Deinstallation.
 3. Fertig – Python, Terminal oder weitere Downloads sind nicht nötig.
 
+### Windows-Warnung beim ersten Start
+
+ECU Studio AI ist noch **nicht code-signiert**. Windows SmartScreen zeigt deshalb beim ersten Start
+„Der Computer wurde durch Windows geschützt“. So geht es weiter:
+
+- im Fenster auf **„Weitere Informationen“** klicken, dann **„Trotzdem ausführen“**, oder
+- **vor dem Entpacken**: Rechtsklick auf die heruntergeladene ZIP → **Eigenschaften** → unten **„Zulassen“** anhaken → OK.
+
+Die Echtheit des Downloads lässt sich prüfen: Die SHA-256 der Datei muss mit der `.sha256`-Datei des Releases
+übereinstimmen (`Get-FileHash <datei>` in PowerShell); die Build-Herkunft belegt
+`gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI`.
+
 ### Updates
 
 ECU Studio AI prüft beim Start und danach höchstens einmal täglich, ob auf GitHub eine neuere **stabile** Version
@@ -181,8 +193,8 @@ stellt bei einem Fehler automatisch die alte wieder her. Projekte (`%USERPROFILE
 liegen außerhalb des Programmordners und bleiben unberührt. Nichts wird ohne Zustimmung installiert. Protokoll:
 `%LOCALAPPDATA%\ECUStudioAI\updates\update.log`.
 
-Hinweis: Die EXE ist derzeit **nicht code-signiert**; Windows SmartScreen kann beim ersten Start warnen. Die Herkunft
-jedes Release-Pakets lässt sich mit `gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI` nachweisen.
+Eine frühere Version lässt sich unter **Einstellungen → Vorherige Version wiederherstellen …** zurückholen (die
+ersetzte Version bleibt dabei ebenfalls als Sicherung erhalten).
 
 ### Aus dem Quellcode (Entwicklung)
 

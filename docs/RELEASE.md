@@ -15,9 +15,13 @@ Bestehende Nutzer bekommen die neue Version danach über die eingebaute Update-P
    git push origin v1.15.0
    ```
 
-4. GitHub Actions („Release“) prüft, dass Tag und `__version__` übereinstimmen, führt alle Tests in einer frischen
-   Python-3.13-Umgebung aus, baut das portable Paket, startet die EXE (Oberflächentest und `--self-check`), testet das
-   entpackte ZIP ohne Python im PATH, baut den Installer und veröffentlicht:
+4. GitHub Actions („Release“) läuft in drei Stufen:
+   - **build:** Tag gegen `__version__` und CHANGELOG prüfen, alle Tests in frischer Python-3.13-Umgebung, portables Paket,
+     EXE-Tests (Oberflächentest, `--self-check`, entpacktes ZIP ohne Python im PATH), Installer.
+   - **update-test** auf Windows Server 2022 **und** 2025: das zuletzt veröffentlichte Release installieren und mit
+     **dessen** Updater auf die neue Version aktualisieren (wie bei Anwendern), Oberflächentest, Wiederherstellen der
+     Vorversion und zurück, Installer installieren/selbsttesten/deinstallieren.
+   - **publish:** nur wenn beide Update-Tests bestanden haben – Herkunftsbestätigung und Veröffentlichung:
 
    | Datei | Zweck |
    |---|---|

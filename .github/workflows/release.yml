@@ -1,7 +1,8 @@
 name: Release
 
-# Pushing a tag like v1.15.0 builds, tests and publishes the Windows package.
-# The tag must equal ecu_studio.__version__ and CHANGELOG.md needs a "## 1.15.0" section.
+# Pushing a tag like v1.16.0 builds, tests and publishes the Windows package.
+# The tag must equal ecu_studio.__version__ and CHANGELOG.md needs a "## 1.16.0" section.
+# Publishing only happens after the real update path passed on several Windows versions.
 on:
   push:
     tags: ['v*.*.*']
@@ -10,12 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  windows-release:
+  build:
     runs-on: windows-latest
-    permissions:
-      contents: write        # create the GitHub release
-      id-token: write        # build provenance attestation
-      attestations: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -30,7 +27,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install --no-deps -e .
-          python -m ecu_studio.tools.release_notes "${{ github.ref_name }}" --out release-notes.md
+          New-Item -ItemType Directory dist -Force | Out-Null
+          python -m ecu_studio.tools.release_notes "${{ github.ref_name }}" --out dist/release-notes.md
       - name: Build, test and package (portable ZIP, EXE smoke test, run without Python in PATH)
         shell: pwsh
         run: ./build_release.ps1 -Python313 "${{ steps.py.outputs.python-path }}"
@@ -44,6 +42,101 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer-Build fehlgeschlagen' }
           (Get-FileHash "dist\ECU-Studio-AI-$version-setup.exe" -Algorithm SHA256).Hash.ToLower() + "  ECU-Studio-AI-$version-setup.exe" |
             Set-Content -Encoding ascii "dist\ECU-Studio-AI-$version-setup.exe.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: |
+            dist/ECU-Studio-AI-*-windows-x64.zip
+            dist/ECU-Studio-AI-*-windows-x64.zip.sha256
+            dist/ECU-Studio-AI-*-setup.exe
+            dist/ECU-Studio-AI-*-setup.exe.sha256
+            dist/release-notes.md
+          retention-days: 7
+
+  update-test:
+    # The real user path: the last published version updates itself with ITS updater,
+    # then the new version restores the old one and back.
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen     # runners have no interactive desktop
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: new
+      - name: Update from the last published release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ECU_UPDATER_QUIET: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $zip = (Resolve-Path "new\ECU-Studio-AI-$version-windows-x64.zip").Path
+          $sha = ((Get-Content "$zip.sha256") -split '\s+')[0]
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $sha) { throw 'Prüfsumme des neuen Pakets stimmt nicht' }
+          $work = Join-Path $env:RUNNER_TEMP 'update'
+          New-Item -ItemType Directory $work | Out-Null
+          $old = gh release list --repo "${{ github.repository }}" --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName' |
+                 Where-Object { $_ -ne "${{ github.ref_name }}" } | Select-Object -First 1
+          if (-not $old) {
+            Write-Host '::notice::Kein früheres Release – nur Neuinstallation geprüft.'
+            Expand-Archive $zip $work
+          } else {
+            gh release download $old --repo "${{ github.repository }}" --pattern '*-windows-x64.zip' --dir $work
+            Expand-Archive (Get-ChildItem "$work\*-windows-x64.zip").FullName $work
+            $install = Join-Path $work 'ECU-Studio-AI'
+            "Installiert: $old -> Update auf $version"
+            Copy-Item "$install\_internal\updater.ps1" "$work\updater.ps1"
+            powershell -NoProfile -ExecutionPolicy Bypass -File "$work\updater.ps1" -InstallDir $install -Archive $zip -Sha256 $sha -LogFile "$work\update.log"
+            Get-Content "$work\update.log"
+            if ($LASTEXITCODE -ne 0) { throw "Updater-Exit $LASTEXITCODE" }
+          }
+          $install = Join-Path $work 'ECU-Studio-AI'
+          if ((Get-Content "$install\VERSION.txt").Trim() -ne $version) { throw 'Nach dem Update falsche Version' }
+          $smoke = Join-Path $work 'smoke'
+          $p = Start-Process "$install\ECU-Studio-AI.exe" -ArgumentList @('--smoke-test', ('"' + $smoke + '"')) -PassThru -Wait
+          if ($p.ExitCode -ne 0 -or -not (Get-Content "$smoke\gui-smoke.json" -Raw | ConvertFrom-Json).passed) { throw 'Oberflächentest nach dem Update fehlgeschlagen' }
+          if ($old) {
+            Copy-Item "$install\_internal\updater.ps1" "$work\updater-new.ps1" -Force
+            powershell -NoProfile -ExecutionPolicy Bypass -File "$work\updater-new.ps1" -InstallDir $install -Restore -LogFile "$work\update.log"
+            if ($LASTEXITCODE -ne 0) { throw "Wiederherstellen: Exit $LASTEXITCODE" }
+            if ((Get-Content "$install\VERSION.txt").Trim() -eq $version) { throw 'Wiederherstellen hat die Version nicht gewechselt' }
+            powershell -NoProfile -ExecutionPolicy Bypass -File "$work\updater-new.ps1" -InstallDir $install -Restore -LogFile "$work\update.log"
+            if ($LASTEXITCODE -ne 0 -or (Get-Content "$install\VERSION.txt").Trim() -ne $version) { throw 'Zurück zur neuen Version fehlgeschlagen' }
+          }
+          "Update-Test auf ${{ matrix.os }} bestanden."
+      - name: Installer install / uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $dir = Join-Path $env:RUNNER_TEMP 'installed'
+          $p = Start-Process "new\ECU-Studio-AI-$version-setup.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="' + $dir + '"')) -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Installer-Exit $($p.ExitCode)" }
+          $c = Start-Process "$dir\ECU-Studio-AI.exe" -ArgumentList '--self-check' -PassThru -Wait
+          if ($c.ExitCode -ne 0) { throw 'Selbsttest der installierten EXE fehlgeschlagen' }
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait
+          Start-Sleep -Seconds 5
+          if ($u.ExitCode -ne 0 -or (Test-Path "$dir\ECU-Studio-AI.exe")) { throw 'Deinstallation unvollständig' }
+
+  publish:
+    needs: [build, update-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the GitHub release
+      id-token: write        # build provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: dist
       - name: Build provenance (verifiable with "gh attestation verify")
         uses: actions/attest-build-provenance@v2
         with:
@@ -51,17 +144,17 @@ jobs:
             dist/ECU-Studio-AI-*-windows-x64.zip
             dist/ECU-Studio-AI-*-setup.exe
       - name: Publish GitHub release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          version="${TAG#v}"
           # A re-pushed tag (e.g. after a history clean-up) must not replace published downloads.
-          gh release view "${{ github.ref_name }}" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "::notice::Release ${{ github.ref_name }} existiert bereits – Dateien bleiben unverändert."
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "::notice::Release $TAG existiert bereits – Dateien bleiben unverändert."
             exit 0
-          }
-          gh release create "${{ github.ref_name }}" --verify-tag --title "ECU Studio AI $version" --notes-file release-notes.md `
-            "dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256" `
+          fi
+          gh release create "$TAG" --repo "$REPO" --verify-tag --title "ECU Studio AI $version" --notes-file dist/release-notes.md \
+            "dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256" \
             "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256"

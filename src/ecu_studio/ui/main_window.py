@@ -710,6 +710,7 @@ class Window(QMainWindow):
         auto.setCheckable(True)
         auto.setChecked(self.updates.auto_enabled())
         act(settings_menu,"Jetzt nach Updates suchen",lambda:self.updates.check(manual=True))
+        act(settings_menu,"Vorherige Version wiederherstellen …",self.updates.request_restore)
         help_menu=menu.addMenu("Hilfe")
         act(help_menu,"Synthetische Demo-Datei erzeugen …",self.make_demo)
         act(help_menu,"A2L-Demo (14 verschiedene Kennfelder) erzeugen …",self.make_a2l_demo)

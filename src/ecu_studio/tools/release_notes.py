@@ -21,6 +21,17 @@ def notes_for(changelog: str, version: str) -> str:
     return match.group(1).strip() + '\n'
 
 
+FOOTER = """
+---
+**Installation:** `ECU-Studio-AI-<version>-windows-x64.zip` entpacken und `ECU-Studio-AI.exe` starten, oder den
+Installer `ECU-Studio-AI-<version>-setup.exe` ausführen. Bestehende Installationen bieten das Update automatisch an.
+
+**Windows-Warnung beim ersten Start:** Die EXE ist noch nicht code-signiert. Bei „Der Computer wurde durch Windows
+geschützt“ auf „Weitere Informationen“ → „Trotzdem ausführen“ klicken. Echtheit prüfen: SHA-256 gegen die
+`.sha256`-Datei, Build-Herkunft mit `gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI`.
+"""
+
+
 def check_tag(tag: str, version: str = __version__) -> str:
     parsed = parse_version(tag)
     if parsed is None or not tag.startswith('v'):
@@ -42,7 +53,7 @@ def main(argv=None):
     except ValueError as exc:
         print(f'FEHLER: {exc}', file=sys.stderr)
         return 1
-    args.out.write_text(notes, encoding='utf-8')
+    args.out.write_text(notes + FOOTER, encoding='utf-8')
     print(f'Release {version}: {len(notes.splitlines())} Zeilen Änderungshinweise')
     return 0
 
