@@ -2,179 +2,95 @@
 
 # 🗺️ Roadmap
 
-**Was fertig ist, woran gearbeitet wird und was als Nächstes kommt.**
+**Was ist fertig? Woran wird gearbeitet? Was kommt als Nächstes?**
 
-[![Stabil](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=stabil&style=flat-square&color=2ea043)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
-![In Entwicklung](https://img.shields.io/badge/in_Entwicklung-nächste_Version-d29922?style=flat-square)
-![Grundsatz](https://img.shields.io/badge/Grundsatz-gemessen,_nicht_geschätzt-8957e5?style=flat-square)
+[![Stabil](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=aktuelle%20Version&style=flat-square&color=2ea043)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
 
 </div>
 
-> [!NOTE]
-> Die Roadmap nennt **Ziele, keine Versprechen**. Ein Punkt gilt erst als erledigt, wenn er gegen echte Referenzen
-> **gemessen** ist – Messwerte stehen in [docs/PROGRESS.md](docs/PROGRESS.md) und [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md).
-> Termine gibt es bewusst nicht: Vieles hängt davon ab, ob passende Referenzdateien verfügbar sind.
+| ✅ Veröffentlicht | 🚀 Fertig, kommt mit dem nächsten Update | 🔨 In Arbeit | 📋 Als Nächstes |
+|---|---|---|---|
+| Kennfeldsuche ohne Definition | Deutlich mehr erkannte Kennfelder | Signierte Updates aktivieren | TunerStudio-Abstimmungen öffnen |
+| A2L-, XDF-, RomRaider-Import | Kennlinien werden erkannt | Prüfsummen für EDC16 / EDC17 | Kennfelder direkt aus dem Programmcode |
+| Prüfsummen mit Vorschau | 2–4× schneller (mehrere CPU-Kerne) | | Gruppenkennfelder (gemeinsame Achsen) |
+| Windows-Installer + Auto-Update | Steuergerät wird erkannt + Status angezeigt | | Englische Oberfläche |
+| | Namen aus Schwester-Softwareständen | | |
+| | Prüfsummen ME7 / MED9 / ME9 | | |
+| | ORI/MOD: Heatmap + unbekannte Änderungen | | |
 
-| Zeichen | Bedeutung |
-|:---:|---|
-| ✅ | erledigt und veröffentlicht |
-| 🔨 | in Entwicklung (im Hauptzweig, noch nicht veröffentlicht) |
-| 📋 | geplant – Ansatz ist klar |
-| 🔬 | in Untersuchung – Ansatz noch offen oder erst messen |
-| 📦 | wartet auf Referenzdaten |
-| 🚫 | bewusst nicht geplant |
+<sub>Alle Messwerte stehen im [CHANGELOG](CHANGELOG.md) und unter [Steuergeräte](docs/ECU_SUPPORT.md). Termine gibt es bewusst nicht.</sub>
 
 ---
 
-## 🧭 Überblick
+## 🚀 Fertig – kommt mit dem nächsten Update
 
-```mermaid
-timeline
-    title ECU Studio AI
-    section Veröffentlicht
-        1.14 : Raster-Erkennung
-             : XDF-/A2L-Import
-        1.15.0 : Strukturerkennung ohne Raster
-               : Hersteller-A2L als Referenz
-               : Windows-Paket, Installer, Updates
-    section In Entwicklung
-        nächste Version : Flache Kopf-Datensätze
-                        : Identifikation + Unterstützungsmatrix
-                        : Datentyp-Messung
-    section Geplant
-        danach : Code-Verweise TriCore/PowerPC
-               : Gruppenkennfelder
-               : Prüfsummen MED17/EDC17
-```
-
----
-
-## 🎯 Schwerpunkte
-
-Die acht wichtigsten Baustellen, nach Priorität. Jede Zeile nennt den **gemessenen Stand** und den **nächsten
-überprüfbaren Schritt**.
-
-| Priorität | Schwerpunkt | Stand heute | Nächster Schritt |
-|:---:|---|---|---|
-| 🔴 sehr hoch | **1. Genauere Kennfelderkennung** – weniger Fehlfunde, mehr exakte Kennfelder | 🔨 Kopf-Datensätze mit flachen Werten, Vorrang belegter Funde: auf den Testdaten Präzision 66–78 → 81–82 %, exakte Funde rund verdoppelt | 🔬 Code-Verweise für TriCore/PowerPC; Gruppenkennfelder; kleine Datensätze (2 × N) |
-| 🔴 sehr hoch | **2. Moderne ECU-Familien** – EDC17, MED17, MD1, MG1, Simos mit echten Referenzen | ✅ EDC17CP09 validiert (1 Stand) · 🟡 MED17.1.62 nur Teil-Referenz · 🔨 Kennungen für Simos/SID/MD1/MG1 und Selbst-Messen mit `validate_pair` · ⚪ MD1, MG1, Simos, MED17.5/17.7 ohne Daten | 📦 Original-BIN + passende A2L je Familie, möglichst 2 Softwarestände ([was gebraucht wird](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird)) |
-| 🔴 sehr hoch | **3. Intelligente Kennfeldbenennung** – Funktion bestimmen, nicht nur Tabellen | ✅ Namen aus passender A2L/XDF (EPK geprüft) · ✅ Abgleich zwischen Softwareständen · ✅ Einheiten-Vorschläge für Achsen (MS43: 58 % Top-1) · ❌ kein Funktionsklassifikator: es gibt **0** unabhängig bestätigte Trainingskarten ([Modellkarte](docs/MODELLKARTE.md)) | 🔨 Namen aus Schwesterstand übertragen – umgesetzt, MED17 92–96 % richtig, MSD80 100 %; als Nächstes: Funktionsklassifikator nur mit Holdout-Messung |
-| 🟠 hoch | **4. Professionelle Checksummen** – ECU-spezifisch, sichere Exporte | 🔨 Prüfsummen-Tabellen aus der Datei, am Original bewiesen: ME7.5, ME7, MED9, ME9 (68/68 … 63/63 Blöcke), Korrektur mit Vorschau · ✅ Profil-Korrektur, Suche unbekannter Layouts · ❌ EDC16/EDC17: keine Tabellen dieser Art, CRC32-Varianten passen nicht | 🔬 EDC16/EDC17-Prüfverfahren untersuchen; MED17 braucht vollständige Dumps |
-| 🟠 hoch | **5. ORI/MOD-Vergleich** – Änderungen prüfen und zwischen Ständen übertragen | ✅ Byte- und Zellvergleich mit CSV-Export · ✅ Übertragung physikalischer Änderungen mit Vorschau und Einheitenprüfung | 🔨 Differenz-Heatmap und Liste der Änderungen außerhalb bekannter Kennfelder – umgesetzt; offen: Übertragung von Änderungen gegen echte ORI/MOD-Paare messen (es liegen keine vor) |
-| 🟡 wichtig | **6. Schnellere Analyse** – große Dateien effizient | ✅ 2–5 MB in 10–40 s, Spitzenspeicher 36–190 MB (gemessen) | 📋 Datensatz-Suche vektorisieren (größter Zeitanteil); Fortschritt und Abbruch je Stufe |
-| 🟡 wichtig | **7. Besseres Arbeitsinterface** – suchen, filtern, bearbeiten | ✅ Filter, Befehlspalette, Mehrfachbearbeitung, Unterstützungsmatrix | 🔨 Konfidenz-Filter und Hinweisbalken mit Unterstützungsstatus – umgesetzt; 🔬 englische Oberfläche |
-| 🟡 wichtig | **8. Mehr Vertrauen und Sicherheit** – signiert, reproduzierbar, nachvollziehbar | 🔨 Ed25519-signierte Updates (aktiv, sobald der Schlüssel eingerichtet ist) · ✅ SHA-256 + Build-Herkunft · ✅ Benchmark, Test/Entwicklung/Training getrennt · ✅ Update-Test vor jedem Release | 📋 Code-Signatur (Zertifikat nötig) · reproduzierbarer Build |
-
----
-
-## 🔨 In Entwicklung – nächste Version
-
-Im Hauptzweig umgesetzt und gemessen, noch nicht als Release veröffentlicht.
-
-| | Thema | Ergebnis (gemessen) |
+| | Was | Was du davon hast |
 |:---:|---|---|
-| 🔨 | **Kopf-Datensätze mit flachen Werten** – Größe und Achsen aus dem Kopf, auch wenn die Werte konstant sind | EDC17CP09 exakt 157 → **463**/703, Präzision 71 → **85 %** |
-| 🔨 | **Vorrang belegter Funde** und kein Ergebnislimit für sie | MSD85 *(Test)* 148 → **279**, EDC16C31 123 → **272** (Abdeckung **84 %**) |
-| 🔨 | **Steuergeräte-Identifikation** – EPK, Hardware-/Softwarenummer, Teilenummer mit Fundstelle | 27 Referenzdateien: keine falsche Familie |
-| 🔨 | **Unterstützungsmatrix** in der App (*Hilfe → Unterstützte Steuergeräte*) und in der Doku | vier Stufen: validiert · teilweise · experimentell · nicht validiert |
-| 🔨 | **Benchmark misst den Datentyp** (Breite, Byte-Reihenfolge, Vorzeichen) und Speicher | z. B. EDC17CP09: 446 von 463 exakten Funden mit richtigem Typ |
-| 🔨 | Weitere **unabhängige Testdaten**: 4 zusätzliche MSD80-Softwarestände | gleiche Hersteller-A2L, EPK geprüft |
-| 🔨 | **Negativkontrollen**: Zufall, komprimiert, gelöscht | 0 Fehlalarme in 13 Dateien |
+| 🎯 | **Genauere Kennfeldsuche** | Rund doppelt so viele Kennfelder exakt erkannt, weniger Fehlfunde |
+| 📈 | **Kennlinien (1D)** | Fast doppelt so viele Kennlinien und Achsen gefunden |
+| ⚡ | **Schneller** | Große Dateien in ~10 statt ~33 Sekunden |
+| 🏷️ | **Steuergerät erkennen** | Hinweisbalken zeigt Familie, Software und ob das Gerät getestet ist |
+| 🔁 | **Namen übernehmen** | Kennfeldnamen aus einem verwandten Softwarestand mit Definition übertragen |
+| 🧮 | **Prüfsummen ME7 / MED9 / ME9** | Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist |
+| 🔍 | **ORI/MOD-Vergleich** | Differenz-Heatmap und Liste der Änderungen außerhalb bekannter Kennfelder |
+| 🧭 | **Unterstützte Steuergeräte** | Übersicht in der App: *Hilfe → Unterstützte Steuergeräte* |
+
+## 🔨 In Arbeit
+
+- **Signierte Updates** – eingebaut; aktiv, sobald der Signaturschlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md))
+- **Prüfsummen EDC16 / EDC17** – bekannte Verfahren passen nicht, weitere werden untersucht
+
+## 📋 Als Nächstes
+
+- **TunerStudio-Abstimmungen öffnen** (Speeduino, rusEFI, MegaSquirt) – die Definition ist dort öffentlich
+- **Kennfelder aus dem Programmcode** finden (TriCore, PowerPC) – größter Hebel für EDC17 und MED17
+- **Gruppenkennfelder** mit gemeinsamen Achsen erkennen
+- **Englische Oberfläche**
+- **Code-Signatur** der Windows-Dateien (entfernt die SmartScreen-Warnung, braucht ein Zertifikat)
+
+## 📦 Wartet auf Testdaten
+
+Diese Steuergeräte funktionieren in der App, sind aber **noch nicht mit echten Daten geprüft** – es gibt öffentlich
+keine rechtlich sicheren Testdateien:
+
+**Bosch** MD1 · MG1 · MED17.5 / 17.7 · EDC17 (außer CP09) &nbsp;·&nbsp; **Continental** Simos · SID &nbsp;·&nbsp; **Siemens** MSD81 · MSV70 / 80
+
+> 💡 Du hast eine Originaldatei **und** die passende A2L, die du nutzen darfst? Ein Befehl misst sie – siehe
+> [Steuergeräte → Selbst messen](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird). Bitte keine Firmware hochladen.
 
 ---
-
-## 📋 Geplant
-
-### Erkennung
-
-| | Thema | Warum | Ziel / Messgröße |
-|:---:|---|---|---|
-| 🔬 | **Code-Verweise für TriCore (EDC17, MED17, MD1, MG1)** | Größter Hebel für moderne Bosch-Geräte. Direkte Adressladungen (`movh.a` + `lea`) treffen bei EDC17CP09 fast keine Kennfelder – der Zugriff läuft offenbar über Basisregister bzw. Zeigertabellen. | Anteil der A2L-Kennfelder, die über Code-Verweise gefunden werden |
-| 🔬 | **Code-Verweise für PowerPC (MSD80/85, EDC16, MED9)** | Gleiches Prinzip, andere Adressierung (`lis`/`addi`, Small-Data-Bereiche über `r2`/`r13`) | wie oben, gemessen auf den Testdaten |
-| 🔬 | **Gruppenkennfelder mit gemeinsamen Achsen** (Bosch MapG / COM_AXIS) | Bei EDC17CP09 135 der übrigen Fehlstellen. Ein reiner Strukturansatz wurde gemessen und verworfen (132 Funde, nur 24 exakt). | erst mit Code-Verweisen sinnvoll |
-| 📋 | **Kleine Kopf-Datensätze (2 × N, 3 × N)** | 151 Kennfelder bei EDC17CP09 haben weniger als 4 Zeilen/Spalten | ohne mehr Fehlfunde in den Negativkontrollen |
-| 📋 | **TunerStudio-Definitionen importieren** (Speeduino, rusEFI, MegaSquirt) – die `.ini` ist dort öffentlich, Abstimmungen (.msq) direkt öffnen und speichern | Für offene Steuergeräte ist die Definition immer öffentlich | Grundlage vorhanden (`tools/tunerstudio_image.py`) |
-| 📋 | **Kennfeld-Gruppen und Überwachungskopien** sichtbarer machen | Doppelte Ablage (z. B. Funktions- und Überwachungspfad) gemeinsam bearbeiten | Zwillinge je Gruppe, gegen A2L geprüft |
-| 📋 | **Physikalische Skalierung vorschlagen** | Rohwerte → Einheiten (Drehzahl, Last, Temperatur) für Achsen ohne Definition | Top-1/Top-3-Treffer gegen A2L-Umrechnungen |
-
-### Steuergeräte
-
-| | Familie | Was fehlt |
-|:---:|---|---|
-| 📦 | **Bosch MED17.5 / 17.7 / MEVD17** | Original-BIN + passende A2L (EPK gleich) |
-| 📦 | **Bosch MD1 / MG1** | Original-BIN + passende A2L/DAMOS, möglichst 2 Softwarestände – öffentlich gibt es keine rechtlich sicheren (Recherche 21.10.2026) |
-| 📦 | **Bosch EDC17 außer CP09** (CP14, CP20, CP44–46, C46, C64, C74) | Original-BIN + A2L |
-| 📦 | **Continental Simos 8–19, SID208/807/310/321** | Original-BIN + A2L |
-| 📦 | **Siemens MSD81, MSV70/80 · Bosch EDC16C34/CP34** | Original-BIN + A2L |
-| 📦 | **MED17.1.62** (Präzision) | vollständige A2L zu einem der 6 vorhandenen Stände |
-
-### Sicherheit und Prüfsummen
-
-| | Thema | Hinweis |
-|:---:|---|---|
-| 🔬 | **Prüfsummen EDC16/EDC17** | keine selbstbeschreibenden Tabellen; gängige Summen- und CRC32-Varianten passen an den Originalen nicht – andere Verfahren untersuchen |
-| 🔨 | **Signierte Updates** (Ed25519 zusätzlich zu SHA-256 und Build-Herkunft) | umgesetzt; aktiv, sobald der Maintainer den Schlüssel einrichtet (`docs/RELEASE.md`) |
-| 📋 | **Code-Signatur der Windows-Pakete** | beseitigt die SmartScreen-Warnung; braucht ein Code-Signing-Zertifikat |
-
-### Bedienung
-
-| | Thema |
-|:---:|---|
-| 📋 | Unterstützungsstatus direkt beim Öffnen einer Datei als Hinweisleiste |
-| 📋 | Vergleich „erwartete vs. gefundene Kennfelder“ je Familie – aus der gemessenen Matrix statt aus Listen |
-| 🔬 | Englische Oberfläche |
-
----
-
-## ✅ Erledigt
 
 <details>
-<summary><b>1.15.0</b> (21.10.2026) – Strukturerkennung, Hersteller-Referenzen, Windows-Paket</summary>
+<summary><b>✅ Bereits veröffentlicht</b></summary>
 <br>
 
-- ✅ Kennfeldsuche ohne Raster: Zeilenabstand, Achsen-Arrays, Kopf-Datensätze, Code-Verweise (C16x, 68k, SH-2, HC11, 8051)
-- ✅ Lernmodell für Datenmuster, **gemessene Konfidenz** je Beweisart
-- ✅ A2L-Datensätze mit gespeicherten Achsen (STD/COM/FIX_AXIS), **EPK-Prüfung** auch bei Segmentkopplung
-- ✅ Benchmark gegen **Hersteller-A2L** (EDC17CP09, MSD80/85, EDC16, ME9, MS45) mit Test/Entwicklung/Training
-- ✅ Flash-Preflight je Byte, Zwillingskennfelder, Prüfsummen-Suche und Korrektur mit Vorschau
-- ✅ Windows-Paket ohne Python, Installer, automatische Updates mit Sicherung, Rollback und Wiederherstellen
-- ✅ Release-Workflow mit echtem Update-Test auf Windows Server 2022/2025
+**1.15.0** (21.10.2026)
+- Kennfeldsuche ohne Raster, mit Code-Verweisen für ältere Prozessoren
+- A2L mit gespeicherten Achsen, Prüfung der Software-Kennung (EPK)
+- Messung gegen Hersteller-Definitionen
+- Flash-Vorabprüfung, Prüfsummen-Suche und -Korrektur mit Vorschau
+- Windows-Paket ohne Python, Installer, automatische Updates mit Rücksicherung
+
+**1.14 und früher**
+- Editor mit Hex-, Tabellen- und 3D-Ansicht, Versionsstände
+- XDF-, A2L-, RomRaider- und CSV-Import
+- Projekte mit Schutz der Originaldatei
 
 </details>
 
 <details>
-<summary><b>1.14 und früher</b> – Editor, Definitionen, Projekte</summary>
+<summary><b>🚫 Bewusst nicht geplant</b></summary>
 <br>
 
-- ✅ BIN-Editor mit Hex-, Tabellen- und 3D-Ansicht, Versionsstände, Änderungsbericht
-- ✅ XDF-, A2L-, RomRaider- und CSV-Import, Definitions-Register
-- ✅ Projekte mit Originalschutz und Wiederherstellung
+- **Automatische Leistungssteigerung** (Stage 1) – braucht fachliches Urteil am Fahrzeug
+- **Flashfreigabe** – die App ersetzt keine Prüfung mit einem geeigneten Werkzeug
+- **Umgehen von Schutzfunktionen** (Wegfahrsperre, Abgas, Plausibilitätsprüfungen)
+- **Zerlegen kommerzieller Programme** wie WinOLS – Vergleiche nur von außen
+- **Firmware im Repository** – Originaldateien bleiben bei dir
 
 </details>
-
----
-
-## 🚫 Bewusst nicht geplant
-
-| | Warum |
-|---|---|
-| 🚫 **Automatische Stage-1-/Leistungssteigerung** | Änderungen an Kennfeldern brauchen fachliches Urteil am konkreten Fahrzeug. |
-| 🚫 **Flashfreigabe** oder „flashbereit“-Kennzeichnung | Kein Ergebnis der App ersetzt die Prüfung mit einem geeigneten Werkzeug. |
-| 🚫 **Umgehen von Schutz- und Sicherheitsfunktionen** (Wegfahrsperre, Abgas, Plausibilitätsprüfungen) | rechtlich und sicherheitlich nicht vertretbar |
-| 🚫 **Zerlegen kommerzieller Werkzeuge** (z. B. WinOLS) | Vergleiche nur von außen ([Vergleich quelloffener Werkzeuge](docs/OPEN_SOURCE_VERGLEICH.md)) |
-| 🚫 **Import von WinOLS-Projekten (`.ols`)** ohne verifizierbares Lesen | Lieber klar abweisen als falsch lesen. |
-| 🚫 **Firmware im Repository** | Originaldateien bleiben lokal; veröffentlicht werden nur Zählwerte. |
-
----
-
-## 🤝 Mithelfen
-
-Der größte Fortschritt entsteht durch **Referenzpaare**: eine Originaldatei und die **passende** Definition
-(Hersteller-A2L oder vollständige XDF) desselben Softwarestands. Wer solche Paare rechtmäßig nutzen darf, kann mit
-`python -m ecu_studio.tools.benchmark_suite` lokal messen und **nur die Zahlen** teilen – siehe
-[CONTRIBUTING.md](CONTRIBUTING.md). Bitte **keine Original-Firmware** hochladen.
 
 <div align="center">
 <br>
-<sub><a href="README.md">← zurück zur README</a> · <a href="CHANGELOG.md">CHANGELOG</a> · <a href="docs/PROGRESS.md">Fortschritt</a> · <a href="docs/ECU_SUPPORT.md">Steuergeräte</a></sub>
+<sub><a href="README.md">← README</a> · <a href="CHANGELOG.md">CHANGELOG</a> · <a href="docs/PROGRESS.md">Fortschritt</a> · <a href="docs/ECU_SUPPORT.md">Steuergeräte</a> · <a href="CONTRIBUTING.md">Mitmachen</a></sub>
 </div>

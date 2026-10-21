@@ -21,7 +21,7 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 &nbsp;
 [![Steuergeräte](https://img.shields.io/badge/🚗_Steuergeräte-gemessen-d29922?style=for-the-badge)](docs/ECU_SUPPORT.md)
 &nbsp;
-[![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-geplant_%26_in_Arbeit-0969da?style=for-the-badge)](ROADMAP.md)
+[![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-fertig_%C2%B7_in_Arbeit_%C2%B7_geplant-0969da?style=for-the-badge)](ROADMAP.md)
 
 <sub>Kein Python nötig · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
 
@@ -280,14 +280,14 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 | 🚢 [Release-Ablauf](docs/RELEASE.md) | Version, CHANGELOG, Tag – Build, Update-Test und Veröffentlichung laufen automatisch |
 | 🧪 [Beispiele](examples/README.md) | Synthetische Demo-Dateien und Vorlagen |
 | 📝 [CHANGELOG](CHANGELOG.md) | Alle Änderungen |
-| 🗺️ [Roadmap](ROADMAP.md) | Was in Entwicklung ist, was geplant ist und was bewusst nicht kommt |
+| 🗺️ [Roadmap](ROADMAP.md) | Was fertig ist, was in Arbeit ist und was als Nächstes kommt |
 | 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** – bitte **keine Original-Firmware** hochladen |
 
 ### 🗺️ Roadmap
 
-| 🔨 In Entwicklung | 📋 Als Nächstes | 📦 Wartet auf Referenzdaten |
+| 🚀 Kommt mit dem nächsten Update | 🔨 In Arbeit | 📋 Als Nächstes |
 |---|---|---|
-| Kopf-Datensätze mit flachen Werten · Identifikation · Unterstützungsmatrix | Code-Verweise für TriCore und PowerPC · Gruppenkennfelder · signierte Updates | MED17.5/17.7 · MD1 · MG1 · Simos · SID · EDC17 außer CP09 |
+| Mehr erkannte Kennfelder und Kennlinien · 2–4× schneller · Steuergerät wird erkannt | Signierte Updates aktivieren · Prüfsummen EDC16/EDC17 | TunerStudio-Abstimmungen · Kennfelder aus dem Programmcode · Englisch |
 
 **→ [Ganze Roadmap](ROADMAP.md)**
 
