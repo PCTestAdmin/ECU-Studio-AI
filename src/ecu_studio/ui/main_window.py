@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QDockWidget, QToolBar, QStyle, QScrollArea, QFrame, QTreeWidget, QTreeWidgetItem, QProgressBar, QListView
 )
 from .theme import stylesheet, palette
+from .. import __version__
 from .icons import line_icon
 from ..core.preflight import run_preflight
 from ..formats.records import read_memory_file
@@ -226,7 +227,7 @@ class Window(QMainWindow):
         self.checksum_profile = None
         self.map_editors = []
         self.project_store = ProjectStore()
-        self.setWindowTitle("ECU Studio AI v1.14  |  Calibration Workbench")
+        self.setWindowTitle(f"ECU Studio AI v{__version__}  |  Calibration Workbench")
         self.settings=QSettings("ECU Studio", "ECU Studio AI")
         self.theme=self.settings.value("ui/theme", "dark")
         if self.theme not in ("light","dark"): self.theme="light"
@@ -245,6 +246,7 @@ class Window(QMainWindow):
             if state is not None:self.restoreState(state,1)
         except (TypeError,ValueError):pass
         self.statusBar().showMessage("Bereit · Originaldaten bleiben unverändert")
+        self.updates.start()
         self.scan_progress=QProgressBar()
         self.scan_progress.setRange(0,100)
         self.scan_progress.setMaximumWidth(180)
@@ -701,6 +703,13 @@ class Window(QMainWindow):
             self.theme_actions[name]=theme_action
         view.addSeparator()
         act(view,"Fensterlayout zurücksetzen",self.reset_workspace)
+        settings_menu=menu.addMenu("Einstellungen")
+        from .updates import UpdateController
+        self.updates=UpdateController(self)
+        auto=act(settings_menu,"Automatisch nach Updates suchen",lambda checked:self.updates.set_auto(checked))
+        auto.setCheckable(True)
+        auto.setChecked(self.updates.auto_enabled())
+        act(settings_menu,"Jetzt nach Updates suchen",lambda:self.updates.check(manual=True))
         help_menu=menu.addMenu("Hilfe")
         act(help_menu,"Synthetische Demo-Datei erzeugen …",self.make_demo)
         act(help_menu,"A2L-Demo (14 verschiedene Kennfelder) erzeugen …",self.make_a2l_demo)
@@ -2831,6 +2840,8 @@ class Window(QMainWindow):
         self.settings.setValue("ui/geometry",self.saveGeometry())
         self.settings.setValue("ui/state_v06",self.saveState(1))
         event.accept()
+        # A confirmed update starts only after closing was accepted (no unsaved work lost).
+        if getattr(self,'updates',None):self.updates.launch_pending()
 
     def cancel_analysis(self):
         for worker in (self.scanner,self.recognition_worker,self.batch_worker):

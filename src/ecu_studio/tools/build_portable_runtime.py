@@ -28,10 +28,24 @@ def qt_modules_used(package: Path) -> set[str]:
     return found
 
 
+APP_NAME='ECU-Studio-AI'
+EXE_NAME=APP_NAME+'.exe'      # stable across versions: shortcuts and the updater rely on it
+
+
+def app_version(root: Path) -> str:
+    import re
+    text=(root/'src'/'ecu_studio'/'__init__.py').read_text(encoding='utf-8')
+    match=re.search(r'__version__\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"',text)
+    if not match:raise RuntimeError('__version__ nicht gefunden')
+    return match.group(1)
+
+
 def build():
     if sys.version_info[:2] != (3,13):raise RuntimeError('CPython 3.13 x64 required')
     root=Path(__file__).resolve().parents[3]
-    output=root/'dist'/'ECU-Studio-AI-1.14-portable'
+    version=app_version(root)
+    # dist/ECU-Studio-AI is the folder users unpack; package_release() zips it under this name.
+    output=root/'dist'/APP_NAME
     # This script only replaces its own reproducible build output. Verify the
     # resolved absolute target before any recursive operation on Windows.
     if output.is_symlink() or output.resolve().parent != (root/'dist').resolve():
@@ -83,13 +97,16 @@ def build():
     copytree(root/'src'/'ecu_studio',app/'ecu_studio')
     shutil.copy2(root/'launcher.py',app/'launch.py')
     shutil.copy2(root/'packaging'/'windows_launcher.cs',output/'windows_launcher.cs')
+    # Separate updater: the app copies it out of the install folder and runs it after closing.
+    shutil.copy2(root/'packaging'/'updater.ps1',output/'_internal'/'updater.ps1')
+    (output/'VERSION.txt').write_text(version+'\n',encoding='ascii')
     compiler=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
-    exe=output/'ECU-Studio-AI-1.14.exe'
+    exe=output/EXE_NAME
     subprocess.run([str(compiler),'/nologo','/target:winexe','/platform:x64','/optimize+',
                     '/reference:System.Windows.Forms.dll','/out:'+str(exe),
                     str(root/'packaging'/'windows_launcher.cs')],check=True)
     (output/'RUNTIME_NOTICE.txt').write_text(
-        'ECU Studio AI 1.14 portable\n'
+        f'ECU Studio AI {version} portable\n'
         'C# starter source: windows_launcher.cs (process launch only).\n'
         'Unmodified CPython '+sys.version.split()[0]+' executables/DLLs; license: _internal/python/LICENSE.txt.\n'
         'Runtime is isolated through python313._pth; no installed Python required.\n'
@@ -100,10 +117,32 @@ def build():
     files=[{'path':p.relative_to(output).as_posix(),'size':p.stat().st_size,
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
            for p in sorted(output.rglob('*')) if p.is_file()]
-    (output/'RUNTIME_INVENTORY.json').write_text(json.dumps({'format':1,'python':sys.version.split()[0],
+    (output/'RUNTIME_INVENTORY.json').write_text(json.dumps({'format':1,'version':version,'python':sys.version.split()[0],
         'architecture':'Windows x64','files':files},indent=2),encoding='utf-8')
     print(str(exe))
     return exe
 
 
-if __name__=='__main__':build()
+def package_release(root: Path | None = None) -> dict:
+    """Zip dist/ECU-Studio-AI and write its SHA-256 next to it (the files a release publishes)."""
+    import zipfile
+    root=root or Path(__file__).resolve().parents[3]
+    version=app_version(root)
+    folder=root/'dist'/APP_NAME
+    if not (folder/EXE_NAME).is_file() or not (folder/'RUNTIME_INVENTORY.json').is_file():
+        raise RuntimeError('Zuerst build() ausführen')
+    archive=root/'dist'/f'{APP_NAME}-{version}-windows-x64.zip'
+    if archive.exists():archive.unlink()
+    with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+        for path in sorted(folder.rglob('*')):
+            if path.is_file():
+                z.write(path,(Path(APP_NAME)/path.relative_to(folder)).as_posix())
+    digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+    (archive.parent/(archive.name+'.sha256')).write_text(f'{digest}  {archive.name}\n',encoding='ascii')
+    print(str(archive));print(digest)
+    return {'archive':archive,'sha256':digest,'version':version}
+
+
+if __name__=='__main__':
+    if sys.argv[1:]==['--package']:package_release()
+    else:build()

@@ -153,7 +153,35 @@ Details mit konkreten Softwareständen und Messwerten: [docs/ECU_SUPPORT.md](doc
 
 ## Installation
 
-Voraussetzung: Windows und Python 3.10–3.12 mit dem Launcher `py`.
+### Für Anwender (ohne Python)
+
+1. Unter [Releases](https://github.com/PCTestAdmin/ECU-Studio-AI/releases) die neueste Version wählen.
+2. **Portabel:** `ECU-Studio-AI-<version>-windows-x64.zip` herunterladen, entpacken, `ECU-Studio-AI.exe` starten.
+   **Oder mit Installer:** `ECU-Studio-AI-<version>-setup.exe` ausführen – installiert ohne Administratorrechte nach
+   `%LOCALAPPDATA%\Programs\ECU-Studio-AI`, mit Startmenü-Eintrag und Deinstallation.
+3. Fertig – Python, Terminal oder weitere Downloads sind nicht nötig.
+
+### Updates
+
+ECU Studio AI prüft beim Start und danach höchstens einmal täglich, ob auf GitHub eine neuere **stabile** Version
+erschienen ist (Einstellungen → „Automatisch nach Updates suchen“, abschaltbar; „Jetzt nach Updates suchen“ prüft
+sofort). Ohne Internet passiert still nichts. Ist eine neue Version da, zeigt ein Fenster Versionsnummer und Änderungen
+mit **Jetzt aktualisieren**, **Später erinnern** und **Diese Version überspringen**.
+
+„Jetzt aktualisieren“ lädt das Paket nur von den Releases dieses Repositorys, prüft seine SHA-256 gegen die
+veröffentlichte Prüfsumme (und GitHubs eigene Angabe), schließt das Programm (bei ungespeicherten Änderungen wird
+vorher gefragt) und übergibt an einen separaten Updater. Dieser prüft jede einzelne Datei, behält eigene Dateien im
+Programmordner, sichert die bisherige Version als `<Ordner>.backup`, startet einen Selbsttest der neuen Version und
+stellt bei einem Fehler automatisch die alte wieder her. Projekte (`%USERPROFILE%\.ecu_studio_ai`) und Einstellungen
+liegen außerhalb des Programmordners und bleiben unberührt. Nichts wird ohne Zustimmung installiert. Protokoll:
+`%LOCALAPPDATA%\ECUStudioAI\updates\update.log`.
+
+Hinweis: Die EXE ist derzeit **nicht code-signiert**; Windows SmartScreen kann beim ersten Start warnen. Die Herkunft
+jedes Release-Pakets lässt sich mit `gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI` nachweisen.
+
+### Aus dem Quellcode (Entwicklung)
+
+Voraussetzung: Windows und Python 3.10–3.13 mit dem Launcher `py`.
 
 ```bat
 start_windows.bat
@@ -168,8 +196,10 @@ pip install -e .[dev]
 python -m ecu_studio.main
 ```
 
-Portables Windows-Paket mit EXE-Starter: `build_exe_windows.bat` – benötigt **CPython 3.13 x64** (die Laufzeit wird mitgeliefert), legt dafür eine eigene `.venv-build` an, führt die Tests aus und prüft die fertige EXE. Fertige Pakete erscheinen unter
-[Releases](https://github.com/PCTestAdmin/ecu-studio-ai/releases).
+Eigenes Windows-Paket bauen: `build_exe_windows.bat` – benötigt **CPython 3.13 x64** (die Laufzeit wird mitgeliefert),
+legt dafür `.venv-build` an, führt alle Tests aus, baut `dist\ECU-Studio-AI`, prüft die EXE, erstellt
+`dist\ECU-Studio-AI-<version>-windows-x64.zip` samt `.sha256`, testet das entpackte ZIP ohne Python im PATH und baut
+den Installer, wenn Inno Setup 6 installiert ist. Veröffentlichen: siehe [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Entwicklung
 
