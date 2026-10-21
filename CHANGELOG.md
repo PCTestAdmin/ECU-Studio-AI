@@ -15,6 +15,13 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Englische Oberfläche**
+- Komplette Oberfläche auf Englisch: Menüs, Werkzeugleiste, Dialoge, Meldungen, Statuszeile, Kennfeldliste, Prüfberichte.
+  Auswahl unter *Einstellungen → Sprache / Language* (Standard: Systemsprache, deutsche Systeme bleiben deutsch).
+- Übersetzungskatalog `recognition/data/i18n/en.json` (1772 Texte); `tools/i18n_extract.py` sammelt neue Texte aus dem
+  Quellcode, ein Test verhindert unübersetzte Texte. Auswahlfelder zeigen Englisch, Projekte und Programmlogik bleiben
+  sprachunabhängig.
+
 **Rechtlich saubere Referenzdaten**
 - Recherche nach rechtmäßig verfügbaren Original/Definition-Paaren für MD1, MG1, Simos, SID, MED17.5/17.7: keine gefunden
   (öffentliche Uploads Dritter ohne Lizenz wurden nicht heruntergeladen; Begründung in docs/ECU_SUPPORT.md).

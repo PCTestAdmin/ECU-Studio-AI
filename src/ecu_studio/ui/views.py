@@ -4,6 +4,7 @@ from math import cos, sin, radians
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QRectF, QPointF, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPolygonF
 from PySide6.QtWidgets import QWidget
+from ..core.i18n import translated_roles
 from ..core.model import BinaryImage, MapDefinition, FORMATS
 from .theme import palette, heat_rgb, heat_tint
 
@@ -36,6 +37,7 @@ class HexTableModel(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 16
 
+    @translated_roles
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role != Qt.ItemDataRole.DisplayRole:
             return None
@@ -111,6 +113,7 @@ class MapTableModel(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return self.map.cols if self.map is not None and not parent.isValid() else 0
 
+    @translated_roles
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if self.map is None:
             return None

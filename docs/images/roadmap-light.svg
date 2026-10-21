@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="636" viewBox="0 0 1200 636" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif">
-<rect width="1200" height="636" rx="16" fill="#ffffff" stroke="#d0d7de"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="722" viewBox="0 0 1200 722" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif">
+<rect width="1200" height="722" rx="16" fill="#ffffff" stroke="#d0d7de"/>
 <text x="40" y="58" font-size="30" font-weight="700" fill="#1f2328">ECU Studio AI · Roadmap</text>
 <text x="40" y="88" font-size="16" fill="#59636e">Was fertig ist, woran gearbeitet wird und was als Nächstes kommt – gemessen, nicht versprochen.</text>
 <line x1="171.0" y1="150" x2="1029.0" y2="150" stroke="#d0d7de" stroke-width="4" stroke-linecap="round"/>
@@ -7,7 +7,7 @@
 <circle cx="171.0" cy="150" r="15" fill="#1a7f37"/>
 <path d="M165.0 150 l4 4 l8 -8" stroke="#ffffff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="171.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#1a7f37">VERÖFFENTLICHT</text>
-<rect x="40" y="186" width="262" height="410" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+<rect x="40" y="186" width="262" height="496" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
 <rect x="40" y="186" width="262" height="6" rx="3" fill="#1a7f37"/>
 <text x="58" y="224" font-size="20" font-weight="700" fill="#1f2328">1.15.0</text>
 <text x="284" y="224" text-anchor="end" font-size="13" fill="#59636e">21.10.2026</text>
@@ -30,7 +30,7 @@
 <circle cx="457.0" cy="150" r="15" fill="#0969da"/>
 <path d="M451.0 150 l4 4 l8 -8" stroke="#ffffff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="457.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#0969da">NÄCHSTES UPDATE</text>
-<rect x="326" y="186" width="262" height="410" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+<rect x="326" y="186" width="262" height="496" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
 <rect x="326" y="186" width="262" height="6" rx="3" fill="#0969da"/>
 <text x="344" y="224" font-size="20" font-weight="700" fill="#1f2328">fertig</text>
 <text x="570" y="224" text-anchor="end" font-size="13" fill="#59636e">im Hauptzweig</text>
@@ -54,10 +54,14 @@
 <rect x="338" y="534" width="4" height="62" rx="2" fill="#0969da"/>
 <text x="354" y="560" font-size="14" font-weight="600" fill="#1f2328">Prüfsummen ME7/MED9/ME9</text>
 <text x="354" y="581" font-size="12.5" fill="#59636e">am Original bewiesen</text>
+<rect x="338" y="606" width="238" height="62" rx="8" fill="#ffffff" stroke="#d0d7de"/>
+<rect x="338" y="606" width="4" height="62" rx="2" fill="#0969da"/>
+<text x="354" y="632" font-size="14" font-weight="600" fill="#1f2328">Englische Oberfläche</text>
+<text x="354" y="653" font-size="12.5" fill="#59636e">Einstellungen → Sprache</text>
 <circle cx="743.0" cy="150" r="15" fill="#bf8700"/>
 <circle cx="743.0" cy="150" r="9" fill="#ffffff"/>
 <text x="743.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#bf8700">IN ARBEIT</text>
-<rect x="612" y="186" width="262" height="410" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+<rect x="612" y="186" width="262" height="496" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
 <rect x="612" y="186" width="262" height="6" rx="3" fill="#bf8700"/>
 <text x="630" y="224" font-size="20" font-weight="700" fill="#1f2328">läuft</text>
 <text x="856" y="224" text-anchor="end" font-size="13" fill="#59636e">jetzt</text>
@@ -72,7 +76,7 @@
 <circle cx="1029.0" cy="150" r="15" fill="#8250df"/>
 <circle cx="1029.0" cy="150" r="9" fill="#ffffff"/>
 <text x="1029.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#8250df">ALS NÄCHSTES</text>
-<rect x="898" y="186" width="262" height="410" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+<rect x="898" y="186" width="262" height="496" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
 <rect x="898" y="186" width="262" height="6" rx="3" fill="#8250df"/>
 <text x="916" y="224" font-size="20" font-weight="700" fill="#1f2328">geplant</text>
 <text x="1142" y="224" text-anchor="end" font-size="13" fill="#59636e">danach</text>
@@ -88,7 +92,8 @@
 <rect x="910" y="390" width="4" height="62" rx="2" fill="#8250df"/>
 <text x="926" y="416" font-size="14" font-weight="600" fill="#1f2328">Gruppenkennfelder</text>
 <text x="926" y="437" font-size="12.5" fill="#59636e">gemeinsame Achsen</text>
-<rect x="910" y="462" width="238" height="44" rx="8" fill="#ffffff" stroke="#d0d7de"/>
-<rect x="910" y="462" width="4" height="44" rx="2" fill="#8250df"/>
-<text x="926" y="488" font-size="14" font-weight="600" fill="#1f2328">Englische Oberfläche</text>
+<rect x="910" y="462" width="238" height="62" rx="8" fill="#ffffff" stroke="#d0d7de"/>
+<rect x="910" y="462" width="4" height="62" rx="2" fill="#8250df"/>
+<text x="926" y="488" font-size="14" font-weight="600" fill="#1f2328">Code-Signatur</text>
+<text x="926" y="509" font-size="12.5" fill="#59636e">keine SmartScreen-Warnung</text>
 </svg>

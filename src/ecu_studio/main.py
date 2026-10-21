@@ -22,10 +22,23 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("ECU Studio AI")
     app.setOrganizationName("ECU Studio")
+    apply_language(app)
     from .ui.main_window import Window
     window = Window()
     window.show()
     return app.exec()
+
+
+def apply_language(app) -> str:
+    """Interface language from the settings (default: system language); must run before windows exist."""
+    from PySide6.QtCore import QSettings
+    from .core import i18n
+    from .ui import i18n_qt
+    code = QSettings("ECU Studio", "ECU Studio AI").value('language', 'system')
+    if code not in i18n.LANGUAGES:
+        code = i18n.system_language()
+    i18n_qt.install(app, code)
+    return code
 
 
 def self_check():

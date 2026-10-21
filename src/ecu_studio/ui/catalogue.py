@@ -1,5 +1,6 @@
 """Virtual catalogue: Qt requests labels only for rows actually displayed."""
 from bisect import bisect_left
+from ..core.i18n import translated_roles, t
 from PySide6.QtCore import QAbstractListModel,QModelIndex,Qt,QSize
 
 
@@ -18,6 +19,7 @@ class CatalogueModel(QAbstractListModel):
     def rowCount(self,parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.indices)
 
+    @translated_roles
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0<=index.row()<len(self.indices):
             return None
@@ -35,10 +37,10 @@ class CatalogueModel(QAbstractListModel):
             folder=f' [{m.folder}]' if m.folder else ''
             status=(' · geprüft' if m.verified else ' · XDF-Zuordnung (ungeprüft)'
                     if m.source=='bundled-definition' else
-                    f' · {m.evidence_tier} {m.calibrated_rate:.0%}' if m.calibrated_rate is not None else
-                    f' · {m.evidence_tier}' if m.evidence_tier else ' · Vorschlag' if m.label_origin else '')
-            return (f"{marker} {star}{m.name}{'  [geändert]' if changed else ''}{folder}\n"
-                    f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}  | Typ: {m.kind}{status}')
+                    f' · {t(m.evidence_tier)} {m.calibrated_rate:.0%}' if m.calibrated_rate is not None else
+                    f' · {t(m.evidence_tier)}' if m.evidence_tier else ' · Vorschlag' if m.label_origin else '')
+            return (f"{marker} {star}{t(m.name)}{'  [geändert]' if changed else ''}{folder}\n"
+                    f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}  | Typ: {t(m.kind)}{status}')
         if role==Qt.ItemDataRole.DecorationRole and m.evidence_tier:
             return _tier_dot(m.evidence_tier)
         if role==Qt.ItemDataRole.ToolTipRole:

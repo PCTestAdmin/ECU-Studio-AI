@@ -745,12 +745,30 @@ class Window(QMainWindow):
         auto.setChecked(self.updates.auto_enabled())
         act(settings_menu,"Jetzt nach Updates suchen",lambda:self.updates.check(manual=True))
         act(settings_menu,"Vorherige Version wiederherstellen …",self.updates.request_restore)
+        settings_menu.addSeparator()
+        language_menu=settings_menu.addMenu("Sprache / Language")
+        from ..core import i18n
+        current=self.settings.value('language','system')
+        for code,label in (('system','Systemsprache / System language'),*i18n.LANGUAGES.items()):
+            action=act(language_menu,label,lambda checked=False,c=code:self.set_language(c))
+            action.setCheckable(True);action.setChecked(current==code)
         help_menu=menu.addMenu("Hilfe")
         act(help_menu,"Synthetische Demo-Datei erzeugen …",self.make_demo)
         act(help_menu,"A2L-Demo (14 verschiedene Kennfelder) erzeugen …",self.make_a2l_demo)
         act(help_menu,"Unterstützte Steuergeräte …",self.show_support_matrix)
         act(help_menu,"Über Erkennungsgrenzen",self.show_help)
         act(help_menu,"Definitionsquellen und Lizenzen",self.show_definition_licenses)
+
+    def set_language(self, code: str) -> None:
+        """Store the interface language; it applies after a restart (all windows are built once)."""
+        self.settings.setValue('language', code)
+        for action in self.findChildren(QAction):
+            if action.isCheckable() and action.parent() is not None and action.text() in (
+                    'Systemsprache / System language', 'Deutsch', 'English'):
+                action.setChecked({'system': 'Systemsprache / System language', 'de': 'Deutsch', 'en': 'English'}[code] == action.text())
+        QMessageBox.information(self, 'Sprache / Language',
+                                'Die Sprache wird beim nächsten Start übernommen.\n'
+                                'The language is applied the next time the program starts.')
 
     def require_image(self) -> bool:
         if self.image is None:

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QFormLayout,QHBoxLayout,QLabe
     QLineEdit,QPushButton,QTableView,QComboBox,QDoubleSpinBox,
     QSpinBox,QMessageBox,QPlainTextEdit,QDialogButtonBox,QCheckBox,
     QListWidget,QListWidgetItem,QAbstractItemView,QHeaderView,QFileDialog)
+from ..core.i18n import translated_roles
 from ..core.definitions import parse_offset
 from ..core.addressing import parse_segments
 from ..core.workflows import plan_map_transform, apply_batch
@@ -31,11 +32,13 @@ class A2LMapPreviewModel(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.HEADERS)
 
+    @translated_roles
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role != Qt.ItemDataRole.DisplayRole: return None
         if orientation == Qt.Orientation.Horizontal: return self.HEADERS[section]
         return str(section+1)
 
+    @translated_roles
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():return None
         r,c=index.row(),index.column()

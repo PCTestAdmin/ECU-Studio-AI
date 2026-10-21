@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabe
     QPushButton,QFileDialog,QMessageBox,QCheckBox,QComboBox,QTableView,QTableWidget,
     QPlainTextEdit,QProgressBar,QDialogButtonBox,QTabWidget,QWidget,QDoubleSpinBox,
     QHeaderView,QAbstractItemView)
+from ..core.i18n import translated_roles
 from ..core.model import load_project, MapDefinition
 from ..core.smart_transfer import FirmwareIdentity, plan_transfer, apply_transfer, suggest_links
 from ..core.log_analyzer import (CHANNELS, UNITS, infer_header, inspect_log_headers, read_log,
@@ -37,10 +38,12 @@ class RowsModel(QAbstractTableModel):
     def columnCount(self,parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.headers)
 
+    @translated_roles
     def headerData(self,i,orientation,role=Qt.ItemDataRole.DisplayRole):
         if role==Qt.ItemDataRole.DisplayRole:
             return self.headers[i] if orientation==Qt.Orientation.Horizontal else str(i)
 
+    @translated_roles
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if index.isValid() and role==Qt.ItemDataRole.DisplayRole:
             return str(self.rows[index.row()][index.column()])
@@ -336,6 +339,7 @@ class HeatModel(RowsModel):
         self.maximum=max(1.,max((max(r) for r in rows),default=1.))
         super().set_rows(rows)
 
+    @translated_roles
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if index.isValid():
             value=self.rows[index.row()][index.column()]

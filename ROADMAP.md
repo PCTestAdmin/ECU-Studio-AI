@@ -30,6 +30,7 @@ Bereits entwickelt und getestet – erscheint mit der nächsten Version.
 | 🔁 | **Namen übernehmen** | Kennfeldnamen aus einem verwandten Softwarestand mit Definition |
 | 🧮 | **Prüfsummen ME7 · MED9 · ME9** | Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist |
 | 🔍 | **ORI/MOD-Vergleich** | Differenz-Heatmap und Liste aller Änderungen außerhalb bekannter Kennfelder |
+| 🌍 | **Englische Oberfläche** | *Settings → Sprache / Language* – Standard ist die Systemsprache |
 
 <br>
 
@@ -49,7 +50,6 @@ Bereits entwickelt und getestet – erscheint mit der nächsten Version.
 | 🧩 | **TunerStudio-Abstimmungen öffnen** | Speeduino, rusEFI, MegaSquirt – die Definition ist dort öffentlich |
 | 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
 | 🔗 | **Gruppenkennfelder** | Viele Bosch-Kennfelder teilen sich ihre Achsen |
-| 🌍 | **Englische Oberfläche** | Für Nutzer außerhalb des deutschsprachigen Raums |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
 
 <br>

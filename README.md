@@ -23,7 +23,7 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 &nbsp;
 [![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-fertig_%C2%B7_in_Arbeit_%C2%B7_geplant-0969da?style=for-the-badge)](ROADMAP.md)
 
-<sub>Kein Python nötig · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
+<sub>Kein Python nötig · Deutsch &amp; English · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
 
 </div>
 
