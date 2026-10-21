@@ -1,5 +1,30 @@
 ## Unveröffentlicht
 
+**Kennfelderkennung** (alt → neu, gleiche Referenzen und gleiche Messmethode; *Test* = nie zum Einstellen verwendet)
+- Siemens MSD85 · *Test*: exakt 148 → **279** von 1026, Präzision 74 → **81 %**.
+- Siemens MSD80 · *Test* (6 Stände, davon 4 neu als Testpaare): exakt 133–143 → **217–224** von 864, Präzision 77–78 → **81–82 %**.
+- Bosch EDC16C35 / EDC16C31: exakt 111 → **283** / 123 → **272**, Präzision 66 → **81 %** / 71 → **82 %**, Abdeckung 80 / 84 %.
+- Bosch EDC17CP09: exakt 157 → **463** von 703, Präzision 71 → **85 %**; BMW ME9.2.1 109 → 170, ME9 41 → 98; BMW MSS54 69 → 97.
+- Bosch MED17.1.62 (6 Stände, Teil-XDF): exakt 49–64 → 121–145.
+- Kopf-Datensätze (Anzahl, Achsen, Werte) werden auch mit flachen oder groben Werten erkannt; Größe und Achsen belegt
+  der Kopf (eigene Evidenzklasse `header:nxny:shape`, gemessen 98 % Treffer). Verrauschte Datensätze nur innerhalb einer
+  Kette direkt aneinanderliegender Datensätze. Gelockerte Achsenregel nur bei 16-Bit-Zählern: auf Zufallsdaten,
+  komprimierten und gelöschten Daten 0 Kandidaten (Negativkontrolle, 13 Dateien).
+- Belegte Funde (Kopf-Datensatz, Code-Verweis, Deskriptor) gewinnen Überlappungen gegen reine Glattheits-Kandidaten –
+  außer ihr Kopf liegt im Inneren einer früher beginnenden Tabelle – und werden nicht mehr vom Ergebnislimit abgeschnitten.
+- Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
+- Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
+
+**Steuergeräte-Identifikation und Unterstützungsmatrix**
+- Neu: Kennungen aus der Datei mit Fundstelle – Bosch-EPK, Hardware-/Softwarenummer, VAG-Teilenummer, Siemens-Hardware;
+  widersprüchliche Angaben werden als „mehrdeutig“ gemeldet.
+- Neu: **Hilfe → Unterstützte Steuergeräte …** mit Status (validiert / teilweise / experimentell / nicht validiert),
+  gemessenen Softwareständen, Kennzahlen und benötigten Dateien; Datei-Info zeigt Kennung und Status der geladenen Datei.
+- `tools/support_matrix.py` erzeugt Matrix und docs/ECU_SUPPORT.md aus Benchmark-Ergebnissen; `benchmark_suite` misst
+  zusätzlich den exakten Datentyp (Breite, Byte-Reihenfolge, Vorzeichen).
+
+- Neu: [ROADMAP.md](ROADMAP.md) – in Entwicklung, geplant, wartet auf Referenzdaten, bewusst nicht geplant; Kurzfassung in der README.
+- `docs/KONKURRENZANALYSE.md` heißt jetzt `docs/OPEN_SOURCE_VERGLEICH.md` und ist auf dem aktuellen Stand (veraltete Lücken und die `.ols`-Entscheidung korrigiert).
 - Repository aufgeräumt und neu gegliedert: `examples/` in `demo/`, `checksum/`, `memory/`, `holdout/`, `templates/` mit Übersicht; `docs/README.md` als Doku-Index; Paketdateien (`launcher.py`, gesperrte Abhängigkeiten) nach `packaging/`; Testdateien mit sprechenden Namen statt Versionsendungen; 59 alte Berichte aus `docs/history/` entfernt (in der Git-Historie bis v1.15.0).
 - Versehentlich committeter Test-Zwischenordner (mit Kopien von `cmd.exe`) aus der gesamten Historie entfernt; neue Repository-Tests verhindern Programmdateien, Archive, Firmware außerhalb von `examples/` und lokale Pfade im Repository.
 - Hinweise beim Öffnen von ZIP-, HEX- und S19-Dateien nennen jetzt die tatsächlichen Menüpunkte.

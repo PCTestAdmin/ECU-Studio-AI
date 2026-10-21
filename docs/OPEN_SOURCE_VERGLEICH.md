@@ -1,7 +1,9 @@
-# Konkurrenzanalyse quelloffener ECU-Editoren (Stand 20.10.2026)
+# Vergleich quelloffener ECU-Werkzeuge (erstellt 20.10.2026, aktualisiert 21.10.2026)
 
-Grundlage: GitHub-Metadaten, Projektbeschreibungen und gezielt gelesene Quelldateien. Fremder Code wurde
-**nicht** übernommen; übernommen wurden nur Ideen, eigenständig implementiert und an eigenen Referenzen gemessen.
+Grundlage: GitHub-Metadaten, Projektbeschreibungen und gezielt gelesene Quelldateien **quelloffener** Projekte.
+Fremder Code wurde **nicht** übernommen; übernommen wurden nur Ideen, eigenständig implementiert und an eigenen
+Referenzen gemessen. Kommerzielle Werkzeuge (z. B. WinOLS) werden nicht zerlegt, sondern höchstens von außen
+verglichen. Angaben zu fremden Projekten geben deren Stand vom 20.10.2026 wieder.
 
 ## Durchgang 1 – Funktionsvergleich
 
@@ -17,23 +19,26 @@ Grundlage: GitHub-Metadaten, Projektbeschreibungen und gezielt gelesene Quelldat
 | [xdfkit](https://github.com/nyetlabs/xdfkit) | LGPL-3.0 | Go | Formatwandler | – | – | XDF, KP, DAMOS, A2L |
 | [medc17-checksum-tool](https://github.com/ConnorHowell/medc17-checksum-tool) | MIT | Python | MED17/EDC17 | – | MED17/EDC17 | – |
 
-**Was ECU Studio AI fehlt (Stand vor dieser Runde):** Werkzeug zum Finden unbekannter Checksummen-Layouts;
-A2L-Datensätze mit gespeicherten Achsen (`STD_AXIS`, `COM_AXIS`) – sie wurden komplett abgelehnt;
-WinOLS-.ols-Import; familienbezogene Vollständigkeitsanzeige („erwartet vs. gefunden“).
+**Damals fehlte ECU Studio AI** (20.10.2026): Suche unbekannter Checksummen-Layouts, A2L-Datensätze mit
+gespeicherten Achsen (`STD_AXIS`, `COM_AXIS`), WinOLS-.ols-Import, Vollständigkeitsanzeige je Familie.
+**Heute:** Checksummen-Suche und A2L-Datensätze sind umgesetzt (siehe unten); `.ols` wird bewusst nicht importiert
+(Inhalt nicht verifizierbar lesbar); statt einer Liste „erwarteter Kennfelder“ gibt es die gemessene
+Unterstützungsmatrix ([ECU_SUPPORT.md](ECU_SUPPORT.md), in der App **Hilfe → Unterstützte Steuergeräte …**).
 
-**Was ECU Studio AI voraus hat:** familienübergreifende Erkennung ohne Definition mit Code-Verweisen
-(C16x, 68k, Denso, HC11, 8051), gemessene Trefferquoten je Beweisart, Fehlalarm-Messung, Flash-Preflight je Byte.
+**Eigenständig in ECU Studio AI:** familienübergreifende Erkennung ohne Definition mit Code-Verweisen
+(C16x, 68k, Denso, HC11, 8051) und Kopf-Datensätzen, gemessene Trefferquoten je Beweisart, Fehlalarm-Messung,
+Steuergeräte-Identifikation mit Fundstelle, Flash-Preflight je Byte.
 
-## Durchgang 2 – Technische Tiefenanalyse
+## Durchgang 2 – Übernommene und verworfene Ansätze
 
-| Ansatz (Quelle) | Mechanismus | Nutzen für uns | Lizenz/Integration | Entscheidung |
+| Ansatz (Quelle) | Mechanismus | Nutzen | Lizenz/Integration | Entscheidung (Stand 21.10.2026) |
 |---|---|---|---|---|
-| Checksummen-Suche (UniversalPatcher `ChecksumSearcher.cs`, native DLL) | Bereiche × Verfahren durchprobieren, bis der gespeicherte Wert entsteht | Grundlage für ECU-spezifische Profile | Idee frei; eigener Code (Präfixsummen, NumPy) | **umgesetzt** |
-| A2L-RECORD_LAYOUT (tune-editor `a2lParser.ts`, MxT) | Positionen von Anzahl, Achsen, Werten | echte OEM-Referenzen, A2L-Import | eigener Code nach ASAP2-Spezifikation | **umgesetzt** |
-| Achsen ohne Anzahl-Präfix (bimmerstein `axes.ts`) | jeder streng monotone Lauf ist Kandidat, Zähler-Malus | höhere Trefferquote bei MED17-Gruppenachsen | einfach | **nicht übernommen** (s. Durchgang 3) |
-| OLS-Container (ZedSuite, tune-editor `olsParser.ts`) | Marker 0x42007899 je Binärversion | Projekte aus WinOLS öffnen | GPL-3.0 kompatibel | **vertagt**: keine .ols-Testdatei vorhanden |
-| „Erwartete Kennfelder“ (ZedSuite) | Liste je Familie | Vollständigkeitsanzeige | trivial | vertagt (braucht gemessene Listen je Familie) |
-| EDC15/EDC16-Checksummen (ZedSuite), MED17 (medc17-checksum-tool) | feste Algorithmen | Profile für diese Familien | MIT/GPL | vertagt: ohne Original-Dumps nicht prüfbar |
+| Checksummen-Suche (UniversalPatcher `ChecksumSearcher.cs`) | Bereiche × Verfahren durchprobieren, bis der gespeicherte Wert entsteht | Grundlage für ECU-spezifische Profile | Idee frei; eigener Code (Präfixsummen, NumPy) | **umgesetzt** |
+| A2L-RECORD_LAYOUT (tune-editor `a2lParser.ts`, MxT) | Positionen von Anzahl, Achsen, Werten | Hersteller-Referenzen, A2L-Import | eigener Code nach ASAP2-Spezifikation | **umgesetzt** |
+| Achsen ohne Anzahl-Präfix (bimmerstein `axes.ts`) | jeder streng monotone Lauf ist Kandidat | mehr Gruppenachsen | einfach | **nicht übernommen** (Durchgang 3) |
+| OLS-Container (ZedSuite, tune-editor `olsParser.ts`) | Marker je Binärversion | Projekte aus WinOLS öffnen | GPL-3.0 kompatibel | **geprüft, nicht übernommen**: In 7 echten Projekten stimmt die so gelesene „Original“-Version nur zu 30–54 % mit der echten Originaldatei überein – der Inhalt ist offenbar kodiert. `.ols` wird klar abgewiesen statt falsch gelesen. |
+| „Erwartete Kennfelder“ (ZedSuite) | Liste je Familie | Vollständigkeitsanzeige | trivial | **ersetzt** durch die gemessene Unterstützungsmatrix |
+| EDC15/EDC16-Checksummen (ZedSuite), MED17 (medc17-checksum-tool) | feste Algorithmen | Profile für diese Familien | MIT/GPL | **offen**: ohne Original-Dumps mit bekanntem Layout nicht prüfbar |
 
 ## Durchgang 3 – Kritische Gegenprüfung
 
@@ -46,12 +51,12 @@ WinOLS-.ols-Import; familienbezogene Vollständigkeitsanzeige („erwartet vs. g
 - **Checksummen-Suche:** Bei vielen geprüften Kombinationen trifft ein 16-Bit-Wert auch zufällig. Deshalb
   meldet unsere Umsetzung die erwartete Zahl an Zufallstreffern, verlangt Bestätigung auf weiteren
   Dateien und erzeugt nur einen Profil-Entwurf mit `reviewed: false`, den die Prüfung abweist.
-- **romHEX14:** ohne Lizenz – weder Code noch Ableitungen nutzbar.
+
 - **A2L-Engine:** Risiko falscher Offsets. Gegenmaßnahme: Anzahl wird aus der Datei gelesen und gegen die
   A2L-Höchstzahl geprüft; die Speicherbasis wird nur akzeptiert, wenn ≥ 90 % von ≥ 20 Achsen aufsteigen.
   ME7.2-X5-A2L wurde so korrekt als „passt nicht zur BIN“ erkannt.
 
-## Umgesetzt (gemessen)
+## Umgesetzt in der Runde vom 20.10.2026 (damalige Messwerte)
 
 | Änderung | Datei | Ergebnis |
 |---|---|---|
@@ -62,11 +67,14 @@ WinOLS-.ols-Import; familienbezogene Vollständigkeitsanzeige („erwartet vs. g
 | A2L als Benchmark-Referenz | `tools/structure_benchmark.py` | erste OEM-Referenzen (ME9, ME9.2.1, MS45) |
 | Kopf-Datensätze (nx, ny, X, Y, Z): Limit 55 → 200 | `core/scoped_scan.py` | gegen vollständige A2L: ME9 exakt 20 → 38 (Präzision 45 → 50 %), ME9.2.1 29 → 56 (62 → 63 %), MS45 21 → 28 (64 → 67 %); VAG HS 50 → 59; MS43/MS42 und Fehlalarme unverändert |
 | Checksummen-Suche mit Zufallsniveau und Bestätigung | `core/checksum_search.py`, `tools/checksum_search.py` | synthetisch geprüft; reale Validierung fehlt (keine Dumps mit bekanntem Layout) |
-| Checksummen-Korrektur mit Byte-Vorschau in der Oberfläche | `ui/main_window.py` | Standard „Nein“, rückgängig machbar, keine Flashfreigabe |
 
-## Nächste Schritte
+Spätere Messwerte (z. B. Kopf-Datensätze mit flachen Werten, Vorrang belegter Funde) stehen in
+[CHANGELOG.md](../CHANGELOG.md), [PROGRESS.md](PROGRESS.md) und [ECU_SUPPORT.md](ECU_SUPPORT.md).
 
-1. WinOLS-.ols-Import (Formatbeschreibung in ZedSuite/tune-editor, GPL-3.0) – sobald eine .ols-Testdatei vorliegt.
-2. MED17/TriCore: 1971 XDF-Kennfelder, Trefferquote 10–16 %. Viele Kennfelder nutzen getrennte Gruppenachsen;
-   dafür braucht es Verweise aus dem Programmcode (TriCore-Adressierung), nicht mehr Datenmuster.
-3. Checksummen-Profile für MED17/EDC17 und EDC15/16 nach den offenen Algorithmen – nur mit echten Original-Dumps prüfbar.
+## Offen
+
+1. Gruppenkennfelder mit gemeinsamen Achsen (Bosch MapG/COM_AXIS, EDC17/MED17): Ein Strukturansatz (Achsenpaar +
+   anliegende Wertblöcke) wurde gemessen und verworfen – die Blöcke liegen zwischen anderen Objekten, glatte Daten
+   bleiben auch verschoben glatt (EDC17CP09: 132 Funde, 24 exakt). Nötig sind Verweise aus dem Programmcode; direkte
+   TriCore-Adressladungen (`movh.a`/`lea`) treffen dort aber fast keine Kennfelder (2 von 20 590 Objekten).
+2. Checksummen-Profile für MED17/EDC17 und EDC15/16 nach den offenen Algorithmen – nur mit echten Original-Dumps prüfbar.

@@ -14,6 +14,26 @@
       "reference": "Siemens_MS42_0110C6_ENG_512K_v1.3.xdf"
     },
     {
+      "sha256": "70aa4e7b317e84812ad105cef49b150da0625bb423909f8db0289684d3de7062",
+      "family": "Unbekannt",
+      "reference": "770115XE.a2l"
+    },
+    {
+      "sha256": "2d83927f252e5856ced660657c6afff18e893fc0a20465a600c85f7296d5a869",
+      "family": "Unbekannt",
+      "reference": "725D601B.a2l"
+    },
+    {
+      "sha256": "8bcd133d5a579bc0e46a09b9ac8f7a620ff2483f5fc0405860495440315d59fb",
+      "family": "Unbekannt",
+      "reference": "4520D30S.a2l"
+    },
+    {
+      "sha256": "8cff25c2e60ab2e5d96a90cfebb7d4291f79f24dc383ecd911d191babb923cda",
+      "family": "Unbekannt",
+      "reference": "6P8KB574_a.a2l"
+    },
+    {
       "sha256": "fe0a217c8ba6d10dfe532a46af859c900df0a397707ddb08ea4ab9f702bcb87c",
       "family": "Unbekannt",
       "reference": "CNNKKM___TAA.xdf"
@@ -27,38 +47,13 @@
       "sha256": "fa1880e1401e7d4f120e3241f19e7d9c1d96531cb3d93e5187dc964e0e7daac0",
       "family": "Unbekannt",
       "reference": "hw1501_V4_Complete.xdf"
-    },
-    {
-      "sha256": "70aa4e7b317e84812ad105cef49b150da0625bb423909f8db0289684d3de7062",
-      "family": "Unbekannt",
-      "reference": "770115XE.a2l"
-    },
-    {
-      "sha256": "2d83927f252e5856ced660657c6afff18e893fc0a20465a600c85f7296d5a869",
-      "family": "Unbekannt",
-      "reference": "725D601B.a2l"
-    },
-    {
-      "sha256": "8cff25c2e60ab2e5d96a90cfebb7d4291f79f24dc383ecd911d191babb923cda",
-      "family": "Unbekannt",
-      "reference": "6P8KB574_a.a2l"
-    },
-    {
-      "sha256": "30757e6cf3322b7e4176d9ab9e4bb594cebbef68acc3480210a5778d1f1056a4",
-      "family": "Unbekannt",
-      "reference": "4M702389.A2L"
-    },
-    {
-      "sha256": "1d7ed00be179708e7be62a3be61f2470a7c868d6735b628c4582a04f04351b21",
-      "family": "Unbekannt",
-      "reference": "6m661411.A2L"
     }
   ],
   "classes": {
     "axis:count": {
-      "n": 2374,
-      "hits": 1290,
-      "rate": 0.5434,
+      "n": 2538,
+      "hits": 1446,
+      "rate": 0.5697,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -66,9 +61,9 @@
       ]
     },
     "axis:record": {
-      "n": 1383,
-      "hits": 1213,
-      "rate": 0.8771,
+      "n": 1885,
+      "hits": 1691,
+      "rate": 0.8971,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -109,9 +104,19 @@
       ]
     },
     "header:nxny": {
-      "n": 694,
-      "hits": 605,
-      "rate": 0.8718,
+      "n": 510,
+      "hits": 419,
+      "rate": 0.8216,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43",
+        "Unbekannt"
+      ]
+    },
+    "header:nxny:shape": {
+      "n": 435,
+      "hits": 425,
+      "rate": 0.977,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -119,9 +124,9 @@
       ]
     },
     "pitch": {
-      "n": 1321,
-      "hits": 291,
-      "rate": 0.2203,
+      "n": 1135,
+      "hits": 263,
+      "rate": 0.2317,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -129,9 +134,9 @@
       ]
     },
     "raster": {
-      "n": 88,
-      "hits": 13,
-      "rate": 0.1477,
+      "n": 80,
+      "hits": 12,
+      "rate": 0.15,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -147,9 +152,9 @@
         "rate": 0.9975
       },
       "axis:record": {
-        "n": 6,
+        "n": 8,
         "hits": 1,
-        "rate": 0.1667
+        "rate": 0.125
       },
       "code:2d:noaxes": {
         "n": 1,
@@ -158,6 +163,11 @@
       },
       "header:nxny": {
         "n": 3,
+        "hits": 0,
+        "rate": 0.0
+      },
+      "header:nxny:shape": {
+        "n": 1,
         "hits": 0,
         "rate": 0.0
       },
@@ -179,7 +189,7 @@
         "rate": 0.985
       },
       "axis:record": {
-        "n": 2,
+        "n": 4,
         "hits": 0,
         "rate": 0.0
       },
@@ -208,6 +218,11 @@
         "hits": 0,
         "rate": 0.0
       },
+      "header:nxny:shape": {
+        "n": 1,
+        "hits": 0,
+        "rate": 0.0
+      },
       "pitch": {
         "n": 38,
         "hits": 13,
@@ -221,29 +236,34 @@
     },
     "Unbekannt": {
       "axis:count": {
-        "n": 1374,
-        "hits": 300,
-        "rate": 0.2183
+        "n": 1538,
+        "hits": 456,
+        "rate": 0.2965
       },
       "axis:record": {
-        "n": 1375,
-        "hits": 1212,
-        "rate": 0.8815
+        "n": 1873,
+        "hits": 1690,
+        "rate": 0.9023
       },
       "header:nxny": {
-        "n": 690,
-        "hits": 605,
-        "rate": 0.8768
+        "n": 506,
+        "hits": 419,
+        "rate": 0.8281
+      },
+      "header:nxny:shape": {
+        "n": 433,
+        "hits": 425,
+        "rate": 0.9815
       },
       "pitch": {
-        "n": 1153,
-        "hits": 231,
-        "rate": 0.2003
+        "n": 967,
+        "hits": 203,
+        "rate": 0.2099
       },
       "raster": {
-        "n": 78,
-        "hits": 9,
-        "rate": 0.1154
+        "n": 70,
+        "hits": 8,
+        "rate": 0.1143
       }
     }
   }

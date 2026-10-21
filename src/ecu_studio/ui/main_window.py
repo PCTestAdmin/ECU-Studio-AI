@@ -714,6 +714,7 @@ class Window(QMainWindow):
         help_menu=menu.addMenu("Hilfe")
         act(help_menu,"Synthetische Demo-Datei erzeugen …",self.make_demo)
         act(help_menu,"A2L-Demo (14 verschiedene Kennfelder) erzeugen …",self.make_a2l_demo)
+        act(help_menu,"Unterstützte Steuergeräte …",self.show_support_matrix)
         act(help_menu,"Über Erkennungsgrenzen",self.show_help)
         act(help_menu,"Definitionsquellen und Lizenzen",self.show_definition_licenses)
 
@@ -933,7 +934,7 @@ class Window(QMainWindow):
                     f'{profile.advice}' if profile.identified else '\n\nSteuergerät nicht identifiziert')
         self.file_info.setText(f'Größe: {img.size:,} Bytes\nÄnderungen: {img.dirty_bytes:,} Bytes\n'
                                f'Katalogeinträge: {len(self.maps)}\nSHA-256:\n{img.digest[:16]}…'
-                               + identity + f'\n\nFahrzeug-Fingerprint: {vehicle.level} · {vehicle.brand or "Marke ungeprüft"} {vehicle.model}\n{vehicle.notes}' + ('\nAchtung: Hash-Identität gilt für die ORIGINALE BIN, nicht für die Änderungen.' if img.dirty_bytes else '') + '\n\nExport: nicht auf Checksummen validiert')
+                               + identity + chr(10) + chr(10) + self.identity_text() + f'\n\nFahrzeug-Fingerprint: {vehicle.level} · {vehicle.brand or "Marke ungeprüft"} {vehicle.model}\n{vehicle.notes}' + ('\nAchtung: Hash-Identität gilt für die ORIGINALE BIN, nicht für die Änderungen.' if img.dirty_bytes else '') + '\n\nExport: nicht auf Checksummen validiert')
         guesses=sum(m.source in ('heuristic','reference-shape','transfer-proposed','ml-proposed') for m in self.maps)
         self.stats_chip.setText(f"{len(self.maps):,} Einträge · {guesses} Suchvorschläge · {img.dirty_bytes:,} Byte geändert")
         self.statusBar().showMessage(f"{img.size:,} Bytes · {img.dirty_bytes:,} veränderte Bytes · {guesses} ungeprüfte Suchvorschläge")
@@ -2790,6 +2791,25 @@ class Window(QMainWindow):
                     writer.writerow([r]+[f"{self.image.physical_value(m,r,c):g}" for c in range(m.cols)])
             self.statusBar().showMessage("Kennfeldtabelle exportiert",5000)
         except Exception as exc:self.warning("CSV-Export fehlgeschlagen",exc)
+
+    def identity_text(self) -> str:
+        """Identity markers found in the loaded image and the measured support status."""
+        from ..core.identification import identify
+        from ..core.support import lookup
+        ident = identify(self.image)
+        entry = lookup(ident.family)
+        status = (f'Unterstützung: {entry.status} – {entry.family}' if entry
+                  else 'Unterstützung: keine Messung für diese Kennung' if ident.family
+                  else 'Unterstützung: Familie nicht aus der Datei bestimmbar')
+        return f'Kennung: {ident.summary()}' + chr(10) + status
+
+    def show_support_matrix(self):
+        from .support_dialog import SupportDialog
+        current = None
+        if self.image is not None:
+            from ..core.identification import identify
+            current = identify(self.image).summary()
+        SupportDialog(self, current).exec()
 
     def show_help(self):
         QMessageBox.information(self,"Erkennungsgrenzen",

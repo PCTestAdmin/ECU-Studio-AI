@@ -14,6 +14,8 @@ Rules that keep the numbers honest:
 - Near-identical images (>= SAME_IMAGE byte agreement, e.g. software versions of
   one calibration) form one group; group means are reported so a family is not
   weighted by how many sister versions happen to be available.
+- Data type: an exactly matched candidate has the right type when width, byte
+  order and sign agree; the sign only counts where the bytes decide it.
 - Axes: an exactly matched candidate counts as "axes correct" when its raw axis
   values are a linear image of the reference axis (correlation > .999) and the
   point counts agree. Factors/units are not scored: candidates carry raw values.
@@ -58,6 +60,29 @@ def axes_agreement(found, reference) -> dict:
     return {'with_axes': with_axes, 'axes_correct': correct}
 
 
+def type_agreement(image, found, reference) -> int:
+    """Exactly matched 2-D candidates whose data type is right: width, byte order and sign.
+
+    The sign only counts where the stored bytes decide it: if no value has its top
+    bit set, signed and unsigned readings are identical and either is correct.
+    """
+    ref = {(m.offset, m.width): m for m in reference}
+    correct = 0
+    for m in found:
+        r = ref.get((m.offset, m.width))
+        if r is None or {m.rows, m.cols} != {r.rows, r.cols}:
+            continue
+        if m.width > 1 and m.endian != r.endian:
+            continue
+        if m.dtype[0] != r.dtype[0]:
+            raw = np.frombuffer(image.read(m.offset, m.length), np.uint8)
+            top = raw[::m.width] if m.endian == 'big' or m.width == 1 else raw[m.width - 1::m.width]
+            if np.any(top >= 0x80):
+                continue
+        correct += 1
+    return correct
+
+
 def run_pair(entry: dict, memory: bool = False) -> dict:
     image = BinaryImage.from_file(entry['bin'])
     anchor = int(entry['anchor'], 0) if isinstance(entry.get('anchor'), str) else entry.get('anchor')
@@ -83,6 +108,7 @@ def run_pair(entry: dict, memory: bool = False) -> dict:
            'exact_2d': s2['exact_layouts'], 'reference_1d': len(lines), 'found_1d': s1['candidates'],
            'exact_1d': s1['exact'], 'seconds': round(elapsed, 2), 'peak_mb': round(peak / 2**20, 1) if peak is not None else None}
     row.update(axes_agreement(areas, tables))
+    row['type_exact_2d'] = type_agreement(image, areas, tables)
     if complete:
         row.update(precision_2d=s2['precision'], false_positives_2d=s2['candidates'] - hits,
                    false_negatives_2d=len(tables) - round(s2['recall'] * len(tables)),
@@ -126,15 +152,15 @@ def run(entries: list[dict], memory: bool = False) -> dict:
 
 
 def markdown(result: dict) -> str:
-    head = ('| Paar | Familie | Rolle | Gruppe | Ref 2D | gefunden | Recall | exakt | Achsen richtig | '
-            'Präzision | FP | FN | Ref 1D | exakt 1D | s | MB |\n|' + '---|' * 16)
+    head = ('| Paar | Familie | Rolle | Gruppe | Ref 2D | gefunden | Recall | exakt | Typ richtig | Achsen richtig | '
+            'Präzision | FP | FN | Ref 1D | exakt 1D | s | MB |\n|' + '---|' * 17)
     out = [head]
     for r in result['rows']:
         prec = f"{r['precision_2d']:.0%}" if r['complete_reference'] else '–'
         mb = r['peak_mb'] if r['peak_mb'] is not None else '–'
         fp = r.get('false_positives_2d', '–'); fn = r.get('false_negatives_2d', '–')
         out.append(f"| {r['name']} | {r['family']} | {r['role']} | {r['group']} | {r['reference_2d']} | "
-                   f"{r['found_2d']} | {r['recall_2d']:.0%} | {r['exact_2d']} | {r['axes_correct']}/{r['with_axes']} | "
+                   f"{r['found_2d']} | {r['recall_2d']:.0%} | {r['exact_2d']} | {r.get('type_exact_2d', '–')} | {r['axes_correct']}/{r['with_axes']} | "
                    f"{prec} | {fp} | {fn} | {r['reference_1d']} | {r['exact_1d']} | {r['seconds']} | {mb} |")
     return '\n'.join(out)
 

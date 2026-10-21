@@ -36,7 +36,8 @@ def evidence_class(m: MapDefinition) -> str:
     if layout == 'candidate:count-axis':
         return 'axis:count'
     if layout == 'candidate:nx,ny,x,y,z':
-        return 'header:nxny'
+        from .axis_records import SHAPE_ONLY_ORIGIN
+        return 'header:nxny:shape' if (m.label_origin or '').startswith(SHAPE_ONLY_ORIGIN) else 'header:nxny'
     if layout == 'candidate:row-pitch':
         return 'pitch'
     return 'raster'

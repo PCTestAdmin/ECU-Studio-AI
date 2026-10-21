@@ -20,6 +20,8 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 [![Fortschritt](https://img.shields.io/badge/📈_Fortschritt-je_Version-8957e5?style=for-the-badge)](docs/PROGRESS.md)
 &nbsp;
 [![Steuergeräte](https://img.shields.io/badge/🚗_Steuergeräte-gemessen-d29922?style=for-the-badge)](docs/ECU_SUPPORT.md)
+&nbsp;
+[![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-geplant_%26_in_Arbeit-0969da?style=for-the-badge)](ROADMAP.md)
 
 <sub>Kein Python nötig · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
 
@@ -145,15 +147,21 @@ angegeben, wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einst
 
 | Steuergerät | Referenz | exakt erkannte Kennfelder | Präzision |
 |---|---|---:|---:|
-| Siemens MS43 | Community-XDF | **197** von 379 | **80 %** |
-| Bosch EDC17CP09 | Hersteller-A2L | **157** von 703 | **71 %** |
-| Siemens MSD85 · *Test* | Hersteller-A2L | **148** von 1026 | **74 %** |
-| Siemens MSD80 · *Test* | Hersteller-A2L | **133–137** von 864 | **77–78 %** |
-| Bosch EDC16C31 | Hersteller-A2L | **123** von 364 | **71 %** |
-| BMW ME9.2.1 | Hersteller-A2L | **109** von 460 | **69 %** |
+| Bosch EDC17CP09 | Hersteller-A2L | **463** von 703 | **85 %** |
+| Siemens MSD85 · *Test* | Hersteller-A2L | **279** von 1026 | **81 %** |
+| Siemens MSD80 · *Test* (6 Stände) | Hersteller-A2L | **217–224** von 864 | **81–82 %** |
+| Bosch EDC16C35 | Hersteller-A2L | **283** von 387 | **81 %** |
+| Bosch EDC16C31 | Hersteller-A2L | **272** von 364 | **82 %** |
+| Siemens MS43 | Community-XDF | **197** von 379 | **79 %** |
+| BMW ME9.2.1 | Hersteller-A2L | **170** von 460 | **72 %** |
 | Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
 
-**Fehlalarme** auf Daten ohne Kennfelder (Zufall, komprimiert, gelöschter Flash): 0–5 Kandidaten, keiner höher als *Vermutung*.
+Stand: nächste Version (Werte von 1.15.0 in [docs/PROGRESS.md](docs/PROGRESS.md)). Welche Steuergeräte validiert,
+teilweise oder noch gar nicht gemessen sind, zeigt [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) und in der App
+**Hilfe → Unterstützte Steuergeräte …**.
+
+**Fehlalarme** auf Daten ohne Kennfelder (9 Zufallsdateien bis 2 MB, komprimiert, gelöschter Flash, Nullen): **0** Kandidaten.
+Auf Programmcode ohne Kalibrierdaten (Windows-DLLs) entstehen Kandidaten, alle mit der Stufe *Vermutung*.
 
 > 📈 **Wie sich die Erkennung von Version zu Version verbessert hat: [docs/PROGRESS.md](docs/PROGRESS.md)**<br>
 > 🔬 Alle Messwerte je Variante: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) · reproduzierbar mit `python -m ecu_studio.tools.benchmark_suite`
@@ -198,7 +206,8 @@ Siemens MS4x 29 → 50 %. Details: [docs/MODELLKARTE.md](docs/MODELLKARTE.md).
 | GM P01 | 68k | ✅ | – | ✅ gemessen |
 | Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
 | Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
-| Continental SIM2K (Hyundai) · BMW MSS54 | TriCore · CPU32 | – | 🟡 | 🟡 Datenmuster + Lernmodell |
+| BMW MSS54 | CPU32 | – | ✅ | ✅ gemessen · vollständige XDF |
+| Continental SIM2K (Hyundai) | TriCore | – | 🟡 | 🟡 gemessen, Erkennung unzureichend |
 | EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos | – | – | – | ⚪ nicht validiert |
 
 <sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
@@ -268,21 +277,16 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 | 🚢 [Release-Ablauf](docs/RELEASE.md) | Version, CHANGELOG, Tag – Build, Update-Test und Veröffentlichung laufen automatisch |
 | 🧪 [Beispiele](examples/README.md) | Synthetische Demo-Dateien und Vorlagen |
 | 📝 [CHANGELOG](CHANGELOG.md) | Alle Änderungen |
+| 🗺️ [Roadmap](ROADMAP.md) | Was in Entwicklung ist, was geplant ist und was bewusst nicht kommt |
 | 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** – bitte **keine Original-Firmware** hochladen |
 
-<details>
-<summary><b>Roadmap</b></summary>
-<br>
+### 🗺️ Roadmap
 
-- [x] Kennfeldsuche ohne Raster, Achsen, Code-Verweise (C16x, 68k, SH-2)
-- [x] Gemessene Konfidenz, Flash-Preflight, Funktionsgraph, Signal-Tracing
-- [x] A2L-Datensätze mit gespeicherten Achsen, EPK-Prüfung
-- [x] Benchmark gegen Hersteller-A2L (EDC17CP09, MSD80/85, EDC16, ME9)
-- [x] Windows-Paket ohne Python, Installer, automatische Updates mit Rollback
-- [ ] Code-Verweise für TriCore und PowerPC (größter Hebel für EDC17/MED17)
-- [ ] Weitere Referenzen: MED17.5, MG1, MD1, Simos
-- [ ] Code-Signatur der Windows-Pakete
-</details>
+| 🔨 In Entwicklung | 📋 Als Nächstes | 📦 Wartet auf Referenzdaten |
+|---|---|---|
+| Kopf-Datensätze mit flachen Werten · Identifikation · Unterstützungsmatrix | Code-Verweise für TriCore und PowerPC · Gruppenkennfelder · signierte Updates | MED17.5/17.7 · MD1 · MG1 · Simos · SID · EDC17 außer CP09 |
+
+**→ [Ganze Roadmap](ROADMAP.md)**
 
 <div align="center">
 <br>

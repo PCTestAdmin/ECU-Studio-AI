@@ -1,0 +1,1036 @@
+{
+ "format": 1,
+ "measured_on": "2026-10-21",
+ "note": "Messwerte aus benchmark_suite; Rolle test = nie zum Einstellen verwendet.",
+ "entries": [
+  {
+   "family": "Bosch EDC17CP09",
+   "status": "validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "EDC17CP09"
+   ],
+   "software": [
+    {
+     "name": "EDC17CP09 6P8KB574",
+     "role": "development",
+     "complete_reference": true,
+     "group": "EDC17CP09 6P8KB574",
+     "reference_2d": 703,
+     "found_2d": 590,
+     "exact_2d": 463,
+     "type_exact_2d": 446,
+     "axes_correct": 456,
+     "with_axes": 456,
+     "reference_1d": 3405,
+     "exact_1d": 946,
+     "seconds": 35.7,
+     "peak_mb": null,
+     "recall_2d": 0.714,
+     "precision_2d": 0.849,
+     "false_positives_2d": 89
+    }
+   ],
+   "limits": "Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea).",
+   "needed": ""
+  },
+  {
+   "family": "Siemens MSD80",
+   "status": "validiert",
+   "processor": "PowerPC",
+   "match": [
+    "MSD80"
+   ],
+   "software": [
+    {
+     "name": "MSD80 37IIAFAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 400,
+     "exact_2d": 217,
+     "type_exact_2d": 183,
+     "axes_correct": 201,
+     "with_axes": 202,
+     "reference_1d": 3950,
+     "exact_1d": 439,
+     "seconds": 10.27,
+     "peak_mb": 36.1,
+     "recall_2d": 0.381,
+     "precision_2d": 0.818,
+     "false_positives_2d": 73
+    },
+    {
+     "name": "MSD80 37IIAGAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 400,
+     "exact_2d": 219,
+     "type_exact_2d": 189,
+     "axes_correct": 200,
+     "with_axes": 201,
+     "reference_1d": 3950,
+     "exact_1d": 439,
+     "seconds": 10.33,
+     "peak_mb": 36.1,
+     "recall_2d": 0.383,
+     "precision_2d": 0.823,
+     "false_positives_2d": 71
+    },
+    {
+     "name": "MSD80 37IIAKAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 403,
+     "exact_2d": 219,
+     "type_exact_2d": 187,
+     "axes_correct": 202,
+     "with_axes": 203,
+     "reference_1d": 3950,
+     "exact_1d": 441,
+     "seconds": 10.12,
+     "peak_mb": null,
+     "recall_2d": 0.383,
+     "precision_2d": 0.816,
+     "false_positives_2d": 74
+    },
+    {
+     "name": "MSD80 37IIALAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 403,
+     "exact_2d": 223,
+     "type_exact_2d": 195,
+     "axes_correct": 204,
+     "with_axes": 205,
+     "reference_1d": 3950,
+     "exact_1d": 447,
+     "seconds": 9.94,
+     "peak_mb": null,
+     "recall_2d": 0.387,
+     "precision_2d": 0.824,
+     "false_positives_2d": 71
+    },
+    {
+     "name": "MSD80 37IIAMAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 404,
+     "exact_2d": 220,
+     "type_exact_2d": 188,
+     "axes_correct": 202,
+     "with_axes": 203,
+     "reference_1d": 3950,
+     "exact_1d": 441,
+     "seconds": 9.49,
+     "peak_mb": null,
+     "recall_2d": 0.383,
+     "precision_2d": 0.814,
+     "false_positives_2d": 75
+    },
+    {
+     "name": "MSD80 37IIANAA",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD80 37IIAFAA",
+     "reference_2d": 864,
+     "found_2d": 405,
+     "exact_2d": 224,
+     "type_exact_2d": 196,
+     "axes_correct": 204,
+     "with_axes": 205,
+     "reference_1d": 3950,
+     "exact_1d": 447,
+     "seconds": 10.54,
+     "peak_mb": null,
+     "recall_2d": 0.385,
+     "precision_2d": 0.817,
+     "false_positives_2d": 74
+    }
+   ],
+   "limits": "Kalibrierbereich aus S19; Identität nur über A2L-EPK.",
+   "needed": ""
+  },
+  {
+   "family": "Siemens MSD85",
+   "status": "validiert",
+   "processor": "PowerPC",
+   "match": [
+    "MSD85"
+   ],
+   "software": [
+    {
+     "name": "MSD85 791I200S",
+     "role": "test",
+     "complete_reference": true,
+     "group": "MSD85 791I200S",
+     "reference_2d": 1026,
+     "found_2d": 452,
+     "exact_2d": 279,
+     "type_exact_2d": 223,
+     "axes_correct": 272,
+     "with_axes": 272,
+     "reference_1d": 4935,
+     "exact_1d": 642,
+     "seconds": 12.3,
+     "peak_mb": 45.7,
+     "recall_2d": 0.359,
+     "precision_2d": 0.812,
+     "false_positives_2d": 85
+    }
+   ],
+   "limits": "Ein Softwarestand; Identität nur über A2L-EPK.",
+   "needed": ""
+  },
+  {
+   "family": "Bosch EDC16C35",
+   "status": "validiert",
+   "processor": "PowerPC (MPC5xx)",
+   "match": [
+    "EDC16C35"
+   ],
+   "software": [
+    {
+     "name": "EDC16C35 4M702389",
+     "role": "test",
+     "complete_reference": true,
+     "group": "EDC16C35 4M702389",
+     "reference_2d": 387,
+     "found_2d": 380,
+     "exact_2d": 283,
+     "type_exact_2d": 270,
+     "axes_correct": 277,
+     "with_axes": 277,
+     "reference_1d": 1993,
+     "exact_1d": 562,
+     "seconds": 19.1,
+     "peak_mb": 84.2,
+     "recall_2d": 0.796,
+     "precision_2d": 0.811,
+     "false_positives_2d": 72
+    }
+   ],
+   "limits": "Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig.",
+   "needed": ""
+  },
+  {
+   "family": "Bosch EDC16C31",
+   "status": "validiert",
+   "processor": "PowerPC (MPC5xx)",
+   "match": [
+    "EDC16C31"
+   ],
+   "software": [
+    {
+     "name": "EDC16C31 6m661411",
+     "role": "test",
+     "complete_reference": true,
+     "group": "EDC16C31 6m661411",
+     "reference_2d": 364,
+     "found_2d": 371,
+     "exact_2d": 272,
+     "type_exact_2d": 255,
+     "axes_correct": 267,
+     "with_axes": 267,
+     "reference_1d": 1915,
+     "exact_1d": 544,
+     "seconds": 23.28,
+     "peak_mb": 189.1,
+     "recall_2d": 0.841,
+     "precision_2d": 0.819,
+     "false_positives_2d": 67
+    }
+   ],
+   "limits": "Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig.",
+   "needed": ""
+  },
+  {
+   "family": "BMW ME9",
+   "status": "validiert",
+   "processor": "PowerPC",
+   "match": [
+    "ME9"
+   ],
+   "software": [
+    {
+     "name": "ME9 770115XE",
+     "role": "development",
+     "complete_reference": true,
+     "group": "ME9 770115XE",
+     "reference_2d": 233,
+     "found_2d": 212,
+     "exact_2d": 98,
+     "type_exact_2d": 90,
+     "axes_correct": 96,
+     "with_axes": 96,
+     "reference_1d": 1075,
+     "exact_1d": 205,
+     "seconds": 11.76,
+     "peak_mb": null,
+     "recall_2d": 0.562,
+     "precision_2d": 0.618,
+     "false_positives_2d": 81
+    }
+   ],
+   "limits": "Ein Softwarestand.",
+   "needed": ""
+  },
+  {
+   "family": "BMW ME9.2.1",
+   "status": "validiert",
+   "processor": "PowerPC",
+   "match": [
+    "ME9.2.1"
+   ],
+   "software": [
+    {
+     "name": "ME9.2.1 725D601B",
+     "role": "development",
+     "complete_reference": true,
+     "group": "ME9.2.1 725D601B",
+     "reference_2d": 460,
+     "found_2d": 340,
+     "exact_2d": 170,
+     "type_exact_2d": 139,
+     "axes_correct": 155,
+     "with_axes": 155,
+     "reference_1d": 2086,
+     "exact_1d": 385,
+     "seconds": 7.89,
+     "peak_mb": null,
+     "recall_2d": 0.537,
+     "precision_2d": 0.724,
+     "false_positives_2d": 94
+    }
+   ],
+   "limits": "Ein Softwarestand; keine Kennung in der Datei.",
+   "needed": ""
+  },
+  {
+   "family": "Siemens MS45",
+   "status": "validiert",
+   "processor": "C167",
+   "match": [
+    "MS45"
+   ],
+   "software": [
+    {
+     "name": "MS45 4520D30S",
+     "role": "development",
+     "complete_reference": true,
+     "group": "MS45 4520D30S",
+     "reference_2d": 472,
+     "found_2d": 124,
+     "exact_2d": 30,
+     "type_exact_2d": 29,
+     "axes_correct": 9,
+     "with_axes": 9,
+     "reference_1d": 2098,
+     "exact_1d": 176,
+     "seconds": 8.25,
+     "peak_mb": null,
+     "recall_2d": 0.18,
+     "precision_2d": 0.661,
+     "false_positives_2d": 42
+    }
+   ],
+   "limits": "Niedrige Abdeckung (Datensatzformat ohne Kopf).",
+   "needed": ""
+  },
+  {
+   "family": "Siemens MS43",
+   "status": "validiert",
+   "processor": "C167",
+   "match": [
+    "MS43"
+   ],
+   "software": [
+    {
+     "name": "MS43 430069",
+     "role": "training",
+     "complete_reference": true,
+     "group": "MS43 430069",
+     "reference_2d": 379,
+     "found_2d": 315,
+     "exact_2d": 197,
+     "type_exact_2d": 184,
+     "axes_correct": 175,
+     "with_axes": 178,
+     "reference_1d": 1063,
+     "exact_1d": 743,
+     "seconds": 4.16,
+     "peak_mb": null,
+     "recall_2d": 0.665,
+     "precision_2d": 0.794,
+     "false_positives_2d": 65
+    }
+   ],
+   "limits": "Community-XDF; zum Trainieren verwendet.",
+   "needed": ""
+  },
+  {
+   "family": "Siemens MS42",
+   "status": "validiert",
+   "processor": "C167",
+   "match": [
+    "MS42"
+   ],
+   "software": [
+    {
+     "name": "MS42 0110C6",
+     "role": "training",
+     "complete_reference": true,
+     "group": "MS42 0110C6",
+     "reference_2d": 213,
+     "found_2d": 143,
+     "exact_2d": 22,
+     "type_exact_2d": 22,
+     "axes_correct": 0,
+     "with_axes": 0,
+     "reference_1d": 750,
+     "exact_1d": 398,
+     "seconds": 2.19,
+     "peak_mb": null,
+     "recall_2d": 0.498,
+     "precision_2d": 0.72,
+     "false_positives_2d": 40
+    }
+   ],
+   "limits": "Community-XDF; zum Trainieren verwendet.",
+   "needed": ""
+  },
+  {
+   "family": "Bosch MED17.1.62",
+   "status": "teilweise",
+   "processor": "Infineon TriCore",
+   "match": [
+    "MED17.1.62",
+    "MED17.1"
+   ],
+   "software": [
+    {
+     "name": "MED17.1.62 404A",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404A",
+     "reference_2d": 1337,
+     "found_2d": 738,
+     "exact_2d": 134,
+     "type_exact_2d": 110,
+     "axes_correct": 115,
+     "with_axes": 115,
+     "reference_1d": 651,
+     "exact_1d": 133,
+     "seconds": 29.17,
+     "peak_mb": null,
+     "recall_2d": 0.245,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "MED17.1.62 404E",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404A",
+     "reference_2d": 1337,
+     "found_2d": 741,
+     "exact_2d": 136,
+     "type_exact_2d": 111,
+     "axes_correct": 117,
+     "with_axes": 117,
+     "reference_1d": 651,
+     "exact_1d": 135,
+     "seconds": 28.98,
+     "peak_mb": null,
+     "recall_2d": 0.249,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "MED17.1.62 404G",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404A",
+     "reference_2d": 1337,
+     "found_2d": 735,
+     "exact_2d": 133,
+     "type_exact_2d": 109,
+     "axes_correct": 114,
+     "with_axes": 114,
+     "reference_1d": 651,
+     "exact_1d": 133,
+     "seconds": 27.44,
+     "peak_mb": null,
+     "recall_2d": 0.245,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "MED17.1.62 404H",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404H",
+     "reference_2d": 1223,
+     "found_2d": 722,
+     "exact_2d": 145,
+     "type_exact_2d": 124,
+     "axes_correct": 111,
+     "with_axes": 111,
+     "reference_1d": 604,
+     "exact_1d": 133,
+     "seconds": 26.8,
+     "peak_mb": null,
+     "recall_2d": 0.262,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "MED17.1.62 404J",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404J",
+     "reference_2d": 1323,
+     "found_2d": 699,
+     "exact_2d": 128,
+     "type_exact_2d": 104,
+     "axes_correct": 109,
+     "with_axes": 109,
+     "reference_1d": 643,
+     "exact_1d": 132,
+     "seconds": 28.87,
+     "peak_mb": null,
+     "recall_2d": 0.24,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "MED17.1.62 404L",
+     "role": "development",
+     "complete_reference": false,
+     "group": "MED17.1.62 404L",
+     "reference_2d": 1137,
+     "found_2d": 776,
+     "exact_2d": 121,
+     "type_exact_2d": 99,
+     "axes_correct": 100,
+     "with_axes": 100,
+     "reference_1d": 563,
+     "exact_1d": 121,
+     "seconds": 24.49,
+     "peak_mb": null,
+     "recall_2d": 0.283,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Nur Kalibrierbereich (496 KB) mit Teil-XDF: Präzision nicht messbar.",
+   "needed": "Hersteller-A2L zu einem der Stände"
+  },
+  {
+   "family": "Bosch MED9.1",
+   "status": "teilweise",
+   "processor": "PowerPC",
+   "match": [
+    "MED9.1",
+    "MED9"
+   ],
+   "software": [
+    {
+     "name": "MED9 1K090711S",
+     "role": "test",
+     "complete_reference": false,
+     "group": "MED9 1K090711S",
+     "reference_2d": 43,
+     "found_2d": 379,
+     "exact_2d": 11,
+     "type_exact_2d": 9,
+     "axes_correct": 6,
+     "with_axes": 6,
+     "reference_1d": 7,
+     "exact_1d": 0,
+     "seconds": 17.4,
+     "peak_mb": 85.0,
+     "recall_2d": 0.558,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Teil-XDF mit 43 Kennfeldern.",
+   "needed": "vollständige A2L"
+  },
+  {
+   "family": "Bosch ME7.5",
+   "status": "teilweise",
+   "processor": "C167",
+   "match": [
+    "ME7.5"
+   ],
+   "software": [
+    {
+     "name": "ME7.5 06A906032HS",
+     "role": "development",
+     "complete_reference": false,
+     "group": "ME7.5 06A906032HS",
+     "reference_2d": 266,
+     "found_2d": 266,
+     "exact_2d": 85,
+     "type_exact_2d": 70,
+     "axes_correct": 71,
+     "with_axes": 75,
+     "reference_1d": 573,
+     "exact_1d": 134,
+     "seconds": 10.61,
+     "peak_mb": null,
+     "recall_2d": 0.534,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "ME7.5 8E0909518AK",
+     "role": "development",
+     "complete_reference": false,
+     "group": "ME7.5 8E0909518AK",
+     "reference_2d": 129,
+     "found_2d": 346,
+     "exact_2d": 43,
+     "type_exact_2d": 35,
+     "axes_correct": 31,
+     "with_axes": 35,
+     "reference_1d": 140,
+     "exact_1d": 43,
+     "seconds": 11.94,
+     "peak_mb": null,
+     "recall_2d": 0.605,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Community-XDFs (Teilreferenz).",
+   "needed": ""
+  },
+  {
+   "family": "Bosch ME7 (Volvo)",
+   "status": "teilweise",
+   "processor": "C167",
+   "match": [
+    "ME7.0.1",
+    "ME7"
+   ],
+   "software": [
+    {
+     "name": "ME7 40LNHJ",
+     "role": "development",
+     "complete_reference": false,
+     "group": "ME7 40LNHJ",
+     "reference_2d": 48,
+     "found_2d": 271,
+     "exact_2d": 11,
+     "type_exact_2d": 11,
+     "axes_correct": 8,
+     "with_axes": 10,
+     "reference_1d": 32,
+     "exact_1d": 8,
+     "seconds": 12.97,
+     "peak_mb": null,
+     "recall_2d": 0.646,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "ME7 50GMHJ",
+     "role": "development",
+     "complete_reference": false,
+     "group": "ME7 50GMHJ",
+     "reference_2d": 38,
+     "found_2d": 274,
+     "exact_2d": 7,
+     "type_exact_2d": 7,
+     "axes_correct": 5,
+     "with_axes": 6,
+     "reference_1d": 6,
+     "exact_1d": 0,
+     "seconds": 14.09,
+     "peak_mb": null,
+     "recall_2d": 0.553,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Community-XDFs (Teilreferenz).",
+   "needed": ""
+  },
+  {
+   "family": "Bosch M4.4",
+   "status": "teilweise",
+   "processor": "8051",
+   "match": [
+    "M4.4"
+   ],
+   "software": [
+    {
+     "name": "Volvo M4.4",
+     "role": "development",
+     "complete_reference": false,
+     "group": "Volvo M4.4",
+     "reference_2d": 28,
+     "found_2d": 85,
+     "exact_2d": 8,
+     "type_exact_2d": 8,
+     "axes_correct": 0,
+     "with_axes": 0,
+     "reference_1d": 32,
+     "exact_1d": 0,
+     "seconds": 2.82,
+     "peak_mb": null,
+     "recall_2d": 0.536,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Teil-XDF.",
+   "needed": ""
+  },
+  {
+   "family": "GM P01",
+   "status": "teilweise",
+   "processor": "Motorola 68k",
+   "match": [],
+   "software": [
+    {
+     "name": "GM P01",
+     "role": "development",
+     "complete_reference": false,
+     "group": "GM P01",
+     "reference_2d": 43,
+     "found_2d": 155,
+     "exact_2d": 10,
+     "type_exact_2d": 9,
+     "axes_correct": 0,
+     "with_axes": 0,
+     "reference_1d": 96,
+     "exact_1d": 21,
+     "seconds": 10.09,
+     "peak_mb": null,
+     "recall_2d": 0.349,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "Teil-XDF; keine Kennung in der Datei.",
+   "needed": ""
+  },
+  {
+   "family": "Denso SH-2 (Subaru 5EAT)",
+   "status": "teilweise",
+   "processor": "Hitachi SH-2",
+   "match": [],
+   "software": [
+    {
+     "name": "Subaru 5AT_3.272_LEGAS_EJDM20",
+     "role": "development",
+     "complete_reference": false,
+     "group": "Subaru 5AT_3.272_LEGAS_EJDM20",
+     "reference_2d": 147,
+     "found_2d": 321,
+     "exact_2d": 147,
+     "type_exact_2d": 147,
+     "axes_correct": 147,
+     "with_axes": 147,
+     "reference_1d": 0,
+     "exact_1d": 0,
+     "seconds": 12.58,
+     "peak_mb": null,
+     "recall_2d": 1.0,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "Subaru 5AT_3.583_LEGASE_JDM20",
+     "role": "development",
+     "complete_reference": false,
+     "group": "Subaru 5AT_3.583_LEGASE_JDM20",
+     "reference_2d": 147,
+     "found_2d": 325,
+     "exact_2d": 147,
+     "type_exact_2d": 147,
+     "axes_correct": 147,
+     "with_axes": 147,
+     "reference_1d": 0,
+     "exact_1d": 0,
+     "seconds": 12.36,
+     "peak_mb": null,
+     "recall_2d": 1.0,
+     "precision_2d": null,
+     "false_positives_2d": null
+    },
+    {
+     "name": "Subaru 8EFB206000_08FB2WA0_14",
+     "role": "development",
+     "complete_reference": false,
+     "group": "Subaru 8EFB206000_08FB2WA0_14",
+     "reference_2d": 192,
+     "found_2d": 340,
+     "exact_2d": 178,
+     "type_exact_2d": 178,
+     "axes_correct": 178,
+     "with_axes": 178,
+     "reference_1d": 0,
+     "exact_1d": 0,
+     "seconds": 18.38,
+     "peak_mb": null,
+     "recall_2d": 0.927,
+     "precision_2d": null,
+     "false_positives_2d": null
+    }
+   ],
+   "limits": "RomRaider-Auswahl (Teilreferenz).",
+   "needed": ""
+  },
+  {
+   "family": "Hyundai/Kia SIM2K (Hyundai N)",
+   "status": "teilweise",
+   "processor": "Infineon TriCore",
+   "match": [],
+   "software": [
+    {
+     "name": "SIM2K CNNKKM___TAA",
+     "role": "training",
+     "complete_reference": true,
+     "group": "SIM2K CNNKKM___TAA",
+     "reference_2d": 524,
+     "found_2d": 288,
+     "exact_2d": 9,
+     "type_exact_2d": 9,
+     "axes_correct": 0,
+     "with_axes": 0,
+     "reference_1d": 285,
+     "exact_1d": 0,
+     "seconds": 31.26,
+     "peak_mb": null,
+     "recall_2d": 0.09,
+     "precision_2d": 0.153,
+     "false_positives_2d": 244
+    },
+    {
+     "name": "SIM2K JSNNJMK__S2A",
+     "role": "training",
+     "complete_reference": true,
+     "group": "SIM2K JSNNJMK__S2A",
+     "reference_2d": 555,
+     "found_2d": 278,
+     "exact_2d": 15,
+     "type_exact_2d": 15,
+     "axes_correct": 0,
+     "with_axes": 0,
+     "reference_1d": 293,
+     "exact_1d": 0,
+     "seconds": 31.9,
+     "peak_mb": null,
+     "recall_2d": 0.09,
+     "precision_2d": 0.176,
+     "false_positives_2d": 229
+    }
+   ],
+   "limits": "Community-XDF; zur Konfidenz-Kalibrierung verwendet. Code-Verweise über Basisregister nicht gelöst. Gemessen, Erkennung unzureichend (Präzision höchstens 18%).",
+   "needed": ""
+  },
+  {
+   "family": "BMW MSS54",
+   "status": "validiert",
+   "processor": "Motorola CPU32",
+   "match": [
+    "MSS54"
+   ],
+   "software": [
+    {
+     "name": "MSS54 211322001501J424",
+     "role": "training",
+     "complete_reference": true,
+     "group": "MSS54 211322001501J424",
+     "reference_2d": 128,
+     "found_2d": 144,
+     "exact_2d": 97,
+     "type_exact_2d": 83,
+     "axes_correct": 96,
+     "with_axes": 97,
+     "reference_1d": 0,
+     "exact_1d": 0,
+     "seconds": 2.83,
+     "peak_mb": null,
+     "recall_2d": 0.82,
+     "precision_2d": 0.729,
+     "false_positives_2d": 39
+    }
+   ],
+   "limits": "Community-XDF; zur Konfidenz-Kalibrierung verwendet.",
+   "needed": ""
+  },
+  {
+   "family": "Bosch EDC17CP14 / CP20 / CP44 / CP45 / CP46",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore/AURIX",
+   "match": [
+    "EDC17CP14",
+    "EDC17CP20",
+    "EDC17CP44",
+    "EDC17CP45",
+    "EDC17CP46"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN (vollständiger Flash) + passende Hersteller-A2L mit EPK, je 2 Softwarestände"
+  },
+  {
+   "family": "Bosch EDC17C46 / C64 / C74",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "EDC17C46",
+    "EDC17C64",
+    "EDC17C74"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + passende A2L, je 2 Softwarestände"
+  },
+  {
+   "family": "Bosch EDC17CP02",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "EDC17CP02"
+   ],
+   "software": [],
+   "limits": "Nur A2L vorhanden (4P1C2558), keine Firmware.",
+   "needed": "Firmware zum Softwarestand 4P1C2558"
+  },
+  {
+   "family": "Bosch MED17.5 / 17.5.5 / 17.5.25 / 17.7 / 17.7.2",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "MED17.5",
+    "MED17.5.5",
+    "MED17.5.25",
+    "MED17.7",
+    "MED17.7.2"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + passende A2L"
+  },
+  {
+   "family": "Bosch MEVD17.2.x / MEVD17.4.6",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "MEVD17.2",
+    "MEVD17.4.6"
+   ],
+   "software": [],
+   "limits": "MEVD17.4.6: nur WinOLS-Projekt (.ols), Inhalt nicht verifizierbar lesbar.",
+   "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Bosch MD1 (MD1CS001, MD1CS004, MD1CP002)",
+   "status": "nicht validiert",
+   "processor": "Infineon AURIX",
+   "match": [
+    "MD1CS001",
+    "MD1CS004",
+    "MD1CP002"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + passende A2L (DAMOS) mit EPK"
+  },
+  {
+   "family": "Bosch MG1 (MG1CS001, MG1CS002, MG1CS011, MG1CS201)",
+   "status": "nicht validiert",
+   "processor": "Infineon AURIX",
+   "match": [
+    "MG1CS001",
+    "MG1CS002",
+    "MG1CS011",
+    "MG1CS201"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + passende A2L mit EPK"
+  },
+  {
+   "family": "Continental Simos 8 / 10 / 12 / 18.1 / 18.2 / 18.10 / 19",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "SIMOS8",
+    "SIMOS10",
+    "SIMOS12",
+    "SIMOS18",
+    "SIMOS19"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Continental SID208 / SID807 / SID807EVO / SID310 / SID321",
+   "status": "nicht validiert",
+   "processor": "Infineon TriCore",
+   "match": [
+    "SID208",
+    "SID807",
+    "SID310",
+    "SID321"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Siemens MSD81 / MSV70 / MSV80",
+   "status": "nicht validiert",
+   "processor": "PowerPC / C167",
+   "match": [
+    "MSD81",
+    "MSV70",
+    "MSV80"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Bosch EDC16C34 / EDC16CP34",
+   "status": "nicht validiert",
+   "processor": "PowerPC (MPC5xx)",
+   "match": [
+    "EDC16C34",
+    "EDC16CP34"
+   ],
+   "software": [],
+   "limits": "",
+   "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Siemens MSS60",
+   "status": "nicht validiert",
+   "processor": "PowerPC",
+   "match": [
+    "MSS60"
+   ],
+   "software": [],
+   "limits": "Nur WinOLS-Projekt (.ols) vorhanden.",
+   "needed": "Original-BIN + A2L"
+  }
+ ]
+}

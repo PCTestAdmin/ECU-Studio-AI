@@ -5,6 +5,8 @@ wrong endian interpretation, or overlapping array must not turn into an ECU labe
 No training data or binary content is stored.
 """
 from __future__ import annotations
+import bisect
+import itertools
 import numpy as np
 from functools import lru_cache
 from .model import BinaryImage, MapDefinition
@@ -52,6 +54,29 @@ def surface_evidence(values, *, min_unique=12) -> dict:
             'reason':'2D-Oberflächenstruktur' if coherent else 'Zu verrauscht oder eindimensional'}
 
 
+EVIDENCED_LAYOUTS=('candidate:nx,ny,x,y,z','candidate:code-reference','candidate:code-reference-generic',
+                   'candidate:pointer-descriptor')
+
+
+def _header_inside(plain):
+    """Predicate: does an offset lie strictly inside one of the given candidates?"""
+    spans=sorted(((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
+                 for m in plain)
+    starts=[s for s,_ in spans]
+    reach=list(itertools.accumulate((e for _,e in spans),max))
+    def inside(a):
+        k=bisect.bisect_left(starts,a)-1
+        return k>=0 and reach[k]>a
+    return inside
+
+
+def _priority(m, inside) -> bool:
+    if m.record_layout not in EVIDENCED_LAYOUTS:
+        return False
+    head=m.candidate_region_start if m.candidate_region_start is not None else m.offset
+    return not inside(head)
+
+
 def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
                     max_results:int=140, diagnostics=None) -> list[MapDefinition]:
     """Reject obvious noise, flag endianness ambiguity, deduplicate overlaps.
@@ -81,12 +106,16 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
             ev=surface_evidence(a,min_unique=4 if m.record_layout in STRUCTURAL_LAYOUTS else 12)
             # Shape given by two axes the code loads with the table: flat or
             # coarse tables are still tables, so surface smoothness cannot veto.
-            axis_backed=m.record_layout in ('candidate:code-reference','candidate:pointer-descriptor') and bool(m.axes_x) and bool(m.axes_y)
+            # Header records reach this point only after the record scan accepted
+            # their counts and axes (flat value blocks included, see axis_records).
+            axis_backed=m.record_layout in ('candidate:code-reference','candidate:pointer-descriptor','candidate:nx,ny,x,y,z') and bool(m.axes_x) and bool(m.axes_y)
             if not ev['valid']:
                 if not axis_backed:
                     reject(m,'insufficient-surface-evidence');continue
                 ev={'valid':True,'score':ev.get('score',0.),'horizontal_jump':ev.get('horizontal_jump',0.),
-                    'vertical_jump':ev.get('vertical_jump',0.),'reason':'Größe durch vom Code geladene Achsen belegt'}
+                    'vertical_jump':ev.get('vertical_jump',0.),
+                    'reason':'Größe durch Kopf-Datensatz mit Achsen belegt' if m.record_layout=='candidate:nx,ny,x,y,z'
+                    else 'Größe durch vom Code geladene Achsen belegt'}
             if not axis_backed and narrower_storage_alias(image,m,ev):
                 reject(m,'storage-width-ambiguous');continue
             # A trained synthetic-only model is an optional audit hint,
@@ -121,10 +150,20 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
             evaluated.append((strength,m,ev,ambiguous,synthetic_hint,preset_score))
         except (IndexError,ValueError,OverflowError,TypeError):
             reject(m,'invalid-layout-or-values');continue
-    evaluated.sort(key=lambda z:(-z[0],z[1].offset,z[1].length))
+    # Evidenced candidates win overlaps, unless their own header lies inside a
+    # smoothness candidate that starts earlier: smooth tables contain runs that
+    # read like a count header with axes (then strength decides, as before).
+    inside=_header_inside([z[1] for z in evaluated if z[1].record_layout not in EVIDENCED_LAYOUTS])
+    evaluated.sort(key=lambda z:(not _priority(z[1],inside),-z[0],z[1].offset,z[1].length))
     selected=[]
     spans=[]
+    plain=0
     for strength,m,ev,ambiguous,synthetic_hint,preset_score in evaluated:
+        # The limit bounds smoothness-only guesses. Header records, code
+        # references and descriptors carry their own evidence and are not cut.
+        evidenced=m.record_layout in EVIDENCED_LAYOUTS
+        if not evidenced and plain>=max_results:
+            continue
         start=m.candidate_region_start if m.candidate_region_start is not None else m.offset
         end=m.offset+m.length
         # Heuristics are competing hypotheses, not definition-backed aliases.
@@ -149,7 +188,7 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
         m.type_score=0.
         m.verified=False
         selected.append(m);spans.append((start,end))
-        if len(selected)>=max_results:break
+        plain+=not evidenced
     if diagnostics is not None:
         diagnostics['accepted']=[{'offset':m.offset,'rows':m.rows,'cols':m.cols,'dtype':m.dtype,
             'endian':m.endian,'source':m.source,'verified':m.verified} for m in selected]

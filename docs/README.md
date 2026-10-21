@@ -5,7 +5,7 @@
 | [ECU_SUPPORT.md](ECU_SUPPORT.md) | Welche Steuergeräte mit welchen Referenzen gemessen sind – Trefferquote, Präzision, was nicht validiert ist |
 | [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung |
 | [MODELLKARTE.md](MODELLKARTE.md) | Lernmodell für Datenmuster-Funde: Trainingsdaten, Prüfung, Grenzen |
-| [KONKURRENZANALYSE.md](KONKURRENZANALYSE.md) | Vergleich mit quelloffenen ECU-Editoren und welche Ansätze übernommen wurden |
+| [OPEN_SOURCE_VERGLEICH.md](OPEN_SOURCE_VERGLEICH.md) | Vergleich quelloffener ECU-Werkzeuge: welche Ideen übernommen, welche verworfen wurden |
 | [../CHANGELOG.md](../CHANGELOG.md) | Änderungen je Version |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) · [../SECURITY.md](../SECURITY.md) | Mitmachen, Sicherheitslücken melden |
 | [../examples/README.md](../examples/README.md) | Synthetische Beispieldateien und Vorlagen |
