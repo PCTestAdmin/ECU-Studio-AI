@@ -113,3 +113,11 @@ def test_epk_is_checked_through_segment_tables_too():
 def test_link_without_data_says_epk_was_not_checked():
     r = parse_a2l(EPK_A2L).link(file_size=0x1000, ecu_anchor=0x800000)
     assert any('ohne Dateidaten nicht geprüft' in w for w in r.warnings)
+
+
+def test_axes_inside_records_are_reported_as_objects():
+    data = _bin()
+    r = parse_a2l(A2L).link(file_size=len(data), ecu_anchor=0x800000, data=data)
+    axes = {(a.offset, a.cols, a.dtype) for a in r.axis_objects}
+    assert (0x102, 3, 'u8') in axes and (0x105, 2, 'u8') in axes and (0x201, 4, 'u8') in axes
+    assert (0x301, 5, 'u8') in axes          # shared AXIS_PTS of the group curve

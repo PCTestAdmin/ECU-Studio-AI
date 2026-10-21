@@ -31,6 +31,8 @@ def evidence_class(m: MapDefinition) -> str:
         return 'code:generic'
     if layout == 'candidate:pointer-descriptor':
         return 'pointer:descriptor'
+    if layout == 'candidate:record-axis':
+        return 'axis:record'
     if layout == 'candidate:count-axis':
         return 'axis:count'
     if layout == 'candidate:nx,ny,x,y,z':

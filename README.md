@@ -87,8 +87,12 @@ Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als 
 | Denso SH-2 (Subaru 5EAT, 9 ROMs) | **93–100 %** (vorher 35–53 %) | **147–178** (vorher 15–27) | nicht belastbar¹ |
 | GM P01 (68k) | 35 % (vorher 21 %) | 10 (vorher 1), Kennlinien 21 | nicht belastbar¹ |
 | Volvo M4.4 (8051) | 54 % | 8 | nicht belastbar¹ |
-| **BMW ME9 (Hersteller-A2L)** | 35 % | 38 von 233 | **50 %** |
-| **BMW ME9.2.1 (Hersteller-A2L)** | 38 % | 56 von 460 | **63 %** |
+| **Bosch EDC17CP09 (Hersteller-A2L, TriCore)** | 30 % | 157 von 703 | **71 %** |
+| **Siemens MSD85 (Hersteller-A2L, unabhängiger Test)** | 24 % | 148 von 1026 | **74 %** |
+| **Siemens MSD80 (Hersteller-A2L, unabhängiger Test)** | 29 % | 133–137 von 864 | **77–78 %** |
+| **Bosch EDC16C35 / C31 (Hersteller-A2L)** | 40 % / 48 % | 111 / 123 | **66 % / 71 %** |
+| **BMW ME9 (Hersteller-A2L)** | 36 % | 41 von 233 | **50 %** |
+| **BMW ME9.2.1 (Hersteller-A2L)** | 44 % | 109 von 460 | **69 %** |
 | **Siemens MS45 (Hersteller-A2L)** | 18 % | 28 von 472 | **67 %** |
 | Bosch MED17.1.62 (TriCore, 6 Stände) | 11–16 % | 38–53 | nicht belastbar¹ |
 | Bosch MED9 (PowerPC) | 51 % | 9 | nicht belastbar¹ |
@@ -102,15 +106,19 @@ Nicht gewertet: Opel E78 und Peugeot IAW 8P – deren XDFs sind selbst nur Ergeb
 gelöschter Flash, Nullen + Zufall): 0 / 0 / 5 / 0 / 0 Kandidaten, keiner davon als „gesichert“ oder
 „wahrscheinlich“ eingestuft.
 
-**Trefferquote je Beweisart** (MS43, MS42, Hyundai, MSS54; Anteil der Funde, die exakt an einem echten Objekt beginnen):
+**Trefferquote je Beweisart** (gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den Hersteller-A2L von ME9, ME9.2.1,
+EDC17CP09, EDC16C35, EDC16C31 – MSD80/MSD85 bleiben als unabhängige Testdaten außen vor; Anteil der Funde, die exakt
+an einem echten Objekt beginnen; die Oberfläche nutzt zusätzlich familienspezifische Werte):
 
 | Beweisart | Anzahl | Trefferquote |
 |---|---:|---:|
 | Code-Verweis + zwei Achsen | 227 | 100 % |
 | Code-Verweis ohne Achsen | 35 | 97 % |
-| Achsen-Arrays mit Anzahl-Präfix | 1020 | 97 % |
 | Code-Verweis + Achse (Kennlinie) | 159 | 99 % |
-| nur Datenmuster | 732 | 19 % → **Lernmodell**, s. u. |
+| Kopf-Datensatz (nx, ny, X, Y, Kennfeld) | 694 | 87 % |
+| Achse aus Kopf-Datensatz | 1383 | 88 % |
+| Achsen-Arrays mit Anzahl-Präfix (alle Familien; MS4x allein 97–100 %) | 2374 | 54 % |
+| nur Datenmuster | 1321 | 22 % → **Lernmodell**, s. u. |
 
 **Lernmodell für Datenmuster-Funde** – geprüft auf einer beim Training ausgelassenen Familie (Präzision bei 80 % Trefferquote):
 
@@ -132,6 +140,9 @@ Details mit konkreten Softwareständen und Messwerten: [docs/ECU_SUPPORT.md](doc
 | Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | gemessen, Standard-XDFs inklusive |
 | Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ Lookup-Aufrufe, Basis auto | ✅ Kopf | gemessen |
 | Denso (Subaru) | SH-2 | ✅ Beschreibungsblöcke | ✅ | gemessen |
+| Bosch EDC17CP09 | TriCore | ❌ | ✅ Kopf-Datensätze | gemessen gegen Hersteller-A2L (EPK) |
+| Siemens MSD80 / MSD85 | PowerPC | ❌ | ✅ Kopf-Datensätze | unabhängig gemessen gegen Hersteller-A2L (EPK) |
+| Bosch EDC16C35 / C31 | PowerPC | ❌ | ✅ Kopf-Datensätze | gemessen gegen Hersteller-A2L |
 | GM P01 / E-Steuergeräte | 68k | ✅ Absolutoperanden | – | gemessen |
 | Bosch M4.4 (Volvo) | 8051 | ◐ bestätigend | – | gemessen |
 | Bosch/Continental E78 (Opel) | PowerPC | ❌ | – | ungemessen (keine unabhängige Referenz) |

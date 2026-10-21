@@ -173,3 +173,19 @@ def test_content_twins_are_marked_and_trivial_blocks_ignored():
     assert mark_twins(bytes(data), maps) == 1
     assert 'Inhaltsgleich mit 0x400' in maps[0].notes and 'Inhaltsgleich mit 0x100' in maps[1].notes
     assert 'Inhaltsgleich' not in maps[2].notes
+
+
+def test_header_record_axes_become_axis_candidates_with_sign_and_order():
+    # EDC17-style SWORD record: nx, ny (s16 LE), X, Y (s16 LE, X with negative breakpoints), Z.
+    from ecu_studio.core.axis_records import scan_axis_records, record_axes, RECORD_AXIS_LAYOUT
+    data = bytearray(np.random.default_rng(21).integers(0, 256, 0x2000, dtype=np.uint8).tobytes())
+    x = [-40, -20, 0, 20, 40, 60]; y = [500, 1000, 1500, 2000, 3000]
+    z = np.array([[100 + 30 * r + 9 * c + (r * c) % 4 for c in range(6)] for r in range(5)], '<i2')
+    rec = struct.pack('<2h', 6, 5) + struct.pack('<6h', *x) + struct.pack('<5h', *y) + z.tobytes()
+    data[0x800:0x800 + len(rec)] = rec
+    image = BinaryImage(bytes(data))
+    cands = [m for m in scan_axis_records(image, max_results=50) if m.candidate_region_start == 0x800]
+    assert cands and cands[0].offset == 0x800 + 4 + 22 and cands[0].axes_x == x
+    axes = record_axes(image, cands[0])
+    assert [(a.offset, a.cols, a.dtype, a.endian) for a in axes] == [(0x804, 6, 's16', 'little'), (0x810, 5, 's16', 'little')]
+    assert all(a.record_layout == RECORD_AXIS_LAYOUT for a in axes)

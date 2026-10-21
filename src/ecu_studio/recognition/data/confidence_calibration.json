@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "measured_on": "2026-10-19",
+  "measured_on": "2026-10-21",
   "definition": "share of candidates starting exactly at a reference object",
   "sources": [
     {
@@ -27,13 +27,48 @@
       "sha256": "fa1880e1401e7d4f120e3241f19e7d9c1d96531cb3d93e5187dc964e0e7daac0",
       "family": "Unbekannt",
       "reference": "hw1501_V4_Complete.xdf"
+    },
+    {
+      "sha256": "70aa4e7b317e84812ad105cef49b150da0625bb423909f8db0289684d3de7062",
+      "family": "Unbekannt",
+      "reference": "770115XE.a2l"
+    },
+    {
+      "sha256": "2d83927f252e5856ced660657c6afff18e893fc0a20465a600c85f7296d5a869",
+      "family": "Unbekannt",
+      "reference": "725D601B.a2l"
+    },
+    {
+      "sha256": "8cff25c2e60ab2e5d96a90cfebb7d4291f79f24dc383ecd911d191babb923cda",
+      "family": "Unbekannt",
+      "reference": "6P8KB574_a.a2l"
+    },
+    {
+      "sha256": "30757e6cf3322b7e4176d9ab9e4bb594cebbef68acc3480210a5778d1f1056a4",
+      "family": "Unbekannt",
+      "reference": "4M702389.A2L"
+    },
+    {
+      "sha256": "1d7ed00be179708e7be62a3be61f2470a7c868d6735b628c4582a04f04351b21",
+      "family": "Unbekannt",
+      "reference": "6m661411.A2L"
     }
   ],
   "classes": {
     "axis:count": {
-      "n": 2263,
-      "hits": 1217,
-      "rate": 0.5378,
+      "n": 2374,
+      "hits": 1290,
+      "rate": 0.5434,
+      "families": [
+        "Siemens MS42",
+        "Siemens MS43",
+        "Unbekannt"
+      ]
+    },
+    "axis:record": {
+      "n": 1383,
+      "hits": 1213,
+      "rate": 0.8771,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -74,9 +109,9 @@
       ]
     },
     "header:nxny": {
-      "n": 42,
-      "hits": 33,
-      "rate": 0.7857,
+      "n": 694,
+      "hits": 605,
+      "rate": 0.8718,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -84,9 +119,9 @@
       ]
     },
     "pitch": {
-      "n": 732,
-      "hits": 139,
-      "rate": 0.1899,
+      "n": 1321,
+      "hits": 291,
+      "rate": 0.2203,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -94,9 +129,9 @@
       ]
     },
     "raster": {
-      "n": 77,
-      "hits": 10,
-      "rate": 0.1299,
+      "n": 88,
+      "hits": 13,
+      "rate": 0.1477,
       "families": [
         "Siemens MS42",
         "Siemens MS43",
@@ -110,6 +145,11 @@
         "n": 399,
         "hits": 398,
         "rate": 0.9975
+      },
+      "axis:record": {
+        "n": 6,
+        "hits": 1,
+        "rate": 0.1667
       },
       "code:2d:noaxes": {
         "n": 1,
@@ -137,6 +177,11 @@
         "n": 601,
         "hits": 592,
         "rate": 0.985
+      },
+      "axis:record": {
+        "n": 2,
+        "hits": 0,
+        "rate": 0.0
       },
       "code:1d:axis1": {
         "n": 159,
@@ -176,24 +221,29 @@
     },
     "Unbekannt": {
       "axis:count": {
-        "n": 1263,
-        "hits": 227,
-        "rate": 0.1797
+        "n": 1374,
+        "hits": 300,
+        "rate": 0.2183
+      },
+      "axis:record": {
+        "n": 1375,
+        "hits": 1212,
+        "rate": 0.8815
       },
       "header:nxny": {
-        "n": 38,
-        "hits": 33,
-        "rate": 0.8684
+        "n": 690,
+        "hits": 605,
+        "rate": 0.8768
       },
       "pitch": {
-        "n": 564,
-        "hits": 79,
-        "rate": 0.1401
+        "n": 1153,
+        "hits": 231,
+        "rate": 0.2003
       },
       "raster": {
-        "n": 67,
-        "hits": 6,
-        "rate": 0.0896
+        "n": 78,
+        "hits": 9,
+        "rate": 0.1154
       }
     }
   }

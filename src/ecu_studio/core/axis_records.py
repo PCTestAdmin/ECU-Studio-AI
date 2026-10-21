@@ -42,9 +42,15 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                         if end+rows*cols>len(buf):continue
                         for order in (['big'] if axis_width==1 else ['big','little']):
                             if count_width==2 and axis_width==2 and order!=endian:continue
-                            axes=np.frombuffer(buf[axis_start:end],dtype=('>' if order=='big' else '<')+'u'+str(axis_width))
-                            x,y=axes[:cols].tolist(),axes[cols:].tolist()
-                            if not _record_axis(x) or not _record_axis(y):continue
+                            # Signed 16-bit axes (temperatures, Bosch EDC17 SWORD layouts) only
+                            # rise when read signed; unsigned reading is tried first.
+                            for kind in (('u','i') if axis_width==2 else ('u',)):
+                                axes=np.frombuffer(buf[axis_start:end],dtype=('>' if order=='big' else '<')+kind+str(axis_width))
+                                x,y=axes[:cols].tolist(),axes[cols:].tolist()
+                                if kind=='i' and min(x+y)>=0:continue      # same reading as unsigned
+                                if _record_axis(x) and _record_axis(y):break
+                            else:
+                                continue
                             for dtype in ('u8','u16','s16','u32'):
                                 if dtype=='u32' and not include_u32:continue
                                 for storage in (['big'] if dtype=='u8' else ['big','little']):
@@ -69,3 +75,38 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     for _,m in found:
         unique.setdefault((m.offset,m.rows,m.cols,m.dtype,m.endian),m)
     return list(unique.values())[:max_results]
+
+
+RECORD_AXIS_LAYOUT = 'candidate:record-axis'
+
+
+def record_axes(image: BinaryImage, m: MapDefinition) -> list[MapDefinition]:
+    """The X/Y breakpoint arrays of an accepted nx,ny,X,Y,Z header candidate, as 1 x n objects.
+
+    Count and axis widths follow from header position, data start and the point
+    counts (unique for 2 + 2 or more points); the byte order and sign are the
+    ones that reproduce the axis values the candidate was accepted with.
+    """
+    if m.record_layout != 'candidate:nx,ny,x,y,z' or m.candidate_region_start is None or not m.axes_x:
+        return []
+    header, n = m.candidate_region_start, m.cols + m.rows
+    for cw in (1, 2):
+        for aw in (1, 2):
+            if header + 2 * cw + n * aw != m.offset:
+                continue
+            start = header + 2 * cw
+            for order in ('little', 'big'):
+                for kind in ('u', 'i'):
+                    dt = np.dtype(kind + '1') if aw == 1 else np.dtype(('<' if order == 'little' else '>') + kind + '2')
+                    v = np.frombuffer(image.read(start, n * aw), dt).tolist()
+                    if v[:m.cols] == list(m.axes_x) and v[m.cols:] == list(m.axes_y):
+                        dtype = ('s' if kind == 'i' else 'u') + str(8 * aw)
+                        return [MapDefinition(f'Achse {label} von 0x{m.offset:08X}', off, 1, count, dtype, order,
+                                              source='heuristic', confidence=.44, record_layout=RECORD_AXIS_LAYOUT,
+                                              candidate_region_start=header,
+                                              label_origin='Stützstellen eines Kopf-Datensatzes (ungeprüft)',
+                                              label_evidence=f'{label}-Achse des Datensatzes @ 0x{header:X} mit Anzahl-Kopf.',
+                                              notes='Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.')
+                                for label, off, count in (('X', start, m.cols), ('Y', start + m.cols * aw, m.rows))]
+    return []
+

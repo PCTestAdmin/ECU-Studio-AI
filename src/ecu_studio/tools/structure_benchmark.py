@@ -7,13 +7,14 @@ list, e.g. one exported from another tool. Reports counts only; no firmware byte
 from __future__ import annotations
 import argparse
 import json
+from functools import lru_cache
 from pathlib import Path
 from time import perf_counter
 from ecu_studio.core.model import BinaryImage, MapDefinition
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
 
 
-def _reference(path: str, image: BinaryImage) -> list[MapDefinition]:
+def _reference(path: str, image: BinaryImage, anchor: int | None = None) -> list[MapDefinition]:
     if Path(path).suffix.lower() == '.xdf':
         from ecu_studio.core.xdf import read_xdf
         return read_xdf(path, image, include_constants=False).maps
@@ -21,36 +22,52 @@ def _reference(path: str, image: BinaryImage) -> list[MapDefinition]:
         from ecu_studio.core.romraider import read_romraider
         return [m for m in read_romraider(path, image).maps if 0 <= m.offset < image.size]
     if Path(path).suffix.lower() == '.a2l':
-        return a2l_reference(path, image)
+        return a2l_reference(path, image, anchor)
     from ecu_studio.core.definitions import import_definitions
     return import_definitions(path, image.size)
 
 
-def a2l_reference(path: str, image: BinaryImage) -> list[MapDefinition]:
+def a2l_reference(path: str, image: BinaryImage, anchor: int | None = None) -> list[MapDefinition]:
     """Records of an A2L at the anchor the firmware confirms (see suggest_anchor).
 
     Raw values are enough for geometry, so unsupported conversions do not drop
-    an object here. Raises if the A2L does not describe this file.
+    an object here. A given ``anchor`` (e.g. the start address of a converted
+    HEX file) is checked the same way: the A2L must explain the file. Raises if
+    it does not; a declared EPK that differs links nothing.
     """
-    from ecu_studio.core.a2l import read_a2l, suggest_anchor
+    return list(_a2l_cached(str(Path(path).resolve()), image.digest, image.read(0, image.size), anchor))
+
+
+@lru_cache(maxsize=4)
+def _a2l_cached(path: str, digest: str, data: bytes, anchor: int | None) -> tuple:
+    from ecu_studio.core.a2l import read_a2l, suggest_anchor, MIN_ANCHOR_MONOTONE
     catalog = read_a2l(path)
-    data = image.read(0, image.size)
-    found = suggest_anchor(catalog, data)
-    if found is None:
-        raise ValueError('A2L passt nicht zu dieser BIN (Achsen an keiner Basis aufsteigend)')
-    return catalog.link(file_size=image.size, ecu_anchor=found['anchor'], data=data,
-                        raw_unsupported_conversions=True).maps
+    if anchor is None:
+        found = suggest_anchor(catalog, data)
+        if found is None:
+            raise ValueError('A2L passt nicht zu dieser BIN (Achsen an keiner Basis aufsteigend)')
+        anchor = found['anchor']
+    result = catalog.link(file_size=len(data), ecu_anchor=anchor, data=data, raw_unsupported_conversions=True)
+    axes = [m.axes_x for m in result.maps if len(m.axes_x) >= 3 and len(set(m.axes_x)) > 1]
+    rising = sum(all(b >= a for a, b in zip(ax, ax[1:])) and ax[-1] > ax[0] for ax in axes)
+    if not result.maps or (axes and rising < MIN_ANCHOR_MONOTONE * len(axes)):
+        raise ValueError(f'A2L passt nicht zu dieser BIN bei Basis 0x{anchor:X} '
+                         f'({rising}/{len(axes)} Achsen steigend, {len(result.maps)} verknüpft)')
+    # Axes inside records are reference objects too (as XDF axis addresses are).
+    seen = {m.offset for m in result.maps}
+    axes = [a for a in result.axis_objects if a.offset not in seen and not seen.add(a.offset)]
+    return tuple(result.maps) + tuple(axes)
 
 
-def reference_tables(path: str, image: BinaryImage, min_dim: int = 4) -> list[MapDefinition]:
-    unique = {(m.offset, m.rows, m.cols, m.width): m for m in _reference(path, image)
+def reference_tables(path: str, image: BinaryImage, min_dim: int = 4, anchor: int | None = None) -> list[MapDefinition]:
+    unique = {(m.offset, m.rows, m.cols, m.width): m for m in _reference(path, image, anchor)
               if m.rows >= min_dim and m.cols >= min_dim}
     return sorted(unique.values(), key=lambda m: m.offset)
 
 
-def reference_lines(path: str, image: BinaryImage, min_len: int = 2) -> list[MapDefinition]:
+def reference_lines(path: str, image: BinaryImage, min_len: int = 2, anchor: int | None = None) -> list[MapDefinition]:
     """1-D objects (curves and axes) with at least min_len values."""
-    unique = {(m.offset, m.rows * m.cols, m.width): m for m in _reference(path, image)
+    unique = {(m.offset, m.rows * m.cols, m.width): m for m in _reference(path, image, anchor)
               if min(m.rows, m.cols) == 1 and m.rows * m.cols >= min_len}
     return sorted(unique.values(), key=lambda m: m.offset)
 

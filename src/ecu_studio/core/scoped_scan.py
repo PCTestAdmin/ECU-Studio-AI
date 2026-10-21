@@ -11,7 +11,7 @@ from .detection_32 import scan_32
 from .detection_signed import scan_s16
 from .profiles import identify_profile
 from .precision import rank_candidates
-from .axis_records import scan_axis_records
+from .axis_records import scan_axis_records, record_axes
 from .structure_scan import scan_structures, lookup_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
@@ -19,8 +19,8 @@ from .confidence import apply_confidence, tier_for
 from .candidate_model import load_model, score_candidates
 from .map_groups import mark_twins
 
-RECORD_LIMIT=200   # header records (nx,ny,X,Y,Z): was 55; 200 measured better on ME9 (complete A2L) and VAG ME7.5, MS4x unchanged
-INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor')
+RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
+INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis')
 
 
 def _merged(spans):
@@ -124,8 +124,12 @@ def scan_calibration_candidates(image: BinaryImage, *,
     spans=[(m.candidate_region_start if m.candidate_region_start is not None else m.offset,m.offset+m.length) for m in lines]
     # Legacy grid windows must not swallow a detected axis or referenced curve.
     merged=_merged(spans)
-    result=sorted([m for m in ranked if not _overlaps_any(m.offset,m.offset+m.length,merged)]+lines,
-                  key=lambda m:m.offset)
+    kept=[m for m in ranked if not _overlaps_any(m.offset,m.offset+m.length,merged)]
+    # Axes of accepted header records are axes too (EDC17 SWORD records, ME9, MED17 ...).
+    taken=_merged([(m.offset,m.offset+m.length) for m in lines])
+    extra=[a for m in kept for a in record_axes(image,m)
+           if not _overlaps_any(a.offset,a.offset+a.length,taken)]
+    result=sorted(kept+lines+extra,key=lambda m:m.offset)
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: learned scorer (family-out validated) replaces the
     # coarse class rate with the held-out hit rate of the candidate's score.

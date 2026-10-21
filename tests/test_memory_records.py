@@ -49,3 +49,15 @@ def test_motorola_srec_multi_address_and_counts():
         parse_memory_text(raw.replace(srec('5',2),srec('5',3)))
     with pytest.raises(ValueError,match='Prüfsumme'):
         parse_memory_text(raw.replace(srec('5',2), 'S503000200'))
+
+
+def test_dos_eof_marker_after_end_record_is_accepted_but_real_trailing_data_is_not():
+    # Regression: real EDC16 HEX files from Windows tools end with 0x1A and were refused.
+    import pytest
+    from ecu_studio.formats.records import parse_memory_text
+    body = ':0400000001020304F2\r\n:00000001FF\r\n'
+    assert parse_memory_text(body + '\x1a').payload_bytes == 4
+    with pytest.raises(ValueError, match='nach Intel-HEX-EOF'):
+        parse_memory_text(body + ':0400000001020304F2\r\n')
+    srec = 'S107000001020304EE\r\nS9030000FC\r\n'
+    assert parse_memory_text(srec + '\x1a').payload_bytes == 4

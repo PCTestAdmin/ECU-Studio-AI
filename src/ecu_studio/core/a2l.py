@@ -137,6 +137,8 @@ class AxisPts:
 @dataclass
 class LinkResult:
     maps: list[MapDefinition] = field(default_factory=list)
+    # Breakpoint arrays stored inside decoded records (STD_AXIS / AXIS_PTS), as 1 x n objects.
+    axis_objects: list[MapDefinition] = field(default_factory=list)
     total: int = 0
     unsupported: list[str] = field(default_factory=list)
     out_of_range: list[str] = field(default_factory=list)
@@ -398,6 +400,7 @@ class A2LCatalog:
                     if args[1:] != ['INDEX_INCR', 'DIRECT']:
                         return None, f'{key} {" ".join(args[1:])} nicht unterstützt'
                     out[axis] = self._read(data, offset, dtype, counts[axis], endian)
+                    out[axis + '_at'] = (offset, dtype)
                     cursor += size * counts[axis]
                 else:
                     if args[2] != 'DIRECT' or args[1] not in ('ROW_DIR', 'COLUMN_DIR'):
@@ -426,7 +429,7 @@ class A2LCatalog:
             if ch.cal_type not in ('VALUE', 'CURVE', 'MAP', 'VAL_BLK'):
                 result.unsupported.append(prefix + f': {ch.cal_type} nicht unterstützt')
                 continue
-            counts, axis_values, problem = {}, {}, ''
+            counts, axis_values, problem, shared_axes = {}, {}, '', []
             for name, desc in zip('XY', ch.axis_descriptors[:2]):
                 kind = desc.head[0] if desc.head else ''
                 maxpts = parse_num(desc.head[3]) if len(desc.head) > 3 else 0
@@ -452,6 +455,7 @@ class A2LCatalog:
                         problem = 'gemeinsame Achse: ' + (issue or 'ohne Stützstellen')
                         break
                     counts[name], axis_values[name] = len(rec['X']), ('raw', rec['X'], desc.head[2])
+                    shared_axes.append((f'{ref[0]}', rec['X_at'], len(rec['X'])))
                 elif kind == 'STD_AXIS':
                     axis_values[name] = ('std', maxpts, desc.head[2])
                 else:
@@ -497,6 +501,12 @@ class A2LCatalog:
                     axes[name] = [v * f + b for v in axis_values[name][1]] if not issue else \
                         [float(v) for v in axis_values[name][1]]
             offset, dtype, order = rec['values']
+            axis_entries = [(f'{ch.name}.{n}', rec[n + '_at'], len(rec[n])) for n in 'XY' if n + '_at' in rec]
+            for label, (at, adt), count in axis_entries + shared_axes:
+                if count > 1:
+                    result.axis_objects.append(MapDefinition(
+                        name=label, offset=at, rows=1, cols=count, dtype=adt, endian=endian, source=source,
+                        verified=False, notes=f'Stützstellen ({label}) aus dem A2L-Datensatz.'))
             prediction = classify_metadata(ch.name, ch.description, unit, ' '.join(a[1] for a in ch.axes))
             m = MapDefinition(name=ch.name, offset=offset, rows=ny, cols=nx, dtype=dtype, endian=endian,
                               storage_order=order, factor=factor, bias=bias, unit=unit, kind=prediction.kind,

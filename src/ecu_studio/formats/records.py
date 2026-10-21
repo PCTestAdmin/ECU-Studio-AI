@@ -82,6 +82,9 @@ def _hexbytes(payload: str, line: int) -> bytes:
     except ValueError as exc:raise ValueError(f'Zeile {line}: unzulässiger Hex-Wert') from exc
 
 
+DOS_EOF='\x1a'
+
+
 def _intel_hex(source: str) -> MemoryImage:
     records=[]
     base=0
@@ -90,6 +93,9 @@ def _intel_hex(source: str) -> MemoryImage:
     for num,raw in enumerate(source.splitlines(),1):
         line=raw.strip()
         if not line:continue
+        # A lone Ctrl-Z (0x1A) is the DOS end-of-file marker many Windows tools
+        # append after the EOF record; it carries no data. Anything else is refused.
+        if eof and line==DOS_EOF:continue
         if eof:raise ValueError(f'Zeile {num}: Daten nach Intel-HEX-EOF')
         if not line.startswith(':'):raise ValueError(f'Zeile {num}: kein Intel-HEX-Record')
         record=_hexbytes(line[1:],num)
@@ -133,6 +139,7 @@ def _srec(source: str) -> MemoryImage:
     for num,raw in enumerate(source.splitlines(),1):
         line=raw.strip()
         if not line:continue
+        if terminated and line==DOS_EOF:continue
         if terminated:raise ValueError(f'Zeile {num}: Daten nach S-Record-Abschluss')
         kind=line[1:2]
         if len(line)<4 or line[0] != 'S' or kind not in addr_sizes:

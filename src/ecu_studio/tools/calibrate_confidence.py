@@ -4,7 +4,7 @@ A candidate counts as a hit when it starts exactly at an object of the
 reference definition (table, curve or axis of any size). Use only definitions
 that cover a family completely; partial XDFs understate the rates.
 
-Usage: python -m ecu_studio.tools.calibrate_confidence --pair BIN XDF [--pair ...] [--out FILE]
+Usage: python -m ecu_studio.tools.calibrate_confidence --pair BIN XDF|A2L[@ANCHOR] [--pair ...] [--out FILE]
 Writes counts and hashes only, no firmware bytes.
 """
 from __future__ import annotations
@@ -29,7 +29,12 @@ def measure(pairs) -> dict:
     for bin_path, ref_path in pairs:
         image = BinaryImage.from_file(bin_path)
         family = identify_profile(image).family
-        starts = {m.offset for m in _reference(ref_path, image)}
+        # 'file.a2l@0x8000' gives the A2L anchor explicitly (e.g. converted HEX images).
+        anchor = None
+        if '@' in Path(ref_path).name:
+            ref_path, _, at = ref_path.rpartition('@')
+            anchor = int(at, 0)
+        starts = {m.offset for m in _reference(ref_path, image, anchor)}
         if Path(ref_path).suffix.lower() == '.xdf':
             # Axes referenced by tables count as reference objects too.
             from ecu_studio.core.xdf import xdf_axis_offsets

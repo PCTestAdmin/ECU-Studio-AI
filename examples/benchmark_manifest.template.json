@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Beispiel EDC17 mit Hersteller-A2L",
+    "family": "Bosch EDC17CP09",
+    "bin": "C:/pfad/zur/originaldatei.bin",
+    "reference": "C:/pfad/zur/definition.a2l",
+    "anchor": "0x80000000",
+    "complete": true,
+    "role": "test"
+  },
+  {
+    "name": "Beispiel mit Community-XDF (unvollständig)",
+    "family": "Bosch MED17.1.62",
+    "bin": "C:/pfad/zur/datei.bin",
+    "reference": "C:/pfad/zur/definition.xdf",
+    "complete": false,
+    "role": "development"
+  }
+]
