@@ -83,9 +83,17 @@ try {
 $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") |
     Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($iscc) {
-    & $iscc /Qp "/DAppVersion=$version" (Join-Path $PSScriptRoot 'packaging\installer.iss')
+    # Build outside the project: Windows "controlled folder access" may stop ISCC from
+    # writing executables into Documents; PowerShell then copies the finished file.
+    $isccOut = Join-Path ([System.IO.Path]::GetTempPath()) ('ECU-Studio-AI-installer-' + [Guid]::NewGuid().ToString('N'))
+    & $iscc /Qp "/O$isccOut" "/DAppVersion=$version" (Join-Path $PSScriptRoot 'packaging\installer.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer konnte nicht erstellt werden.' }
-    Write-Host "Installer: dist\ECU-Studio-AI-$version-setup.exe"
+    $setup = "ECU-Studio-AI-$version-setup.exe"
+    Copy-Item -LiteralPath (Join-Path $isccOut $setup) -Destination (Join-Path $PSScriptRoot "dist\$setup") -Force
+    Remove-Item -LiteralPath $isccOut -Recurse -Force
+    $setupHash = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot "dist\$setup") -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -LiteralPath (Join-Path $PSScriptRoot "dist\$setup.sha256") -Value "$setupHash  $setup" -Encoding ascii
+    Write-Host "Installer: dist\$setup"
 } else {
     Write-Host 'Inno Setup 6 nicht gefunden – Installer übersprungen (ZIP-Paket ist vollständig).'
 }

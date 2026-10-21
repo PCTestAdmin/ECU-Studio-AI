@@ -228,3 +228,10 @@ def test_repository_without_release_means_no_update_not_an_error():
         raise urllib.error.HTTPError(request.full_url, 403, 'rate limited', {}, None)
     with pytest.raises(updates.UpdateError, match='403'):
         updates.fetch_latest(opener=limited)
+
+
+def test_package_metadata_and_runtime_version_agree():
+    import re
+    from ecu_studio import __version__
+    toml = (Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text(encoding='utf-8')
+    assert re.search(r'^version = "([^"]+)"', toml, re.M).group(1) == __version__

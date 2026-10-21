@@ -1,5 +1,6 @@
 """Local, read-only detection audit. Reports no VIN, filename or firmware bytes."""
 from __future__ import annotations
+from ecu_studio import __version__
 import argparse
 from collections import Counter
 import hashlib
@@ -16,7 +17,7 @@ def audit(path, output, baseline=None):
     begin=perf_counter()
     maps=scan_calibration_candidates(image)
     elapsed=perf_counter()-begin
-    report={'format':1,'version':'1.14.0','size':image.size,'sha256':image.digest,
+    report={'format':1,'version':__version__,'size':image.size,'sha256':image.digest,
             'profile':identify_profile(image).asdict(),'elapsed_seconds':round(elapsed,3),
             'maps':len(maps),'sources':dict(Counter(m.source for m in maps)),
             'dimensions':dict(Counter('2D' if min(m.rows,m.cols)>1 else 'curve' for m in maps)),

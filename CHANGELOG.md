@@ -1,4 +1,24 @@
-## Unveröffentlicht (18.10.2026)
+## 1.15.0 (21.10.2026)
+
+**Installation und Updates**
+- Windows-Paket ohne Python: ZIP entpacken und `ECU-Studio-AI.exe` starten, oder Installer mit Startmenü-Eintrag und Deinstallation.
+- Automatische Update-Prüfung (abschaltbar unter Einstellungen) mit geprüftem Download, Sicherung der alten Version und automatischer Wiederherstellung bei Fehlern.
+
+**Kennfelderkennung** (gemessen gegen Hersteller-A2L)
+- Bosch EDC17CP09: exakt erkannte Kennfelder 46 → 157, Präzision 62 → 71 %.
+- Siemens MSD80/MSD85 (unabhängige Testdaten): 91–96 → 133–148 exakt.
+- Achsen gespeicherter Datensätze werden als eigene Kandidaten gemeldet (85–92 % exakt).
+- Denso/SH-2 (Subaru), ME7.5-Speicherbasis, 68k-Verweise (GM) neu; schnellere Suche.
+
+**Definitionen und Sicherheit**
+- A2L-Datensätze mit gespeicherten Achsen werden importiert; Software-Kennung (EPK) wird geprüft, auch bei Segmentkopplung.
+- Flash-Preflight prüft jede geänderte Byteposition und Zwillingskennfelder auf gleiche Änderung; Prüfsummen, Preflight und Flashvalidierung werden getrennt ausgewiesen.
+- Checksummen: weitere Verfahren, Korrektur mit Byte-Vorschau, Suche unbekannter Prüfsummen-Layouts.
+- WinOLS-Projekte (.ols/.kp) werden klar abgewiesen statt als Rohdatei geöffnet.
+
+Unterstützte Steuergeräte und Messwerte: docs/ECU_SUPPORT.md. Keine Flashfreigabe – geänderte Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen.
+
+## Entwicklungsverlauf zu 1.15.0 (18.–21.10.2026)
 
 - Neue rasterfreie Strukturerkennung (`core/structure_scan.py`): Spaltenzahl und Zeilenzahl werden aus der Datenwiederholung abgeleitet statt aus festen Rastern (8×8, 16×16 …); 8/16 Bit, Little/Big Endian, robuste Ausreißer-Prüfung.
 - C16x-Code-Referenzen (Seite+Offset-Ladebefehle) als exakte Start-Hinweise; trennt lückenlos gepackte Kennfelder. Auf MS43 nachgewiesen, auf MS42 ohne Wirkung (andere Adressierung).
