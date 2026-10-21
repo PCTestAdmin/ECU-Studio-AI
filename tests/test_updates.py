@@ -235,3 +235,23 @@ def test_package_metadata_and_runtime_version_agree():
     from ecu_studio import __version__
     toml = (Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text(encoding='utf-8')
     assert re.search(r'^version = "([^"]+)"', toml, re.M).group(1) == __version__
+
+
+@windows
+def test_updater_survives_foreign_powershell7_module_path(setup, tmp_path, monkeypatch):
+    # GitHub runner: Windows PowerShell 5.1 started from a PowerShell 7 environment inherited
+    # PSModulePath and reported "Get-FileHash is not recognized". The updater now resets the
+    # module path and hashes via .NET; this test runs it with a hostile module path.
+    fake = tmp_path / 'ps7modules' / 'Microsoft.PowerShell.Utility'
+    fake.mkdir(parents=True)
+    # Like PowerShell 7's module: claims PS 3.0, but its binary cannot load in Windows PowerShell.
+    (fake / 'Microsoft.PowerShell.Utility.psd1').write_text(
+        "@{ GUID = '1da87e53-152b-403e-98dc-74d7b4d63d59'; ModuleVersion = '7.9.9'; PowerShellVersion = '3.0'; "
+        "NestedModules = 'Microsoft.PowerShell.Commands.Utility.dll'; "
+        "CmdletsToExport = 'Get-FileHash','ConvertFrom-Json','Get-Date','Add-Type','Select-Object' }")
+    (fake / 'Microsoft.PowerShell.Commands.Utility.dll').write_bytes(b'MZ not a real assembly')
+    monkeypatch.setenv('PSModulePath', str(tmp_path / 'ps7modules'))
+    install, archive, digest, _ = setup
+    result = _run(install, archive, digest)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.15.0'

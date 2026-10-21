@@ -188,5 +188,7 @@ class UpdateController:
                    '-File', str(script), '-InstallDir', str(root), '-Archive', str(archive), '-Sha256', digest,
                    '-WaitPid', str(os.getpid()), '-LogFile', str(work / 'update.log'), '-Relaunch']
         flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
-        subprocess.Popen(command, creationflags=flags, close_fds=True)
+        # Windows PowerShell must not inherit a PowerShell 7 module path (see updater.ps1).
+        env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
+        subprocess.Popen(command, creationflags=flags, close_fds=True, env=env)
         return True

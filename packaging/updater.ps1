@@ -26,9 +26,27 @@ param(
     [switch]$Relaunch
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell started from a PowerShell 7 session inherits PSModulePath and may then
+# load PS7 modules that cannot work here ("Get-FileHash is not recognized"). Use only the
+# built-in Windows PowerShell modules.
+if ($PSVersionTable.PSEdition -ne 'Core') {
+    $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$PSHOME\Modules"
+    foreach ($module in 'Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Utility', 'Microsoft.PowerShell.Security') {
+        Import-Module "$PSHOME\Modules\$module" -ErrorAction SilentlyContinue
+    }
+}
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $ExeName = 'ECU-Studio-AI.exe'
 $PackageFolder = 'ECU-Studio-AI'
+
+function Get-Sha256([string]$path) {
+    # .NET directly: no dependency on the Get-FileHash cmdlet/module.
+    $stream = [System.IO.File]::OpenRead($path)
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
+    } finally { $stream.Dispose() }
+}
 
 function Log([string]$text) {
     $line = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $text
@@ -61,7 +79,7 @@ if ($WaitPid -gt 0) {
 if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $ExeName))) { Fail 2 "Keine Installation gefunden in $InstallDir." }
 
 # 2. Archive integrity.
-$actual = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
+$actual = Get-Sha256 $Archive
 if ($actual -ne $Sha256.ToLowerInvariant()) { Fail 2 'Prüfsumme des Update-Pakets stimmt nicht – nichts wurde verändert.' }
 
 # 3. Unpack into staging.
@@ -82,7 +100,7 @@ $inventory = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | Conve
 foreach ($entry in $inventory.files) {
     $file = Join-Path $new ($entry.path -replace '/', '\')
     if (-not (Test-Path -LiteralPath $file)) { Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 "Datei fehlt im Update: $($entry.path)" }
-    if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) {
+    if ((Get-Sha256 $file) -ne $entry.sha256) {
         Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 "Datei im Update beschädigt: $($entry.path)"
     }
 }
