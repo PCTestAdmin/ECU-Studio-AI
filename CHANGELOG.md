@@ -15,6 +15,14 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Neue Steuergeräte-Familien validierbar machen**
+- Identifikation erkennt zusätzlich Klartext-Kennungen von Continental/Siemens (Simos, SID, MSV, MSD) und MD1/MG1;
+  auf den 27 Referenzdateien keine falsche Familie. Matrix-Zuordnung fällt auf die übergeordnete Familie zurück
+  (SIMOS18.1 → Simos 18).
+- Neu: `tools/validate_pair.py` – ein Befehl misst für ein Original + passende A2L Kennung, exakte Kennfelder, Typ,
+  Achsen, Präzision und Fehlfunde und schreibt eine Ergebniszeile; `support_matrix` übernimmt sie (auch für Familien
+  ohne bisherige Messung). MD1, MG1, Simos, SID, MED17.5/17.7 bleiben **nicht validiert**, bis echte Paare gemessen sind.
+
 **Vertrauen: signierte Updates**
 - Ed25519-Signaturen nach RFC 8032 (reines Python, gegen die RFC-Testvektoren geprüft, keine neue Abhängigkeit).
 - Release-Workflow signiert ZIP und Installer, sobald das Secret `UPDATE_SIGNING_KEY` existiert; ist ein öffentlicher

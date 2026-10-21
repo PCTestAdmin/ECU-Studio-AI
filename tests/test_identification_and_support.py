@@ -86,3 +86,25 @@ def test_support_dialog_shows_every_family():
     assert dialog.table.rowCount() == len(support.load())
     cells = [dialog.table.item(r, 2).text() for r in range(dialog.table.rowCount())]
     assert any('validiert' in c for c in cells)
+
+
+def test_continental_plain_text_names_and_parent_lookup():
+    assert identify(_image(b'SIMOS 18.1')).family == 'SIMOS18.1'
+    assert identify(_image(b'SID807EVO')).family == 'SID807EVO'
+    assert identify(_image(b'MG1CS002')).family == 'MG1CS002'
+    assert identify(_image(b'xxSIDE')).family is None                 # no digits, no family
+    assert support.lookup('SIMOS18.1').family.startswith('Continental Simos')
+    assert support.lookup('MED17.1.62.9').family == 'Bosch MED17.1.62'
+
+
+def test_matrix_takes_new_family_measurements_by_family_name():
+    from ecu_studio.tools.support_matrix import build
+    row = {'name': 'Bosch MG1CS002 probe', 'family': 'Bosch MG1CS002', 'role': 'test', 'complete_reference': True,
+           'group': 'x', 'reference_2d': 100, 'found_2d': 80, 'exact_2d': 60, 'type_exact_2d': 55, 'axes_correct': 50,
+           'with_axes': 50, 'reference_1d': 10, 'exact_1d': 5, 'seconds': 1.0, 'peak_mb': None, 'recall_2d': .7,
+           'precision_2d': .8, 'false_positives_2d': 16}
+    entries = {e['family']: e for e in build([{'rows': [row]}])['entries']}
+    mg1 = next(e for name, e in entries.items() if name.startswith('Bosch MG1'))
+    assert mg1['status'] == 'validiert' and mg1['software'][0]['exact_2d'] == 60
+    md1 = next(e for name, e in entries.items() if name.startswith('Bosch MD1'))
+    assert md1['status'] == 'nicht validiert' and not md1['software']

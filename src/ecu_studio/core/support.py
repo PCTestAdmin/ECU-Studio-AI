@@ -54,8 +54,16 @@ def lookup(family: str | None) -> SupportEntry | None:
     """Entry whose match names equal the identified family (case-insensitive, no dots/underscores)."""
     if not family:
         return None
-    key = family.upper().replace('.', '').replace('_', '').replace(' ', '')
-    for e in load():
-        if any(key == m.upper().replace('.', '').replace('_', '').replace(' ', '') for m in e.match):
-            return e
-    return None
+
+    def norm(text: str) -> str:
+        return text.upper().replace('.', '').replace('_', '').replace(' ', '')
+    # Exact variant first, then its parent family (SIMOS18.1 -> SIMOS18, MED17.1.62 -> MED17.1).
+    name = family
+    while True:
+        key = norm(name)
+        for e in load():
+            if any(key == norm(m) for m in e.match):
+                return e
+        if '.' not in name:
+            return None
+        name = name.rsplit('.', 1)[0]

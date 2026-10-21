@@ -74,6 +74,15 @@ MIN_PRECISION = .5
 EXPERIMENTAL: set[str] = set()
 
 
+def _norm(text: str) -> str:
+    return text.upper().replace('.', '').replace('_', '').replace(' ', '')
+
+
+def _family_hit(family: str, names: list[str]) -> bool:
+    f = _norm(family)
+    return any(_norm(n) in f for n in names)
+
+
 def _row_metrics(r: dict) -> dict:
     out = {k: r.get(k) for k in ('reference_2d', 'found_2d', 'exact_2d', 'type_exact_2d', 'axes_correct',
                                   'with_axes', 'reference_1d', 'exact_1d', 'seconds', 'peak_mb')}
@@ -88,7 +97,10 @@ def build(results: list[dict]) -> dict:
     entries = []
     for family, match, cpu, prefixes, limits, needed in FAMILIES:
         experimental = family in EXPERIMENTAL
-        mine = [r for r in rows if any(r['name'].startswith(p) for p in prefixes)]
+        # Families without benchmark-name prefixes take rows by their family text
+        # (e.g. measured with tools/validate_pair --family "Bosch MG1CS002").
+        mine = [r for r in rows if any(r['name'].startswith(p) for p in prefixes)
+                or (not prefixes and _family_hit(r.get('family', ''), match))]
         software = [{'name': r['name'], 'role': r['role'], 'complete_reference': r['complete_reference'],
                      'group': r['group'], **_row_metrics(r)} for r in mine]
         complete = [r for r in mine if r['complete_reference']]

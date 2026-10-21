@@ -9,7 +9,8 @@ Sources (measured on local reference images, see docs/ECU_SUPPORT.md):
   Placeholder EPKs (``X000``, ``____``) as in BMW EDC16 dumps are ignored.
 - Bosch hardware ``0261…`` (petrol) / ``0281…`` (diesel), software ``1037…``/``1039…``.
 - VAG part numbers of engine control units (``8V0907404A``, ``06A906032HS``).
-- Siemens/Continental hardware ``5WK9…``.
+- Siemens/Continental hardware ``5WK9…`` and plain-text family names (Simos, SID, MSV, MSD).
+  These patterns are not yet measured on real Continental files (none available).
 Calibration-only dumps (MSD80/MSD85, ME9.2.1) often hold none of these; their
 identity comes from a matching A2L (EPK check in a2l.py).
 """
@@ -24,13 +25,16 @@ BOSCH_HW = re.compile(rb'(02[68][01][0-9]{6})')   # often directly next to the S
 BOSCH_SW = re.compile(rb'(103[79][0-9]{6})')
 VAG_PN = re.compile(rb'(?<![0-9A-Z])([0-9][0-9A-Z][0-9A-Z]90[67][0-9]{3}[A-Z]{0,3})(?![0-9A-Z])')
 SIEMENS_HW = re.compile(rb'(?<![0-9A-Z])(5WK9[0-9]{3,4})(?![0-9])')
-FAMILY_TEXT = re.compile(rb'(?<![A-Z0-9])(EDC1[567](?:_?C[P]?[0-9]{2})?|MEV?D?1[67](?:\.[0-9]{1,2}){0,3}|MED9[0-9.]{0,4}|ME7(?:\.[0-9])?|MD1C[PS][0-9]{3}|MG1C[PS][0-9]{3})(?![A-Z0-9])')
+FAMILY_TEXT = re.compile(rb'(?<![A-Z0-9])(EDC1[567](?:_?C[P]?[0-9]{2})?|MEV?D?1[67](?:\.[0-9]{1,2}){0,3}|MED9[0-9.]{0,4}|ME7(?:\.[0-9])?'
+                         rb'|MD1C[PS][0-9]{3}|MG1C[PS][0-9]{3}'
+                         # Continental / Siemens VDO plain-text family names
+                         rb'|SIMOS ?[0-9]{1,2}(?:\.[0-9]{1,2})?|SID ?[0-9]{3}(?:EVO)?|MSV ?[78]0|MSD ?8[0157])(?![A-Z0-9])')
 PLACEHOLDER = re.compile(r'X000|_{4,}|999/')
 
 
 def _family_name(raw: str) -> str:
-    """Bosch notation: EDC17_CP09 -> EDC17CP09, MED91 -> MED9.1, ME701 -> ME7.0.1."""
-    s = raw.replace('_', '')
+    """Bosch notation: EDC17_CP09 -> EDC17CP09, MED91 -> MED9.1, ME701 -> ME7.0.1; 'SIMOS 18.1' -> SIMOS18.1."""
+    s = raw.replace('_', '').replace(' ', '')
     m = re.fullmatch(r'(MED9|ME7)([0-9])([0-9]?)', s)
     if m and '.' not in s:
         return m.group(1) + '.' + m.group(2) + ('.' + m.group(3) if m.group(3) else '')
