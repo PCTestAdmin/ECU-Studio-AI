@@ -9,6 +9,7 @@ after the app has closed, with backup and rollback. Nothing runs without the
 user's consent and nothing unverified is ever executed.
 """
 from __future__ import annotations
+import base64
 import hashlib
 import json
 import re
@@ -53,6 +54,7 @@ class Release:
     archive_size: int
     checksum_url: str
     api_digest: str | None      # 'sha256:<hex>' from the API, if GitHub provides it
+    signature_url: str | None = None   # '<archive>.sig': Ed25519 signature (core/signing.py)
 
 
 def _official_download(url: str) -> bool:
@@ -77,13 +79,18 @@ def parse_release(payload: dict) -> Release | None:
     for asset in (archive, checksum):
         if not _official_download(asset.get('browser_download_url', '')):
             return None
+    signature = assets.get(name + '.sig')
+    signature_url = signature.get('browser_download_url', '') if signature else None
+    if signature_url is not None and not _official_download(signature_url):
+        return None
     digest = archive.get('digest')
     # The generic installation footer (after '---') belongs on the release page, not in the update dialog.
     notes = str(payload.get('body') or '').split('\n---\n', 1)[0].strip()
     return Release(text, notes, str(payload.get('html_url') or ''),
                    name, archive['browser_download_url'], int(archive.get('size') or 0),
                    checksum['browser_download_url'],
-                   digest if isinstance(digest, str) and digest.startswith('sha256:') else None)
+                   digest if isinstance(digest, str) and digest.startswith('sha256:') else None,
+                   signature_url)
 
 
 def _get(url: str, opener=None, accept: str = 'application/octet-stream'):
@@ -126,6 +133,22 @@ def _expected_sha256(text: str, name: str) -> str:
     raise UpdateError('Prüfsummendatei des Updates ist ungültig.')
 
 
+def _check_signature(release: Release, sha256_hex: str, opener=None) -> None:
+    from .signing import trusted_key, update_message, verify
+    key = trusted_key()
+    if key is None:
+        return
+    if not release.signature_url:
+        raise UpdateError('Update ist nicht signiert – abgebrochen (diese Version verlangt eine Signatur).')
+    try:
+        with _get(release.signature_url, opener) as response:
+            signature = base64.b64decode(response.read(256).strip(), validate=True)
+    except Exception as exc:
+        raise UpdateError(f'Signatur konnte nicht geladen werden: {exc}') from exc
+    if not verify(key, update_message(release.archive_name, sha256_hex), signature):
+        raise UpdateError('Signatur des Updates ist ungültig – abgebrochen, nichts wurde geladen.')
+
+
 def download(release: Release, target_dir: Path, opener=None, progress=None, cancelled=None) -> tuple[Path, str]:
     """Download and verify the package; returns (path, sha256). Deletes it on any mismatch."""
     if not (_official_download(release.archive_url) and _official_download(release.checksum_url)):
@@ -142,6 +165,9 @@ def download(release: Release, target_dir: Path, opener=None, progress=None, can
         raise UpdateError(f'Prüfsumme konnte nicht geladen werden: {exc}') from exc
     if release.api_digest and release.api_digest.split(':', 1)[1].lower() != expected:
         raise UpdateError('Prüfsummendatei und GitHub-Angabe widersprechen sich – Update abgebrochen.')
+    # With a maintainer key shipped in the app, the expected SHA-256 must carry its signature,
+    # checked BEFORE the package is fetched (a forged .sha256 file is not enough).
+    _check_signature(release, expected, opener)
     path = target_dir / release.archive_name
     partial = path.with_suffix('.part')
     digest, received = hashlib.sha256(), 0

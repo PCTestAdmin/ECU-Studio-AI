@@ -41,6 +41,23 @@ Der Workflow nutzt nur das automatische `GITHUB_TOKEN` mit `contents: write` (Re
 und `attestations: write` (Herkunftsbestätigung). Sollte die Organisation/das Repository Workflow-Schreibrechte
 einschränken: Settings → Actions → General → „Workflow permissions“ → „Read and write permissions“ aktivieren.
 
+## Signierte Updates einrichten (Ed25519, empfohlen)
+
+Zusätzlich zu SHA-256 und Build-Herkunft kann jedes Update mit einem eigenen Schlüssel signiert werden. Danach
+installieren ausgelieferte Apps **nur noch** Updates mit gültiger Signatur – auch eine gefälschte `.sha256`-Datei
+reicht dann nicht mehr. Einmalig:
+
+1. Schlüssel erzeugen (Pfad **außerhalb** des Repositorys):
+   `python -m ecu_studio.tools.sign_release keygen --secret-out C:\Sicher\update_signing.key`
+2. Inhalt der Datei als Repository-Secret hinterlegen: GitHub → Settings → Secrets and variables → Actions →
+   *New repository secret* → Name `UPDATE_SIGNING_KEY`, Wert = Inhalt der Datei.
+3. Die erzeugte Datei `src/ecu_studio/recognition/data/update_signing_key.pub` committen.
+
+Ab dem nächsten Tag signiert der Workflow ZIP und Installer (`.sig`-Dateien im Release). Fehlt das Secret, obwohl
+ein öffentlicher Schlüssel im Repository liegt, **bricht der Release ab** – sonst würden installierte Apps das
+Update ablehnen. Den geheimen Schlüssel sicher aufbewahren: Ohne ihn lassen sich keine Updates mehr ausliefern,
+die bestehende Installationen annehmen (dann nur Neuinstallation).
+
 ## Code-Signatur (optional, empfohlen)
 
 Die EXE ist bisher nicht signiert. Mit einem Code-Signing-Zertifikat (z. B. Azure Trusted Signing oder ein

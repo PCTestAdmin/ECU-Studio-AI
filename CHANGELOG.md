@@ -15,12 +15,20 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Vertrauen: signierte Updates**
+- Ed25519-Signaturen nach RFC 8032 (reines Python, gegen die RFC-Testvektoren geprüft, keine neue Abhängigkeit).
+- Release-Workflow signiert ZIP und Installer, sobald das Secret `UPDATE_SIGNING_KEY` existiert; ist ein öffentlicher
+  Schlüssel im Repository, fehlt aber das Secret oder passt es nicht, bricht der Release ab.
+- Die App verlangt eine gültige Signatur, sobald ein öffentlicher Schlüssel eingebaut ist – geprüft wird **vor** dem
+  Download, gebunden an Dateiname und SHA-256. Einrichtung: `docs/RELEASE.md` → „Signierte Updates einrichten“.
+
 **Prüfsummen** (neu: *Werkzeuge → Prüfsummen-Tabellen der Datei prüfen / korrigieren …*)
 - Selbstbeschreibende Prüfsummen-Tabellen (Start, Ende, Wert, ~Wert) werden gefunden; ein Block gilt nur als bewiesen,
   wenn ein Verfahren den gespeicherten Wert am **unveränderten Original exakt** reproduziert (Basisadresse, Byte-Reihenfolge
   und Verfahren kommen aus der Datei, nicht aus einer Familienliste).
 - Gemessen an Originaldateien: ME7.5 (2 Stände) 68/68 und 70/70 Blöcke, ME7 Volvo 51/52 und 67/68, MED9 66/68, ME9 63/63
-  (32-Bit-Wortsumme). EDC16C31/C35 und EDC17CP09: Tabellen gefunden, Verfahren **unbekannt** – keine Korrektur.
+  (32-Bit-Wortsumme). EDC16C31/C35 und EDC17CP09: Die gefundenen Einträge sind offenbar keine Prüfsummen
+  (Füllmuster, unplausible Bereiche); kein Verfahren reproduziert sie – keine Korrektur.
 - Korrektur mit Byte-Vorschau, verketteter Blöcke in mehreren Durchgängen, Endprüfung aller Blöcke, sonst Rücknahme;
   rückgängig machbar. Prüfbericht vor dem Export warnt bei falschen Tabellen-Prüfsummen. Signaturen (z. B. RSA) und
   weitere ECU-Prüfungen sind nicht abgedeckt – keine Flashfreigabe.

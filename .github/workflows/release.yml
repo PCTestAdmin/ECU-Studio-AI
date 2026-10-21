@@ -42,6 +42,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer-Build fehlgeschlagen' }
           (Get-FileHash "dist\ECU-Studio-AI-$version-setup.exe" -Algorithm SHA256).Hash.ToLower() + "  ECU-Studio-AI-$version-setup.exe" |
             Set-Content -Encoding ascii "dist\ECU-Studio-AI-$version-setup.exe.sha256"
+      - name: Sign packages (Ed25519, if a signing key is configured)
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          # Fails if the app ships a public key but the secret is missing or does not match.
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          python -m ecu_studio.tools.sign_release sign "dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Signatur fehlgeschlagen' }
       - uses: actions/upload-artifact@v4
         with:
           name: package
@@ -50,6 +59,7 @@ jobs:
             dist/ECU-Studio-AI-*-windows-x64.zip.sha256
             dist/ECU-Studio-AI-*-setup.exe
             dist/ECU-Studio-AI-*-setup.exe.sha256
+            dist/ECU-Studio-AI-*.sig
             dist/release-notes.md
           retention-days: 7
 
@@ -155,6 +165,7 @@ jobs:
             echo "::notice::Release $TAG existiert bereits – Dateien bleiben unverändert."
             exit 0
           fi
-          gh release create "$TAG" --repo "$REPO" --verify-tag --title "ECU Studio AI $version" --notes-file dist/release-notes.md \
-            "dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256" \
-            "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256"
+          files=("dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256"
+                 "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256")
+          for sig in dist/ECU-Studio-AI-*.sig; do if [ -f "$sig" ]; then files+=("$sig"); fi; done
+          gh release create "$TAG" --repo "$REPO" --verify-tag --title "ECU Studio AI $version" --notes-file dist/release-notes.md "${files[@]}"

@@ -59,11 +59,11 @@ Die acht wichtigsten Baustellen, nach Priorität. Jede Zeile nennt den **gemesse
 | 🔴 sehr hoch | **1. Genauere Kennfelderkennung** – weniger Fehlfunde, mehr exakte Kennfelder | 🔨 Kopf-Datensätze mit flachen Werten, Vorrang belegter Funde: auf den Testdaten Präzision 66–78 → 81–82 %, exakte Funde rund verdoppelt | 🔬 Code-Verweise für TriCore/PowerPC; Gruppenkennfelder; kleine Datensätze (2 × N) |
 | 🔴 sehr hoch | **2. Moderne ECU-Familien** – EDC17, MED17, MD1, MG1, Simos mit echten Referenzen | ✅ EDC17CP09 validiert (1 Stand) · 🟡 MED17.1.62 nur Teil-Referenz · ⚪ MD1, MG1, Simos, MED17.5/17.7 ohne Daten | 📦 Original-BIN + passende A2L je Familie, möglichst 2 Softwarestände ([was gebraucht wird](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird)) |
 | 🔴 sehr hoch | **3. Intelligente Kennfeldbenennung** – Funktion bestimmen, nicht nur Tabellen | ✅ Namen aus passender A2L/XDF (EPK geprüft) · ✅ Abgleich zwischen Softwareständen · ✅ Einheiten-Vorschläge für Achsen (MS43: 58 % Top-1) · ❌ kein Funktionsklassifikator: es gibt **0** unabhängig bestätigte Trainingskarten ([Modellkarte](docs/MODELLKARTE.md)) | 🔨 Namen aus Schwesterstand übertragen – umgesetzt, MED17 92–96 % richtig, MSD80 100 %; als Nächstes: Funktionsklassifikator nur mit Holdout-Messung |
-| 🟠 hoch | **4. Professionelle Checksummen** – ECU-spezifisch, sichere Exporte | 🔨 Prüfsummen-Tabellen aus der Datei, am Original bewiesen: ME7.5, ME7, MED9, ME9 (68/68 … 63/63 Blöcke), Korrektur mit Vorschau · ✅ Profil-Korrektur, Suche unbekannter Layouts · ❌ EDC16/EDC17: Tabellen gefunden, Verfahren unbekannt | 🔬 EDC16/EDC17-Verfahren (CRC-Varianten) gegen die vorhandenen Originale prüfen; MED17 braucht vollständige Dumps |
+| 🟠 hoch | **4. Professionelle Checksummen** – ECU-spezifisch, sichere Exporte | 🔨 Prüfsummen-Tabellen aus der Datei, am Original bewiesen: ME7.5, ME7, MED9, ME9 (68/68 … 63/63 Blöcke), Korrektur mit Vorschau · ✅ Profil-Korrektur, Suche unbekannter Layouts · ❌ EDC16/EDC17: keine Tabellen dieser Art, CRC32-Varianten passen nicht | 🔬 EDC16/EDC17-Prüfverfahren untersuchen; MED17 braucht vollständige Dumps |
 | 🟠 hoch | **5. ORI/MOD-Vergleich** – Änderungen prüfen und zwischen Ständen übertragen | ✅ Byte- und Zellvergleich mit CSV-Export · ✅ Übertragung physikalischer Änderungen mit Vorschau und Einheitenprüfung | 🔨 Differenz-Heatmap und Liste der Änderungen außerhalb bekannter Kennfelder – umgesetzt; offen: Übertragung von Änderungen gegen echte ORI/MOD-Paare messen (es liegen keine vor) |
 | 🟡 wichtig | **6. Schnellere Analyse** – große Dateien effizient | ✅ 2–5 MB in 10–40 s, Spitzenspeicher 36–190 MB (gemessen) | 📋 Datensatz-Suche vektorisieren (größter Zeitanteil); Fortschritt und Abbruch je Stufe |
 | 🟡 wichtig | **7. Besseres Arbeitsinterface** – suchen, filtern, bearbeiten | ✅ Filter, Befehlspalette, Mehrfachbearbeitung, Unterstützungsmatrix | 🔨 Konfidenz-Filter und Hinweisbalken mit Unterstützungsstatus – umgesetzt; 🔬 englische Oberfläche |
-| 🟡 wichtig | **8. Mehr Vertrauen und Sicherheit** – signiert, reproduzierbar, nachvollziehbar | ✅ SHA-256 + Build-Herkunft (`gh attestation verify`) · ✅ Benchmark-Werkzeug, Test/Entwicklung/Training getrennt · ✅ Update-Test vor jedem Release | 📋 Ed25519-signierte Updates · Code-Signatur (Zertifikat nötig) · reproduzierbarer Build |
+| 🟡 wichtig | **8. Mehr Vertrauen und Sicherheit** – signiert, reproduzierbar, nachvollziehbar | 🔨 Ed25519-signierte Updates (aktiv, sobald der Schlüssel eingerichtet ist) · ✅ SHA-256 + Build-Herkunft · ✅ Benchmark, Test/Entwicklung/Training getrennt · ✅ Update-Test vor jedem Release | 📋 Code-Signatur (Zertifikat nötig) · reproduzierbarer Build |
 
 ---
 
@@ -111,8 +111,8 @@ Im Hauptzweig umgesetzt und gemessen, noch nicht als Release veröffentlicht.
 
 | | Thema | Hinweis |
 |:---:|---|---|
-| 🔬 | **Prüfsummen EDC16/EDC17** | Tabellen werden gefunden, aber kein einfaches Verfahren reproduziert sie; CRC-Varianten gegen die vorhandenen Originale prüfen |
-| 📋 | **Signierte Updates** (Ed25519 zusätzlich zu SHA-256 und Build-Herkunft) | Schlüssel bleibt beim Maintainer |
+| 🔬 | **Prüfsummen EDC16/EDC17** | keine selbstbeschreibenden Tabellen; gängige Summen- und CRC32-Varianten passen an den Originalen nicht – andere Verfahren untersuchen |
+| 🔨 | **Signierte Updates** (Ed25519 zusätzlich zu SHA-256 und Build-Herkunft) | umgesetzt; aktiv, sobald der Maintainer den Schlüssel einrichtet (`docs/RELEASE.md`) |
 | 📋 | **Code-Signatur der Windows-Pakete** | beseitigt die SmartScreen-Warnung; braucht ein Code-Signing-Zertifikat |
 
 ### Bedienung

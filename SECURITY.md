@@ -16,6 +16,9 @@ eine minimale, selbst erzeugte Beispieldatei reicht.
 - Umrechnungsformeln werden geparst, nie mit `eval` ausgeführt.
 - Modelle werden als JSON gespeichert, nicht als Pickle.
 - Die Originaldatei wird nie überschrieben; Exporte schreiben atomar mit Sicherung.
+- Updates: nur von den offiziellen Release-Adressen, SHA-256 gegen `.sha256`-Datei **und** GitHub-Angabe,
+  Build-Herkunft (`gh attestation verify`), optional Ed25519-Signatur (RFC 8032, siehe `docs/RELEASE.md`) –
+  ist ein öffentlicher Schlüssel eingebaut, wird ohne gültige Signatur nichts geladen.
 
 ## Nicht im Umfang
 
