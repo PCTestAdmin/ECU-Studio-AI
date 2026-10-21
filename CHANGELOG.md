@@ -3,7 +3,8 @@
 - Repository aufgeräumt und neu gegliedert: `examples/` in `demo/`, `checksum/`, `memory/`, `holdout/`, `templates/` mit Übersicht; `docs/README.md` als Doku-Index; Paketdateien (`launcher.py`, gesperrte Abhängigkeiten) nach `packaging/`; Testdateien mit sprechenden Namen statt Versionsendungen; 59 alte Berichte aus `docs/history/` entfernt (in der Git-Historie bis v1.15.0).
 - Versehentlich committeter Test-Zwischenordner (mit Kopien von `cmd.exe`) aus der gesamten Historie entfernt; neue Repository-Tests verhindern Programmdateien, Archive, Firmware außerhalb von `examples/` und lokale Pfade im Repository.
 - Hinweise beim Öffnen von ZIP-, HEX- und S19-Dateien nennen jetzt die tatsächlichen Menüpunkte.
-- README: Download-Hinweis, Release- und Download-Badges, einheitliche Repository-Links.
+- README neu gestaltet: Banner, Inhaltsübersicht, Installation in drei Schritten, Funktionsübersicht, Erkennungsgüte, Steuergeräte-Tabelle mit Status, Ablaufdiagramm, Sicherheitshinweis.
+- Neu: [docs/PROGRESS.md](docs/PROGRESS.md) – Fortschritt der Kennfelderkennung je Meilenstein und Steuergerät; jeder Stand wurde aus der Git-Historie neu gemessen, mit denselben Referenzen und derselben Messmethode.
 - **Vorherige Version wiederherstellen** (Einstellungen): tauscht die vom Updater angelegte Sicherung mit der aktuellen Version, Selbsttest, bei Fehlschlag zurück; die ersetzte Version bleibt als Sicherung (Updater-Modus `-Restore`, getestet: hin, zurück, defekte Sicherung, keine Sicherung).
 - **Update-Praxistest vor jeder Veröffentlichung:** Der Release-Workflow aktualisiert auf Windows Server 2022 und 2025 das zuletzt veröffentlichte Release mit dessen eigenem Updater, prüft Oberfläche, Wiederherstellen und Installer; nur bei Erfolg wird veröffentlicht.
 - Hinweis zur Windows-SmartScreen-Warnung (nicht code-signiert) in README und automatisch in jedem Release-Text; im Update-Fenster wird dieser allgemeine Teil ausgeblendet.

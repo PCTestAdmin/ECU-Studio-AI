@@ -1,272 +1,290 @@
 <div align="center">
 
-# ECU Studio AI
+<img src="docs/images/social-preview.png" alt="ECU Studio AI – Kennfelder finden, verstehen und nachvollziehbar bearbeiten" width="860">
 
-**Kalibrier-Workbench für Motor- und Getriebesteuergeräte –
-Kennfelder finden, verstehen und nachvollziehbar bearbeiten, auch ohne Definition.**
+<br>
 
-[![Release](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?label=Downloads)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
+[![Version](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?label=Downloads&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
 [![Tests](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml/badge.svg)](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml)
-[![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-blue.svg)](LICENSE)
-[![Python 3.10–3.13](https://img.shields.io/badge/Python-3.10%E2%80%933.13-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
-[![Plattform: Windows](https://img.shields.io/badge/Plattform-Windows-0078D6.svg?logo=windows&logoColor=white)](#installation)
-[![Oberfläche: PySide6](https://img.shields.io/badge/UI-PySide6%20(Qt%206)-41CD52.svg?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
+[![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-2f81f7)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#installation)
 
-**[⬇ Windows-Version herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)** –
-ZIP entpacken und `ECU-Studio-AI.exe` starten oder den Installer ausführen. Kein Python nötig, Updates kommen automatisch.
+**Open-Source-Kalibrier-Workbench für Motor- und Getriebesteuergeräte.**<br>
+Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und schützt vor Fehlern beim Bearbeiten.
 
-![Heatmap mit Farbskala](docs/images/dark-heatmap.png)
+<br>
+
+[![Herunterladen](https://img.shields.io/badge/⬇_Herunterladen-Windows_x64-2ea043?style=for-the-badge)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
+&nbsp;
+[![Fortschritt](https://img.shields.io/badge/📈_Fortschritt-je_Version-8957e5?style=for-the-badge)](docs/PROGRESS.md)
+&nbsp;
+[![Steuergeräte](https://img.shields.io/badge/🚗_Steuergeräte-gemessen-d29922?style=for-the-badge)](docs/ECU_SUPPORT.md)
+
+<sub>Kein Python nötig · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
 
 </div>
 
+---
+
 ## Inhalt
-
-- [Was es kann](#was-es-kann)
-- [So funktioniert die Erkennung](#so-funktioniert-die-erkennung)
-- [Gemessene Erkennungsgüte](#gemessene-erkennungsgüte)
-- [Unterstützte Steuergeräte](#unterstützte-steuergeräte)
-- [Installation](#installation)
-- [Entwicklung](#entwicklung)
-- [Roadmap](#roadmap)
-- [Mitmachen](#mitmachen)
-- [Wichtige Hinweise](#wichtige-hinweise)
-
-## Was es kann
 
 | | |
 |---|---|
-| 🔍 **Kennfeldsuche ohne Definition** | Findet Kennfelder, Kennlinien und Achsen direkt in den Rohdaten – über Datenmuster, Achsen-Arrays und Verweise im Programmcode. |
-| 🧮 **Checksummen** | Prüfen mit geprüften Profilen (CRC16/32, Wort-/Doppelwortsummen, Komplement, Teilbereiche), Korrektur mit Byte-Vorschau, Suche unbekannter Layouts mit Zufallsniveau (`tools/checksum_search`). |
-| 📊 **Kalibrierte Konfidenz** | Jede Fundstelle zeigt die *gemessene* Trefferquote ihrer Beweisart: **gesichert**, **wahrscheinlich** oder **Vermutung**. |
-| 🛡️ **Flash-Preflight** | Prüft jede geänderte Byteposition: Programmcode, unveränderte Zwillings- und Überwachungskopien, zerstörte Achsen, ungewöhnliche Sprünge. Ohne verifizierte Checksumme nie „flashbereit“. |
-| 🕸️ **Funktionsgraph** | Zeigt, welche Kennfelder dieselbe Code-Routine liest oder dieselben Achsen nutzt. |
-| 📡 **Signal-Tracing** | Ermittelt die RAM-Eingänge jedes Kennfeldzugriffs – direkt als Logger-Liste nutzbar. |
-| 📐 **Achsen-Semantik** | Schlägt Größe und Skalierung von Stützstellen vor (Drehzahl, Temperatur, Last …). |
-| 🔗 **Definitionen koppeln** | TunerPro XDF (XML und Textformat 1.x), A2L/DAMOS mit Datensätzen samt gespeicherter Achsen (`STD_AXIS`, `COM_AXIS`) und Speicherbasis aus der Firmware, RomRaider-XML, CSV; Standard-XDFs für Siemens MS41/42/43 inklusive. |
-| 🎨 **Ansichten** | Hex-Editor, 2D-Rohdaten, farbcodierte Tabelle, Heatmap, 3D-Fläche, ORI/MOD-Kurven, Speicheratlas – hell und dunkel. |
-| ↩️ **Sicher bearbeiten** | Original bleibt unverändert, Undo/Redo, Projektstände, Batch mit Vorschau, Änderungsprotokoll. |
+| [🚀 Installation](#installation) | Herunterladen, starten, aktualisieren |
+| [✨ Funktionen](#funktionen) | Erkennen, prüfen, bearbeiten |
+| [📊 Erkennungsgüte](#erkennung) | Gemessen gegen Hersteller-Definitionen |
+| [🚗 Steuergeräte](#steuergeraete) | Was unterstützt und was gemessen ist |
+| [⚙️ So funktioniert es](#funktionsweise) | Vom Byte zum Kennfeld |
+| [🛡️ Sicherheit](#sicherheit) | Preflight, Prüfsummen, Grenzen |
+| [🧑‍💻 Entwicklung](#entwicklung) | Quellcode, Tests, Releases |
 
-| Kennfeldtabelle (hell) | 3D-Ansicht (dunkel) |
+---
+
+<a id="installation"></a>
+
+## 🚀 Installation
+
+> **Drei Schritte, ohne Python oder Terminal.**
+
+1. **[Neueste Version herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)**
+   - `ECU-Studio-AI-<version>-windows-x64.zip` – **portabel**: entpacken, fertig
+   - `ECU-Studio-AI-<version>-setup.exe` – **Installer**: Startmenü-Eintrag und Deinstallation, ohne Administratorrechte
+2. `ECU-Studio-AI.exe` starten.
+3. **Datei → BIN öffnen …** – zum Ausprobieren liegt unter [`examples/demo`](examples/README.md) eine synthetische Demo-Datei.
+
+<details>
+<summary><b>⚠️ Windows meldet „Der Computer wurde durch Windows geschützt“?</b></summary>
+<br>
+
+ECU Studio AI ist noch **nicht code-signiert**, deshalb warnt Windows SmartScreen beim ersten Start.
+
+- Im Fenster **„Weitere Informationen“** → **„Trotzdem ausführen“**, oder
+- **vor dem Entpacken**: Rechtsklick auf die ZIP → **Eigenschaften** → **„Zulassen“** anhaken → OK.
+
+Echtheit prüfen: Die SHA-256 der Datei (`Get-FileHash <datei>`) muss mit der `.sha256`-Datei des Releases
+übereinstimmen; die Build-Herkunft belegt `gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI`.
+</details>
+
+<details>
+<summary><b>🔄 Wie funktionieren die automatischen Updates?</b></summary>
+<br>
+
+| Schritt | Was passiert |
 |---|---|
-| ![Tabelle](docs/images/light-table.png) | ![3D](docs/images/dark-3d.png) |
+| Prüfen | Beim Start und höchstens einmal täglich über die GitHub-Releases-API – nur **stabile** Versionen. Abschaltbar unter **Einstellungen**. Ohne Internet passiert still nichts. |
+| Fragen | Fenster mit Version und Änderungen: **Jetzt aktualisieren** · **Später erinnern** · **Diese Version überspringen**. |
+| Laden | Nur von den Releases dieses Repositorys; SHA-256 gegen die veröffentlichte Prüfsumme **und** GitHubs eigene Angabe. |
+| Installieren | Erst nach dem Schließen (ungespeicherte Arbeit wird abgefragt) durch einen separaten Updater: jede Datei geprüft, eigene Dateien übernommen, alte Version gesichert. |
+| Absichern | Selbsttest der neuen Version – bei einem Fehler automatisch zurück zur alten. **Einstellungen → Vorherige Version wiederherstellen …** holt sie jederzeit zurück. |
 
-<sub>Screenshots mit der synthetischen Demo-Datei `examples/demo/demo_multi_map.bin`.</sub>
+Projekte (`%USERPROFILE%\.ecu_studio_ai`) und Einstellungen liegen außerhalb des Programmordners und bleiben
+unberührt. Protokoll: `%LOCALAPPDATA%\ECUStudioAI\updates\update.log`. Vor jeder Veröffentlichung wird genau dieser
+Weg automatisch auf Windows Server 2022 und 2025 durchgespielt.
+</details>
 
-## So funktioniert die Erkennung
+---
 
-```mermaid
-flowchart LR
-    BIN[BIN-Datei] --> P{Profil bekannt?}
-    P -- ja --> W[Kalibrierfenster]
-    P -- nein --> M[Code/Daten-Trennung]
-    W --> E
-    M --> E
-    subgraph E[Evidenz sammeln]
-        C[Code-Verweise<br/>C16x · 68k · HC11 · 8051<br/>Denso-Zeigerblöcke]
-        A[Achsen-Arrays<br/>mit Anzahl-Präfix]
-        L[Lookup-Aufrufe<br/>Kennfeld + Achsenzeiger]
-        D[Datenmuster<br/>Zeilenabstand · Glätte]
-    end
-    E --> R[Lesarten gegeneinander<br/>abwägen]
-    R --> K[Konfidenz aus<br/>gemessenen Trefferquoten]
-    K --> UI[Katalog · Funktionsgraph<br/>Signal-Tracing]
-```
+<a id="funktionen"></a>
 
-Wo der Programmcode auf ein Kennfeld zeigt, stimmt der Start praktisch immer. Wo nur Datenmuster sprechen,
-ist es eine Vermutung – und wird auch so angezeigt. Alle Funde sind **Geometrie-Hypothesen**: Name,
-Einheit und Funktion kommen nur aus einer passenden Definition oder deiner Prüfung.
+## ✨ Funktionen
 
-## Gemessene Erkennungsgüte
+<table>
+<tr>
+<td width="33%" valign="top">
 
-Blind gemessen gegen öffentliche Definitionen – die Definition dient nur als Referenz, nie als Eingabe
-(`python -m ecu_studio.tools.structure_benchmark BIN XDF`). 2D-Kennfelder ab 4×4:
+### 🔍 Erkennen
+- **Kennfelder ohne Definition** – über Programmcode-Verweise, Datensätze mit Achsen und Datenmuster
+- **Achsen** erkannt und zugeordnet, Skalierungsvorschläge
+- **Gemessene Konfidenz** je Fund: *gesichert*, *wahrscheinlich* oder *Vermutung*
+- **Dubletten** und Überwachungskopien markiert
+- Funktionsgraph und Signal-Tracing
 
-| Datei | gefunden | exakt (Start, Größe, Breite) | Präzision |
-|---|---|---|---|
-| Siemens MS43 430069 | **66 %** (vorher 4,5 %) | **197** von 379 (vorher 1) | **80 %** |
-| Siemens MS42 0110C6 | **50 %** (vorher 13 %) | 22 von 213 (vorher 5) | **72 %** |
-| Bosch ME7 (Volvo, 3 Stände) | **54–71 %** (vorher 5–10 %) | je 6 (vorher 0) | nicht belastbar¹ |
-| Bosch ME7.5 (VAG 06A906032HS) | 46 % (vorher 36 %) | 50 (vorher 16), Kennlinien 132 | nicht belastbar¹ |
-| Bosch ME7.5 (VAG 8E0909518AK) | 57 % (vorher 43 %) | 37 (vorher 16), Kennlinien 41 | nicht belastbar¹ |
-| Denso SH-2 (Subaru 5EAT, 9 ROMs) | **93–100 %** (vorher 35–53 %) | **147–178** (vorher 15–27) | nicht belastbar¹ |
-| GM P01 (68k) | 35 % (vorher 21 %) | 10 (vorher 1), Kennlinien 21 | nicht belastbar¹ |
-| Volvo M4.4 (8051) | 54 % | 8 | nicht belastbar¹ |
-| **Bosch EDC17CP09 (Hersteller-A2L, TriCore)** | 30 % | 157 von 703 | **71 %** |
-| **Siemens MSD85 (Hersteller-A2L, unabhängiger Test)** | 24 % | 148 von 1026 | **74 %** |
-| **Siemens MSD80 (Hersteller-A2L, unabhängiger Test)** | 29 % | 133–137 von 864 | **77–78 %** |
-| **Bosch EDC16C35 / C31 (Hersteller-A2L)** | 40 % / 48 % | 111 / 123 | **66 % / 71 %** |
-| **BMW ME9 (Hersteller-A2L)** | 36 % | 41 von 233 | **50 %** |
-| **BMW ME9.2.1 (Hersteller-A2L)** | 44 % | 109 von 460 | **69 %** |
-| **Siemens MS45 (Hersteller-A2L)** | 18 % | 28 von 472 | **67 %** |
-| Bosch MED17.1.62 (TriCore, 6 Stände) | 11–16 % | 38–53 | nicht belastbar¹ |
-| Bosch MED9 (PowerPC) | 51 % | 9 | nicht belastbar¹ |
+</td>
+<td width="33%" valign="top">
 
-Die A2L-Zeilen sind die einzigen vollständigen Herstellerreferenzen; dort ist die Präzision belastbar.
+### 🛡️ Prüfen
+- **Flash-Preflight** für jede geänderte Byteposition
+- **Zwillingskennfelder** auf gleiche Änderung geprüft
+- **Checksummen** mit geprüften Profilen, Korrektur mit Byte-Vorschau, Suche unbekannter Layouts
+- Software-Kennung (EPK) gegen die Definition
+- Drei getrennte Stufen: Prüfsummen · Preflight · Flashvalidierung
 
-Nicht gewertet: Opel E78 und Peugeot IAW 8P – deren XDFs sind selbst nur Ergebnisse einer Tabellensuche
-(z. B. „Candidate047DC2“), also keine unabhängige Referenz.
+</td>
+<td width="33%" valign="top">
 
-**Fehlalarme auf Daten ohne Kennfelder** (Zufallsdaten 512 KB und 2 MB, komprimierte Daten 1 MB,
-gelöschter Flash, Nullen + Zufall): 0 / 0 / 5 / 0 / 0 Kandidaten, keiner davon als „gesichert“ oder
-„wahrscheinlich“ eingestuft.
+### ✏️ Bearbeiten
+- **Definitionen**: XDF, A2L/DAMOS, RomRaider, CSV, HEX/S19
+- Tabelle, Heatmap, 2D, **3D**, Hex-Editor, Speicheratlas
+- **ORI/MOD-Vergleich** zellgenau
+- Undo/Redo, Projektstände, Batch mit Vorschau
+- Original bleibt **immer** unverändert
 
-**Trefferquote je Beweisart** (gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den Hersteller-A2L von ME9, ME9.2.1,
-EDC17CP09, EDC16C35, EDC16C31 – MSD80/MSD85 bleiben als unabhängige Testdaten außen vor; Anteil der Funde, die exakt
-an einem echten Objekt beginnen; die Oberfläche nutzt zusätzlich familienspezifische Werte):
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+| Kennfeldtabelle (hell) | Heatmap (dunkel) | 3D-Ansicht (dunkel) |
+|:---:|:---:|:---:|
+| <img src="docs/images/light-table.png" width="280"> | <img src="docs/images/dark-heatmap.png" width="280"> | <img src="docs/images/dark-3d.png" width="280"> |
+
+<sub>Screenshots mit der synthetischen Demo-Datei <code>examples/demo/demo_multi_map.bin</code>.</sub>
+
+</div>
+
+---
+
+<a id="erkennung"></a>
+
+## 📊 Erkennungsgüte
+
+Blind gemessen: Die Definition des Herstellers dient **nur als Referenz**, nie als Eingabe. Die Präzision ist nur dort
+angegeben, wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
+
+| Steuergerät | Referenz | exakt erkannte Kennfelder | Präzision |
+|---|---|---:|---:|
+| Siemens MS43 | Community-XDF | **197** von 379 | **80 %** |
+| Bosch EDC17CP09 | Hersteller-A2L | **157** von 703 | **71 %** |
+| Siemens MSD85 · *Test* | Hersteller-A2L | **148** von 1026 | **74 %** |
+| Siemens MSD80 · *Test* | Hersteller-A2L | **133–137** von 864 | **77–78 %** |
+| Bosch EDC16C31 | Hersteller-A2L | **123** von 364 | **71 %** |
+| BMW ME9.2.1 | Hersteller-A2L | **109** von 460 | **69 %** |
+| Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
+
+**Fehlalarme** auf Daten ohne Kennfelder (Zufall, komprimiert, gelöschter Flash): 0–5 Kandidaten, keiner höher als *Vermutung*.
+
+> 📈 **Wie sich die Erkennung von Version zu Version verbessert hat: [docs/PROGRESS.md](docs/PROGRESS.md)**<br>
+> 🔬 Alle Messwerte je Variante: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) · reproduzierbar mit `python -m ecu_studio.tools.benchmark_suite`
+
+<details>
+<summary><b>Trefferquote je Beweisart und Lernmodell</b></summary>
+<br>
+
+Anteil der Funde, die exakt an einem echten Objekt beginnen (gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den
+Hersteller-A2L von ME9, ME9.2.1, EDC17CP09, EDC16C35/C31; MSD80/85 bleiben als Testdaten außen vor):
 
 | Beweisart | Anzahl | Trefferquote |
 |---|---:|---:|
 | Code-Verweis + zwei Achsen | 227 | 100 % |
-| Code-Verweis ohne Achsen | 35 | 97 % |
 | Code-Verweis + Achse (Kennlinie) | 159 | 99 % |
-| Kopf-Datensatz (nx, ny, X, Y, Kennfeld) | 694 | 87 % |
+| Code-Verweis ohne Achsen | 35 | 97 % |
 | Achse aus Kopf-Datensatz | 1383 | 88 % |
-| Achsen-Arrays mit Anzahl-Präfix (alle Familien; MS4x allein 97–100 %) | 2374 | 54 % |
-| nur Datenmuster | 1321 | 22 % → **Lernmodell**, s. u. |
+| Kopf-Datensatz (nx, ny, X, Y, Kennfeld) | 694 | 87 % |
+| Achsen-Arrays mit Anzahl-Präfix (MS4x allein 97–100 %) | 2374 | 54 % |
+| nur Datenmuster | 1321 | 22 % |
 
-**Lernmodell für Datenmuster-Funde** – geprüft auf einer beim Training ausgelassenen Familie (Präzision bei 80 % Trefferquote):
+Für reine Datenmuster-Funde ordnet ein Lernmodell nach; geprüft jeweils auf einer beim Training ausgelassenen Familie
+(Präzision bei 80 % Trefferquote): Hyundai SIM2K 14 → 34 %, BMW MSS54 7 → 32 %, alte 8-Bit-Motronic 5 → 35 %,
+Siemens MS4x 29 → 50 %. Details: [docs/MODELLKARTE.md](docs/MODELLKARTE.md).
+</details>
 
-| Familie | ohne Modell | mit Modell |
-|---|---:|---:|
-| Hyundai SIM2K (TriCore) | 14 % | **34 %** |
-| BMW MSS54 (68k) | 7 % | **32 %** |
-| alte 8-Bit-Motronic/Fenix | 5 % | **35 %** |
-| Siemens MS42/MS43 | 29 % | **50 %** |
+---
 
-<sub>¹ Diese Definitionen enthalten nur einen Teil der Kennfelder (Subaru: 147–183 von 250–317 Beschreibungsblöcken). Details und Verlauf: [CHANGELOG](CHANGELOG.md).</sub>
+<a id="steuergeraete"></a>
 
-## Unterstützte Steuergeräte
-
-Details mit konkreten Softwareständen und Messwerten: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md).
+## 🚗 Steuergeräte
 
 | Familie | Prozessor | Code-Verweise | Achsen | Status |
 |---|---|:---:|:---:|---|
-| Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | gemessen, Standard-XDFs inklusive |
-| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ Lookup-Aufrufe, Basis auto | ✅ Kopf | gemessen |
-| Denso (Subaru) | SH-2 | ✅ Beschreibungsblöcke | ✅ | gemessen |
-| Bosch EDC17CP09 | TriCore | ❌ | ✅ Kopf-Datensätze | gemessen gegen Hersteller-A2L (EPK) |
-| Siemens MSD80 / MSD85 | PowerPC | ❌ | ✅ Kopf-Datensätze | unabhängig gemessen gegen Hersteller-A2L (EPK) |
-| Bosch EDC16C35 / C31 | PowerPC | ❌ | ✅ Kopf-Datensätze | gemessen gegen Hersteller-A2L |
-| GM P01 / E-Steuergeräte | 68k | ✅ Absolutoperanden | – | gemessen |
-| Bosch M4.4 (Volvo) | 8051 | ◐ bestätigend | – | gemessen |
-| Bosch/Continental E78 (Opel) | PowerPC | ❌ | – | ungemessen (keine unabhängige Referenz) |
-| Bosch Motronic (Porsche 911/944/928/964) | 8051 | – | – | gemessen; XDF 1.x lesbar |
-| Renault Fenix 1B/3, Peugeot 205 Turbo | 68HC11 | ◐ bestätigend | – | gemessen |
-| Continental SIM2K (Hyundai) | TriCore | ❌ | ◐ | gemessen, Lernmodell; Code-Verweise offen |
-| BMW MSS54 | 68k (CPU32) | ❌ | ✅ Header | gemessen, Lernmodell; Code-Verweise offen |
+| Siemens MS41 / MS42 / MS43 (BMW) | C167 | ✅ | ✅ | ✅ gemessen · Standard-XDFs inklusive |
+| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | ✅ gemessen |
+| Bosch EDC17CP09 (BMW) | TriCore | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| Siemens MSD80 / MSD85 (BMW) | PowerPC | – | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
+| Bosch EDC16C31 / C35 (BMW) | PowerPC | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| BMW ME9 / ME9.2.1 · Siemens MS45 | – | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | ✅ gemessen |
+| GM P01 | 68k | ✅ | – | ✅ gemessen |
+| Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
+| Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
+| Continental SIM2K (Hyundai) · BMW MSS54 | TriCore · CPU32 | – | 🟡 | 🟡 Datenmuster + Lernmodell |
+| EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos | – | – | – | ⚪ nicht validiert |
 
-## Installation
+<sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
+Konkrete Softwarestände und alle Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.md</a>.</sub>
 
-### Für Anwender (ohne Python)
+---
 
-1. Unter [Releases](https://github.com/PCTestAdmin/ECU-Studio-AI/releases) die neueste Version wählen.
-2. **Portabel:** `ECU-Studio-AI-<version>-windows-x64.zip` herunterladen, entpacken, `ECU-Studio-AI.exe` starten.
-   **Oder mit Installer:** `ECU-Studio-AI-<version>-setup.exe` ausführen – installiert ohne Administratorrechte nach
-   `%LOCALAPPDATA%\Programs\ECU-Studio-AI`, mit Startmenü-Eintrag und Deinstallation.
-3. Fertig – Python, Terminal oder weitere Downloads sind nicht nötig.
+<a id="funktionsweise"></a>
 
-### Windows-Warnung beim ersten Start
+## ⚙️ So funktioniert es
 
-ECU Studio AI ist noch **nicht code-signiert**. Windows SmartScreen zeigt deshalb beim ersten Start
-„Der Computer wurde durch Windows geschützt“. So geht es weiter:
-
-- im Fenster auf **„Weitere Informationen“** klicken, dann **„Trotzdem ausführen“**, oder
-- **vor dem Entpacken**: Rechtsklick auf die heruntergeladene ZIP → **Eigenschaften** → unten **„Zulassen“** anhaken → OK.
-
-Die Echtheit des Downloads lässt sich prüfen: Die SHA-256 der Datei muss mit der `.sha256`-Datei des Releases
-übereinstimmen (`Get-FileHash <datei>` in PowerShell); die Build-Herkunft belegt
-`gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI`.
-
-### Updates
-
-ECU Studio AI prüft beim Start und danach höchstens einmal täglich, ob auf GitHub eine neuere **stabile** Version
-erschienen ist (Einstellungen → „Automatisch nach Updates suchen“, abschaltbar; „Jetzt nach Updates suchen“ prüft
-sofort). Ohne Internet passiert still nichts. Ist eine neue Version da, zeigt ein Fenster Versionsnummer und Änderungen
-mit **Jetzt aktualisieren**, **Später erinnern** und **Diese Version überspringen**.
-
-„Jetzt aktualisieren“ lädt das Paket nur von den Releases dieses Repositorys, prüft seine SHA-256 gegen die
-veröffentlichte Prüfsumme (und GitHubs eigene Angabe), schließt das Programm (bei ungespeicherten Änderungen wird
-vorher gefragt) und übergibt an einen separaten Updater. Dieser prüft jede einzelne Datei, behält eigene Dateien im
-Programmordner, sichert die bisherige Version als `<Ordner>.backup`, startet einen Selbsttest der neuen Version und
-stellt bei einem Fehler automatisch die alte wieder her. Projekte (`%USERPROFILE%\.ecu_studio_ai`) und Einstellungen
-liegen außerhalb des Programmordners und bleiben unberührt. Nichts wird ohne Zustimmung installiert. Protokoll:
-`%LOCALAPPDATA%\ECUStudioAI\updates\update.log`.
-
-Eine frühere Version lässt sich unter **Einstellungen → Vorherige Version wiederherstellen …** zurückholen (die
-ersetzte Version bleibt dabei ebenfalls als Sicherung erhalten).
-
-### Aus dem Quellcode (Entwicklung)
-
-Voraussetzung: Windows und Python 3.10–3.13 mit dem Launcher `py`.
-
-```bat
-start_windows.bat
+```mermaid
+flowchart LR
+    BIN[BIN-Datei] --> P{Profil<br/>bekannt?}
+    P -- ja --> W[Kalibrierfenster]
+    P -- nein --> M[Code/Daten-<br/>Trennung]
+    W --> E
+    M --> E
+    subgraph E[Beweise sammeln]
+        C[Code-Verweise<br/>C16x · 68k · SH-2 · HC11 · 8051]
+        H[Datensätze mit<br/>Anzahl und Achsen]
+        A[Achsen-Arrays]
+        D[Datenmuster]
+    end
+    E --> R[Lesarten<br/>abwägen]
+    R --> K[Konfidenz aus<br/>gemessenen Quoten]
+    K --> UI[Katalog · Graph<br/>Signal-Tracing]
 ```
 
-Legt beim ersten Start `.venv` an, installiert die Abhängigkeiten und startet die Oberfläche. Manuell:
+Wo der Programmcode auf ein Kennfeld zeigt, stimmt der Start praktisch immer; wo nur Datenmuster sprechen, ist es eine
+Vermutung – und wird auch so angezeigt. Alle Funde sind **Geometrie-Hypothesen**: Name, Einheit und Funktion kommen
+nur aus einer passenden Definition oder deiner Prüfung, nie aus einer Vermutung.
 
-```bat
-py -m venv .venv
-.venv\Scripts\activate
-pip install -e .[dev]
-python -m ecu_studio.main
-```
+---
 
-Eigenes Windows-Paket bauen: `build_exe_windows.bat` – benötigt **CPython 3.13 x64** (die Laufzeit wird mitgeliefert),
-legt dafür `.venv-build` an, führt alle Tests aus, baut `dist\ECU-Studio-AI`, prüft die EXE, erstellt
-`dist\ECU-Studio-AI-<version>-windows-x64.zip` samt `.sha256`, testet das entpackte ZIP ohne Python im PATH und baut
-den Installer, wenn Inno Setup 6 installiert ist. Veröffentlichen: siehe [docs/RELEASE.md](docs/RELEASE.md).
+<a id="sicherheit"></a>
 
-## Entwicklung
-
-```bat
-python -m pytest -q                                              :: Tests
-python -m ecu_studio.tools.structure_benchmark <bin> <xdf|csv>   :: Erkennung messen
-python -m ecu_studio.tools.calibrate_confidence --pair <bin> <xdf>   :: Trefferquoten neu messen
-python -m ecu_studio.tools.screenshot <bin> <ordner>              :: Oberfläche rendern
-```
-
-| Ordner | Inhalt |
-|---|---|
-| `src/ecu_studio/core` | Datenmodell, Formate, Erkennung (`structure_scan`, `axis_records`, `axis_arrays`, `cpu_refs`), Prüfungen (`preflight`, `checksum_audit`), Updates |
-| `src/ecu_studio/recognition` | Definitionskatalog, mitgelieferte XDFs, Modelle und Kalibrierdaten |
-| `src/ecu_studio/ui` | PySide6-Oberfläche, Theme, Icons, Update-Fenster |
-| `src/ecu_studio/tools` | Kommandozeilenwerkzeuge (Benchmarks, Kalibrierung, Checksummen-Suche, Paketbau) |
-| `packaging` | Windows-Paket: Startprogramm, Updater, Installer-Skript, gesperrte Abhängigkeiten |
-| `tests` | pytest-Suite (läuft bei jedem Push unter Python 3.11 und 3.12) |
-| `examples` | synthetische Demo-Dateien und Vorlagen – keine echte Firmware ([Übersicht](examples/README.md)) |
-| `docs` | [Dokumentation](docs/README.md): unterstützte Steuergeräte, Release-Ablauf, Modellkarte, Konkurrenzanalyse |
-
-## Roadmap
-
-- [x] Rasterfreie Kennfeldsuche, Achsen-Arrays, Code-Verweise (C16x)
-- [x] Kalibrierte Konfidenz, Flash-Preflight, Funktionsgraph, Signal-Tracing
-- [x] XDF-Textformat 1.x und tolerantes XML
-- [x] Lernmodell für Datenmuster-Funde, familienübergreifend geprüft
-- [x] Code-Verweise 68k (GM P01), ME7.5-Speicherbasis, Denso-Beschreibungsblöcke
-- [x] Schnellere Suche bei großen Dateien (2- bis 5-mal)
-- [x] Windows-Paket ohne Python, Installer, automatische Updates mit Rollback
-- [x] Benchmark-System gegen Hersteller-A2L (EDC17CP09, MSD80/85, EDC16)
-- [ ] Code-Verweise für TriCore, PowerPC und CPU32 (MSS54)
-- [ ] Logger-Anbindung für Signal-Tracing
-
-## Mitmachen
-
-Beiträge sind willkommen – besonders **Messungen an weiteren Steuergeräten**. Bitte lies vorher
-[CONTRIBUTING.md](CONTRIBUTING.md). Wichtig: **Keine Original-Firmware in Issues oder Pull Requests hochladen.**
-
-## Wichtige Hinweise
+## 🛡️ Sicherheit
 
 > [!WARNING]
-> **Nicht flash-validiert.** Checksummen werden nur mit einem manuell geprüften, an die Original-Firmware
-> gebundenen Profil verifiziert; eine Korrektur ist vorbereitet (`plan_checksum_correction`) und verweigert,
-> wenn das Profil schon am Original nicht stimmt. Ohne Profil gilt eine Datei nie als flashbereit.
-> Geänderte Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen. Eingriffe in Steuergeräte können Typgenehmigung, Abgasverhalten und
+> **ECU Studio AI gibt keine Flashfreigabe.** Checksummen werden nur mit einem geprüften, an die Original-Firmware
+> gebundenen Profil verifiziert – Signaturen und weitere Prüfungen des Steuergeräts bleiben ungeprüft. Geänderte
+> Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen. Eingriffe können Typgenehmigung, Abgasverhalten und
 > Versicherungsschutz betreffen.
 
-- **Keine Steuergeräte-Firmware im Repository.** `.gitignore` schließt `*.bin` außerhalb von `examples/` aus.
-- **Lizenz:** GPL-3.0, siehe [LICENSE](LICENSE).
-- **Fremddaten:** Die mitgelieferten MS4x-XDFs (MS4x Dev Team) und Open-ECU-Presets (rusEFI) stehen unter
-  GPL-3.0; Herkunft und Prüfsummen in `src/ecu_studio/recognition/data/definitions/NOTICE.txt` und
-  `src/ecu_studio/recognition/data/training/NOTICE.txt`.
+- **Original bleibt unverändert** – alle Änderungen liegen als nachvollziehbare Ebene darüber.
+- **Keine Firmware im Repository** – Tests verhindern Programmdateien, Archive und Firmware außerhalb von `examples/`.
+- **Fremddaten:** mitgelieferte MS4x-XDFs (MS4x Dev Team) und rusEFI-Presets unter GPL-3.0, Herkunft in den `NOTICE.txt`
+  unter `src/ecu_studio/recognition/data/`.
+- Sicherheitslücken bitte vertraulich melden: [SECURITY.md](SECURITY.md).
+
+---
+
+<a id="entwicklung"></a>
+
+## 🧑‍💻 Entwicklung
+
+```bat
+start_windows.bat                         :: Umgebung anlegen und Oberfläche starten (Python 3.10–3.13)
+python -m pytest -q                       :: alle Tests
+build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installer, mit Tests)
+```
+
+| | |
+|---|---|
+| 📚 [Dokumentation](docs/README.md) | Aufbau des Quellcodes, Werkzeuge, Benchmarks |
+| 🚢 [Release-Ablauf](docs/RELEASE.md) | Version, CHANGELOG, Tag – Build, Update-Test und Veröffentlichung laufen automatisch |
+| 🧪 [Beispiele](examples/README.md) | Synthetische Demo-Dateien und Vorlagen |
+| 📝 [CHANGELOG](CHANGELOG.md) | Alle Änderungen |
+| 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** – bitte **keine Original-Firmware** hochladen |
+
+<details>
+<summary><b>Roadmap</b></summary>
+<br>
+
+- [x] Kennfeldsuche ohne Raster, Achsen, Code-Verweise (C16x, 68k, SH-2)
+- [x] Gemessene Konfidenz, Flash-Preflight, Funktionsgraph, Signal-Tracing
+- [x] A2L-Datensätze mit gespeicherten Achsen, EPK-Prüfung
+- [x] Benchmark gegen Hersteller-A2L (EDC17CP09, MSD80/85, EDC16, ME9)
+- [x] Windows-Paket ohne Python, Installer, automatische Updates mit Rollback
+- [ ] Code-Verweise für TriCore und PowerPC (größter Hebel für EDC17/MED17)
+- [ ] Weitere Referenzen: MED17.5, MG1, MD1, Simos
+- [ ] Code-Signatur der Windows-Pakete
+</details>
+
+<div align="center">
+<br>
+<sub>ECU Studio AI · <a href="LICENSE">GPL-3.0</a> · Kalibrierwerkzeug ohne Herstellerbezug – kein Ersatz für eine fachliche Prüfung</sub>
+</div>
