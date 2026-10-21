@@ -47,4 +47,13 @@ bricht er ab; fehlt sie, gilt die SHA-256-Prüfung.
 ## Lokal testen
 
 `build_exe_windows.bat` (bzw. `build_release.ps1`) führt dieselben Schritte lokal aus; der Installer entsteht nur,
-wenn Inno Setup 6 installiert ist.
+wenn Inno Setup 6 installiert ist (`winget install JRSoftware.InnoSetup`). Ist der Windows-Defender-Schutz
+„Überwachter Ordnerzugriff“ aktiv, darf Inno Setup nicht in den Dokumente-Ordner schreiben – das Skript baut den
+Installer deshalb in einem temporären Ordner und kopiert ihn anschließend nach `dist`.
+
+## Erstes Release (1.15.0, 21.10.2026)
+
+Workflow vollständig durchgelaufen (Tests, Paket, EXE-Tests ohne Python, Installer, Attestation, Veröffentlichung).
+Geprüft: echtes Update einer 1.14.0-Installation über die GitHub-API auf 1.15.0 (Download, SHA-256 gegen `.sha256`
+und GitHub-Digest, Updater, Selbsttest, Sicherung); Installer aus dem Release: Installation, Selbsttest,
+Deinstallation.
