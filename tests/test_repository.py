@@ -34,6 +34,6 @@ def test_examples_are_documented_and_root_stays_small():
     assert 'examples/README.md' in tracked and 'docs/README.md' in tracked
     root_files = sorted(p for p in tracked if '/' not in p)
     allowed = {'.editorconfig', '.gitattributes', '.gitignore', 'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE',
-               'README.md', 'SECURITY.md', 'build_exe_windows.bat', 'build_release.ps1', 'pyproject.toml',
+               'README.md', 'ROADMAP.md', 'SECURITY.md', 'build_exe_windows.bat', 'build_release.ps1', 'pyproject.toml',
                'start_windows.bat'}
     assert set(root_files) <= allowed, f'neue Dateien im Wurzelverzeichnis: {set(root_files) - allowed}'
