@@ -2,6 +2,9 @@
 import sys
 
 if __name__ == "__main__":
+    # Scan stages use worker processes; required for frozen/embedded interpreters.
+    import multiprocessing
+    multiprocessing.freeze_support()
     try:
         from ecu_studio.main import main
         code=main()

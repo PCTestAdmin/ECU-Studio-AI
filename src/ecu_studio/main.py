@@ -4,6 +4,8 @@ from PySide6.QtWidgets import QApplication
 
 
 def main():
+    from ecu_studio.core import parallel
+    parallel.enable()   # guarded entry point: scans may use several CPU cores
     if len(sys.argv)==3 and sys.argv[1]=='--smoke-test':
         try:
             from .tools.gui_smoke import run

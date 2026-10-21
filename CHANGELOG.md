@@ -15,6 +15,14 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Geschwindigkeit** (gleicher Rechner, 16 Kerne; Ergebnisse bitgenau gleich, per Vergleich geprüft)
+- Kennfeldsuche nutzt mehrere CPU-Kerne: Zeilenabstands-Suche je Datenbereich und Lesart in eigenen Prozessen,
+  Datensatz- und Raster-Suche laufen gleichzeitig dazu. EDC17CP09 (2 MB) 33 → **10 s**, MED17.1.62 25 → **7 s**,
+  EDC16C31 (4,6 MB) 22 → **11 s**, MSD85 12 → 7 s. Kleine Dateien (< 256 KB Daten) bleiben einkernig.
+- Mehrere Prozesse nur, wenn ein geschützter Einstiegspunkt sie einschaltet (App, Benchmark);
+  `ECU_STUDIO_WORKERS=1` erzwingt einen Kern. Abbrechen verwirft noch nicht gestartete Teilaufgaben.
+- Datensatz-Suche: vektorisierter Vorfilter und Achsenprüfung ohne NumPy-Overhead (2 MB: 1,7 s statt mehrere Sekunden).
+
 **Steuergeräte-Identifikation und Unterstützungsmatrix**
 - Neu: Kennungen aus der Datei mit Fundstelle – Bosch-EPK, Hardware-/Softwarenummer, VAG-Teilenummer, Siemens-Hardware;
   widersprüchliche Angaben werden als „mehrdeutig“ gemeldet.

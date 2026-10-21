@@ -23,9 +23,11 @@ from numpy.lib.stride_tricks import sliding_window_view
 from .model import BinaryImage, MapDefinition
 from .axis_arrays import scan_count_axes, axis_at, quantity_hint, CountAxis, MIN_POINTS, MAX_POINTS
 from .cpu_refs import detect_cpu, GENERIC_LAYOUT
+from .parallel import ordered_map
 
 # Signed views: two's-complement tables (e.g. Bosch ME7 ignition maps) wrap around
 # zero when read unsigned and look rough.
+PARALLEL_MIN_BYTES = 256 * 1024   # smaller data: worker start-up costs more than it saves
 VIEWS = (("u8", 1, "big"), ("s8", 1, "big"), ("u16", 2, "little"), ("s16", 2, "little"), ("u16", 2, "big"))
 COLS = range(4, 17)
 MIN_ROWS = 4
@@ -129,10 +131,10 @@ def _window_sums(v: np.ndarray, k: int) -> np.ndarray:
     return c[k:] - c[:-k]
 
 
-def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None) -> list[tuple]:
+def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None, views=VIEWS) -> list[tuple]:
     """(score, offset, rows, cols, dtype, endian, width) from row-pitch runs."""
     out = []
-    for dtype, w, endian in VIEWS:
+    for dtype, w, endian in views:
         x = _values(buf, w, endian, dtype[0] == "s")
         xi = x.astype(np.int64)
         n = len(x)
@@ -180,6 +182,11 @@ def pitch_candidates(buf: bytes, base: int = 0, *, cancelled=None) -> list[tuple
     return out
 
 
+def _pitch_task(chunk: bytes, base: int, view: int) -> list[tuple]:
+    """Process-pool task: one data region in one view (module level, picklable)."""
+    return pitch_candidates(chunk, base, views=(VIEWS[view],))
+
+
 _STACK_CELLS = 1 << 21   # elements per vectorised batch
 
 
@@ -208,8 +215,10 @@ def _evaluate_runs(x: np.ndarray, c: int, starts: np.ndarray, stops: np.ndarray)
     for rows, idx in _batches(np.where(phased, common, 0), c * c):
         if rows < MIN_ROWS:
             continue
-        pos = starts[idx][:, None, None] + lane[None, :, None] + np.arange(rows * c)[None, None, :]
-        costs = _phase_costs(x[pos].reshape(len(idx) * c, rows, c)).reshape(len(idx), c)
+        # Window views instead of (runs x shifts x cells) index arrays: same values, far less memory traffic.
+        win = sliding_window_view(x, rows * c)
+        blocks = win[starts[idx][:, None] + lane[None, :]]
+        costs = _phase_costs(blocks.reshape(len(idx) * c, rows, c)).reshape(len(idx), c)
         shift[idx] = np.argmin(costs, axis=1)
     p = starts + shift
     rows = (stops - p) // c
@@ -217,8 +226,7 @@ def _evaluate_runs(x: np.ndarray, c: int, starts: np.ndarray, stops: np.ndarray)
     for r, idx in _batches(np.where(rows >= MIN_ROWS, rows, 0), c):
         if r < MIN_ROWS:
             continue
-        pos = p[idx][:, None] + np.arange(r * c)[None, :]
-        h, v, tail, s = _rough_stack(x[pos].reshape(len(idx), r, c))
+        h, v, tail, s = _rough_stack(sliding_window_view(x, r * c)[p[idx]].reshape(len(idx), r, c))
         for k in np.flatnonzero(s > 0).tolist():
             out.append((int(p[idx[k]]), r, (float(h[k]), float(v[k]), float(tail[k]))))
     out.sort()
@@ -626,14 +634,21 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             if curve:
                 cost, n, w, endian, dtype = curve
                 proposals.append((ANCHOR_SCORE + .3 - cost / 2, a, 1, n, dtype, endian, w, None))
-    pitched = []
     # An empty list means "no data-like block": nothing to search, not everything.
+    tasks = []
     for lo, hi in ([(start, end)] if regions is None else regions):
         lo, hi = max(lo, start), min(hi, end)
         if hi - lo >= 64:
             # Even start keeps 16-bit views aligned with the image.
             lo -= lo % 2
-            pitched += pitch_candidates(data[lo:hi], lo, cancelled=cancelled)
+            tasks += [(data[lo:hi], lo, v) for v in range(len(VIEWS))]
+    # One task per region and view on several CPU cores; joined in the same
+    # order, so the result equals the sequential run (core/parallel.py).
+    parts = ordered_map(_pitch_task, tasks, cancelled=cancelled,
+                        parallel=sum(len(t[0]) for t in tasks) >= PARALLEL_MIN_BYTES * len(VIEWS))
+    if parts is None:
+        return []
+    pitched = [c for part in parts for c in part]
     generic_sorted = sorted(generic_only)
     for score, off, rows, c, dtype, endian, w in pitched:
         k = bisect.bisect_left(generic_sorted, off - 2)

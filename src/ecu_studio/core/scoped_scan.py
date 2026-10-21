@@ -18,6 +18,7 @@ from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence, tier_for
 from .candidate_model import load_model, score_candidates
 from .map_groups import mark_twins
+from . import parallel
 
 RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis')
@@ -36,6 +37,30 @@ def _overlaps_any(lo,hi,merged):
     starts,ends=merged
     k=bisect.bisect_left(starts,hi)-1
     return k>=0 and ends[k]>lo
+
+
+PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
+SCANNERS=('discover','u8','u32','s16')
+
+
+def _scan_task(name,data,max_results,include_u32):
+    """Worker-process task (module level, picklable): one record/grid scanner on raw bytes."""
+    image=BinaryImage(data)
+    if name=='records':
+        return scan_axis_records(image,max_results=max_results,include_u32=include_u32)
+    fn={'discover':discover_maps,'u8':scan_u8,'u32':scan_32,'s16':scan_s16}[name]
+    return fn(image,max_results=max_results)
+
+
+def _shift_to_window(candidates,start,profile):
+    for m in candidates:
+        m.offset+=start
+        if m.candidate_region_start is not None:m.candidate_region_start+=start
+        m.name=f'Unbekannter Datenbereich @ 0x{m.offset:08X}'
+        m.kind='Unbekannt'
+        m.label_origin=(m.label_origin+' · ' if m.label_origin else 'Heuristik · ')+f'{profile.family} · Datenfenster'
+        m.label_evidence=('Strukturkandidat im bekannten Datenfenster, NICHT als Kennfeld identifiziert. '
+                          'Für tatsächliche Kennfeldnamen exakt passende XDF/A2L importieren.')
 
 
 def scan_calibration_candidates(image: BinaryImage, *,
@@ -61,25 +86,29 @@ def scan_calibration_candidates(image: BinaryImage, *,
     start=profile.cal_start
     end=profile.cal_end
     target=BinaryImage(image.read(start,end-start)) if start is not None and end is not None else image
-    candidates=scan_axis_records(target,max_results=RECORD_LIMIT,cancelled=cancelled,include_u32=include_u32)
-    for i,scanner in enumerate((discover_maps,scan_u8,scan_32,scan_s16)):
-        if scanner is scan_32 and not include_u32:continue
-        if cancelled and cancelled():
-            return []
-        if progress:
-            progress(i*23)
-        candidates.extend(scanner(target,max_results=limits[i],cancelled=cancelled))
+    # Record and grid scanners are independent of the structure scan below: on
+    # large images they run in worker processes meanwhile (same results, same order).
+    background=target.size>=PARALLEL_MIN_BYTES and parallel.worker_count()>1
+    jobs=None
+    if background:
+        data=target.read(0,target.size)
+        jobs=[parallel.defer(_scan_task,'records',data,RECORD_LIMIT,include_u32,parallel=True)]
+        jobs+=[parallel.defer(_scan_task,name,data,limits[i],include_u32,parallel=True)
+               for i,name in enumerate(SCANNERS) if name!='u32' or include_u32]
+        candidates=[]
+    else:
+        candidates=scan_axis_records(target,max_results=RECORD_LIMIT,cancelled=cancelled,include_u32=include_u32)
+        for i,scanner in enumerate((discover_maps,scan_u8,scan_32,scan_s16)):
+            if scanner is scan_32 and not include_u32:continue
+            if cancelled and cancelled():
+                return []
+            if progress:
+                progress(i*23)
+            candidates.extend(scanner(target,max_results=limits[i],cancelled=cancelled))
     if cancelled and cancelled():
         return []
-    if start is not None:
-        for m in candidates:
-            m.offset+=start
-            if m.candidate_region_start is not None:m.candidate_region_start+=start
-            m.name=f'Unbekannter Datenbereich @ 0x{m.offset:08X}'
-            m.kind='Unbekannt'
-            m.label_origin=(m.label_origin+' · ' if m.label_origin else 'Heuristik · ')+f'{profile.family} · Datenfenster'
-            m.label_evidence=('Strukturkandidat im bekannten Datenfenster, NICHT als Kennfeld identifiziert. '
-                              'Für tatsächliche Kennfeldnamen exakt passende XDF/A2L importieren.')
+    if start is not None and jobs is None:
+        _shift_to_window(candidates,start,profile)
     # Grid-free geometry runs on the full image: code references live outside
     # the calibration window. Offsets are already absolute.
     if progress:
@@ -104,6 +133,14 @@ def scan_calibration_candidates(image: BinaryImage, *,
                                axes=axes,regions=regions) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
+    if jobs is not None:
+        for job in jobs:
+            part=job.result(cancelled)
+            if part is None:
+                return []
+            candidates.extend(part)
+        if start is not None:
+            _shift_to_window(candidates,start,profile)
     # Curves and breakpoint arrays carry their own (code/count) evidence; the
     # surface ranking below only judges 2-D areas.
     lines=[m for m in structures if min(m.rows,m.cols)<3]+axis_definitions(axes)

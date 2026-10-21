@@ -11,12 +11,22 @@ from .axis_inference import _plausibility
 from .precision import surface_evidence, narrower_storage_alias
 
 
+def _steps(values) -> list:
+    return [b-a for a,b in zip(values,values[1:])]
+
+
+def _monotone(d) -> bool:
+    return all(x>0 for x in d) or all(x<0 for x in d)
+
+
 def _record_axis(values):
-    d=np.diff(np.asarray(values,dtype=float))
-    if not (np.all(d>0) or np.all(d<0)):return False
+    # Plain Python: axes have at most 32 points, where NumPy call overhead
+    # dominated the record scan (300 000 calls on a 2 MB image).
+    d=_steps(values)
+    if not _monotone(d):return False
     # A single jump swallowing almost the whole axis is weak record evidence.
     # Explicit source definitions remain exempt from this discovery heuristic.
-    if max(abs(d))>.75*abs(values[-1]-values[0]):return False
+    if max(abs(x) for x in d)>.75*abs(values[-1]-values[0]):return False
     return bool(_plausibility(values if d[0]>0 else [-v for v in values]))
 
 
@@ -30,8 +40,7 @@ def _sign_rank(image: BinaryImage, m: MapDefinition) -> int:
 
 
 def _strict(values) -> bool:
-    d=np.diff(np.asarray(values,dtype=float))
-    return bool(np.all(d>0) or np.all(d<0))
+    return _monotone(_steps(values))
 
 
 def _axis_pair(x, y, wide: bool = True) -> bool:
@@ -96,6 +105,40 @@ def _flat_record(m: MapDefinition, axis_width: int, kind: str, image: BinaryImag
     return True
 
 
+def _x_axis_possible(buf: bytes, counts: np.ndarray, starts: np.ndarray, phase: int,
+                     count_width: int, endian: str) -> np.ndarray:
+    """Vectorised pre-filter: headers whose X axis is strictly monotone in some tried reading.
+
+    Every accepted record needs that (both axis rules require strict X), so the
+    filter only skips headers the loop below would reject anyway; results are
+    unchanged, the record scan gets several times faster.
+    """
+    b=np.frombuffer(buf,np.uint8).astype(np.int64)
+    keep=np.zeros(len(starts),bool)
+    cols=counts[starts].astype(np.int64)
+    axis_start=phase+starts.astype(np.int64)*count_width+2*count_width
+    for axis_width in (1,2):
+        for order in (['big'] if axis_width==1 else ['big','little']):
+            if count_width==2 and axis_width==2 and order!=endian:continue
+            for c in np.unique(cols).tolist():
+                sel=np.flatnonzero((cols==c)&~keep)
+                if not len(sel):continue
+                pos=axis_start[sel][:,None]+axis_width*np.arange(c)[None,:]
+                ok=pos[:,-1]+axis_width<=len(b)
+                sel,pos=sel[ok],pos[ok]
+                if axis_width==1:
+                    v=b[pos]
+                    variants=(v,)
+                else:
+                    hi,lo=(b[pos],b[pos+1]) if order=='big' else (b[pos+1],b[pos])
+                    v=hi*256+lo
+                    variants=(v,np.where(v>=0x8000,v-0x10000,v))
+                for w in variants:
+                    d=np.diff(w,axis=1)
+                    keep[sel[np.all(d>0,axis=1)|np.all(d<0,axis=1)]]=True
+    return keep
+
+
 def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, include_u32=False):
     if max_results <= 0 or image.size < 32:return []
     buf=image.read(0,min(image.size,2*1024*1024))
@@ -109,6 +152,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                 if len(counts)<2:continue
                 starts=np.flatnonzero((counts[:-1]>=4)&(counts[:-1]<=32)&
                                      (counts[1:]>=4)&(counts[1:]<=32))
+                starts=starts[_x_axis_possible(buf,counts,starts,phase,count_width,endian)]
                 for ix,index in enumerate(starts):
                     if ix%128==0 and cancelled and cancelled():return []
                     cols,rows=int(counts[index]),int(counts[index+1])

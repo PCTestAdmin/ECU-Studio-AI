@@ -166,6 +166,8 @@ def markdown(result: dict) -> str:
 
 
 def main(argv=None):
+    from ecu_studio.core import parallel
+    parallel.enable()   # guarded entry point: scans may use several CPU cores
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('manifest', type=Path)
     parser.add_argument('--out', type=Path)
