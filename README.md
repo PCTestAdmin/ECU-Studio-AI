@@ -5,7 +5,7 @@
 <br>
 
 [![Version](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?label=Downloads&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
+[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?cacheSeconds=3600&label=Downloads&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
 [![Tests](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml/badge.svg)](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml)
 [![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-2f81f7)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#installation)
@@ -156,7 +156,7 @@ angegeben, wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einst
 | BMW ME9.2.1 | Hersteller-A2L | **170** von 460 | **72 %** |
 | Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
 
-Stand: nächste Version (Werte von 1.15.0 in [docs/PROGRESS.md](docs/PROGRESS.md)). Welche Steuergeräte validiert,
+Stand: 1.16.0 (Werte von 1.15.0 in [docs/PROGRESS.md](docs/PROGRESS.md)). Welche Steuergeräte validiert,
 teilweise oder noch gar nicht gemessen sind, zeigt [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) und in der App
 **Hilfe → Unterstützte Steuergeräte …**.
 

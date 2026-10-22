@@ -17,9 +17,10 @@
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-fertig_·_kommt_bald-0969da?style=for-the-badge)
+## ![Neu in 1.16.0](https://img.shields.io/badge/🎉_NEU_IN_1.16.0-veröffentlicht_22.10.2026-1a7f37?style=for-the-badge)
 
-Bereits entwickelt und getestet – erscheint mit der nächsten Version. Die Clips sind echte Aufnahmen der App
+[Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – installierte Versionen bieten das Update automatisch an.
+Die Clips sind echte Aufnahmen der App
 mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <table>
@@ -28,52 +29,52 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 **Doppelt so viele Treffer** – Ein Klick auf <i>Scan</i>: Die Suche findet Kennfelder über ihre Achsen im Kopf, jede Fundstelle bekommt eine gemessene Konfidenz. Anklicken zeigt sofort die Heatmap.<br><img src="docs/clips/scan.gif" width="720" alt="Doppelt so viele Treffer">
 
-</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Konfidenz-Filter** – Nur gesicherte, nur wahrscheinliche oder nur geprüfte Kennfelder anzeigen – die Prozentwerte sind auf echten Referenzdaten gemessen.<br><img src="docs/clips/filter.gif" width="720" alt="Konfidenz-Filter">
 
-</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **ORI/MOD-Vergleich** – Zweite Datei wählen: Liste aller betroffenen Kennfelder und eine Differenz-Heatmap je Zelle (rot = höher, blau = niedriger).<br><img src="docs/clips/compare.gif" width="720" alt="ORI/MOD-Vergleich">
 
-</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Unterstützte Steuergeräte** – Für jede Familie ehrlich angezeigt: validiert, teilweise, experimentell oder nicht validiert – mit Messwerten.<br><img src="docs/clips/support.gif" width="720" alt="Unterstützte Steuergeräte">
 
-</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Englische Oberfläche** – <i>Einstellungen → Sprache / Language</i>. Standard ist die Systemsprache, Projekte bleiben sprachunabhängig.<br><img src="docs/clips/english.gif" width="720" alt="Englische Oberfläche">
 
-</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **2–4× schneller** – Alle CPU-Kerne arbeiten mit – große Dateien in ~10 statt ~33 Sekunden.
 
-</td><td align="center"><b>1.16</b></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Kennlinien** – Fast doppelt so viele Kennlinien und Achsen werden erkannt.
 
-</td><td align="center"><b>1.16</b></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Steuergerät erkannt** – Nach dem Öffnen: Familie, Softwarestand und ob sie getestet ist.
 
-</td><td align="center"><b>1.16</b></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Namen übernehmen** – Kennfeldnamen aus einem verwandten Softwarestand mit Definition übertragen.
 
-</td><td align="center"><b>1.16</b></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 <tr><td>
 
 **Prüfsummen ME7 · MED9 · ME9** – Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist.
 
-</td><td align="center"><b>1.16</b></td></tr>
+</td><td align="center"><b>1.16.0</b></td></tr>
 </table>
 
 <br>
@@ -114,7 +115,7 @@ Bitte keine Firmware hochladen.
 <br>
 
 <details>
-<summary><b>✅ Bereits veröffentlicht</b></summary>
+<summary><b>✅ Frühere Versionen</b></summary>
 <br>
 
 **1.15.0** · 21.10.2026

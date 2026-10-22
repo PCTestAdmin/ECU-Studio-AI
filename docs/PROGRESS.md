@@ -20,9 +20,9 @@ geschätzt. Für jeden Meilenstein wurde der **damalige Erkennungscode** aus der
 | **M4** | 19.10. | Denso/SH-2-Beschreibungsblöcke (Subaru) |
 | **M5** | 20.10. | Mehr Kopf-Datensätze (55 → 200), A2L-Referenzen |
 | **M6** | **1.15.0** | Kopf-Datensätze mit Vorzeichen, bis 1000, Achsen als Kandidaten |
-| **M7** | **nächste Version** | Kopf-Datensätze auch mit flachen Werten, Datensatz-Ketten, Vorrang und kein Limit für belegte Funde |
+| **M7** | **1.16.0** | Kopf-Datensätze auch mit flachen Werten, Datensatz-Ketten, Vorrang und kein Limit für belegte Funde |
 
-## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → nächste Version
+## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → 1.16.0
 
 ```mermaid
 xychart-beta
@@ -34,9 +34,9 @@ xychart-beta
     bar [12, 26, 23, 36, 9, 1]
 ```
 
-<sub>Überlagerte Balken, von hinten nach vorn: nächste Version · 1.15.0 · 1.14 (alte Raster-Erkennung).</sub>
+<sub>Überlagerte Balken, von hinten nach vorn: 1.16.0 · 1.15.0 · 1.14 (alte Raster-Erkennung).</sub>
 
-| Steuergerät | 1.14 | 1.15.0 | nächste Version | Faktor zu 1.14 |
+| Steuergerät | 1.14 | 1.15.0 | 1.16.0 | Faktor zu 1.14 |
 |---|---:|---:|---:|---:|
 | Bosch EDC17CP09 | 12 | 157 | **463** | ×39 |
 | Siemens MSD85 · *Test* | 26 | 148 | **279** | ×11 |
@@ -138,7 +138,7 @@ xychart-beta
 
 ## Kennlinien und Achsen (1D, exakt)
 
-| Steuergerät | M0 | M6 (1.15.0) | M7 (nächste Version) |
+| Steuergerät | M0 | M6 (1.15.0) | M7 (1.16.0) |
 |---|---:|---:|---:|
 | Bosch EDC17CP09 | 0 | 332 | **1668** |
 | Siemens MSD85 · *Test* | 0 | 354 | **1128** |
@@ -149,9 +149,9 @@ xychart-beta
 
 ## Laufzeit je Datei (Sekunden, gleicher Rechner)
 
-<sub>Einkernig gemessen, damit alle Stände vergleichbar sind. In der App und im Benchmark nutzt die nächste Version mehrere Kerne: EDC17CP09 rund 9–10 s, MED17.1.62 rund 7 s (16 Kerne).</sub>
+<sub>Einkernig gemessen, damit alle Stände vergleichbar sind. In der App und im Benchmark nutzt die 1.16.0 mehrere Kerne: EDC17CP09 rund 9–10 s, MED17.1.62 rund 7 s (16 Kerne).</sub>
 
-| Steuergerät | M0 | M1 | M6 (1.15.0) | M7 (nächste Version) |
+| Steuergerät | M0 | M1 | M6 (1.15.0) | M7 (1.16.0) |
 |---|---:|---:|---:|---:|
 | Siemens MS43 | 1.4 | 14.18 | 4.98 | 4.07 |
 | Bosch EDC17CP09 | 16.35 | 101.53 | 43.02 | 33.05 |

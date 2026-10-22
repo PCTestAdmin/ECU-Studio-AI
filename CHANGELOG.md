@@ -1,4 +1,4 @@
-## Unveröffentlicht
+## 1.16.0 (22.10.2026)
 
 **Kennfelderkennung** (alt → neu, gleiche Referenzen und gleiche Messmethode; *Test* = nie zum Einstellen verwendet)
 - Siemens MSD85 · *Test*: exakt 148 → **279** von 1026, Präzision 74 → **81 %**.
