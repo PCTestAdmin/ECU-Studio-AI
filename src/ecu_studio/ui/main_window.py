@@ -717,6 +717,7 @@ class Window(QMainWindow):
         act(tools,"Checksum- und Plausibilitätsprüfung …",self.open_checksum_audit,"Ctrl+Shift+Q")
         act(tools,"Checksummen korrigieren (mit Vorschau) …",self.correct_checksums)
         act(tools,"Prüfsummen-Tabellen der Datei prüfen / korrigieren …",self.correct_table_checksums)
+        act(tools,"EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …",self.correct_edc17_blocks)
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
@@ -2740,6 +2741,47 @@ class Window(QMainWindow):
         except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
         self.on_edited()
         self.statusBar().showMessage(f'{len(steps)} Tabellen-Prüfsumme(n) geschrieben, alle {state["blocks"]} Blöcke verifiziert · '
+                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+
+    def correct_edc17_blocks(self):
+        """Bosch MED17/EDC17 checksum blocks (CRC32/ADD32/ADD16): proven on the original, then corrected."""
+        if not self.require_image():return
+        from ..core.edc17_checksum import verify, check_current, plan_correction, correction_preview, apply_correction
+        proof=verify(self.image)
+        if not proof['detected']:
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
+                'In dieser Datei wurde kein Bosch MED17/EDC17-Prüfsummenblock gefunden '
+                '(Signatur FADECAFE/CAFEAFFE). Keine Prüfung oder Korrektur für dieses Verfahren.');return
+        if proof['proven_on_original']==0:
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
+                f'{proof["blocks"]} Blockkandidat(en) gefunden, aber kein Block ließ sich am unveränderten Original '
+                'mit CRC32/ADD32/ADD16 reproduzieren. Das Verfahren gilt für diese Datei als NICHT nachgewiesen – '
+                'keine Korrektur.');return
+        state=check_current(self.image)
+        cover={'full':'Vollständig geprüft','partial':'Teilweise geprüft'}.get(state['coverage'],'Geprüft')
+        head=(cover+'\n'
+              +f'{state["structures_proven"]} von {state["structures_total"]} Prüfsummenstrukturen am '
+              f'unveränderten Original nachgewiesen. Aktuell stimmen {state["blocks"]-state["mismatches"]} '
+              f'von {state["blocks"]}.')
+        if state['structures_unproven']:
+            head+=f'\n{state["structures_unproven"]} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.'
+        if not state['mismatches']:
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',head+'\n\nNichts zu korrigieren. Keine Flashfreigabe: '
+                                    'Signaturen und weitere ECU-Prüfungen sind nicht abgedeckt.');return
+        try:steps,skipped=plan_correction(self.image)
+        except ValueError as exc:self.warning('Korrektur verweigert',exc);return
+        if not steps:
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',head+'\n\n'+correction_preview(steps,skipped));return
+        box=QMessageBox(self)
+        box.setWindowTitle('EDC17/MED17-Prüfsummen – Vorschau')
+        box.setText(head+'\n\n'+correction_preview(steps,skipped))
+        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec()!=QMessageBox.StandardButton.Yes:return
+        try:apply_correction(self.image,steps)
+        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
+        self.on_edited()
+        self.statusBar().showMessage(f'{len(steps)} EDC17/MED17-Kompensationswort(e) geschrieben, Blöcke neu verifiziert · '
                                      'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
 
     def open_checksum_audit(self):

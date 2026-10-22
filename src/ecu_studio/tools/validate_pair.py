@@ -31,6 +31,22 @@ from ecu_studio.core.support import lookup
 from ecu_studio.tools.benchmark_suite import run
 
 
+def checksum_summary(image: BinaryImage) -> dict:
+    """Measure the actual checksum schemes on the original: Bosch MED17/EDC17
+    blocks (CRC32/ADD32/ADD16) and the self-describing tables (ME7.x/MED9/ME9).
+
+    Counts only — a structure is 'proven' when it reproduces the stored value on
+    the unmodified file. This is a real checksum measurement, not the map-
+    detection benchmark, so the validation command can report EDC17 coverage.
+    """
+    from ecu_studio.core.edc17_checksum import verify as edc17_verify
+    from ecu_studio.core.checksum_tables import original_blocks
+    e = edc17_verify(image)
+    return {'edc17_blocks': e['blocks'], 'edc17_structures_total': e['structures_total'],
+            'edc17_proven': e['proven_on_original'], 'edc17_unverifiable': e['unverifiable'],
+            'edc17_coverage': e['coverage'], 'table_blocks_proven': len(original_blocks(image))}
+
+
 def scan_only(bin_path: str, family: str, *, role: str = 'test') -> dict:
     """Identification and candidate counts of one image without any definition."""
     from ecu_studio.core.scoped_scan import scan_calibration_candidates
@@ -46,6 +62,7 @@ def scan_only(bin_path: str, family: str, *, role: str = 'test') -> dict:
            'identified_family': ident.family, 'found_2d': len(areas), 'found_1d': len(found) - len(areas),
            'tiers_2d': dict(collections.Counter(m.evidence_tier or 'ohne' for m in areas)),
            'seconds': round(elapsed, 2)}
+    row['checksums'] = checksum_summary(image)
     known = lookup(ident.family)
     return {'row': row, 'identity': ident.summary(), 'identified_family': ident.family,
             'matrix_entry': known.family if known else None, 'matrix_status': known.status if known else None}
@@ -60,6 +77,7 @@ def validate(bin_path: str, reference: str, family: str, *, anchor: str | None =
     if anchor:
         entry['anchor'] = anchor
     row = run([entry])['rows'][0]
+    row['checksums'] = checksum_summary(image)
     known = lookup(ident.family)
     return {'row': row, 'identity': ident.summary(), 'identified_family': ident.family,
             'matrix_entry': known.family if known else None, 'matrix_status': known.status if known else None}
@@ -93,6 +111,11 @@ def main(argv=None) -> int:
         if r.get('precision_2d') is not None:
             line += f", Präzision {r['precision_2d']:.0%}, Fehlfunde {r['false_positives_2d']}"
     print(line)
+    cs = r.get('checksums', {})
+    if cs:
+        print(f"Prüfsummen: EDC17/MED17 {cs['edc17_proven']}/{cs['edc17_structures_total']} Strukturen am Original "
+              f"nachgewiesen (Abdeckung {cs['edc17_coverage']}, {cs['edc17_blocks']} Blöcke, "
+              f"{cs['edc17_unverifiable']} nicht prüfbar); selbstbeschreibende Tabellen {cs['table_blocks_proven']}")
     results = json.loads(a.results.read_text(encoding='utf-8')) if a.results.exists() else {'format': 1, 'rows': []}
     results['rows'] = [x for x in results['rows'] if x['sha256'] != r['sha256']] + [r]
     a.results.write_text(json.dumps(results, indent=1, ensure_ascii=False), encoding='utf-8')

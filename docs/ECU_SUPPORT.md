@@ -154,6 +154,40 @@ damit **experimentell**, nie validiert. Bitte nur den Flash verwenden (kein EEPR
 und Fahrgestellnummer) und nur Dateien eigener Fahrzeuge oder mit Zustimmung des Fahrzeughalters.
 
 
+## Prüfsummen (getrennt von der Kennfelderkennung oben)
+
+Prüfsummen-Unterstützung wird eigenständig nachgewiesen: Ein Verfahren gilt nur dann als unterstützt, wenn es den
+gespeicherten Wert aus der **unveränderten Originaldatei** exakt reproduziert. Nichts wird aus dem Familiennamen
+geschlossen.
+
+| Verfahren | Familien | Status | Nachweis |
+|---|---|---|---|
+| Selbstbeschreibende Tabellen (Start, Ende, Wert, ~Wert; 32-Bit-Summen/CRC32) | ME7.x, MED9, ME9 | am Original gemessen | `core/checksum_tables.py` |
+| Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **Verfahren implementiert; am Original noch nicht gemessen** – keine echte Firmware im Repo | `core/edc17_checksum.py` |
+| Manuelles, geprüftes Profil (SHA-256-gebunden) | beliebig | am Original gemessen | `core/checksum_audit.py` |
+
+Der Bosch-Blockleser (`core/edc17_checksum.py`) findet die Blöcke über ihre Signatur, rechnet Flash-Adressen auf
+Dateioffsets um (TriCore-Alias 0x8/0xA) und rechnet CRC32, ADD32 und ADD16 nach. Die Mechanik ist im
+Bosch-Blockformat **synthetisch** end-to-end getestet (`tests/test_edc17_checksum.py`), einschließlich unabhängiger
+CRC-Gegenrechnung, Änderungs­erkennung, Korrektur nur der ADD-Kompensationswörter und byteweiser Integritätsprüfung.
+Ein OEM-Nachweis fehlt, weil keine echte EDC17/MED17-Firmware im Repository liegt.
+
+**Benötigt für den OEM-Nachweis:** mindestens eine echte, unveränderte EDC17CP09-Originaldatei (vollständiger Flash),
+besser zwei Softwarestände. `python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch EDC17CP09"` misst
+jetzt zusätzlich die Prüfsummen und meldet die EDC17/MED17-Abdeckung („Prüfsummen: EDC17/MED17 x/y Strukturen am
+Original nachgewiesen …“); reproduziert der Blockleser die gespeicherten Werte, wird das Verfahren von
+„implementiert“ zu „am Original gemessen“.
+
+Grenzen: Automatisch korrigiert werden nur additive Blöcke (ADD32/ADD16) über ihr Kompensationswort. CRC32-Blöcke
+werden **nur geprüft**, nicht automatisch korrigiert – sie können Signaturen/Sicherheitsfelder abdecken, die dieses
+Modul bewusst nicht anfasst. Eine gültige Prüfsumme ist nie eine Flashfreigabe.
+
+Für **EDC16** (PowerPC MPC5xx) ist kein ECU-spezifisches Prüfsummen­verfahren nachgewiesen: Die in EDC16C31/C35
+gefundenen selbstbeschreibenden Einträge reproduzierten sich nicht als Prüfsummen. Ohne einen Original-Dump mit
+bekanntem Layout bleibt es beim generischen Tabellen- und beim manuellen Profilpfad; ein eigener EDC16-Algorithmus
+wird nicht behauptet.
+
+
 ## Rechtlich saubere Referenzdaten (Recherche 21.10.2026)
 
 Gesucht wurden öffentlich **und rechtmäßig** verfügbare Paare aus Originaldatei und Definition für MD1, MG1, Simos,

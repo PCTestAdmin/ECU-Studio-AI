@@ -1798,6 +1798,27 @@
   "MS43-Softwaremarker im Kalibrierfenster": "MS43 software marker in the calibration window",
   "MS42-Kalibrierkennung 0110C6": "MS42 calibration ID 0110C6",
   "MS41-Softwarekennung 1429861 im Abbild": "MS41 software ID 1429861 in the image",
-  "GS20-typische Kopfkennung im Datenfenster": "GS20 header ID in the data window"
+  "GS20-typische Kopfkennung im Datenfenster": "GS20 header ID in the data window",
+  ". Diese enthalten ggf. Signaturen/Sicherheitsfelder; deren Korrektur ist hier bewusst nicht implementiert.": ". These may cover signatures/security fields; correcting them is deliberately not implemented here.",
+  "Alle korrigierbaren (ADD32/ADD16) Blöcke stimmen bereits – nichts zu schreiben.": "All correctable (ADD32/ADD16) blocks already match – nothing to write.",
+  "EDC17/MED17-Prüfsummen": "EDC17/MED17 checksums",
+  "EDC17/MED17-Prüfsummen – Vorschau": "EDC17/MED17 checksums – preview",
+  "EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …": "Check / correct EDC17/MED17 checksum blocks …",
+  "In dieser Datei wurde kein Bosch MED17/EDC17-Prüfsummenblock gefunden (Signatur FADECAFE/CAFEAFFE). Keine Prüfung oder Korrektur für dieses Verfahren.": "No Bosch MED17/EDC17 checksum block was found in this file (signature FADECAFE/CAFEAFFE). No verification or correction for this method.",
+  "Keine am Original bestätigten EDC17/MED17-Prüfsummenblöcke in dieser Datei": "No EDC17/MED17 checksum blocks confirmed on the original in this file",
+  "Nicht automatisch korrigiert (nur geprüft): CRC32-Blöcke ": "Not corrected automatically (verified only): CRC32 blocks ",
+  "Nur die genannten Prüfsummen-Kompensationswörter; keine Signaturen oder weiteren ECU-Prüfungen. Keine Flashfreigabe.": "Only the named checksum compensation words; no signatures or further ECU checks. No flash approval.",
+  "{0} Blockkandidat(en) gefunden, aber kein Block ließ sich am unveränderten Original mit CRC32/ADD32/ADD16 reproduzieren. Das Verfahren gilt für diese Datei als NICHT nachgewiesen – keine Korrektur.": "{0} block candidate(s) found, but no block could be reproduced on the unmodified original with CRC32/ADD32/ADD16. The method counts as NOT proven for this file – no correction.",
+  "{0} EDC17/MED17-Kompensationswort(e) geschrieben, Blöcke neu verifiziert · rückgängig mit Strg+Z · keine Flashfreigabe": "{0} EDC17/MED17 compensation word(s) written, blocks re-verified · undo with Ctrl+Z · no flash approval",
+  "{0} Kompensationswort(e) würden geschrieben (nur diese Bytes, rückgängig machbar):": "{0} compensation word(s) would be written (only these bytes, undoable):",
+  "{0} Prüfsummenblock-Struktur(en) am unveränderten Original bewiesen (Verfahren aus der Datei bestätigt). Aktuell stimmen {1} von {2}.": "{0} checksum block structure(s) proven on the unmodified original (method confirmed from the file). Currently {1} of {2} match.",
+  "{0} von {1} am Original bewiesenen EDC17/MED17-Prüfsummenblöcken stimmen nicht mehr (Werkzeuge → EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren).": "{0} of {1} EDC17/MED17 checksum blocks proven on the original no longer match (Tools → Check / correct EDC17/MED17 checksum blocks).",
+  "{0}: Kompensationswort außerhalb des Prüfbereichs – Korrektur verweigert": "{0}: compensation word outside the checked range – correction refused",
+  "{0}: Kompensationswort läge in Metadaten – Korrektur verweigert": "{0}: compensation word would fall in metadata – correction refused",
+  "{0} von {1} Prüfsummenstrukturen am unveränderten Original nachgewiesen. Aktuell stimmen {2} von {3}.": "{0} of {1} checksum structures proven on the unmodified original. Currently {2} of {3} match.",
+  "\n{0} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.": "\n{0} structure(s) are not proven and remain unchecked.",
+  "Vollständig geprüft": "Fully checked",
+  "Teilweise geprüft": "Partially checked",
+  "EDC17/MED17: nur {0} von {1} Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.": "EDC17/MED17: only {0} of {1} checksum structures are proven on the original; the rest are unchecked."
  }
 }
