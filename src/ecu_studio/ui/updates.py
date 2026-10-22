@@ -223,8 +223,19 @@ class UpdateController:
         else:
             archive, digest = args
             command += ['-Archive', str(archive), '-Sha256', digest]
-        flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
         # Windows PowerShell must not inherit a PowerShell 7 module path (see updater.ps1).
         env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
-        subprocess.Popen(command, creationflags=flags, close_fds=True, env=env)
+        spawn_hidden(command, env)
         return True
+
+
+# CREATE_NO_WINDOW, not DETACHED_PROCESS: without a console Windows PowerShell 5.1
+# exits with code 0 WITHOUT running the script. That silently broke every in-app
+# update up to 1.16.0. The child still outlives the app (no job object).
+SPAWN_FLAGS = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+
+
+def spawn_hidden(command: list[str], env: dict) -> subprocess.Popen:
+    """Start a console program (PowerShell) invisibly so that it survives the application."""
+    return subprocess.Popen(command, creationflags=SPAWN_FLAGS, close_fds=True, env=env,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

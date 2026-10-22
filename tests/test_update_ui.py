@@ -130,3 +130,33 @@ def test_start_checks_even_if_checked_recently(window, monkeypatch):
     with pytest.raises(StopIteration):
         c.check(manual=False, startup=True)                     # app start: always checks
     assert started
+
+
+def test_updater_start_flags_never_detach_powershell():
+    """DETACHED_PROCESS makes Windows PowerShell exit 0 without running the script (1.15/1.16.0 bug)."""
+    import subprocess
+    assert not ui.SPAWN_FLAGS & getattr(subprocess, 'DETACHED_PROCESS', 0x8)
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows PowerShell')
+def test_spawned_powershell_really_runs_its_script_from_a_windowless_parent(tmp_path):
+    """The real hand-over path: started like the app starts the updater, the script must run."""
+    import subprocess, sys, time
+    from pathlib import Path
+    out = tmp_path / 'ran.txt'
+    probe = tmp_path / 'probe.ps1'
+    probe.write_text("param([string]$Out)\nAdd-Content -LiteralPath $Out -Value 'ran'\n", encoding='utf-8')
+    command = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+               '-File', str(probe), '-Out', str(out)]
+    # Parent without console (pythonw, like the packaged app) that exits right after spawning.
+    pythonw = Path(sys.executable).with_name('pythonw.exe')
+    parent = pythonw if pythonw.exists() else Path(sys.executable)
+    code = ('import os,sys;sys.path.insert(0,sys.argv[1]);from ecu_studio.ui import updates as u;'
+            'u.spawn_hidden(sys.argv[2:],{k:v for k,v in os.environ.items() if k.upper()!="PSMODULEPATH"})')
+    src = str(Path(ui.__file__).resolve().parents[2])
+    subprocess.run([str(parent), '-c', code, src, *command], timeout=60, check=True)
+    for _ in range(120):
+        if out.exists():
+            break
+        time.sleep(.5)
+    assert out.exists(), 'PowerShell started but did not run the updater script'

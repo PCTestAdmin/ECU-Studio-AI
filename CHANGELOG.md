@@ -1,5 +1,10 @@
 ## Unveröffentlicht
 
+- **Automatisches Update repariert:** Die App startete das Update-Programm mit einer Windows-Option, bei der
+  Windows PowerShell sofort beendet, ohne das Skript auszuführen – das Update meldete keinen Fehler, die alte
+  Version blieb. Betroffen: alle Updates aus der App bis einschließlich 1.16.0. **Wer 1.15.0 oder 1.16.0 nutzt,
+  muss diese Version einmal von Hand installieren** (Installer oder ZIP); danach funktioniert das Update aus der App.
+  Ein neuer Test startet das Update-Programm genau wie die App und prüft, dass das Skript wirklich läuft.
 - Update-Prüfung bei **jedem Start** (bisher höchstens einmal am Tag): Wurde kurz vor einer Veröffentlichung geprüft,
   blieb die neue Version bis zu 24 Stunden unsichtbar (so bei 1.16.0). Während die App läuft, weiter einmal täglich.
 - Messung ohne A2L (`validate_pair DATEI.bin --family …`): Kennung, Funde je Konfidenz und Laufzeit; Familie wird
