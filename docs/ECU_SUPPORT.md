@@ -172,8 +172,13 @@ Dateioffsets um (TriCore-Alias 0x8/0xA) und rechnet CRC32, ADD32 und ADD16 nach.
 Bosch-Blockformat **synthetisch** end-to-end getestet (`tests/test_edc17_checksum.py`), einschließlich unabhängiger
 CRC-Gegenrechnung, Änderungs­erkennung, Korrektur nur der ADD-Kompensationswörter und byteweiser Integritätsprüfung.
 Ein OEM-Nachweis fehlt, weil keine echte EDC17/MED17-Firmware im Repository liegt. Die Datei
-`recognition/data/checksum_oem_validation.json` bleibt deshalb leer; ohne einen dort committeden,
-SHA-256-gebundenen Eintrag mit Quelle und Prüfer plant die Anwendung keine Korrektur.
+`recognition/data/checksum_oem_validation.json` bleibt deshalb leer. Ein Eintrag allein mit
+`validated: true` ist nicht ausreichend: Für eine Freigabe müssen mindestens zwei verschiedene,
+im separaten `checksum_validation_keys.json` vertrauenswürdige Ed25519-Schlüssel aus verschiedenen
+`independence_group`-Gruppen dieselbe kanonische
+Bescheinigung signieren. Die Bescheinigung bindet Original-Hash, Verfahren, Softwarestand, Quelle,
+Evidenz-Hash und die behauptete unabhängige Prüfung. Die kryptografische Prüfung schützt die Herkunft
+der Freigabe; ob die menschliche Prüfung tatsächlich unabhängig war, bleibt ein kontrollierter Review-Prozess.
 
 **Benötigt für den OEM-Nachweis:** mindestens eine echte, unveränderte EDC17CP09-Originaldatei (vollständiger Flash),
 besser zwei Softwarestände. `python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch EDC17CP09"` misst
@@ -187,9 +192,11 @@ Modul bewusst nicht anfasst. Eine gültige Prüfsumme ist nie eine Flashfreigabe
 
 Für **EDC16** (PowerPC MPC5xx) ist der häufige U1/U31/U34-Blockaufbau jetzt als konservative Prüfung
 implementiert (`core/edc16_checksum.py`). Die Struktur wird nur akzeptiert, wenn alle Bereiche des unveränderten
-Originals die Zielsumme `0xD01FE500` reproduzieren. Ein OEM-Nachweis fehlt weiterhin; deshalb bleibt auch diese
-Korrektur bis zu einer rechtmäßig dokumentierten Originaldatei und unabhängigen Prüfung gesperrt. Andere EDC16-
-Varianten fallen auf die generischen Tabellen und das manuelle, SHA-256-gebundene Profil zurück.
+Originals die Zielsumme `0xD01FE500` reproduzieren. Die Repository-Tests erzeugen dafür bewusst synthetische
+Bereiche und sind nur Format-/Regressionstests; sie sind kein Nachweis für EDC16C31/C35. Echte Messungen mit
+rechtmäßig bereitgestellten Originaldateien fehlen weiterhin. Deshalb bleibt auch diese Korrektur bis zu einer
+signierten Validierung gesperrt. Andere EDC16-Varianten fallen auf die generischen Tabellen und das manuelle,
+SHA-256-gebundene Profil zurück.
 
 
 ## Rechtlich saubere Referenzdaten (Recherche 21.10.2026)

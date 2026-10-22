@@ -1,4 +1,4 @@
-"""EDC16 checksum descriptor detection and guarded correction."""
+"""Synthetic EDC16 descriptor regression tests, not OEM validation."""
 import struct
 import numpy as np
 import pytest

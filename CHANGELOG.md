@@ -28,6 +28,9 @@
 - EDC16U1/U31/U34: selbstbeschreibende FADECAFE/CAFEAFFE-Bereiche mit BE-DWORD-Summe `0xD01FE500` werden
   geprüft und nur nach vollständigem Originalnachweis sowie OEM-Freigabe korrigiert. Ohne OEM-Eintrag bleibt die
   Funktion bewusst im Prüfmodus.
+- OEM-Freigaben akzeptieren nicht mehr nur Metadaten: `checksum_validation.py` verlangt mindestens zwei
+  verschiedene vertrauenswürdige Ed25519-Signaturen über eine kanonische, SHA-256-gebundene Bescheinigung und
+  einen Hash der Evidenz. Die menschliche Unabhängigkeit bleibt ein Review-Prozess und wird nicht behauptet.
 
 - Hinweisbalken nach dem Öffnen: Siemens-Dateien ohne Bosch-EPK (MS41/MS42/MS43, GS20) galten als „nicht
   bestimmbar“, obwohl die App sie an ihren Softwaremarkern erkennt (Titelzeile). Die Erkennung nutzt diese Marker

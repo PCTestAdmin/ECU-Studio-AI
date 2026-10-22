@@ -1,5 +1,5 @@
 {
-  "format": 1,
-  "note": "Nur rechtmäßig bereitgestellte Original-Firmware mit unabhängiger Prüfung eintragen. Bis dahin bleiben automatische Korrekturen gesperrt.",
+  "format": 2,
+  "note": "Jeder Eintrag braucht zwei Signaturen verschiedener vertrauenswürdiger Prüfschlüssel über die kanonische Bescheinigung und den Hash der Evidenz. Die menschliche Unabhängigkeit bleibt ein Review-Prozess.",
   "entries": []
 }

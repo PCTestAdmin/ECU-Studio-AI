@@ -1,0 +1,5 @@
+{
+  "format": 1,
+  "note": "Öffentliche Schlüssel der getrennten Prüfer mit verschiedenen independence_group-Werten. Private Schlüssel werden nie im Repository gespeichert.",
+  "keys": {}
+}

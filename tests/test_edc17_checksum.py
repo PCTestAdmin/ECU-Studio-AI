@@ -198,17 +198,40 @@ def test_correction_requires_oem_validation_even_with_full_structure_proof():
 
 def test_reviewed_oem_manifest_unlocks_exact_original_only(tmp_path, monkeypatch):
     from ecu_studio.core import checksum_validation
+    from ecu_studio.core.signing import public_key, sign
     img = _build_image()
     manifest = tmp_path / 'oem.json'
-    manifest.write_text(json.dumps({
-        'format': 1,
-        'entries': [{'scheme': 'bosch-med17-edc17', 'sha256': img.digest,
-                     'validated': True, 'source': 'lawful OEM test record', 'reviewer': 'reviewer'}]
-    }), encoding='utf-8')
+    keys = tmp_path / 'keys.json'
+    base = {'scheme': 'bosch-med17-edc17', 'sha256': img.digest, 'family': 'EDC17CP09',
+            'software': 'test-only', 'evidence_sha256': 'a' * 64, 'source': 'lawful OEM test record',
+            'validated': True, 'validated_at': '2026-10-22', 'independent_review': True}
+    secrets = {'lab-a': b'a' * 32, 'lab-b': b'b' * 32}
+    keys.write_text(json.dumps({'format': 1, 'keys': {
+        'lab-a': {'public_key': public_key(secrets['lab-a']).hex(), 'independence_group': 'oem'},
+        'lab-b': {'public_key': public_key(secrets['lab-b']).hex(), 'independence_group': 'external-review'},
+    }}), encoding='utf-8')
+    message = checksum_validation.attestation_message(base)
+    entry = dict(base, signatures=[{'key_id': k, 'signature': sign(v, message).hex()} for k, v in secrets.items()])
+    manifest.write_text(json.dumps({'format': 2, 'entries': [entry]}), encoding='utf-8')
     monkeypatch.setattr(checksum_validation, 'MANIFEST', manifest)
+    monkeypatch.setattr(checksum_validation, 'TRUSTED_KEYS', keys)
     img.write(0x210, bytes([img.original[0x210] ^ 0x5A]))
     steps, _ = ec.plan_correction(img)
     assert steps
+
+
+def test_validated_flag_without_two_trusted_signatures_never_unlocks(tmp_path, monkeypatch):
+    from ecu_studio.core import checksum_validation
+    img = _build_image()
+    manifest = tmp_path / 'oem.json'
+    manifest.write_text(json.dumps({'format': 2, 'entries': [{
+        'scheme': 'bosch-med17-edc17', 'sha256': img.digest, 'family': 'EDC17CP09',
+        'software': 'test-only', 'evidence_sha256': 'b' * 64, 'source': 'claim',
+        'validated': True, 'validated_at': '2026-10-22', 'independent_review': True,
+        'signatures': []
+    }]}), encoding='utf-8')
+    monkeypatch.setattr(checksum_validation, 'MANIFEST', manifest)
+    assert not ec.verify(img)['oem_validated']
 
 
 def test_unprogrammed_block_is_skipped():
