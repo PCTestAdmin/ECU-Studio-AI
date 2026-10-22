@@ -1,3 +1,12 @@
+## Unveröffentlicht
+
+- Update-Prüfung bei **jedem Start** (bisher höchstens einmal am Tag): Wurde kurz vor einer Veröffentlichung geprüft,
+  blieb die neue Version bis zu 24 Stunden unsichtbar (so bei 1.16.0). Während die App läuft, weiter einmal täglich.
+- Messung ohne A2L (`validate_pair DATEI.bin --family …`): Kennung, Funde je Konfidenz und Laufzeit; Familie wird
+  „experimentell“, nie „validiert“. Ergebniszeilen heißen nach Familie und Hash, nicht nach dem Dateinamen.
+- Signaturschlüssel-Erzeugung gibt Pfad und Inhalt der Schlüsseldatei nicht mehr aus (CodeQL-Hinweis).
+- README mit englischer Kurzfassung.
+
 ## 1.16.0 (22.10.2026)
 
 **Kennfelderkennung** (alt → neu, gleiche Referenzen und gleiche Messmethode; *Test* = nie zum Einstellen verwendet)

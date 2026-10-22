@@ -65,7 +65,7 @@ def test_offline_is_silent_automatically_and_explained_when_asked(window, monkey
 def test_no_automatic_network_check_when_headless(window, monkeypatch):
     called = []
     c = ui.UpdateController(window)
-    monkeypatch.setattr(c, 'check', lambda manual: called.append(manual))
+    monkeypatch.setattr(c, 'check', lambda manual, startup=False: called.append(manual))
     c.start()
     assert not c.timer.isActive() and not called
 
@@ -116,3 +116,17 @@ def test_restore_without_backup_only_informs(window, tmp_path, monkeypatch):
     c = ui.UpdateController(window)
     c.request_restore()
     assert c.pending is None and 'keine gesicherte' in infos[0]
+
+
+def test_start_checks_even_if_checked_recently(window, monkeypatch):
+    """A check minutes before a release is published must not hide it for a day."""
+    import time
+    started = []
+    c = ui.UpdateController(window)
+    window.settings.setValue(ui.KEY_LAST, time.time())          # checked just now
+    monkeypatch.setattr(ui, 'CheckWorker', lambda: started.append(1) or (_ for _ in ()).throw(StopIteration))
+    c.check(manual=False)                                       # hourly timer: not due yet
+    assert not started
+    with pytest.raises(StopIteration):
+        c.check(manual=False, startup=True)                     # app start: always checks
+    assert started

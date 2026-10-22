@@ -107,16 +107,18 @@ class UpdateController:
         # No network from tests, CI, smoke and self-checks (headless) or when switched off.
         if os.environ.get('ECU_STUDIO_NO_UPDATE_CHECK') or os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
             return
-        QTimer.singleShot(4000, lambda: self.check(manual=False))
+        # Every start checks once: a check shortly before a release is published
+        # must not hide that release for a whole day (seen with 1.16.0).
+        QTimer.singleShot(4000, lambda: self.check(manual=False, startup=True))
         self.timer.start()
 
     # -- check ----------------------------------------------------------------------------
-    def check(self, manual: bool):
+    def check(self, manual: bool, startup: bool = False):
         if self.worker and self.worker.isRunning():
             return
         if not manual:
             last = self.settings.value(KEY_LAST)
-            if not self.auto_enabled() or not updates.check_due(float(last) if last else None):
+            if not self.auto_enabled() or not (startup or updates.check_due(float(last) if last else None)):
                 return
         self.worker = CheckWorker()
         self.worker.finished_check.connect(lambda release, error: self._checked(release, error, manual))
