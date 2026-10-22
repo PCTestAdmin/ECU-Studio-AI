@@ -122,14 +122,25 @@ def test_start_checks_even_if_checked_recently(window, monkeypatch):
     """A check minutes before a release is published must not hide it for a day."""
     import time
     started = []
+
+    class FakeWorker:                                           # records the start, no network
+        def __init__(self):
+            started.append(1)
+            self.finished_check = type('S', (), {'connect': lambda self, fn: None})()
+
+        def start(self):
+            pass
+
+        def isRunning(self):
+            return False
+
     c = ui.UpdateController(window)
     window.settings.setValue(ui.KEY_LAST, time.time())          # checked just now
-    monkeypatch.setattr(ui, 'CheckWorker', lambda: started.append(1) or (_ for _ in ()).throw(StopIteration))
+    monkeypatch.setattr(ui, 'CheckWorker', FakeWorker)
     c.check(manual=False)                                       # hourly timer: not due yet
     assert not started
-    with pytest.raises(StopIteration):
-        c.check(manual=False, startup=True)                     # app start: always checks
-    assert started
+    c.check(manual=False, startup=True)                         # app start: always checks
+    assert started == [1]
 
 
 def test_updater_start_flags_never_detach_powershell():
