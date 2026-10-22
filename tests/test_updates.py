@@ -142,11 +142,11 @@ def _zip(folder: Path, target: Path):
     return hashlib.sha256(target.read_bytes()).hexdigest()
 
 
-def _run(install, archive, digest, check='/c exit 0'):
+def _run(install, archive, digest, check='/c exit 0', cwd=None):
     env = dict(os.environ, ECU_UPDATER_QUIET='1')
     return subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(UPDATER),
                            '-InstallDir', str(install), '-Archive', str(archive), '-Sha256', digest,
-                           '-CheckArguments', check], capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, timeout=240)
+                           '-CheckArguments', check], capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, cwd=cwd, timeout=240)
 
 
 @pytest.fixture

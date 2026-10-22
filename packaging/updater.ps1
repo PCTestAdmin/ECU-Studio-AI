@@ -41,6 +41,10 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
     }
 }
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+# The UI launches this script with cwd=<LOCALAPPDATA>\ECUStudioAI\updates so the
+# updater process never owns the installation directory while it is renamed.
+# Move away defensively as well for direct invocations.
+try { Set-Location -LiteralPath ([System.IO.Path]::GetTempPath()) } catch { }
 $ExeName = 'ECU-Studio-AI.exe'
 $PackageFolder = 'ECU-Studio-AI'
 
@@ -70,6 +74,21 @@ function Fail([int]$code, [string]$text) {
     exit $code
 }
 
+function Rename-WithRetry([string]$path, [string]$newName, [int]$timeoutSeconds = 30) {
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    $last = $null
+    do {
+        try {
+            Rename-Item -LiteralPath $path -NewName $newName -ErrorAction Stop
+            return
+        } catch {
+            $last = $_.Exception.Message
+            Start-Sleep -Milliseconds 500
+        }
+    } while ((Get-Date) -lt $deadline)
+    throw $last
+}
+
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir.TrimEnd('\'))
 $backup = $InstallDir + '.backup'
 $staging = $InstallDir + '.update-staging'
@@ -97,19 +116,19 @@ if ($Restore) {
     $swap = $InstallDir + '.restore-swap'
     if (Test-Path -LiteralPath $swap) { Remove-Item -LiteralPath $swap -Recurse -Force }
     try {
-        Rename-Item -LiteralPath $InstallDir -NewName (Split-Path $swap -Leaf)
-        Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
-        Rename-Item -LiteralPath $swap -NewName (Split-Path $backup -Leaf)
+        Rename-WithRetry $InstallDir (Split-Path $swap -Leaf)
+        Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
+        Rename-WithRetry $swap (Split-Path $backup -Leaf)
     } catch {
-        if ((Test-Path -LiteralPath $swap) -and -not (Test-Path -LiteralPath $InstallDir)) { Rename-Item -LiteralPath $swap -NewName (Split-Path $InstallDir -Leaf) }
+        if ((Test-Path -LiteralPath $swap) -and -not (Test-Path -LiteralPath $InstallDir)) { Rename-WithRetry $swap (Split-Path $InstallDir -Leaf) }
         Fail 2 ('Wiederherstellung nicht möglich (Ordner in Benutzung?): ' + $_.Exception.Message)
     }
     if (-not (Test-Start $InstallDir)) {
         Log 'Wiederhergestellte Version startet nicht – zurück zur vorherigen Installation.'
         try {
-            Rename-Item -LiteralPath $InstallDir -NewName (Split-Path $swap -Leaf)
-            Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
-            Rename-Item -LiteralPath $swap -NewName (Split-Path $backup -Leaf)
+            Rename-WithRetry $InstallDir (Split-Path $swap -Leaf)
+            Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
+            Rename-WithRetry $swap (Split-Path $backup -Leaf)
         } catch { Fail 4 ('Zurücktauschen fehlgeschlagen; Versionen liegen in ' + $InstallDir + ' und ' + $backup) }
         Fail 3 'Die gesicherte Version startete nicht – die bisherige Version bleibt aktiv.'
     }
@@ -169,7 +188,7 @@ Get-ChildItem -LiteralPath $InstallDir -Recurse -File | ForEach-Object {
 
 # 6. Swap with backup.
 if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
-try { Rename-Item -LiteralPath $InstallDir -NewName (Split-Path $backup -Leaf) }
+try { Rename-WithRetry $InstallDir (Split-Path $backup -Leaf) }
 catch { Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 ('Installation ist in Benutzung oder schreibgeschützt: ' + $_.Exception.Message) }
 try {
     Move-Item -LiteralPath $new -Destination $InstallDir
@@ -177,7 +196,7 @@ try {
 } catch {
     Log ('Einsetzen fehlgeschlagen: ' + $_.Exception.Message)
     if (Test-Path -LiteralPath $InstallDir) { Remove-Item -LiteralPath $InstallDir -Recurse -Force }
-    Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
+    Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
     Fail 3 'Update konnte nicht eingesetzt werden – die vorherige Version wurde wiederhergestellt.'
 }
 
@@ -187,7 +206,7 @@ if (-not (Test-Start $InstallDir)) {
     Log 'Selbsttest der neuen Version fehlgeschlagen – Rollback.'
     try {
         Remove-Item -LiteralPath $InstallDir -Recurse -Force
-        Rename-Item -LiteralPath $backup -NewName (Split-Path $InstallDir -Leaf)
+        Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
     } catch { Fail 4 ('Rollback fehlgeschlagen; vorherige Version liegt in ' + $backup) }
     Fail 3 'Die neue Version startete nicht korrekt – die vorherige Version wurde wiederhergestellt.'
 }

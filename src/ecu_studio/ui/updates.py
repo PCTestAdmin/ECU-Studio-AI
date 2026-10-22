@@ -225,7 +225,10 @@ class UpdateController:
             command += ['-Archive', str(archive), '-Sha256', digest]
         # Windows PowerShell must not inherit a PowerShell 7 module path (see updater.ps1).
         env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
-        spawn_hidden(command, env)
+        # Keep PowerShell's current directory outside the installation. On Windows a
+        # process whose cwd is the install folder can keep that directory open and make
+        # the updater's Rename-Item fail even after the application PID has exited.
+        spawn_hidden(command, env, cwd=str(work))
         return True
 
 
@@ -235,7 +238,8 @@ class UpdateController:
 SPAWN_FLAGS = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
 
 
-def spawn_hidden(command: list[str], env: dict) -> subprocess.Popen:
+def spawn_hidden(command: list[str], env: dict, cwd: str | os.PathLike | None = None) -> subprocess.Popen:
     """Start a console program (PowerShell) invisibly so that it survives the application."""
     return subprocess.Popen(command, creationflags=SPAWN_FLAGS, close_fds=True, env=env,
+                            cwd=cwd,
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

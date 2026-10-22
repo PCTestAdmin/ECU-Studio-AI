@@ -1,5 +1,11 @@
 ## Unveröffentlicht
 
+## 1.16.3 (22.10.2026)
+
+- **Updater repariert:** Der PowerShell-Updater läuft jetzt mit einem Arbeitsordner außerhalb der Installation,
+  damit Windows den Installationsordner beim Austausch nicht selbst als „in Benutzung“ sperrt.
+- Der Austausch wartet bei kurzfristigen Windows-Dateisperren bis zu 30 Sekunden und bricht danach unverändert ab.
+
 ## 1.16.2 (22.10.2026)
 
 **Prüfsummen: Bosch MED17/EDC17-Blockverfahren** (neu: *Werkzeuge → EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …*)

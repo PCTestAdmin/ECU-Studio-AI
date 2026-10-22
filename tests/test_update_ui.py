@@ -99,13 +99,14 @@ def test_restore_names_backup_version_and_hands_over_to_updater(window, tmp_path
     asked = []
     monkeypatch.setattr(QMessageBox, 'question', lambda *a, **k: (asked.append(a[2]), QMessageBox.StandardButton.Yes)[1])
     started = []
-    monkeypatch.setattr(ui.subprocess, 'Popen', lambda cmd, **k: started.append((cmd, k.get('env', {}))))
+    monkeypatch.setattr(ui.subprocess, 'Popen', lambda cmd, **k: started.append((cmd, k.get('env', {}), k.get('cwd'))))
     c.request_restore()
     assert '1.14.0 wiederherstellen' in asked[0] and c.pending == ('restore',)
     assert c.launch_pending() is True
-    cmd, env = started[0]
+    cmd, env, cwd = started[0]
     assert '-Restore' in cmd and '-Archive' not in cmd and str(root) in cmd
     assert not any(k.upper() == 'PSMODULEPATH' for k in env)          # no inherited PowerShell 7 module path
+    assert cwd == str(tmp_path / 'data' / 'updates')
 
 
 def test_restore_without_backup_only_informs(window, tmp_path, monkeypatch):
