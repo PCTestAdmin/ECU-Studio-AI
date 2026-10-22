@@ -1,4 +1,7 @@
-## Unveröffentlicht
+## 1.16.1 (22.10.2026)
+
+> ⚠️ **Bitte diese Version einmal von Hand installieren** (Installer `…-setup.exe` oder ZIP), wenn du 1.15.0 oder
+> 1.16.0 nutzt: Deren Update-Funktion installiert nichts (siehe unten). Ab 1.16.1 funktioniert das Update aus der App.
 
 - **Automatisches Update repariert:** Die App startete das Update-Programm mit einer Windows-Option, bei der
   Windows PowerShell sofort beendet, ohne das Skript auszuführen – das Update meldete keinen Fehler, die alte

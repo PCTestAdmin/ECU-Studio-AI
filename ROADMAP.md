@@ -118,6 +118,8 @@ Bitte keine Firmware hochladen.
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
 
+**1.16.1** · 22.10.2026 – Update aus der App repariert (einmal von Hand installieren), Update-Suche bei jedem Start
+
 **1.15.0** · 21.10.2026
 - Kennfeldsuche ohne Raster, mit Code-Verweisen für ältere Prozessoren
 - A2L mit gespeicherten Achsen, Prüfung der Software-Kennung (EPK)
