@@ -118,6 +118,8 @@ Bitte keine Firmware hochladen.
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
 
+**1.16.2** · 22.10.2026 – EDC16/EDC17-Prüfung, vollständige Struktur-Sperre und kryptografisch abgesicherte OEM-Nachweise
+
 **1.16.1** · 22.10.2026 – Update aus der App repariert (einmal von Hand installieren), Update-Suche bei jedem Start
 
 **1.15.0** · 21.10.2026

@@ -1,5 +1,7 @@
 ## Unveröffentlicht
 
+## 1.16.2 (22.10.2026)
+
 **Prüfsummen: Bosch MED17/EDC17-Blockverfahren** (neu: *Werkzeuge → EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …*)
 - Neues Modul `core/edc17_checksum.py` liest die selbstbeschreibenden Bosch-Prüfsummenblöcke (Signatur
   FADECAFE/CAFEAFFE), rechnet TriCore-Flash-Adressen (0x8/0xA-Alias) auf Dateioffsets um und rechnet die drei
