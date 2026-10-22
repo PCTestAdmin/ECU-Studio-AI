@@ -57,7 +57,8 @@ def _solve_free_dword(data, start, end_incl, hole, target):
     return x
 
 
-def _build_image(hdr=0x100, size=0x200, total=0x400, block_id=0x60, cls_seg=0x80000000):
+def _build_image(hdr=0x100, size=0x200, total=0x400, block_id=0x60, cls_seg=0x80000000,
+                 break_struct2_bounds=False):
     data = bytearray(np.random.default_rng(5).integers(0, 256, total, dtype=np.uint8).tobytes())
     # Clear magic collisions from random fill is unnecessary (2^-64), proceed.
     start_mem = cls_seg | 0x10000
@@ -95,6 +96,10 @@ def _build_image(hdr=0x100, size=0x200, total=0x400, block_id=0x60, cls_seg=0x80
     # ADD32 / ADD16 expected = computed over the original content
     struct.pack_into('<I', data, hdr + 0x34 + 1 * 32 + 16, ec.add32_edc17(bytes(data[add32[0]:add32[1] + 1]), ec.MAGIC_A))
     struct.pack_into('<I', data, hdr + 0x34 + 2 * 32 + 16, ec.add16_edc17(bytes(data[add16[0]:add16[1] + 1]), ec.MAGIC_A))
+    if break_struct2_bounds:
+        # Point the ADD16 structure's end past the block's own bytes: it must then
+        # be reported "not verifiable", never a match.
+        struct.pack_into('<I', data, hdr + 0x34 + 2 * 32 + 8, mem(hdr + size + 0x40))
     return BinaryImage(bytes(data))
 
 
@@ -203,3 +208,52 @@ def test_audit_export_surfaces_edc17_blocks():
     assert report['edc17_blocks']['status'] == 'mismatch'
     assert any(i['code'] == 'edc17-block-mismatch' for i in report['issues'])
     assert report['flash_approved'] is False
+
+
+def test_single_undo_reverts_all_corrections():
+    # Issue #1: two corrected fields must be reverted by ONE undo, not just the last.
+    img = _build_image()
+    img.write(0x210, bytes([img.original[0x210] ^ 0x5A]))    # edit ADD32 range
+    img.write(0x250, bytes([img.original[0x250] ^ 0x5A]))    # edit ADD16 range
+    after_edits = img.read(0, img.size)                       # before any checksum correction
+    steps, _ = ec.plan_correction(img)
+    assert len(steps) == 2
+    ec.apply_correction(img, steps)
+    assert ec.check_current(img)['status'] == 'match'
+    assert img.undo() is True                                 # a single undo
+    # Both compensation dwords are back; only the two calibration edits remain.
+    assert img.read(0, img.size) == after_edits
+    assert ec.check_current(img)['status'] == 'mismatch'
+
+
+def test_coverage_full_partial_and_unverifiable():
+    # Issue #2 / #3: explicit full vs partial, and out-of-block structures are unverifiable.
+    full = ec.verify(_build_image())
+    assert full['coverage'] == 'full' and full['proven'] and full['unverifiable'] == 0
+    assert full['structures_total'] == 3 and full['proven_on_original'] == 3
+
+    part = ec.verify(_build_image(break_struct2_bounds=True))
+    assert part['coverage'] == 'partial' and part['proven'] is False
+    assert part['proven_on_original'] == 2 and part['unverifiable'] == 1
+    # The out-of-bounds structure is flagged, not silently matched.
+    s2 = part['rows'][0]['structures'][2]
+    assert s2['in_bounds'] is False and s2['match'] is None
+
+    cur = ec.check_current(_build_image(break_struct2_bounds=True))
+    assert cur['coverage'] == 'partial' and cur['structures_unproven'] == 1 and cur['status'] == 'match'
+
+
+def test_out_of_bounds_structure_is_never_corrected():
+    # Issue #3: a structure whose range leaves the block is not a write target.
+    img = _build_image(break_struct2_bounds=True)
+    steps, skipped = ec.plan_correction(img)   # ADD32 proven and correctable; ADD16 out of bounds
+    # Only the in-bounds ADD32 compensation word (0x23C) is eligible; 0x27C is not touched.
+    assert {o for o, _, _ in steps} <= {0x23C}
+
+
+def test_validate_pair_measures_edc17_checksums():
+    # Issue #4: the validation tool reports real EDC17 checksum coverage.
+    from ecu_studio.tools.validate_pair import checksum_summary
+    cs = checksum_summary(_build_image())
+    assert cs['edc17_blocks'] == 1 and cs['edc17_structures_total'] == 3
+    assert cs['edc17_proven'] == 3 and cs['edc17_coverage'] == 'full' and cs['edc17_unverifiable'] == 0

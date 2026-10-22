@@ -173,9 +173,10 @@ CRC-Gegenrechnung, Änderungs­erkennung, Korrektur nur der ADD-Kompensationswö
 Ein OEM-Nachweis fehlt, weil keine echte EDC17/MED17-Firmware im Repository liegt.
 
 **Benötigt für den OEM-Nachweis:** mindestens eine echte, unveränderte EDC17CP09-Originaldatei (vollständiger Flash),
-besser zwei Softwarestände. Damit misst
-`python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch EDC17CP09"` die Blöcke; reproduziert der
-Blockleser die gespeicherten Werte, wird das Verfahren von „implementiert“ zu „am Original gemessen“.
+besser zwei Softwarestände. `python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch EDC17CP09"` misst
+jetzt zusätzlich die Prüfsummen und meldet die EDC17/MED17-Abdeckung („Prüfsummen: EDC17/MED17 x/y Strukturen am
+Original nachgewiesen …“); reproduziert der Blockleser die gespeicherten Werte, wird das Verfahren von
+„implementiert“ zu „am Original gemessen“.
 
 Grenzen: Automatisch korrigiert werden nur additive Blöcke (ADD32/ADD16) über ihr Kompensationswort. CRC32-Blöcke
 werden **nur geprüft**, nicht automatisch korrigiert – sie können Signaturen/Sicherheitsfelder abdecken, die dieses

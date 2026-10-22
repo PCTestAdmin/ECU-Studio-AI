@@ -11,6 +11,15 @@
   Rücknahme. CRC32-Blöcke werden nur geprüft (könnten Signaturen/Sicherheitsfelder abdecken – bewusst nicht
   angefasst). Keine Signatur-Umgehung, keine Flashfreigabe.
 - Der Prüf-/Exportbericht (`audit_export`) warnt jetzt auch bei falschen EDC17/MED17-Blockprüfsummen.
+- Korrektur schreibt alle Kompensationswörter in **einem** Undo-Schritt: ein einziges Strg+Z nimmt die gesamte
+  Korrektur zurück (vorher nur das zuletzt geschriebene Feld).
+- Eindeutiger Prüfstatus **vollständig / teilweise / nicht prüfbar**: `check_current`/`verify` und die Oberfläche
+  weisen nicht am Original nachgewiesene Strukturen jetzt klar als ungeprüft aus, statt für einige Strukturen einen
+  positiven Status zu zeigen.
+- Strengere Grenzprüfung: Jede Prüfsummenstruktur muss vollständig innerhalb ihres Blocks liegen; Strukturen
+  beschädigter/ungewöhnlicher Dateien, deren Bereich aus dem Block fällt, gelten als „nicht prüfbar“ und erzeugen
+  keinen irreführenden Treffer und kein Schreibziel.
+- `tools/validate_pair` misst zusätzlich die EDC17/MED17-Prüfsummenabdeckung (nicht nur die Kennfelderkennung).
 - Herkunft des Blockformats: öffentlich dokumentiertes Bosch-Layout, gegengeprüft am MIT-lizenzierten
   medc17-checksum-tool (Connor Howell). Die Mechanik ist synthetisch im Bosch-Format end-to-end getestet
   (`tests/test_edc17_checksum.py`, u. a. unabhängige CRC-Gegenrechnung). **Ein OEM-Nachweis an echter EDC17CP09-

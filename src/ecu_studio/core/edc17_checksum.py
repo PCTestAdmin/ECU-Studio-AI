@@ -133,6 +133,7 @@ class ChecksumStructure:
     expected: int          # stored expected value (complement for CRC32)
     start_file: int        # resolved file offsets (end inclusive)
     end_file: int
+    in_bounds: bool = True  # covered range lies within the block it belongs to
     computed: int | None = None
     valid: bool | None = None  # None: algorithm/range not evaluable
 
@@ -186,6 +187,7 @@ def _parse_block(data: bytes, hdr: int) -> Block | None:
     if not _is_flash_addr(start_mem):
         return None
     block = Block(hdr, size, block_id, BLOCK_NAMES[block_id], start_mem, end_mem + 3)
+    block_end_file = hdr + size - 1          # last byte that belongs to this block
     for i in range(count):
         so = hdr + STRUCT_BASE + i * STRUCT_SIZE
         if so + STRUCT_SIZE > n:
@@ -195,11 +197,16 @@ def _parse_block(data: bytes, hdr: int) -> Block | None:
         cs_end = struct.unpack_from('<I', data, so + 8)[0]
         sf = _mem_to_file(cs_start, start_mem, hdr)
         ef = _mem_to_file(cs_end, start_mem, hdr)
+        # The covered range must lie wholly inside this block's own bytes and the
+        # file. A structure whose addresses map elsewhere (corrupt or unusual
+        # file) is kept but marked out of bounds, so it is reported as "not
+        # verifiable" and never produces a misleading match or a write target.
+        in_bounds = hdr <= sf <= ef <= block_end_file < n
         block.structures.append(ChecksumStructure(
             offset=so, algorithm=algo, start_mem=cs_start, end_mem=cs_end,
             seed=struct.unpack_from('<I', data, so + 12)[0],
             expected=struct.unpack_from('<I', data, so + 16)[0],
-            start_file=sf, end_file=ef))
+            start_file=sf, end_file=ef, in_bounds=in_bounds))
     final = struct.unpack_from('<I', data, hdr + STRUCT_BASE + count * STRUCT_SIZE)[0] \
         if hdr + STRUCT_BASE + count * STRUCT_SIZE + 4 <= n else 0
     adjust = struct.unpack_from('<I', data, hdr + 0x30)[0]
@@ -224,7 +231,8 @@ def find_blocks(data: bytes) -> list[Block]:
 
 def _evaluate(data: bytes, cs: ChecksumStructure) -> None:
     """Fill cs.computed / cs.valid for the current bytes."""
-    if cs.algorithm not in _ALGO or not (0 <= cs.start_file < cs.end_file < len(data)):
+    if (cs.algorithm not in _ALGO or not cs.in_bounds
+            or not (0 <= cs.start_file < cs.end_file < len(data))):
         cs.computed, cs.valid = None, None
         return
     payload = data[cs.start_file:cs.end_file + 1]
@@ -245,26 +253,36 @@ def verify(image) -> dict:
     """
     original = image.original
     blocks = find_blocks(original)
-    rows, proven = [], 0
+    rows, proven, total, unverifiable = [], 0, 0, 0
     for block in blocks:
         for cs in block.structures:
             _evaluate(original, cs)
-        checkable = [cs for cs in block.structures if not block.unprogrammed and cs.valid is not None]
-        proven += sum(1 for cs in checkable if cs.valid)
+        if not block.unprogrammed:
+            for cs in block.structures:
+                total += 1
+                if cs.valid:
+                    proven += 1
+                elif cs.valid is None:
+                    unverifiable += 1
         rows.append({'block': block.name, 'offset': block.bin_start,
                      'unprogrammed': block.unprogrammed,
                      'structures': [{'algorithm': cs.algo_name, 'start': cs.start_file,
                                      'end': cs.end_file, 'expected': cs.expected,
-                                     'computed': cs.computed, 'match': cs.valid}
+                                     'computed': cs.computed, 'in_bounds': cs.in_bounds,
+                                     'match': cs.valid}
                                     for cs in block.structures]})
-    total_checkable = sum(1 for b in blocks for cs in b.structures
-                          if not b.unprogrammed and cs.valid is not None)
+    # Coverage distinguishes fully proven, partially proven and nothing proven,
+    # so "proven" never hides structures that were not (or could not be) checked.
+    coverage = 'full' if total and proven == total else 'partial' if proven else 'none'
     return {'scheme': 'bosch-med17-edc17',
             'blocks': len(blocks),
-            'checkable': total_checkable,
+            'structures_total': total,
+            'checkable': proven,                 # proven on the original
             'proven_on_original': proven,
+            'unverifiable': unverifiable,        # structures whose range is out of bounds / unusable
+            'coverage': coverage,
             'detected': bool(blocks),
-            'proven': total_checkable > 0 and proven == total_checkable,
+            'proven': coverage == 'full',
             'rows': rows}
 
 
@@ -277,23 +295,31 @@ def check_current(image) -> dict:
     original = image.original
     data = image.read(0, image.size)
     blocks = find_blocks(original)
-    mismatches, checked = 0, 0
+    mismatches, checked, total = 0, 0, 0
     rows = []
     for block in blocks:
         if block.unprogrammed:
             continue
         for cs in block.structures:
+            total += 1
             _evaluate(original, cs)
             if cs.valid:                       # proven on the original
                 cur = ChecksumStructure(cs.offset, cs.algorithm, cs.start_mem, cs.end_mem,
-                                        cs.seed, cs.expected, cs.start_file, cs.end_file)
+                                        cs.seed, cs.expected, cs.start_file, cs.end_file, cs.in_bounds)
                 _evaluate(data, cur)
                 checked += 1
                 if not cur.valid:
                     mismatches += 1
                 rows.append({'block': block.name, 'offset': cs.offset, 'algorithm': cs.algo_name,
                              'start': cs.start_file, 'end': cs.end_file, 'match': bool(cur.valid)})
+    unproven = total - checked
+    # Coverage says how much of the file this method actually vouches for, so the
+    # UI can distinguish "fully checked", "partially checked" and "not checkable"
+    # instead of showing a bare match for a few structures.
+    coverage = 'full' if checked and not unproven else 'partial' if checked else 'none'
     return {'blocks': checked, 'mismatches': mismatches, 'rows': rows,
+            'structures_total': total, 'structures_proven': checked, 'structures_unproven': unproven,
+            'coverage': coverage,
             'status': 'none' if not checked else 'match' if not mismatches else 'mismatch'}
 
 
@@ -381,15 +407,22 @@ def correction_preview(steps, skipped_crc) -> str:
 
 
 def apply_correction(image, steps) -> dict:
-    """Write a plan from plan_correction, re-verify every proven block, roll back on any doubt."""
+    """Write a plan from plan_correction as ONE undo step, re-verify, roll back on any doubt.
+
+    All compensation words are committed in a single transaction, so one undo
+    (Ctrl+Z) reverts every field at once — correcting two blocks and undoing once
+    must restore the file completely, not only the last field.
+    """
     fresh, _ = plan_correction(image)
     if [(o, n) for o, _, n in fresh] != [(o, n) for o, _, n in steps]:
         raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
-    for off, _, new in steps:
-        image.write(off, new)
+    # Per-byte (offset, before, after) edits across all steps, applied atomically.
+    changes = [(off + i, old[i], new[i]) for off, old, new in steps
+               for i in range(len(new)) if old[i] != new[i]]
+    if not image.commit(changes, label='EDC17/MED17-Prüfsummenkorrektur'):
+        return check_current(image)
     result = check_current(image)
     if result['mismatches']:
-        for off, old, _ in steps:
-            image.write(off, old)
+        image.undo()                       # single step reverts the whole correction
         raise ValueError('Nach der Korrektur stimmen nicht alle Blöcke – zurückgesetzt')
     return result

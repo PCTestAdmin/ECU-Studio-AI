@@ -2758,9 +2758,13 @@ class Window(QMainWindow):
                 'mit CRC32/ADD32/ADD16 reproduzieren. Das Verfahren gilt für diese Datei als NICHT nachgewiesen – '
                 'keine Korrektur.');return
         state=check_current(self.image)
-        head=(f'{state["blocks"]} Prüfsummenblock-Struktur(en) am unveränderten Original bewiesen '
-              f'(Verfahren aus der Datei bestätigt). Aktuell stimmen {state["blocks"]-state["mismatches"]} '
+        cover={'full':'Vollständig geprüft','partial':'Teilweise geprüft'}.get(state['coverage'],'Geprüft')
+        head=(cover+'\n'
+              +f'{state["structures_proven"]} von {state["structures_total"]} Prüfsummenstrukturen am '
+              f'unveränderten Original nachgewiesen. Aktuell stimmen {state["blocks"]-state["mismatches"]} '
               f'von {state["blocks"]}.')
+        if state['structures_unproven']:
+            head+=f'\n{state["structures_unproven"]} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.'
         if not state['mismatches']:
             QMessageBox.information(self,'EDC17/MED17-Prüfsummen',head+'\n\nNichts zu korrigieren. Keine Flashfreigabe: '
                                     'Signaturen und weitere ECU-Prüfungen sind nicht abgedeckt.');return

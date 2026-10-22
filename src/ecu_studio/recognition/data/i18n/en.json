@@ -1814,6 +1814,11 @@
   "{0} Prüfsummenblock-Struktur(en) am unveränderten Original bewiesen (Verfahren aus der Datei bestätigt). Aktuell stimmen {1} von {2}.": "{0} checksum block structure(s) proven on the unmodified original (method confirmed from the file). Currently {1} of {2} match.",
   "{0} von {1} am Original bewiesenen EDC17/MED17-Prüfsummenblöcken stimmen nicht mehr (Werkzeuge → EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren).": "{0} of {1} EDC17/MED17 checksum blocks proven on the original no longer match (Tools → Check / correct EDC17/MED17 checksum blocks).",
   "{0}: Kompensationswort außerhalb des Prüfbereichs – Korrektur verweigert": "{0}: compensation word outside the checked range – correction refused",
-  "{0}: Kompensationswort läge in Metadaten – Korrektur verweigert": "{0}: compensation word would fall in metadata – correction refused"
+  "{0}: Kompensationswort läge in Metadaten – Korrektur verweigert": "{0}: compensation word would fall in metadata – correction refused",
+  "{0} von {1} Prüfsummenstrukturen am unveränderten Original nachgewiesen. Aktuell stimmen {2} von {3}.": "{0} of {1} checksum structures proven on the unmodified original. Currently {2} of {3} match.",
+  "\n{0} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.": "\n{0} structure(s) are not proven and remain unchecked.",
+  "Vollständig geprüft": "Fully checked",
+  "Teilweise geprüft": "Partially checked",
+  "EDC17/MED17: nur {0} von {1} Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.": "EDC17/MED17: only {0} of {1} checksum structures are proven on the original; the rest are unchecked."
  }
 }

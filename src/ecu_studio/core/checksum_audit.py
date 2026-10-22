@@ -302,6 +302,10 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
                        'message':f"{edc17['mismatches']} von {edc17['blocks']} am Original bewiesenen EDC17/MED17-"
                                  'Prüfsummenblöcken stimmen nicht mehr (Werkzeuge → EDC17/MED17-Prüfsummenblöcke '
                                  'prüfen / korrigieren).'})
+    if edc17['coverage']=='partial':
+        issues.append({'level':'info','code':'edc17-partial-coverage',
+                       'message':f"EDC17/MED17: nur {edc17['structures_proven']} von {edc17['structures_total']} "
+                                 'Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.'})
     quality=audit_catalog(image,maps,sample_limit=48)
     warnings=sum(bool(q.warnings) for q in quality)
     bad=sum(q.decode_mismatches>0 for q in quality)
@@ -333,7 +337,8 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
     if uncovered_count: issues.append({'level':'warning','code':'unmapped-patches',
                                        'message':f'{uncovered_count} veränderte Bytes außerhalb bekannter Kennfelder.'})
     return {'checksum_tables':{k:tables[k] for k in ('status','blocks','mismatches')},
-            'edc17_blocks':{k:edc17[k] for k in ('status','blocks','mismatches')},
+            'edc17_blocks':{k:edc17[k] for k in ('status','blocks','mismatches','coverage',
+                                                 'structures_total','structures_proven','structures_unproven')},
             'original_sha256':image.digest,
             'modified_sha256':hashlib.sha256(image.materialize()).hexdigest(),
             'size':image.size,'dirty_bytes':image.dirty_bytes,
