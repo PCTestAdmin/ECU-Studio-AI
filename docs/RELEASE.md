@@ -5,6 +5,12 @@ Bestehende Nutzer bekommen die neue Version danach über die eingebaute Update-P
 
 ## Ablauf
 
+**Updater-Hinweis für 1.16.2:** Der Updater in 1.16.2 kann den Installationsordner beim Start aus der laufenden
+Anwendung selbst als Arbeitsordner festhalten. Deshalb muss 1.16.3 einmal manuell per ZIP oder Installer installiert
+werden. Der 1.16.3-Updater arbeitet außerhalb des Installationsordners; ab dann funktionieren automatische Updates.
+Der Release-Workflow prüft den externen Arbeitsordner und meldet den nicht vollständig abdeckbaren alten Startweg
+bei einem Update von 1.16.2 ausdrücklich als Warnung.
+
 1. **Version erhöhen** in `src/ecu_studio/__init__.py`, z. B. `__version__ = "1.15.0"`.
 2. **Änderungen eintragen:** in `CHANGELOG.md` einen Abschnitt `## 1.15.0 (Datum)` anlegen. Sein Inhalt erscheint
    als Release-Text und im Update-Fenster. Ohne diesen Abschnitt bricht der Release ab.

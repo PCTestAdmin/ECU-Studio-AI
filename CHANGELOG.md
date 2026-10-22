@@ -5,6 +5,8 @@
 - **Updater repariert:** Der PowerShell-Updater läuft jetzt mit einem Arbeitsordner außerhalb der Installation,
   damit Windows den Installationsordner beim Austausch nicht selbst als „in Benutzung“ sperrt.
 - Der Austausch wartet bei kurzfristigen Windows-Dateisperren bis zu 30 Sekunden und bricht danach unverändert ab.
+- Nutzer von 1.16.2 müssen 1.16.3 einmal manuell über ZIP oder Installer installieren: Der bereits installierte
+  1.16.2-Updater kennt den externen Arbeitsordner noch nicht. Danach funktionieren automatische Updates wieder.
 
 ## 1.16.2 (22.10.2026)
 

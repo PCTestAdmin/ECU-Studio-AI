@@ -98,6 +98,9 @@ jobs:
             Write-Host '::notice::Kein früheres Release – nur Neuinstallation geprüft.'
             Expand-Archive $zip $work
           } else {
+            if ($old -eq 'v1.16.2') {
+              Write-Host '::warning::Der 1.16.2-Updater wurde aus der laufenden Anwendung mit deren Installationsordner als cwd gestartet. 1.16.2 -> 1.16.3 muss einmal manuell installiert werden; dieser Job prüft den externen Arbeitsordner des reparierten Updaters.'
+            }
             gh release download $old --repo "${{ github.repository }}" --pattern '*-windows-x64.zip' --dir $work
             Expand-Archive (Get-ChildItem "$work\*-windows-x64.zip").FullName $work
             $install = Join-Path $work 'ECU-Studio-AI'
