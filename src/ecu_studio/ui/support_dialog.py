@@ -13,6 +13,9 @@ COLUMNS = ('Steuergerät', 'Prozessor', 'Status', 'Gemessene Softwarestände', '
 def _quality(entry) -> str:
     parts = []
     for s in entry.software:
+        if s.get('no_reference'):
+            parts.append(f"{s['name']}: {s['found_2d']} Kandidaten, ohne Referenz nicht bewertbar")
+            continue
         text = f"{s['name']}: {s['exact_2d']}/{s['reference_2d']} exakt"
         if s.get('precision_2d') is not None:
             text += f", Präzision {s['precision_2d']:.0%}"

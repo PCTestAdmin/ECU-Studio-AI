@@ -141,6 +141,18 @@ python -m ecu_studio.tools.support_matrix ergebnisse.json --out matrix.json --ma
 Das erste Kommando zeigt, welche Kennung in der Datei steht, und misst exakte Kennfelder, Datentyp, Achsen,
 Präzision und Fehlfunde; das zweite erzeugt daraus Matrix-Zeilen (Status nach denselben Regeln wie oben).
 
+**Ohne A2L** (z. B. eigene MG1/MD1-Auslesung) lässt sich nichts bewerten, aber prüfen, ob die Datei erkannt wird
+und was die Suche findet:
+
+```
+python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch MG1CS002" --results ergebnisse.json
+```
+
+Gespeichert werden Kennung, Anzahl der Funde je Konfidenz und Laufzeit; die Zeile heißt nach Familie und
+Hash-Präfix, nicht nach dem Dateinamen (der oft Fahrgestellnummer oder Kundennamen enthält). Die Familie wird
+damit **experimentell**, nie validiert. Bitte nur den Flash verwenden (kein EEPROM – dort stehen Wegfahrsperre
+und Fahrgestellnummer) und nur Dateien eigener Fahrzeuge oder mit Zustimmung des Fahrzeughalters.
+
 
 ## Rechtlich saubere Referenzdaten (Recherche 21.10.2026)
 

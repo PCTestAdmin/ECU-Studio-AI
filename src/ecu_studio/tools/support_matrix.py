@@ -90,6 +90,8 @@ def _family_hit(family: str, names: list[str]) -> bool:
 
 
 def _row_metrics(r: dict) -> dict:
+    if r.get('no_reference'):   # scanned without definition: counts only, nothing scored
+        return {'no_reference': True, **{k: r.get(k) for k in ('found_2d', 'found_1d', 'tiers_2d', 'seconds')}}
     out = {k: r.get(k) for k in ('reference_2d', 'found_2d', 'exact_2d', 'type_exact_2d', 'axes_correct',
                                   'with_axes', 'reference_1d', 'exact_1d', 'seconds', 'peak_mb')}
     out['recall_2d'] = r['recall_2d']
@@ -109,7 +111,8 @@ def build(results: list[dict]) -> dict:
                 or (not prefixes and _family_hit(r.get('family', ''), match))]
         software = [{'name': r['name'], 'role': r['role'], 'complete_reference': r['complete_reference'],
                      'group': r['group'], **_row_metrics(r)} for r in mine]
-        complete = [r for r in mine if r['complete_reference']]
+        scored = [r for r in mine if not r.get('no_reference')]
+        complete = [r for r in scored if r['complete_reference']]
         good = [r for r in complete if r['precision_2d'] >= MIN_PRECISION
                 and r['exact_2d'] >= MIN_EXACT_SHARE * max(1, r['reference_2d'])]
         if good:
@@ -120,9 +123,9 @@ def build(results: list[dict]) -> dict:
             limits = (limits + ' Gemessen, Erkennung unzureichend '
                       f"(bestenfalls {best['exact_2d']} von {best['reference_2d']} exakt, "
                       f"Präzision höchstens {max(r['precision_2d'] for r in complete):.0%}).").strip()
-        elif mine:
+        elif scored:
             status = 'teilweise'
-        elif experimental:
+        elif mine or experimental:
             status = 'experimentell'
         else:
             status = 'nicht validiert'
@@ -146,8 +149,10 @@ def markdown(data: dict) -> str:
     out = ['| Steuergerät | Prozessor | Status | Softwarestände | exakt 2D (Spanne der Stände) | Präzision 2D | Grenzen / benötigt |',
            '|---|---|---|---:|---|---|---|']
     for e in data['entries']:
-        sw = e['software']
-        if sw:
+        sw = [s for s in e['software'] if not s.get('no_reference')]
+        if not sw and e['software']:
+            exact, prec = 'ohne Referenz', '–'
+        elif sw:
             ex = sorted(f"{s['exact_2d']}/{s['reference_2d']}" for s in sw)
             exact = ex[0] if len(set(ex)) == 1 else f"{min(s['exact_2d'] for s in sw)}–{max(s['exact_2d'] for s in sw)} von {sw[0]['reference_2d']}"
             exact = exact if len(set(s['reference_2d'] for s in sw)) == 1 else ', '.join(ex)
@@ -156,12 +161,16 @@ def markdown(data: dict) -> str:
         else:
             exact = prec = 'offen'
         limits = e['limits'] + (f" **Benötigt:** {e['needed']}." if e['needed'] else '')
-        out.append(f"| {e['family']} | {e['processor']} | {MARK[e['status']]} | {len(sw)} | {exact} | {prec} | {limits.strip() or '–'} |")
+        out.append(f"| {e['family']} | {e['processor']} | {MARK[e['status']]} | {len(e['software'])} | {exact} | {prec} | {limits.strip() or '–'} |")
     out += ['', '**Einzelmessungen** (Rolle *test* = nie zum Einstellen verwendet; Gruppe = nahezu identische Stände)', '',
             '| Softwarestand | Rolle | Gruppe | Ref 2D | gefunden | Abdeckung | exakt | Typ richtig | Achsen richtig | Präzision | Fehlfunde | exakt 1D | s | MB |',
             '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
     for e in data['entries']:
         for s in e['software']:
+            if s.get('no_reference'):
+                out.append(f"| {s['name']} | {s['role']} | {s['group']} | – | {s['found_2d']} | – | – | – | – | – | – | – | "
+                           f"{s['seconds']} | – |")
+                continue
             fp = '–' if s.get('false_positives_2d') is None else s['false_positives_2d']
             mb = '–' if s.get('peak_mb') is None else s['peak_mb']
             out.append(f"| {s['name']} | {s['role']} | {s['group']} | {s['reference_2d']} | {s['found_2d']} | "

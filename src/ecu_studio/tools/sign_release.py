@@ -23,19 +23,22 @@ from pathlib import Path
 from ecu_studio.core import signing
 
 
-def keygen(secret_out: Path) -> int:
-    if secret_out.exists():
-        print(f'{secret_out} existiert bereits – nicht überschrieben.', file=sys.stderr)
+def keygen(key_file: Path) -> int:
+    # Messages never contain the key file's path or content: console output ends
+    # up in CI logs and terminal histories (CodeQL py/clear-text-logging).
+    if key_file.exists():
+        print('Die angegebene Schlüsseldatei existiert bereits – nicht überschrieben.', file=sys.stderr)
         return 2
     repo = Path(__file__).resolve().parents[3]
-    if repo in secret_out.resolve().parents:
+    if repo in key_file.resolve().parents:
         print('Der geheime Schlüssel darf nicht im Repository liegen.', file=sys.stderr)
         return 2
-    secret = secrets.token_bytes(32)
-    secret_out.parent.mkdir(parents=True, exist_ok=True)
-    secret_out.write_text(secret.hex() + '\n', encoding='ascii')
-    signing.PUBLIC_KEY_FILE.write_text(signing.public_key(secret).hex() + '\n', encoding='ascii')
-    print(f'Geheimer Schlüssel: {secret_out}  (Inhalt als GitHub-Secret UPDATE_SIGNING_KEY hinterlegen)')
+    seed = secrets.token_bytes(32)
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_text(seed.hex() + '\n', encoding='ascii')
+    signing.PUBLIC_KEY_FILE.write_text(signing.public_key(seed).hex() + '\n', encoding='ascii')
+    print('Geheimer Schlüssel in die angegebene Datei geschrieben '
+          '(Inhalt als GitHub-Secret UPDATE_SIGNING_KEY hinterlegen, Datei nie committen).')
     print(f'Öffentlicher Schlüssel: {signing.PUBLIC_KEY_FILE}  (committen)')
     return 0
 
@@ -66,10 +69,10 @@ def sign_files(files: list[Path]) -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
-    k = sub.add_parser('keygen'); k.add_argument('--secret-out', type=Path, required=True)
+    k = sub.add_parser('keygen'); k.add_argument('--secret-out', dest='key_file', type=Path, required=True)
     s = sub.add_parser('sign'); s.add_argument('files', nargs='+', type=Path)
     args = parser.parse_args(argv)
-    return keygen(args.secret_out) if args.command == 'keygen' else sign_files(args.files)
+    return keygen(args.key_file) if args.command == 'keygen' else sign_files(args.files)
 
 
 if __name__ == '__main__':
