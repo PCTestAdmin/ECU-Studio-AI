@@ -1,5 +1,22 @@
 ## Unveröffentlicht
 
+**Prüfsummen: Bosch MED17/EDC17-Blockverfahren** (neu: *Werkzeuge → EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …*)
+- Neues Modul `core/edc17_checksum.py` liest die selbstbeschreibenden Bosch-Prüfsummenblöcke (Signatur
+  FADECAFE/CAFEAFFE), rechnet TriCore-Flash-Adressen (0x8/0xA-Alias) auf Dateioffsets um und rechnet die drei
+  dokumentierten Verfahren nach: CRC32 (reflektiert, Startwert 0xFADECAFE, gespeichert als Komplement),
+  ADD32 (Dword-Summe) und ADD16 (16-Bit-Wortsumme mit dokumentiertem Schlusswort). Ein Block gilt nur als
+  **nachgewiesen**, wenn er den gespeicherten Wert aus dem **unveränderten Original** exakt reproduziert; aus dem
+  Familiennamen wird nichts geschlossen.
+- Korrektur nur für additive Blöcke (ADD32/ADD16) über ihr Kompensationswort, mit Byte-Vorschau, Endprüfung und
+  Rücknahme. CRC32-Blöcke werden nur geprüft (könnten Signaturen/Sicherheitsfelder abdecken – bewusst nicht
+  angefasst). Keine Signatur-Umgehung, keine Flashfreigabe.
+- Der Prüf-/Exportbericht (`audit_export`) warnt jetzt auch bei falschen EDC17/MED17-Blockprüfsummen.
+- Herkunft des Blockformats: öffentlich dokumentiertes Bosch-Layout, gegengeprüft am MIT-lizenzierten
+  medc17-checksum-tool (Connor Howell). Die Mechanik ist synthetisch im Bosch-Format end-to-end getestet
+  (`tests/test_edc17_checksum.py`, u. a. unabhängige CRC-Gegenrechnung). **Ein OEM-Nachweis an echter EDC17CP09-
+  Firmware steht aus – es liegt keine echte Firmware im Repository** (siehe `docs/ECU_SUPPORT.md`). Für EDC16 wird
+  weiterhin kein eigenes Verfahren behauptet.
+
 - Hinweisbalken nach dem Öffnen: Siemens-Dateien ohne Bosch-EPK (MS41/MS42/MS43, GS20) galten als „nicht
   bestimmbar“, obwohl die App sie an ihren Softwaremarkern erkennt (Titelzeile). Die Erkennung nutzt diese Marker
   jetzt auch für Hinweisbalken, Kennungsanzeige und Unterstützungsstatus.
