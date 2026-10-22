@@ -1,3 +1,9 @@
+## Unveröffentlicht
+
+- Hinweisbalken nach dem Öffnen: Siemens-Dateien ohne Bosch-EPK (MS41/MS42/MS43, GS20) galten als „nicht
+  bestimmbar“, obwohl die App sie an ihren Softwaremarkern erkennt (Titelzeile). Die Erkennung nutzt diese Marker
+  jetzt auch für Hinweisbalken, Kennungsanzeige und Unterstützungsstatus.
+
 ## 1.16.1 (22.10.2026)
 
 > ⚠️ **Bitte diese Version einmal von Hand installieren** (Installer `…-setup.exe` oder ZIP), wenn du 1.15.0 oder

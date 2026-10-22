@@ -60,3 +60,11 @@ def test_gs20_scanner_does_not_invent_types():
     assert all(m.kind=='Unbekannt' for m in maps)
     assert all('GS20' in m.label_origin for m in maps)
     assert all(m.offset < 65536 for m in maps)
+
+
+def test_identity_banner_uses_profile_signatures_when_there_is_no_epk():
+    """Siemens files carry no EPK: identification must agree with the window title (profile)."""
+    from ecu_studio.core.identification import identify
+    ident = identify(BinaryImage(gs20_fixture()))
+    assert ident.family == 'GS20' and 'GS20' in ident.family_evidence
+    assert identify(BinaryImage(bytes(65536))).family is None        # nothing invented for empty data

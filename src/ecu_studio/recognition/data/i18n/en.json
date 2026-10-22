@@ -813,6 +813,7 @@
   "Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.": "Curve from header record; unit and scaling unknown.",
   "Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)": "Curve record: count + monotonic axis, in a record chain (unverified)",
   "Kennlinien-Kandidat @ 0x{0}": "Curve candidate @ 0x{0}",
+  "Kennung im Abbild": "identifier in the image",
   "Kennung: {0}": "Identifier: {0}",
   "Kleine/übergroße Form": "Small/oversized shape",
   "Klick auf Kurve: Kennfeldzelle markieren": "Click on curve: mark map cell",
@@ -1793,6 +1794,10 @@
   "• Quell-BIN und A2L/DAMOS exakt auf denselben Softwarestand prüfen.": "• Check that the source BIN and A2L/DAMOS belong exactly to the same software version.",
   "… weitere {0} Blöcke; CSV exportieren für vollständiges Audit": "… {0} more blocks; export CSV for a complete audit",
   "… weitere {0} Hinweise (alle per Export)": "… {0} more hints (all via export)",
-  "⚪ nicht validiert": "⚪ not validated"
+  "⚪ nicht validiert": "⚪ not validated",
+  "MS43-Softwaremarker im Kalibrierfenster": "MS43 software marker in the calibration window",
+  "MS42-Kalibrierkennung 0110C6": "MS42 calibration ID 0110C6",
+  "MS41-Softwarekennung 1429861 im Abbild": "MS41 software ID 1429861 in the image",
+  "GS20-typische Kopfkennung im Datenfenster": "GS20 header ID in the data window"
  }
 }

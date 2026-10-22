@@ -113,6 +113,15 @@ def identify(image: BinaryImage) -> Identity:
             ident.family_evidence = f'Familienname im Klartext @ 0x{off:X}'
         elif len(specific) > 1:
             ident.ambiguous = sorted(specific)
+    if ident.family is None and not ident.ambiguous:
+        # Siemens MS41/42/43 and GS20 carry no EPK; their in-file signatures are
+        # recognised by core/profiles (the same source as the window title).
+        from .profiles import identify_profile
+        profile = identify_profile(image)
+        if profile.family != 'Unbekannt':
+            ident.family = profile.family.split(' ', 1)[-1]
+            version = f' {profile.software_version}' if profile.software_version else ''
+            ident.family_evidence = (profile.evidence[0] if profile.evidence else 'Kennung im Abbild') + version
     for kind, pattern, target in (('Bosch-HW', BOSCH_HW, ident.hardware), ('Siemens-HW', SIEMENS_HW, ident.hardware),
                                   ('Bosch-SW', BOSCH_SW, ident.software), ('VAG-Teilenummer', VAG_PN, ident.part_numbers)):
         for marker in _first(pattern, data, kind):
