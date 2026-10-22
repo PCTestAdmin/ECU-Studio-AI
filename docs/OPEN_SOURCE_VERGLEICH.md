@@ -38,7 +38,7 @@ Steuergeräte-Identifikation mit Fundstelle, Flash-Preflight je Byte.
 | Achsen ohne Anzahl-Präfix (bimmerstein `axes.ts`) | jeder streng monotone Lauf ist Kandidat | mehr Gruppenachsen | einfach | **nicht übernommen** (Durchgang 3) |
 | OLS-Container (ZedSuite, tune-editor `olsParser.ts`) | Marker je Binärversion | Projekte aus WinOLS öffnen | GPL-3.0 kompatibel | **geprüft, nicht übernommen**: In 7 echten Projekten stimmt die so gelesene „Original“-Version nur zu 30–54 % mit der echten Originaldatei überein – der Inhalt ist offenbar kodiert. `.ols` wird klar abgewiesen statt falsch gelesen. |
 | „Erwartete Kennfelder“ (ZedSuite) | Liste je Familie | Vollständigkeitsanzeige | trivial | **ersetzt** durch die gemessene Unterstützungsmatrix |
-| EDC15/EDC16-Checksummen (ZedSuite), MED17 (medc17-checksum-tool) | feste Algorithmen | Profile für diese Familien | MIT/GPL | **offen**: ohne Original-Dumps mit bekanntem Layout nicht prüfbar |
+| EDC15/EDC16-Checksummen (ZedSuite), MED17 (medc17-checksum-tool) | feste Algorithmen | Profile für diese Familien | MIT/GPL | EDC16/MED17/EDC17 rechnerisch prüfbar; sichere Korrektur bleibt ohne OEM-Originalnachweis gesperrt |
 
 ## Durchgang 3 – Kritische Gegenprüfung
 

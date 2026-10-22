@@ -32,6 +32,8 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass, field, asdict
 
+from .checksum_validation import validation_record
+
 # --- block descriptor layout (little-endian, offsets from block start) -------
 MAGIC_A = 0xFADECAFE                       # seed, at block_start + 0x40
 MAGIC_B = 0xCAFEAFFE                       # expected, at block_start + 0x44
@@ -274,6 +276,7 @@ def verify(image) -> dict:
     # Coverage distinguishes fully proven, partially proven and nothing proven,
     # so "proven" never hides structures that were not (or could not be) checked.
     coverage = 'full' if total and proven == total else 'partial' if proven else 'none'
+    record = validation_record(image, 'bosch-med17-edc17')
     return {'scheme': 'bosch-med17-edc17',
             'blocks': len(blocks),
             'structures_total': total,
@@ -283,6 +286,8 @@ def verify(image) -> dict:
             'coverage': coverage,
             'detected': bool(blocks),
             'proven': coverage == 'full',
+            'oem_validated': record is not None,
+            'oem_validation': record,
             'rows': rows}
 
 
@@ -320,6 +325,7 @@ def check_current(image) -> dict:
     return {'blocks': checked, 'mismatches': mismatches, 'rows': rows,
             'structures_total': total, 'structures_proven': checked, 'structures_unproven': unproven,
             'coverage': coverage,
+            'oem_validated': validation_record(image, 'bosch-med17-edc17') is not None,
             'status': 'none' if not checked else 'match' if not mismatches else 'mismatch'}
 
 
@@ -350,7 +356,7 @@ def _overlaps_any_structure(data: bytes, blocks: list[Block], offset: int) -> bo
     return False
 
 
-def plan_correction(image):
+def plan_correction(image, *, require_oem_validation: bool = True):
     """(offset, old 4 bytes, new 4 bytes) that restore every proven ADD block.
 
     Refused unless the blocks verify on the unmodified original. CRC32 blocks and
@@ -363,10 +369,16 @@ def plan_correction(image):
     for block in blocks:
         for cs in block.structures:
             _evaluate(original, cs)
+    all_structures = [cs for b in blocks if not b.unprogrammed for cs in b.structures]
     proven = [(b, cs) for b in blocks if not b.unprogrammed
               for cs in b.structures if cs.valid]
     if not proven:
         raise ValueError('Keine am Original bestätigten EDC17/MED17-Prüfsummenblöcke in dieser Datei')
+    if len(proven) != len(all_structures):
+        raise ValueError(f'EDC17/MED17-Korrektur verweigert: nur {len(proven)} von '
+                         f'{len(all_structures)} Strukturen am Original bestätigt')
+    if require_oem_validation and validation_record(image, 'bosch-med17-edc17') is None:
+        raise ValueError('EDC17/MED17-Korrektur verweigert: kein geprüfter OEM-Nachweis für diese Originaldatei')
     skipped_crc = [b.name for b, cs in proven if cs.algorithm == 0x00]
     steps = []
     for block, cs in proven:
@@ -406,14 +418,14 @@ def correction_preview(steps, skipped_crc) -> str:
     return '\n'.join(lines)
 
 
-def apply_correction(image, steps) -> dict:
+def apply_correction(image, steps, *, require_oem_validation: bool = True) -> dict:
     """Write a plan from plan_correction as ONE undo step, re-verify, roll back on any doubt.
 
     All compensation words are committed in a single transaction, so one undo
     (Ctrl+Z) reverts every field at once — correcting two blocks and undoing once
     must restore the file completely, not only the last field.
     """
-    fresh, _ = plan_correction(image)
+    fresh, _ = plan_correction(image, require_oem_validation=require_oem_validation)
     if [(o, n) for o, _, n in fresh] != [(o, n) for o, _, n in steps]:
         raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
     # Per-byte (offset, before, after) edits across all steps, applied atomically.

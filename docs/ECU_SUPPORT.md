@@ -163,14 +163,17 @@ geschlossen.
 | Verfahren | Familien | Status | Nachweis |
 |---|---|---|---|
 | Selbstbeschreibende Tabellen (Start, Ende, Wert, ~Wert; 32-Bit-Summen/CRC32) | ME7.x, MED9, ME9 | am Original gemessen | `core/checksum_tables.py` |
-| Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **Verfahren implementiert; am Original noch nicht gemessen** – keine echte Firmware im Repo | `core/edc17_checksum.py` |
+| Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc17_checksum.py` |
+| Bosch EDC16U1/U31/U34-Prüfsummenbereiche (FADECAFE/CAFEAFFE, BE-DWORD-Summe) | EDC16 MPC5xx | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc16_checksum.py` |
 | Manuelles, geprüftes Profil (SHA-256-gebunden) | beliebig | am Original gemessen | `core/checksum_audit.py` |
 
 Der Bosch-Blockleser (`core/edc17_checksum.py`) findet die Blöcke über ihre Signatur, rechnet Flash-Adressen auf
 Dateioffsets um (TriCore-Alias 0x8/0xA) und rechnet CRC32, ADD32 und ADD16 nach. Die Mechanik ist im
 Bosch-Blockformat **synthetisch** end-to-end getestet (`tests/test_edc17_checksum.py`), einschließlich unabhängiger
 CRC-Gegenrechnung, Änderungs­erkennung, Korrektur nur der ADD-Kompensationswörter und byteweiser Integritätsprüfung.
-Ein OEM-Nachweis fehlt, weil keine echte EDC17/MED17-Firmware im Repository liegt.
+Ein OEM-Nachweis fehlt, weil keine echte EDC17/MED17-Firmware im Repository liegt. Die Datei
+`recognition/data/checksum_oem_validation.json` bleibt deshalb leer; ohne einen dort committeden,
+SHA-256-gebundenen Eintrag mit Quelle und Prüfer plant die Anwendung keine Korrektur.
 
 **Benötigt für den OEM-Nachweis:** mindestens eine echte, unveränderte EDC17CP09-Originaldatei (vollständiger Flash),
 besser zwei Softwarestände. `python -m ecu_studio.tools.validate_pair ORIGINAL.bin --family "Bosch EDC17CP09"` misst
@@ -182,10 +185,11 @@ Grenzen: Automatisch korrigiert werden nur additive Blöcke (ADD32/ADD16) über 
 werden **nur geprüft**, nicht automatisch korrigiert – sie können Signaturen/Sicherheitsfelder abdecken, die dieses
 Modul bewusst nicht anfasst. Eine gültige Prüfsumme ist nie eine Flashfreigabe.
 
-Für **EDC16** (PowerPC MPC5xx) ist kein ECU-spezifisches Prüfsummen­verfahren nachgewiesen: Die in EDC16C31/C35
-gefundenen selbstbeschreibenden Einträge reproduzierten sich nicht als Prüfsummen. Ohne einen Original-Dump mit
-bekanntem Layout bleibt es beim generischen Tabellen- und beim manuellen Profilpfad; ein eigener EDC16-Algorithmus
-wird nicht behauptet.
+Für **EDC16** (PowerPC MPC5xx) ist der häufige U1/U31/U34-Blockaufbau jetzt als konservative Prüfung
+implementiert (`core/edc16_checksum.py`). Die Struktur wird nur akzeptiert, wenn alle Bereiche des unveränderten
+Originals die Zielsumme `0xD01FE500` reproduzieren. Ein OEM-Nachweis fehlt weiterhin; deshalb bleibt auch diese
+Korrektur bis zu einer rechtmäßig dokumentierten Originaldatei und unabhängigen Prüfung gesperrt. Andere EDC16-
+Varianten fallen auf die generischen Tabellen und das manuelle, SHA-256-gebundene Profil zurück.
 
 
 ## Rechtlich saubere Referenzdaten (Recherche 21.10.2026)

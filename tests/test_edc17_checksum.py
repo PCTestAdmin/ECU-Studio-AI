@@ -7,6 +7,7 @@ a claim of OEM validation, which requires a real original firmware file (none is
 bundled — see docs/ECU_SUPPORT.md).
 """
 import struct
+import json
 import numpy as np
 import pytest
 from ecu_studio.core.model import BinaryImage
@@ -157,12 +158,12 @@ def test_correction_restores_add_blocks_and_only_touches_compensation():
     original = bytes(img.original)
     img.write(0x210, bytes([original[0x210] ^ 0x5A]))
     img.write(0x250, bytes([original[0x250] ^ 0x5A]))
-    steps, skipped = ec.plan_correction(img)
+    steps, skipped = ec.plan_correction(img, require_oem_validation=False)
     assert {o for o, _, _ in steps} == {0x23C, 0x27C}          # the two ADD compensation dwords
     assert skipped == ['Dataset #0']                           # CRC block only verified, not corrected
     text = ec.correction_preview(steps, skipped)
     assert '0x0000023C' in text and 'Keine Flashfreigabe' in text
-    result = ec.apply_correction(img, steps)
+    result = ec.apply_correction(img, steps, require_oem_validation=False)
     assert result['status'] == 'match' and result['mismatches'] == 0
     # Integrity (Test D): only the edited calibration bytes and bytes inside the
     # two declared compensation dwords may differ — nothing else in the file.
@@ -176,16 +177,38 @@ def test_correction_restores_add_blocks_and_only_touches_compensation():
 def test_stale_plan_is_refused():
     img = _build_image()
     img.write(0x210, b'\x01')
-    steps, _ = ec.plan_correction(img)
+    steps, _ = ec.plan_correction(img, require_oem_validation=False)
     img.write(0x214, b'\x02')
     with pytest.raises(ValueError, match='geändert'):
-        ec.apply_correction(img, steps)
+        ec.apply_correction(img, steps, require_oem_validation=False)
 
 
 def test_correction_refused_without_proven_blocks():
     rnd = np.random.default_rng(1).integers(0, 256, 1 << 12, dtype=np.uint8).tobytes()
     with pytest.raises(ValueError, match='bestätigten'):
         ec.plan_correction(BinaryImage(rnd))
+
+
+def test_correction_requires_oem_validation_even_with_full_structure_proof():
+    img = _build_image()
+    img.write(0x210, bytes([img.original[0x210] ^ 0x5A]))
+    with pytest.raises(ValueError, match='OEM-Nachweis'):
+        ec.plan_correction(img)
+
+
+def test_reviewed_oem_manifest_unlocks_exact_original_only(tmp_path, monkeypatch):
+    from ecu_studio.core import checksum_validation
+    img = _build_image()
+    manifest = tmp_path / 'oem.json'
+    manifest.write_text(json.dumps({
+        'format': 1,
+        'entries': [{'scheme': 'bosch-med17-edc17', 'sha256': img.digest,
+                     'validated': True, 'source': 'lawful OEM test record', 'reviewer': 'reviewer'}]
+    }), encoding='utf-8')
+    monkeypatch.setattr(checksum_validation, 'MANIFEST', manifest)
+    img.write(0x210, bytes([img.original[0x210] ^ 0x5A]))
+    steps, _ = ec.plan_correction(img)
+    assert steps
 
 
 def test_unprogrammed_block_is_skipped():
@@ -216,9 +239,9 @@ def test_single_undo_reverts_all_corrections():
     img.write(0x210, bytes([img.original[0x210] ^ 0x5A]))    # edit ADD32 range
     img.write(0x250, bytes([img.original[0x250] ^ 0x5A]))    # edit ADD16 range
     after_edits = img.read(0, img.size)                       # before any checksum correction
-    steps, _ = ec.plan_correction(img)
+    steps, _ = ec.plan_correction(img, require_oem_validation=False)
     assert len(steps) == 2
-    ec.apply_correction(img, steps)
+    ec.apply_correction(img, steps, require_oem_validation=False)
     assert ec.check_current(img)['status'] == 'match'
     assert img.undo() is True                                 # a single undo
     # Both compensation dwords are back; only the two calibration edits remain.
@@ -246,9 +269,8 @@ def test_coverage_full_partial_and_unverifiable():
 def test_out_of_bounds_structure_is_never_corrected():
     # Issue #3: a structure whose range leaves the block is not a write target.
     img = _build_image(break_struct2_bounds=True)
-    steps, skipped = ec.plan_correction(img)   # ADD32 proven and correctable; ADD16 out of bounds
-    # Only the in-bounds ADD32 compensation word (0x23C) is eligible; 0x27C is not touched.
-    assert {o for o, _, _ in steps} <= {0x23C}
+    with pytest.raises(ValueError, match='nur 2 von 3'):
+        ec.plan_correction(img, require_oem_validation=False)
 
 
 def test_validate_pair_measures_edc17_checksums():

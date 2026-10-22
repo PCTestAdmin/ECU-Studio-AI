@@ -40,11 +40,16 @@ def checksum_summary(image: BinaryImage) -> dict:
     detection benchmark, so the validation command can report EDC17 coverage.
     """
     from ecu_studio.core.edc17_checksum import verify as edc17_verify
+    from ecu_studio.core.edc16_checksum import verify as edc16_verify
     from ecu_studio.core.checksum_tables import original_blocks
     e = edc17_verify(image)
+    d = edc16_verify(image)
     return {'edc17_blocks': e['blocks'], 'edc17_structures_total': e['structures_total'],
             'edc17_proven': e['proven_on_original'], 'edc17_unverifiable': e['unverifiable'],
-            'edc17_coverage': e['coverage'], 'table_blocks_proven': len(original_blocks(image))}
+            'edc17_coverage': e['coverage'], 'edc17_oem_validated': e['oem_validated'],
+            'edc16_regions': d['regions'], 'edc16_proven': d['proven_on_original'],
+            'edc16_coverage': d['coverage'], 'edc16_oem_validated': d['oem_validated'],
+            'table_blocks_proven': len(original_blocks(image))}
 
 
 def scan_only(bin_path: str, family: str, *, role: str = 'test') -> dict:
@@ -115,7 +120,9 @@ def main(argv=None) -> int:
     if cs:
         print(f"Prüfsummen: EDC17/MED17 {cs['edc17_proven']}/{cs['edc17_structures_total']} Strukturen am Original "
               f"nachgewiesen (Abdeckung {cs['edc17_coverage']}, {cs['edc17_blocks']} Blöcke, "
-              f"{cs['edc17_unverifiable']} nicht prüfbar); selbstbeschreibende Tabellen {cs['table_blocks_proven']}")
+              f"{cs['edc17_unverifiable']} nicht prüfbar, OEM {'ja' if cs['edc17_oem_validated'] else 'nein'}); "
+              f"EDC16 {cs['edc16_proven']}/{cs['edc16_regions']} Bereiche ({cs['edc16_coverage']}, "
+              f"OEM {'ja' if cs['edc16_oem_validated'] else 'nein'}); selbstbeschreibende Tabellen {cs['table_blocks_proven']}")
     results = json.loads(a.results.read_text(encoding='utf-8')) if a.results.exists() else {'format': 1, 'rows': []}
     results['rows'] = [x for x in results['rows'] if x['sha256'] != r['sha256']] + [r]
     a.results.write_text(json.dumps(results, indent=1, ensure_ascii=False), encoding='utf-8')

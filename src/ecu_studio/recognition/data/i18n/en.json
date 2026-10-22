@@ -1819,6 +1819,27 @@
   "\n{0} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.": "\n{0} structure(s) are not proven and remain unchecked.",
   "Vollständig geprüft": "Fully checked",
   "Teilweise geprüft": "Partially checked",
-  "EDC17/MED17: nur {0} von {1} Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.": "EDC17/MED17: only {0} of {1} checksum structures are proven on the original; the rest are unchecked."
+  "EDC17/MED17: nur {0} von {1} Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.": "EDC17/MED17: only {0} of {1} checksum structures are proven on the original; the rest are unchecked.",
+  "EDC16-Prüfsummen prüfen / korrigieren …": "Check / correct EDC16 checksums …",
+  "EDC16-Prüfsummen – Vorschau": "EDC16 checksums – preview",
+  "{0} EDC16-Kompensationswort(e) geschrieben, Bereiche neu verifiziert · rückgängig mit Strg+Z · keine Flashfreigabe": "{0} EDC16 compensation word(s) written, regions re-verified · undo with Ctrl+Z · no flash approval",
+  "Nur {0} von {1} Strukturen sind am unveränderten Original bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.": "Only {0} of {1} structures are confirmed on the unchanged original. Partially confirmed structures are never corrected.",
+  "Die Strukturen sind rechnerisch reproduziert, aber für diese Originaldatei fehlt der geprüfte OEM-Nachweis. Prüfung bleibt möglich; automatische Korrektur ist bis zur OEM-Validierung gesperrt.": "The structures are reproduced computationally, but this original file has no reviewed OEM evidence. Verification remains available; automatic correction is locked until OEM validation.",
+  "EDC16-Prüfsummen": "EDC16 checksums",
+  "Kein unterstützter EDC16-Prüfsummenbereich (FADECAFE/CAFEAFFE) gefunden.": "No supported EDC16 checksum region (FADECAFE/CAFEAFFE) found.",
+  "Nur {0} von {1} Bereichen sind am Original bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.": "Only {0} of {1} regions are confirmed on the original. Partially confirmed structures are never corrected.",
+  "{0} von {1} EDC16-Bereichen am unveränderten Original bestätigt. Aktuell stimmen {2} von {3}.": "{0} of {1} EDC16 regions confirmed on the unchanged original. Currently {2} of {3} match.",
+  "\n\n{0} Kompensationswort(e) würden geschrieben:\n{1}": "\n\n{0} compensation word(s) would be written:\n{1}",
+  "\n\nFür diese Originaldatei fehlt der geprüfte OEM-Nachweis. Automatische Korrektur ist gesperrt.": "\n\nThis original file has no reviewed OEM evidence. Automatic correction is locked.",
+  "EDC17/MED17-Strukturen sind am Original rechnerisch reproduziert, aber ohne hinterlegten OEM-Nachweis. Automatische Korrektur bleibt gesperrt.": "EDC17/MED17 structures are reproduced computationally on the original, but no OEM evidence is recorded. Automatic correction remains locked.",
+  "{0} von {1} am Original bewiesenen EDC16-Prüfsummenbereichen stimmen nicht mehr.": "{0} of {1} EDC16 checksum regions proven on the original no longer match.",
+  "EDC16: nur {0} von {1} Prüfsummenbereichen sind am Original nachgewiesen; Korrektur gesperrt.": "EDC16: only {0} of {1} checksum regions are proven on the original; correction locked.",
+  "EDC16-Prüfsummen sind erkannt, aber ohne hinterlegten OEM-Nachweis. Automatische Korrektur bleibt gesperrt.": "EDC16 checksums were detected, but no OEM evidence is recorded. Automatic correction remains locked.",
+  "Keine am Original bestätigten EDC16-Prüfsummenbereiche in dieser Datei": "No EDC16 checksum regions confirmed on the original in this file",
+  "EDC16-Korrektur verweigert: nur {0} von {1} Bereichen am Original bestätigt": "EDC16 correction refused: only {0} of {1} regions confirmed on the original",
+  "EDC16-Korrektur verweigert: kein geprüfter OEM-Nachweis für diese Originaldatei": "EDC16 correction refused: no reviewed OEM evidence for this original file",
+  "Nach der EDC16-Korrektur stimmen nicht alle Bereiche – zurückgesetzt": "Not all EDC16 regions match after correction – rolled back",
+  "EDC17/MED17-Korrektur verweigert: nur {0} von {1} Strukturen am Original bestätigt": "EDC17/MED17 correction refused: only {0} of {1} structures confirmed on the original",
+  "EDC17/MED17-Korrektur verweigert: kein geprüfter OEM-Nachweis für diese Originaldatei": "EDC17/MED17 correction refused: no reviewed OEM evidence for this original file"
  }
 }

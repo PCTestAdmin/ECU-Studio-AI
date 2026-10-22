@@ -718,6 +718,7 @@ class Window(QMainWindow):
         act(tools,"Checksummen korrigieren (mit Vorschau) …",self.correct_checksums)
         act(tools,"Prüfsummen-Tabellen der Datei prüfen / korrigieren …",self.correct_table_checksums)
         act(tools,"EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …",self.correct_edc17_blocks)
+        act(tools,"EDC16-Prüfsummen prüfen / korrigieren …",self.correct_edc16_blocks)
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
@@ -2757,6 +2758,14 @@ class Window(QMainWindow):
                 f'{proof["blocks"]} Blockkandidat(en) gefunden, aber kein Block ließ sich am unveränderten Original '
                 'mit CRC32/ADD32/ADD16 reproduzieren. Das Verfahren gilt für diese Datei als NICHT nachgewiesen – '
                 'keine Korrektur.');return
+        if proof['coverage'] != 'full':
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
+                f'Nur {proof["proven_on_original"]} von {proof["structures_total"]} Strukturen sind am '
+                'unveränderten Original bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.');return
+        if not proof['oem_validated']:
+            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
+                'Die Strukturen sind rechnerisch reproduziert, aber für diese Originaldatei fehlt der geprüfte '
+                'OEM-Nachweis. Prüfung bleibt möglich; automatische Korrektur ist bis zur OEM-Validierung gesperrt.');return
         state=check_current(self.image)
         cover={'full':'Vollständig geprüft','partial':'Teilweise geprüft'}.get(state['coverage'],'Geprüft')
         head=(cover+'\n'
@@ -2782,6 +2791,43 @@ class Window(QMainWindow):
         except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
         self.on_edited()
         self.statusBar().showMessage(f'{len(steps)} EDC17/MED17-Kompensationswort(e) geschrieben, Blöcke neu verifiziert · '
+                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+
+    def correct_edc16_blocks(self):
+        """Bosch EDC16 self-describing checksum regions, with strict proof gates."""
+        if not self.require_image():return
+        from ..core.edc16_checksum import (verify, check_current, plan_correction,
+                                            apply_correction)
+        proof=verify(self.image)
+        if not proof['detected']:
+            QMessageBox.information(self,'EDC16-Prüfsummen',
+                'Kein unterstützter EDC16-Prüfsummenbereich (FADECAFE/CAFEAFFE) gefunden.');return
+        if proof['coverage'] != 'full':
+            QMessageBox.information(self,'EDC16-Prüfsummen',
+                f'Nur {proof["proven_on_original"]} von {proof["regions_total"]} Bereichen sind am Original '
+                'bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.');return
+        state=check_current(self.image)
+        head=(f'{state["regions_proven"]} von {state["regions_total"]} EDC16-Bereichen am unveränderten '
+              f'Original bestätigt. Aktuell stimmen {state["regions"]-state["mismatches"]} von {state["regions"]}.')
+        if not state['mismatches']:
+            QMessageBox.information(self,'EDC16-Prüfsummen',head+'\n\nNichts zu korrigieren.');return
+        if not proof['oem_validated']:
+            QMessageBox.information(self,'EDC16-Prüfsummen',head+'\n\nFür diese Originaldatei fehlt der geprüfte '
+                                    'OEM-Nachweis. Automatische Korrektur ist gesperrt.');return
+        try:steps=plan_correction(self.image)
+        except ValueError as exc:self.warning('Korrektur verweigert',exc);return
+        lines='\n'.join(f'• 0x{o:08X}: {old.hex(" ").upper()}  →  {new.hex(" ").upper()}'
+                        for o,old,new in steps)
+        box=QMessageBox(self)
+        box.setWindowTitle('EDC16-Prüfsummen – Vorschau')
+        box.setText(head+f'\n\n{len(steps)} Kompensationswort(e) würden geschrieben:\n{lines}')
+        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec()!=QMessageBox.StandardButton.Yes:return
+        try:apply_correction(self.image,steps)
+        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
+        self.on_edited()
+        self.statusBar().showMessage(f'{len(steps)} EDC16-Kompensationswort(e) geschrieben, Bereiche neu verifiziert · '
                                      'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
 
     def open_checksum_audit(self):

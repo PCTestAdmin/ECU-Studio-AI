@@ -84,7 +84,7 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 | | Thema | Stand |
 |:--:|---|---|
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
-| 🧮 | **Prüfsummen EDC16 · EDC17** | Bekannte Verfahren passen nicht – weitere werden untersucht |
+| 🧮 | **Prüfsummen EDC16 · EDC17** | Rechnerische Prüfung eingebaut; OEM-Nachweise für sichere Korrektur fehlen noch |
 
 <br>
 

@@ -23,8 +23,11 @@
 - Herkunft des Blockformats: öffentlich dokumentiertes Bosch-Layout, gegengeprüft am MIT-lizenzierten
   medc17-checksum-tool (Connor Howell). Die Mechanik ist synthetisch im Bosch-Format end-to-end getestet
   (`tests/test_edc17_checksum.py`, u. a. unabhängige CRC-Gegenrechnung). **Ein OEM-Nachweis an echter EDC17CP09-
-  Firmware steht aus – es liegt keine echte Firmware im Repository** (siehe `docs/ECU_SUPPORT.md`). Für EDC16 wird
-  weiterhin kein eigenes Verfahren behauptet.
+  Firmware steht aus – es liegt keine echte Firmware im Repository** (siehe `docs/ECU_SUPPORT.md`). EDC17/MED17-
+  Korrekturen sind ohne einen SHA-256-gebundenen OEM-Nachweis gesperrt; Teilstrukturen werden nie korrigiert.
+- EDC16U1/U31/U34: selbstbeschreibende FADECAFE/CAFEAFFE-Bereiche mit BE-DWORD-Summe `0xD01FE500` werden
+  geprüft und nur nach vollständigem Originalnachweis sowie OEM-Freigabe korrigiert. Ohne OEM-Eintrag bleibt die
+  Funktion bewusst im Prüfmodus.
 
 - Hinweisbalken nach dem Öffnen: Siemens-Dateien ohne Bosch-EPK (MS41/MS42/MS43, GS20) galten als „nicht
   bestimmbar“, obwohl die App sie an ihren Softwaremarkern erkennt (Titelzeile). Die Erkennung nutzt diese Marker

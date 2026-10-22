@@ -306,6 +306,24 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
         issues.append({'level':'info','code':'edc17-partial-coverage',
                        'message':f"EDC17/MED17: nur {edc17['structures_proven']} von {edc17['structures_total']} "
                                  'Prüfsummenstrukturen sind am Original nachgewiesen; die übrigen sind nicht geprüft.'})
+    if edc17['blocks'] and not edc17['oem_validated']:
+        issues.append({'level':'warning','code':'edc17-oem-validation-missing',
+                       'message':'EDC17/MED17-Strukturen sind am Original rechnerisch reproduziert, aber ohne '
+                                'hinterlegten OEM-Nachweis. Automatische Korrektur bleibt gesperrt.'})
+    from .edc16_checksum import check_current as edc16_check
+    edc16=edc16_check(image)
+    if edc16['mismatches']:
+        issues.append({'level':'warning','code':'edc16-block-mismatch',
+                       'message':f"{edc16['mismatches']} von {edc16['regions']} am Original bewiesenen "
+                                 'EDC16-Prüfsummenbereichen stimmen nicht mehr.'})
+    if edc16['coverage']=='partial':
+        issues.append({'level':'info','code':'edc16-partial-coverage',
+                       'message':f"EDC16: nur {edc16['regions_proven']} von {edc16['regions_total']} "
+                                 'Prüfsummenbereichen sind am Original nachgewiesen; Korrektur gesperrt.'})
+    if edc16['regions'] and not edc16['oem_validated']:
+        issues.append({'level':'warning','code':'edc16-oem-validation-missing',
+                       'message':'EDC16-Prüfsummen sind erkannt, aber ohne hinterlegten OEM-Nachweis. '
+                                'Automatische Korrektur bleibt gesperrt.'})
     quality=audit_catalog(image,maps,sample_limit=48)
     warnings=sum(bool(q.warnings) for q in quality)
     bad=sum(q.decode_mismatches>0 for q in quality)
@@ -338,7 +356,11 @@ def audit_export(image: BinaryImage, maps: list[MapDefinition],
                                        'message':f'{uncovered_count} veränderte Bytes außerhalb bekannter Kennfelder.'})
     return {'checksum_tables':{k:tables[k] for k in ('status','blocks','mismatches')},
             'edc17_blocks':{k:edc17[k] for k in ('status','blocks','mismatches','coverage',
-                                                 'structures_total','structures_proven','structures_unproven')},
+                                                 'structures_total','structures_proven','structures_unproven',
+                                                 'oem_validated')},
+            'edc16_blocks':{k:edc16[k] for k in ('status','regions','mismatches','coverage',
+                                                 'regions_total','regions_proven','regions_unproven',
+                                                 'oem_validated')},
             'original_sha256':image.digest,
             'modified_sha256':hashlib.sha256(image.materialize()).hexdigest(),
             'size':image.size,'dirty_bytes':image.dirty_bytes,
