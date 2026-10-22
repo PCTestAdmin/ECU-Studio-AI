@@ -25,8 +25,10 @@ bei einem Update von 1.16.2 ausdrücklich als Warnung.
    - **build:** Tag gegen `__version__` und CHANGELOG prüfen, alle Tests in frischer Python-3.13-Umgebung, portables Paket,
      EXE-Tests (Oberflächentest, `--self-check`, entpacktes ZIP ohne Python im PATH), Installer.
    - **update-test** auf Windows Server 2022 **und** 2025: das zuletzt veröffentlichte Release installieren und mit
-     **dessen** Updater auf die neue Version aktualisieren (wie bei Anwendern), Oberflächentest, Wiederherstellen der
-     Vorversion und zurück, Installer installieren/selbsttesten/deinstallieren.
+     **dessen** Updater aus einem externen Arbeitsordner auf die neue Version aktualisieren, Oberflächentest,
+     Wiederherstellen der Vorversion und zurück, Installer installieren/selbsttesten/deinstallieren. Der direkte
+     Workflow-Aufruf reproduziert den GUI-Übergang aus der bereits laufenden Vorversion nicht vollständig; bei
+     1.16.2 wird diese Einschränkung als Warnung protokolliert.
    - **publish:** nur wenn beide Update-Tests bestanden haben – Herkunftsbestätigung und Veröffentlichung:
 
    | Datei | Zweck |

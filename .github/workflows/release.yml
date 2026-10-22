@@ -64,8 +64,9 @@ jobs:
           retention-days: 7
 
   update-test:
-    # The real user path: the last published version updates itself with ITS updater,
-    # then the new version restores the old one and back.
+    # Exercise the updater and the resulting installation on clean Windows runners.
+    # The legacy application's GUI hand-off is not reproduced here: the script is
+    # started directly from an external work directory, as documented below.
     needs: build
     strategy:
       fail-fast: false
