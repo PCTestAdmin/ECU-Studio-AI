@@ -27,6 +27,29 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 
 </div>
 
+<details>
+<summary><b>🇬🇧 English summary</b></summary>
+<br>
+
+**ECU Studio AI** is an open-source calibration workbench for engine and transmission control units (Windows, GPL-3.0).
+
+- **Finds calibration maps without a definition:** count/axis record headers, code references and structure
+  analysis. Every candidate carries a *measured* confidence (hit rate on manufacturer reference data), not a guess.
+- **Works with definitions** you already have: TunerPro XDF, ASAM A2L / DAMOS (with EPK software-ID check),
+  RomRaider XML, CSV.
+- **Edit safely:** hex, table, heatmap, 3D and curve views, ORI/MOD comparison with per-cell difference heatmap,
+  checksum verification and correction (only where the algorithm is proven on the original), flash preflight.
+  The original file is never changed.
+- **Measured, not promised:** on held-out test data never used for tuning, e.g. Siemens MSD85 279 of 1026 maps
+  found exactly at 81 % precision; per-ECU results in the [support matrix](docs/ECU_SUPPORT.md).
+- **English interface:** *Einstellungen → Sprache / Language → English* (defaults to the system language).
+- **Deliberately out of scope:** automatic "stage 1" tuning, disabling emission or protection functions, flash approval.
+
+[⬇ Download for Windows](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – portable ZIP or installer,
+no Python needed. Feature clips: [Roadmap](ROADMAP.md). The rest of this page is in German.
+
+</details>
+
 ---
 
 ## Inhalt
