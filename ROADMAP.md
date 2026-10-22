@@ -19,18 +19,62 @@
 
 ## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-fertig_·_kommt_bald-0969da?style=for-the-badge)
 
-Bereits entwickelt und getestet – erscheint mit der nächsten Version.
+Bereits entwickelt und getestet – erscheint mit der nächsten Version. Die Clips sind echte Aufnahmen der App
+mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
-| | Neu | Was du davon hast |
-|:--:|---|---|
-| 🎯 | **Doppelt so viele Treffer** | Deutlich mehr Kennfelder werden exakt erkannt – bei weniger Fehlfunden |
-| 📈 | **Kennlinien** | Fast doppelt so viele Kennlinien und Achsen |
-| ⚡ | **2–4× schneller** | Große Dateien in ~10 statt ~33 Sekunden – alle CPU-Kerne arbeiten mit |
-| 🏷️ | **Steuergerät erkannt** | Nach dem Öffnen: welche Familie, welche Software, ob sie getestet ist |
-| 🔁 | **Namen übernehmen** | Kennfeldnamen aus einem verwandten Softwarestand mit Definition |
-| 🧮 | **Prüfsummen ME7 · MED9 · ME9** | Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist |
-| 🔍 | **ORI/MOD-Vergleich** | Differenz-Heatmap und Liste aller Änderungen außerhalb bekannter Kennfelder |
-| 🌍 | **Englische Oberfläche** | *Settings → Sprache / Language* – Standard ist die Systemsprache |
+<table>
+<tr><th align="left">Neu</th><th>Version</th></tr>
+<tr><td>
+
+**Doppelt so viele Treffer** – Ein Klick auf <i>Scan</i>: Die Suche findet Kennfelder über ihre Achsen im Kopf, jede Fundstelle bekommt eine gemessene Konfidenz. Anklicken zeigt sofort die Heatmap.<br><img src="docs/clips/scan.gif" width="720" alt="Doppelt so viele Treffer">
+
+</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+<tr><td>
+
+**Konfidenz-Filter** – Nur gesicherte, nur wahrscheinliche oder nur geprüfte Kennfelder anzeigen – die Prozentwerte sind auf echten Referenzdaten gemessen.<br><img src="docs/clips/filter.gif" width="720" alt="Konfidenz-Filter">
+
+</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+<tr><td>
+
+**ORI/MOD-Vergleich** – Zweite Datei wählen: Liste aller betroffenen Kennfelder und eine Differenz-Heatmap je Zelle (rot = höher, blau = niedriger).<br><img src="docs/clips/compare.gif" width="720" alt="ORI/MOD-Vergleich">
+
+</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+<tr><td>
+
+**Unterstützte Steuergeräte** – Für jede Familie ehrlich angezeigt: validiert, teilweise, experimentell oder nicht validiert – mit Messwerten.<br><img src="docs/clips/support.gif" width="720" alt="Unterstützte Steuergeräte">
+
+</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+<tr><td>
+
+**Englische Oberfläche** – <i>Einstellungen → Sprache / Language</i>. Standard ist die Systemsprache, Projekte bleiben sprachunabhängig.<br><img src="docs/clips/english.gif" width="720" alt="Englische Oberfläche">
+
+</td><td align="center"><b>1.16</b><br><sub>kommt bald</sub></td></tr>
+<tr><td>
+
+**2–4× schneller** – Alle CPU-Kerne arbeiten mit – große Dateien in ~10 statt ~33 Sekunden.
+
+</td><td align="center"><b>1.16</b></td></tr>
+<tr><td>
+
+**Kennlinien** – Fast doppelt so viele Kennlinien und Achsen werden erkannt.
+
+</td><td align="center"><b>1.16</b></td></tr>
+<tr><td>
+
+**Steuergerät erkannt** – Nach dem Öffnen: Familie, Softwarestand und ob sie getestet ist.
+
+</td><td align="center"><b>1.16</b></td></tr>
+<tr><td>
+
+**Namen übernehmen** – Kennfeldnamen aus einem verwandten Softwarestand mit Definition übertragen.
+
+</td><td align="center"><b>1.16</b></td></tr>
+<tr><td>
+
+**Prüfsummen ME7 · MED9 · ME9** – Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist.
+
+</td><td align="center"><b>1.16</b></td></tr>
+</table>
 
 <br>
 
@@ -79,6 +123,10 @@ Bitte keine Firmware hochladen.
 - Messung gegen Hersteller-Definitionen
 - Flash-Vorabprüfung, Prüfsummen-Suche und -Korrektur mit Vorschau
 - Windows-Paket ohne Python, Installer, automatische Updates mit Rücksicherung
+
+**1.10.0** · 16.10.2026 – 3D-Ansicht mit Drehen, Neigen und ORI/MOD-Drahtgitter
+
+<img src="docs/clips/view3d.gif" width="720" alt="3D-Ansicht">
 
 **1.14 und früher**
 - Editor mit Hex-, Tabellen- und 3D-Ansicht, Versionsstände

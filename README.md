@@ -280,7 +280,7 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 | 🚢 [Release-Ablauf](docs/RELEASE.md) | Version, CHANGELOG, Tag – Build, Update-Test und Veröffentlichung laufen automatisch |
 | 🧪 [Beispiele](examples/README.md) | Synthetische Demo-Dateien und Vorlagen |
 | 📝 [CHANGELOG](CHANGELOG.md) | Alle Änderungen |
-| 🗺️ [Roadmap](ROADMAP.md) | Was fertig ist, was in Arbeit ist und was als Nächstes kommt |
+| 🗺️ [Roadmap](ROADMAP.md) | Was fertig ist, was in Arbeit ist und was als Nächstes kommt – mit Clips |
 | 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** – bitte **keine Original-Firmware** hochladen |
 
 ### 🗺️ Roadmap
@@ -290,7 +290,9 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
   <img alt="Roadmap: veröffentlicht, nächstes Update, in Arbeit, als Nächstes" src="docs/images/roadmap-light.svg" width="100%">
 </picture></a>
 
-**→ [Ganze Roadmap](ROADMAP.md)**
+<p align="center"><img src="docs/clips/scan.gif" width="720" alt="Kennfeldsuche mit einem Klick (Aufnahme der App, synthetische Datei)"></p>
+
+**→ [Ganze Roadmap](ROADMAP.md)** – jede neue Funktion mit kurzem Clip aus der App
 
 <div align="center">
 <br>

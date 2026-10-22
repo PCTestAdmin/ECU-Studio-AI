@@ -15,10 +15,18 @@
 - Vorzeichen: bei gleich guter Lesart wird s16 nur gewählt, wenn die Bytes negative Werte enthalten.
 - Konfidenz neu kalibriert, nur auf Entwicklungs- und Trainingspaaren (Testdaten nicht mehr in der Kalibrierung).
 
+**Roadmap mit Clips**
+- Jede neue Funktion in der Roadmap mit kurzem GIF-Clip und Version (wie bei Feature-Listen kommerzieller Editoren).
+  Die Clips sind echte Aufnahmen der App: `tools/feature_clips.py` bedient das Hauptfenster offscreen, zeichnet
+  Mauszeiger und Klicks ein und schreibt GIFs mit einem eigenen Encoder (`tools/gif_writer.py`, nur NumPy).
+- Vorführdatei `core/showcase.py`: synthetische Kopf-Datensätze, keine Herstellerdaten.
+
 **Englische Oberfläche**
 - Komplette Oberfläche auf Englisch: Menüs, Werkzeugleiste, Dialoge, Meldungen, Statuszeile, Kennfeldliste, Prüfberichte.
   Auswahl unter *Einstellungen → Sprache / Language* (Standard: Systemsprache, deutsche Systeme bleiben deutsch).
-- Übersetzungskatalog `recognition/data/i18n/en.json` (1772 Texte); `tools/i18n_extract.py` sammelt neue Texte aus dem
+- Auch gezeichnete Ansichten (Heatmap, 3D, Kurven, Speicheratlas) und zusammengesetzte Statuszeilen
+  („16 × 16 · u16 · Unbekannt“) werden übersetzt.
+- Übersetzungskatalog `recognition/data/i18n/en.json` (1792 Texte); `tools/i18n_extract.py` sammelt neue Texte aus dem
   Quellcode, ein Test verhindert unübersetzte Texte. Auswahlfelder zeigen Englisch, Projekte und Programmlogik bleiben
   sprachunabhängig.
 

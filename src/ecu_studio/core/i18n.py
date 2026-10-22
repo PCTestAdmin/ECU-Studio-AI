@@ -6,7 +6,7 @@ returns the translation from recognition/data/i18n/en.json:
 1. exact entry,
 2. template entry for composed texts ("{0} Kennfelder exportiert" matches
    "12 Kennfelder exportiert"; placeholders keep their values),
-3. line by line for multi-line messages,
+3. line by line for multi-line messages, part by part for ' · '/' | ' status lines,
 4. known sentence fragments inside longer texts (longest first).
 
 Untranslated text stays German rather than being guessed. Data (map names
@@ -23,6 +23,7 @@ CATALOG = Path(__file__).resolve().parents[1] / 'recognition' / 'data' / 'i18n' 
 LANGUAGES = {'de': 'Deutsch', 'en': 'English'}
 _language = 'de'
 _MIN_FRAGMENT = 14
+_SEPARATOR = re.compile(r'(\s+[·|]\s+)')
 _WORD = re.compile(r'[A-Za-zÄÖÜäöüß]{3}')   # no word, nothing to translate (hex cells, numbers)
 
 
@@ -107,15 +108,25 @@ def _one(text: str) -> str | None:
 
 @lru_cache(maxsize=8192)
 def _translate(text: str) -> str:
+    exact = _catalog()[0]
+    if text in exact:
+        return exact[text]
+    parts = _SEPARATOR.split(text)
+    if len(parts) > 1 and '\n' not in text:
+        # Composite status lines ("16 × 16 · u16 · Unbekannt · Typ-Vorschlag"):
+        # each part on its own, before short templates like "{0} geprüft"
+        # could swallow the whole line.
+        joined = ''.join(p if i % 2 or not p.strip() else t(p) for i, p in enumerate(parts))
+        if joined != text:
+            return joined
     direct = _one(text)
     if direct is not None:
         return direct
     if '\n' in text:
         lines = text.split('\n')
-        out = [(_one(line) if line.strip() else None) for line in lines]
-        if any(o is not None for o in out):
-            return '\n'.join(_translate(line) if o is None and line.strip() else (o if o is not None else line)
-                             for line, o in zip(lines, out))
+        out = [_translate(line) if line.strip() else line for line in lines]
+        if out != lines:
+            return '\n'.join(out)
     if len(text) >= _MIN_FRAGMENT and any(c.isalpha() for c in text):
         result = text
         for k, v in _catalog()[2]:

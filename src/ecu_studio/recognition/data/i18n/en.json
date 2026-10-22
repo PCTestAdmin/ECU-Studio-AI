@@ -1784,6 +1784,14 @@
   "• Quell-BIN und A2L/DAMOS exakt auf denselben Softwarestand prüfen.": "• Check that the source BIN and A2L/DAMOS belong exactly to the same software version.",
   "… weitere {0} Blöcke; CSV exportieren für vollständiges Audit": "… {0} more blocks; export CSV for a complete audit",
   "… weitere {0} Hinweise (alle per Export)": "… {0} more hints (all via export)",
-  "⚪ nicht validiert": "⚪ not validated"
+  "⚪ nicht validiert": "⚪ not validated",
+  "Y: Achse": "Y: axis",
+  "X: Index": "X: index",
+  "Y: Index": "Y: index",
+  "Definition-Achse": "Definition axis",
+  "Klick auf Kurve: Kennfeldzelle markieren": "Click on curve: mark map cell",
+  "ungeprüfter Vorschlag": "unverified proposal",
+  "Typ-Vorschlag": "Type proposal",
+  "Werte: {0}": "Values: {0}"
  }
 }

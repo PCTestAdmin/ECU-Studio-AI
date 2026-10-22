@@ -67,3 +67,17 @@ def test_main_window_and_dialog_smoke_in_english(tmp_path, monkeypatch, english)
     w.close()
     from ecu_studio.tools.gui_smoke import run
     assert run(str(tmp_path / 'smoke')) == 0
+
+
+def test_composite_status_lines_and_painted_text():
+    from ecu_studio.core import i18n
+    previous = i18n.language()
+    i18n.set_language('en')
+    try:
+        # Parts of " · " status lines are translated on their own; a short
+        # template such as "{0} geprüft" must not swallow the whole line.
+        assert i18n.t('16 × 16  ·  u16  ·  Unbekannt  ·  manuell geprüft') == '16 × 16  ·  u16  ·  Unknown  ·  manually verified'
+        assert i18n.t('X: Achse   ·   Y: Achse') == 'X: axis   ·   Y: axis'
+        assert i18n.t('Typ: Unbekannt · ungeprüfter Vorschlag') == 'Type: Unknown · unverified proposal'
+    finally:
+        i18n.set_language(previous)

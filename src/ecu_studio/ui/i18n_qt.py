@@ -3,7 +3,7 @@
 Installed once at start-up (``install``) before any window exists. With German
 active nothing is patched. With English active:
 
-- text setters (labels, buttons, titles, tooltips, status bar, tabs, headers,
+- text setters and painted text (labels, buttons, titles, tooltips, status bar, tabs, headers,
   message boxes, input/file dialogs) translate their argument,
 - every window is translated again when it is shown (covers texts given to
   constructors),
@@ -13,7 +13,7 @@ active nothing is patched. With English active:
 """
 from __future__ import annotations
 from PySide6.QtCore import QEvent, QObject, Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QPainter
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDockWidget, QFileDialog, QGroupBox,
                                QInputDialog, QLabel, QLineEdit, QMenu, QMenuBar, QMessageBox, QPlainTextEdit,
                                QStatusBar, QTableWidget, QTabWidget, QTextEdit, QToolBar, QToolButton, QWidget)
@@ -193,6 +193,7 @@ def install(app: QApplication, code: str) -> None:
         return
     _installed = True
     _wrap(QLabel, 'setText'); _wrap(QAbstractButton, 'setText')
+    _wrap(QPainter, 'drawText', (1, 2, 5))   # painted views: (x, y, text), (rect, flags, text), (x, y, w, h, flags, text)
     _wrap(QWidget, 'setWindowTitle'); _wrap(QWidget, 'setToolTip'); _wrap(QWidget, 'setStatusTip')
     _wrap(QStatusBar, 'showMessage'); _wrap(QLineEdit, 'setPlaceholderText'); _wrap(QGroupBox, 'setTitle')
     _wrap(QPlainTextEdit, 'setPlainText'); _wrap(QPlainTextEdit, 'appendPlainText')
