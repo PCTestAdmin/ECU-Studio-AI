@@ -27,6 +27,8 @@ import time
 import tracemalloc
 from pathlib import Path
 import numpy as np
+from ecu_studio import __version__
+from ecu_studio.core.axis_groups import compare_with_reference
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
 from ecu_studio.tools.structure_benchmark import reference_tables, reference_lines, score, score_lines
@@ -103,12 +105,20 @@ def run_pair(entry: dict, memory: bool = False) -> dict:
     complete = bool(entry.get('complete'))
     hits = round(s2['precision'] * s2['candidates'])
     row = {'name': entry['name'], 'family': entry['family'], 'role': entry.get('role', 'development'),
-           'complete_reference': complete, 'size': image.size, 'sha256': image.digest,
+           'complete_reference': complete, 'reference_source': entry.get('source', ''),
+           'reference_license': entry.get('license', ''), 'size': image.size, 'sha256': image.digest,
            'reference_2d': len(tables), 'found_2d': s2['candidates'], 'recall_2d': s2['recall'],
            'exact_2d': s2['exact_layouts'], 'reference_1d': len(lines), 'found_1d': s1['candidates'],
            'exact_1d': s1['exact'], 'seconds': round(elapsed, 2), 'peak_mb': round(peak / 2**20, 1) if peak is not None else None}
     row.update(axes_agreement(areas, tables))
     row['type_exact_2d'] = type_agreement(image, areas, tables)
+    # Axis storage and shared-axis groups (core/axis_groups): only where the
+    # reference states where axes are stored; group pairs among exact matches.
+    groups = compare_with_reference(areas, tables)
+    row.update({'axis_address_with_2d': groups['axis_with_address'],
+                'axis_address_correct_2d': groups['axis_address_correct'],
+                'group_pairs_reference': groups['pairs_reference'], 'group_pairs_found': groups['pairs_found'],
+                'group_pairs_agree': groups['pairs_agree']})
     if complete:
         row.update(precision_2d=s2['precision'], false_positives_2d=s2['candidates'] - hits,
                    false_negatives_2d=len(tables) - round(s2['recall'] * len(tables)),
@@ -145,15 +155,29 @@ def run(entries: list[dict], memory: bool = False) -> dict:
         row['group'] = entries[g]['name']
         rows.append(row)
     independent = [r for r in rows if r['role'] == 'test']
-    return {'format': 1, 'rows': rows,
+    return {'format': 1, 'rows': rows, 'version': __version__, 'commit': _commit(),
             'independent_pairs': len(independent),
             'note': ('Nur role=test zählt als unabhängig. Präzision nur bei vollständiger Referenz. '
                      'Gruppen = nahezu identische Softwarestände.')}
 
 
+def _commit() -> str:
+    import subprocess
+    try:
+        return subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True,
+                              cwd=Path(__file__).resolve().parent, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ''
+
+
+def _ratio(done, total) -> str:
+    return f'{done}/{total}' if total else '–'
+
+
 def markdown(result: dict) -> str:
     head = ('| Paar | Familie | Rolle | Gruppe | Ref 2D | gefunden | Recall | exakt | Typ richtig | Achsen richtig | '
-            'Präzision | FP | FN | Ref 1D | exakt 1D | s | MB |\n|' + '---|' * 17)
+            'Achsadresse richtig | Gruppenpaare gefunden/richtig/Referenz | '
+            'Präzision | FP | FN | Ref 1D | exakt 1D | s | MB |\n|' + '---|' * 19)
     out = [head]
     for r in result['rows']:
         prec = f"{r['precision_2d']:.0%}" if r['complete_reference'] else '–'
@@ -161,7 +185,59 @@ def markdown(result: dict) -> str:
         fp = r.get('false_positives_2d', '–'); fn = r.get('false_negatives_2d', '–')
         out.append(f"| {r['name']} | {r['family']} | {r['role']} | {r['group']} | {r['reference_2d']} | "
                    f"{r['found_2d']} | {r['recall_2d']:.0%} | {r['exact_2d']} | {r.get('type_exact_2d', '–')} | {r['axes_correct']}/{r['with_axes']} | "
+                   f"{_ratio(r.get('axis_address_correct_2d', 0), r.get('axis_address_with_2d', 0))} | "
+                   f"{r.get('group_pairs_found', '–')}/{r.get('group_pairs_agree', '–')}/{r.get('group_pairs_reference', '–')} | "
                    f"{prec} | {fp} | {fn} | {r['reference_1d']} | {r['exact_1d']} | {r['seconds']} | {mb} |")
+    return '\n'.join(out)
+
+
+# A pair counts as improved only by more exact maps; precision (complete references)
+# may not fall by more than this. More candidates alone is never an improvement.
+PRECISION_TOLERANCE = .01
+
+
+def compare_runs(before: dict, after: dict) -> dict:
+    """Per-pair change between two benchmark results (rows matched by name and image hash)."""
+    old = {r['name']: r for r in before['rows']}
+    pairs = []
+    for r in after['rows']:
+        b = old.get(r['name'])
+        if b is None or b.get('sha256') != r.get('sha256'):
+            pairs.append({'name': r['name'], 'verdict': 'nicht vergleichbar'})
+            continue
+        d_exact = r['exact_2d'] - b['exact_2d']
+        both = r['complete_reference'] and b['complete_reference']
+        d_prec = r['precision_2d'] - b['precision_2d'] if both else None
+        if d_exact < 0 or (d_prec is not None and d_prec < -PRECISION_TOLERANCE):
+            verdict = 'schlechter'
+        elif d_exact > 0:
+            verdict = 'verbessert'
+        elif r['found_2d'] > b['found_2d']:
+            verdict = 'nur mehr Kandidaten'
+        else:
+            verdict = 'unverändert'
+        pairs.append({'name': r['name'], 'family': r['family'], 'role': r['role'], 'verdict': verdict,
+                      **{k: [b.get(k), r.get(k)] for k in ('exact_2d', 'found_2d', 'recall_2d', 'precision_2d',
+                                                            'exact_1d', 'seconds')}})
+    return {'format': 1, 'before': {k: before.get(k) for k in ('version', 'commit')},
+            'after': {k: after.get(k) for k in ('version', 'commit')}, 'pairs': pairs,
+            'regressions': [p['name'] for p in pairs if p['verdict'] == 'schlechter']}
+
+
+def comparison_markdown(diff: dict) -> str:
+    def pct(v):
+        return f'{v:.0%}' if v is not None else '–'
+    out = [f"Vorher {diff['before'].get('version')} ({diff['before'].get('commit') or '?'}) → "
+           f"nachher {diff['after'].get('version')} ({diff['after'].get('commit') or '?'})", '',
+           '| Paar | Familie | Rolle | exakt 2D | gefunden 2D | Präzision 2D | exakt 1D | s | Ergebnis |',
+           '|' + '---|' * 9]
+    for p in diff['pairs']:
+        if 'exact_2d' not in p:
+            out.append(f"| {p['name']} | | | | | | | | {p['verdict']} |")
+            continue
+        out.append(f"| {p['name']} | {p['family']} | {p['role']} | {p['exact_2d'][0]} → {p['exact_2d'][1]} | "
+                   f"{p['found_2d'][0]} → {p['found_2d'][1]} | {pct(p['precision_2d'][0])} → {pct(p['precision_2d'][1])} | "
+                   f"{p['exact_1d'][0]} → {p['exact_1d'][1]} | {p['seconds'][0]} → {p['seconds'][1]} | {p['verdict']} |")
     return '\n'.join(out)
 
 
@@ -173,11 +249,16 @@ def main(argv=None):
     parser.add_argument('--out', type=Path)
     parser.add_argument('--markdown', type=Path)
     parser.add_argument('--memory', action='store_true', help='Spitzenspeicher in einem zweiten Lauf messen')
+    parser.add_argument('--baseline', type=Path, help='Ergebnis-JSON eines früheren Laufs: Vorher/Nachher-Vergleich')
     args = parser.parse_args(argv)
     result = run(json.loads(args.manifest.read_text(encoding='utf-8')), memory=args.memory)
+    if args.baseline:
+        result['comparison'] = compare_runs(json.loads(args.baseline.read_text(encoding='utf-8')), result)
     if args.out:
         args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding='utf-8')
     table = markdown(result)
+    if args.baseline:
+        table += '\n\n' + comparison_markdown(result['comparison'])
     if args.markdown:
         args.markdown.write_text(table + '\n', encoding='utf-8')
     print(table)

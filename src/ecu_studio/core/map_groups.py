@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import csv
+from .axis_groups import shared_axis_groups
 from .model import MapDefinition
 
 # Only a supplied label/definition contributes to semantic grouping; morphology alone
@@ -81,7 +82,18 @@ def group_maps(maps: list[MapDefinition], *, gap_limit: int=4096) -> list[MapGro
             groups.append(MapGroup(f'single:{ids[0]}','Nicht zugeordnet',tuple(ids),
                 'Keine belastbare Gruppierung',int(maps[ids[0]].verified),
                 'Die Funktion dieses Kennfelds ist nicht bestätigt.'))
-    return sorted(groups,key=lambda g:(0 if g.key.startswith('semantic:') else 1, g.title,
+    # Shared stored axes (by address, core/axis_groups): a structural relation, kept in
+    # addition to the groups above. Definition-backed groups are facts of the definition.
+    for g in shared_axis_groups(maps):
+        basis=('Gemeinsame Achsadresse aus Definition' if g.evidence=='definition' else
+               'Gemeinsame Achsadresse aus Strukturerkennung (ungeprüft)')
+        note=('Unsicher: '+'; '.join(g.issues) if g.issues else
+              'Dieselbe gespeicherte Achse – keine Aussage über die Funktion.')
+        name=f' {g.reference}' if g.reference else ''
+        groups.append(MapGroup(f'axis:0x{g.axis_offset:X}',f'Gemeinsame Achse{name} @ 0x{g.axis_offset:X} ({g.points} Punkte)',
+            tuple(sorted(g.indices,key=lambda i:maps[i].offset)),basis,sum(maps[i].verified for i in g.indices),note))
+    rank={'semantic':0,'axis':1}
+    return sorted(groups,key=lambda g:(rank.get(g.key.split(':')[0],2), g.title,
                                          maps[g.indices[0]].offset))
 
 

@@ -6,6 +6,7 @@
 | [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung |
 | [MODELLKARTE.md](MODELLKARTE.md) | Lernmodell für Datenmuster-Funde: Trainingsdaten, Prüfung, Grenzen |
 | [OPEN_SOURCE_VERGLEICH.md](OPEN_SOURCE_VERGLEICH.md) | Vergleich quelloffener ECU-Werkzeuge: welche Ideen übernommen, welche verworfen wurden |
+| [ANALYSE_2026-10-23.md](ANALYSE_2026-10-23.md) | Fehlfundanalyse, gemeinsame Achsen, Softwarestand-Abgleich, Projektbibliothek, verworfene Ansätze, Qualitätsmatrix |
 | [../CHANGELOG.md](../CHANGELOG.md) | Änderungen je Version |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) · [../SECURITY.md](../SECURITY.md) | Mitmachen, Sicherheitslücken melden |
 | [../examples/README.md](../examples/README.md) | Synthetische Beispieldateien und Vorlagen |
@@ -26,6 +27,8 @@
 ```bat
 python -m pytest -q                                                    :: alle Tests
 python -m ecu_studio.tools.benchmark_suite MANIFEST.json               :: Erkennung gegen Referenzen messen
+python -m ecu_studio.tools.benchmark_suite MANIFEST.json --baseline ALT.json  :: Vorher/Nachher mit Regressionsurteil
+python -m ecu_studio.tools.miss_analysis MANIFEST.json                 :: Ursachen verfehlter Kennfelder
 python -m ecu_studio.tools.structure_benchmark BIN XDF|A2L             :: ein Paar messen
 python -m ecu_studio.tools.calibrate_confidence --pair BIN REF         :: Trefferquoten neu kalibrieren
 python -m ecu_studio.tools.checksum_search BIN --at 0x7FFE             :: Prüfsummen-Layout suchen

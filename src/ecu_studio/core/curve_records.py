@@ -89,7 +89,7 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
             dtype = 's16' if signed or bool(np.any(raw_w >= 0x8000)) else 'u16'
             common = dict(source='heuristic', confidence=.44, candidate_region_start=h)
             out.append(MapDefinition(f'Kennlinien-Kandidat @ 0x{values:08X}', values, 1, n, dtype, endian,
-                                     record_layout=CURVE_LAYOUT, axes_x=list(axis),
+                                     record_layout=CURVE_LAYOUT, axes_x=list(axis), axis_x_offset=h + 2,
                                      label_origin='Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)',
                                      label_evidence=f'{n} Stützstellen @ 0x{h + 2:X}, Werte @ 0x{values:X}.',
                                      notes='Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.', **common))

@@ -20,6 +20,7 @@ import bisect
 from dataclasses import dataclass, replace
 import numpy as np
 from .model import BinaryImage, MapDefinition
+from .axis_groups import relocated_axis
 
 WINDOW = 32
 STEP = 16           # source window spacing
@@ -127,7 +128,12 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
         evidence, shift = best
         note = (f'Name aus dem Schwesterstand übernommen ({evidence}, Verschiebung {shift:+d} Byte). '
                 'Ungeprüft: Funktion und Skalierung am Zielstand bestätigen.')
+        # Axes and a stored header move with the map only where the target confirms them.
+        region = m.candidate_region_start
         moved = replace(m, offset=m.offset + shift, source='transfer-proposed', verified=False,
+                        candidate_region_start=region + shift if region is not None and region + shift >= 0 else None,
+                        axis_x_offset=relocated_axis(source, target, m.axis_x_offset, m.cols, shift),
+                        axis_y_offset=relocated_axis(source, target, m.axis_y_offset, m.rows, shift),
                         label_origin=f'Namensübertragung · {evidence}', label_evidence=note,
                         notes=(m.notes + ' ' + note).strip())
         out.append(Transfer(m, moved, evidence, shift))

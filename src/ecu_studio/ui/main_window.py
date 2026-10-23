@@ -8,6 +8,7 @@ import json
 import urllib.request
 from pathlib import Path
 from bisect import bisect_left
+from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, Signal, QModelIndex, QSettings, QSize, QTimer
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
@@ -40,7 +41,7 @@ from ..core.scoped_scan import scan_calibration_candidates
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
 from ..core.impact import measure_catalogue, uncovered_patches, export_impact_csv
-from ..core.versioning import make_snapshot, plan_restore, apply_restore
+from ..core.versioning import make_snapshot, plan_restore, apply_restore, compare_snapshots
 from .tools_dialogs import A2LLinkDialog, BatchEditDialog, CommandPalette
 from ..core.definitions import import_definitions, export_definitions, parse_offset
 from ..core.search import hex_pattern_search, compare_reference, export_patch_csv
@@ -49,6 +50,7 @@ from ..core.axis_inference import suggest_adjacent_axes
 from ..core.checksum_audit import (load_checksum_profile, audit_export, write_audit_json,
                                   plan_checksum_correction, apply_checksum_correction, correction_preview)
 from ..core.map_groups import group_maps, export_groups_csv
+from ..core.axis_groups import group_index, shared_axis_groups
 from ..recognition.identity_registry import identify_vehicle, import_identity_manifest, identity_stats
 from ..core.library import MapLibrary
 from ..core.intelligence import LEXICON, export_detection_report, suggest_reference_shapes, label_from_metadata, enrich_with_exact_references
@@ -670,6 +672,7 @@ class Window(QMainWindow):
         act(revisions,"Versionsstände verwalten / Kennfeld übernehmen …",self.revisions_dialog,"Ctrl+Shift+V")
         act(tools,"Schnellbefehle / Kommandopalette …",self.command_palette,"Ctrl+Shift+P")
         act(tools,"AI Smart Map Transfer …",self.smart_transfer)
+        act(tools,'Softwarestände vergleichen und Definitionen übernehmen …',self.compare_software_versions)
         act(tools,'Softwarestände: Kennfelder mathematisch abgleichen …',self.match_software_maps)
         act(tools,'Softwarestände: Namen aus Schwesterstand übernehmen …',self.transfer_sister_names)
         act(tools,"AI Log-to-Map Analyzer …",self.log_to_map)
@@ -1026,7 +1029,8 @@ class Window(QMainWindow):
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
             if not tier_matches(m,tier):continue
             visible.append(i)
-        self.catalog_model.set_context(self.maps,visible,patch_offsets)
+        self.axis_group_index=group_index(shared_axis_groups(self.maps))
+        self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
         for row,i in enumerate(visible):
             if self.maps[i] is previous:
                 self.map_list.setCurrentIndex(self.catalog_model.index(row,0))
@@ -1067,12 +1071,23 @@ class Window(QMainWindow):
         evidence="Verifiziert (manuell)" if m.verified else "NICHT verifiziert"
         extra = (f"\nECU-Adresse: 0x{m.ecu_address:X}" if m.ecu_address is not None else "")
         axes = (f"\nAchsenbeschreibung: {m.axes_info}" if m.axes_info else "")
+        axes += self._shared_axis_text(m)
         math_info=(f'\nXDF-Umrechnung: {m.equation} (schreibgeschützt)' if m.equation else '')
         self.map_hint.setText(f"{evidence} · Quelle: {m.source}{extra}{axes}{math_info}\n"
             f"Struktur-Score: {m.confidence:.2f} (keine Wahrscheinlichkeit)\n{m.notes}")
         if show_table:
             self.tabs.setCurrentWidget(self.map_table)
         self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
+
+    def _shared_axis_text(self, m) -> str:
+        """Shared stored axes of the selected map and its partner maps (first five)."""
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        lines=[]
+        for g in getattr(self,'axis_group_index',{}).get(index,()):
+            partners=[self.maps[i].name for i in g.indices if i!=index]
+            more=f' (+{len(partners)-5})' if len(partners)>5 else ''
+            lines.append(f'\n{g.describe()}\nTeilt die Achse mit: '+', '.join(partners[:5])+more)
+        return ''.join(lines)
 
     def show_raw2d(self):
         """Open a raw BIN trace at the current hex cursor or selected map."""
@@ -2488,6 +2503,7 @@ class Window(QMainWindow):
         table=QTableWidget(0,4)
         table.setHorizontalHeaderLabels(['Stand','Erstellt (UTC)','Editierte Bytes','Kommentar'])
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSortingEnabled(False)
         layout.addWidget(table,1)
@@ -2498,11 +2514,33 @@ class Window(QMainWindow):
         actions=QHBoxLayout()
         create=QPushButton('Neuen Stand speichern')
         compare=QPushButton('Änderungen anzeigen')
+        compare_two=QPushButton('Zwei Stände vergleichen')
+        compare_two.setToolTip('Zwei Zeilen markieren (Strg+Klick): geänderte Bytes, Kennfelder und Definitionen')
         restore=QPushButton('Gesamten Stand übernehmen')
         selective=QPushButton('Nur ausgewähltes Kennfeld übernehmen')
         close=QPushButton('Schließen')
-        for x in (create,compare,restore,selective,close):actions.addWidget(x)
+        for x in (create,compare,compare_two,restore,selective,close):actions.addWidget(x)
         layout.addLayout(actions)
+
+        def display_two():
+            rows=sorted({i.row() for i in table.selectionModel().selectedRows()})
+            if len(rows)!=2:
+                QMessageBox.information(dlg,'Zwei Stände wählen','Bitte genau zwei Versionsstände markieren (Strg+Klick).')
+                return
+            a,b=(self.snapshots[r] for r in rows)
+            try:diff=compare_snapshots(self.image,a,b,self.maps)
+            except ValueError as exc:self.warning('Versionsvergleich fehlgeschlagen',exc);return
+            lines=[f'{a["label"]} → {b["label"]}',
+                   f'Geänderte Bytes: {diff["changed_bytes"]}, davon außerhalb bekannter Kennfelder: {diff["bytes_outside_maps"]}',
+                   f'Geänderte Kennfelder: {len(diff["maps_changed"])}']
+            lines.extend(f'  {name}: {n} Bytes' for name,n in sorted(diff['maps_changed'].items())[:60])
+            if diff['definitions_added'] is None:
+                lines.append('Definitionen: nicht in beiden Ständen gespeichert')
+            else:
+                lines.append('Neue Definitionen: '+(', '.join(diff['definitions_added'][:40]) or 'keine'))
+                lines.append('Entfernte Definitionen: '+(', '.join(diff['definitions_removed'][:40]) or 'keine'))
+            info.setPlainText('\n'.join(lines))
+        compare_two.clicked.connect(display_two)
 
         def reload():
             table.setRowCount(len(self.snapshots))
@@ -2896,9 +2934,10 @@ class Window(QMainWindow):
         try:graph=build_function_graph(self.image,self.maps,*self._code_window())
         except Exception as exc:
             self.warning('Funktionsgraph fehlgeschlagen',exc);return
-        if not graph['groups'] and not graph['shared_axes']:
-            QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise auf die geladenen Kennfelder gefunden. '
-                                    'Derzeit wird C16x-Code (Siemens MS4x, Bosch ME7) ausgewertet.')
+        if not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']:
+            QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise und keine gemeinsamen Achsen gefunden. '
+                                    'Code-Verweise werden derzeit für C16x (Siemens MS4x, Bosch ME7) ausgewertet; '
+                                    'gemeinsame Achsen brauchen bekannte Achsadressen.')
             return
         FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m)).exec()
 
@@ -3157,6 +3196,32 @@ class Window(QMainWindow):
             transfer.source_name.setText(f'{len(transfer.links)} mathematische Paarungen ausgewählt')
             transfer.exec()
 
+    def compare_software_versions(self):
+        if not self.require_image():return
+        from .version_compare_dialog import VersionCompareDialog
+        VersionCompareDialog(self).exec()
+
+    def apply_adopted_definitions(self,added,protocol,source_label):
+        """Add adopted definitions, log them and keep the result as a project version."""
+        self.maps.extend(added)
+        self.maps.sort(key=lambda m:m.offset)
+        self.image.journal.extend(dict(entry,label=f'Definition übernommen: {entry["name"]}',revision=self.image.revision,
+                                       changes=[]) for entry in protocol)
+        title=f'Definitionen aus {source_label}'[:120]
+        note='\n'.join(f'{e["name"]}: 0x{e["source_offset"]:X} → 0x{e["target_offset"]:X} ({e["match"]}; {e["evidence"]})'
+                       for e in protocol)[:10_000]
+        try:
+            self.snapshots.append(make_snapshot(self.image,title,note,maps=self.maps))
+        except ValueError as exc:
+            self.warning('Versionsstand nicht angelegt',exc)
+        self.refresh_map_list();self.update_status();self.update_diff()
+        self.statusBar().showMessage(f'{len(added)} Definitionen übernommen · ungeprüft · Versionsstand „{title}“ angelegt',8000)
+        answer=QMessageBox.question(self,'Projekt speichern',
+            f'{len(added)} Definitionen übernommen und als Versionsstand „{title}“ festgehalten. Projekt jetzt speichern?',
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.Yes)
+        if answer==QMessageBox.StandardButton.Yes:
+            self.save_project()
+
     def transfer_sister_names(self):
         """Names and layouts from a sister software version with a definition (proposals only)."""
         if not self.require_image():return
@@ -3307,18 +3372,55 @@ class Window(QMainWindow):
         dialog.setWindowTitle('Durchsuchbare Projektdatenbank')
         dialog.resize(950,600)
         layout=QVBoxLayout(dialog)
+        filters=QHBoxLayout()
         query=QLineEdit()
-        query.setPlaceholderText('Projektname, Notiz, Kennfeldname, Typ oder Gruppe')
-        layout.addWidget(query)
+        query.setPlaceholderText('Projektname, Notiz, Kennfeldname, Typ, Gruppe, Kennung, Tag oder Kommentar')
+        filters.addWidget(query,1)
+        family=QComboBox()
+        family.addItem('Alle Familien','')
+        for name in self.project_store.families():
+            family.addItem(name,name)
+        filters.addWidget(family)
+        tag=QLineEdit()
+        tag.setPlaceholderText('Tag')
+        tag.setMaximumWidth(140)
+        filters.addWidget(tag)
+        layout.addLayout(filters)
         view=QTableView()
-        model=RowsModel(['Projekt','Bytes','Kennfelder','Original-SHA256','Pfad'],parent=dialog)
+        model=RowsModel(['Projekt','Familie','HW','SW','Kennfelder (geprüft/ungeprüft)','Geändert','Versionen',
+                         'Definitionen','Tags','Geändert am','Original-SHA256','Pfad'],parent=dialog)
         view.setModel(model)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         layout.addWidget(view,1)
+        comment_label=QLabel('')
+        comment_label.setWordWrap(True)
+        layout.addWidget(comment_label)
         found=[]
         def search():
-            found[:]=self.project_store.search(query.text())
-            model.set_rows([(r['name'],r['bytes'],r['maps'],r['original_sha256'],r['path']) for r in found])
+            found[:]=self.project_store.search(query.text(),family=family.currentData() or '',tag=tag.text())
+            stamp=lambda t:datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M') if t else '–'
+            model.set_rows([(r['name'],r['family'] or '–',r['hardware'] or '–',r['software'] or '–',
+                             f"{r['maps']} ({r['verified']}/{r['unverified']})",r['changed_maps'],r['versions'],
+                             r['definition_sources'] or '–',r['tags'],stamp(r['modified']),r['original_sha256'][:16],
+                             r['path']) for r in found])
+            comment_label.setText(f'{len(found)} Projekte' + (' (Anzeige begrenzt)' if len(found)>=500 else ''))
+        def show_comment(*_):
+            i=view.currentIndex()
+            if i.isValid():
+                r=found[i.row()]
+                comment_label.setText(f"{r['name']}: {r['comment'] or 'kein Kommentar'} · erstellt mit ECU Studio AI "
+                                      f"{r['app_version'] or '?'}")
+        def annotate():
+            i=view.currentIndex()
+            if not i.isValid():return
+            r=found[i.row()]
+            tags,ok=QInputDialog.getText(dialog,'Tags','Tags (durch Komma getrennt)',text=r['tags'].replace(',',', '))
+            if not ok:return
+            comment,ok=QInputDialog.getMultiLineText(dialog,'Kommentar','Eigener Kommentar zum Projekt',r['comment'])
+            if not ok:return
+            try:self.project_store.annotate(r['path'],tags.split(','),comment)
+            except ValueError as exc:self.warning('Tags nicht gespeichert',exc);return
+            search()
         def index_existing():
             paths,_=QFileDialog.getOpenFileNames(dialog,'Projekte indexieren','','ECU Studio (*.ecustudio)')
             for path in paths:
@@ -3343,9 +3445,13 @@ class Window(QMainWindow):
             except Exception as exc:
                 self.warning('Projekt konnte nicht geöffnet werden',exc)
         query.textChanged.connect(search)
+        tag.textChanged.connect(search)
+        family.currentIndexChanged.connect(search)
         view.doubleClicked.connect(lambda *_:open_selected())
+        view.selectionModel().currentRowChanged.connect(show_comment)
         line=QHBoxLayout()
-        for label,fn in (('Bestehende Projekte indexieren …',index_existing),('Ausgewähltes Projekt öffnen',open_selected)):
+        for label,fn in (('Bestehende Projekte indexieren …',index_existing),('Tags / Kommentar …',annotate),
+                         ('Ausgewähltes Projekt öffnen',open_selected)):
             button=QPushButton(label)
             button.clicked.connect(fn)
             line.addWidget(button)

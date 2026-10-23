@@ -56,3 +56,31 @@ def test_cli_writes_json_and_markdown(tmp_path):
     main([str(manifest), '--out', str(tmp_path / 'r.json'), '--markdown', str(tmp_path / 'r.md')])
     assert json.loads((tmp_path / 'r.json').read_text(encoding='utf-8'))['rows'][0]['name'] == 'cli'
     assert (tmp_path / 'r.md').read_text(encoding='utf-8').startswith('| Paar |')
+
+
+def _row(name, exact, found, precision=None, sha='x'):
+    return {'name': name, 'family': 'F', 'role': 'test', 'sha256': sha, 'complete_reference': precision is not None,
+            'exact_2d': exact, 'found_2d': found, 'recall_2d': .5, 'precision_2d': precision, 'exact_1d': 0, 'seconds': 1}
+
+
+def test_comparison_needs_more_exact_maps_and_stable_precision():
+    from ecu_studio.tools.benchmark_suite import compare_runs, comparison_markdown
+    before = {'version': '1', 'commit': 'a', 'rows': [_row('up', 10, 20, .80), _row('more', 10, 20), _row('prec', 10, 20, .80),
+                                                      _row('down', 10, 20), _row('other', 1, 1, sha='y')]}
+    after = {'version': '2', 'commit': 'b', 'rows': [_row('up', 12, 22, .80), _row('more', 10, 30), _row('prec', 12, 40, .70),
+                                                     _row('down', 9, 20), _row('other', 1, 1, sha='z')]}
+    diff = compare_runs(before, after)
+    verdicts = {p['name']: p['verdict'] for p in diff['pairs']}
+    assert verdicts == {'up': 'verbessert', 'more': 'nur mehr Kandidaten', 'prec': 'schlechter',
+                        'down': 'schlechter', 'other': 'nicht vergleichbar'}
+    assert diff['regressions'] == ['prec', 'down']
+    assert '10 → 12' in comparison_markdown(diff)
+
+
+def test_result_names_version_commit_and_reference_provenance(tmp_path):
+    entry = dict(_pair(tmp_path, 'prov', 5), source='synthetisch', license='CC0')
+    result = run([entry])
+    row = result['rows'][0]
+    assert result['version'] and 'commit' in result
+    assert (row['reference_source'], row['reference_license']) == ('synthetisch', 'CC0')
+    assert row['group_pairs_reference'] == 0 and 'Gruppenpaare' in markdown(result)
