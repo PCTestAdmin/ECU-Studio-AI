@@ -2,6 +2,12 @@
 
 Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-23.md).
 
+**Projektkompatibilität und Werteübernahme**
+- Kennfeldfelder aus einer neueren Projektversion werden beim toleranten Öffnen weiterhin nicht angezeigt,
+  aber jetzt verlustfrei am Kennfeld mitgeführt und beim Speichern unverändert zurückgeschrieben.
+- Unabhängige synthetische Transfer-Matrixtests decken mehrere Softwarestand-Layouts, Datentypen, Byte-Reihenfolgen,
+  Skalierungen, Überlauf-/Review-Sperren und den gemeinsamen Undo-Schritt ab. Das ist kein OEM-Nachweis.
+
 **Gemeinsame Achsen (Gruppenkennfelder)**
 - Kennfelder kennen die Dateiadresse ihrer X-/Y-Stützstellen (A2L `STD_AXIS`/`COM_AXIS` mit Achsobjekt-Namen,
   XDF eingebettete und verlinkte Achsen, Kopf-/Kennlinien-Datensätze und Code-Verweise der Erkennung). Gespeichert

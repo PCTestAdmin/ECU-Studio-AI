@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+import copy
 import hashlib
 import json
 import math
@@ -73,6 +74,11 @@ class MapDefinition:
     axis_y_offset: int | None = None
     axis_x_ref: str = ""
     axis_y_ref: str = ""
+    # Fields introduced by a newer application are kept verbatim while this
+    # version is editing the known part of the definition.  This is deliberately
+    # an internal dataclass field so ``dataclasses.replace`` carries the data to
+    # derived definitions without exposing an implementation key in projects.
+    _unknown_fields: dict[str, object] = field(default_factory=dict, repr=False, compare=False)
 
     def raw_from_physical(self, value: float) -> int | float:
         if self.equation:
@@ -160,7 +166,13 @@ class MapDefinition:
             raise ValueError("Ungültige Skalierung")
 
     def asdict(self) -> dict:
-        return asdict(self)
+        data = asdict(self)
+        unknown = data.pop('_unknown_fields', {})
+        if unknown:
+            # Unknown keys cannot collide with current fields because
+            # ``map_from_record`` separates them before constructing the map.
+            data.update(unknown)
+        return data
 
 
 class BinaryImage:
@@ -366,20 +378,25 @@ class BinaryImage:
 def map_from_record(record: dict, ignored: set[str] | None = None) -> MapDefinition:
     """A map from a project record, also one written by a newer version.
 
-    Fields this version does not know are left out and collected in ``ignored``;
-    without that set they are refused, so no caller drops data unknowingly.
+    Fields this version does not know are carried verbatim on the map and
+    collected in ``ignored``; without that set they are refused, so no caller
+    drops data unknowingly.  ``MapDefinition.asdict()`` writes them back.
     """
     if not isinstance(record, dict):
         raise ValueError('Ungültige Kennfelddefinition im Projekt')
-    known = MapDefinition.__dataclass_fields__
-    unknown = set(record) - set(known)
+    # ``_unknown_fields`` is an internal carrier, never a project-format key.
+    known = set(MapDefinition.__dataclass_fields__) - {'_unknown_fields'}
+    unknown = set(record) - known
     if unknown:
         if ignored is None:
             raise ValueError('Projekt stammt aus einer neueren Version (unbekannte Felder: '
                              + ', '.join(sorted(unknown)) + ')')
         ignored |= unknown
     try:
-        return MapDefinition(**{k: v for k, v in record.items() if k in known})
+        result = MapDefinition(**{k: v for k, v in record.items() if k in known})
+        if unknown:
+            result._unknown_fields = copy.deepcopy({k: record[k] for k in unknown})
+        return result
     except TypeError as exc:
         raise ValueError(f'Ungültige Kennfelddefinition im Projekt: {exc}') from None
 
@@ -414,7 +431,7 @@ def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookm
 
 def load_project(path: str, *, ignored_fields: set[str] | None = None
                  ) -> tuple[BinaryImage, list[MapDefinition], list[dict], str]:
-    """``ignored_fields``: collect map fields of newer versions instead of refusing the project."""
+    """Load a project; newer map fields may be collected and round-tripped."""
     from .storage import canonical_digest
     if Path(path).stat().st_size > 256*1024**2:
         raise ValueError('Projektdatei größer als 256 MiB')

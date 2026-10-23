@@ -154,6 +154,7 @@ def _newer_project(tmp_path):
 
 
 def test_projects_of_newer_versions_load_with_named_unknown_fields(tmp_path):
+    import json
     from ecu_studio.core.model import read_project_snapshots
     path = _newer_project(tmp_path)
     with pytest.raises(ValueError, match='neueren Version.*zukunftsfeld'):
@@ -161,6 +162,15 @@ def test_projects_of_newer_versions_load_with_named_unknown_fields(tmp_path):
     ignored = set()
     image, maps, _, _ = load_project(str(path), ignored_fields=ignored)
     assert ignored == {'zukunftsfeld'} and maps[0].name == 'KF'
+    from dataclasses import replace
+    assert replace(maps[0], name='KF-Kopie').asdict()['zukunftsfeld'] == 1
+    # A tolerant load must be lossless: an older UI may save known fields while
+    # carrying forward fields it cannot display yet.
+    roundtrip = tmp_path / 'roundtrip.ecustudio'
+    save_project(str(roundtrip), image, maps, [], '', read_project_snapshots(str(path), image))
+    saved = json.loads(roundtrip.read_text(encoding='utf-8'))
+    assert saved['maps'][0]['zukunftsfeld'] == 1
+    assert saved['snapshots'][0]['maps'][0]['zukunftsfeld'] == 1
     assert snapshot_maps(image, read_project_snapshots(str(path), image)[0])[0].name == 'KF'
 
 
@@ -174,7 +184,7 @@ def test_window_warns_when_opening_a_newer_project(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, 'warning', lambda *a, **k: shown.append(a[2]))
     w.open_project_file(str(_newer_project(tmp_path)))
     assert [m.name for m in w.maps] == ['KF'] and len(w.snapshots) == 1
-    assert shown and 'zukunftsfeld' in shown[0] and 'verloren' in shown[0]
+    assert shown and 'zukunftsfeld' in shown[0] and 'erhalten' in shown[0]
     w.close()
 
 

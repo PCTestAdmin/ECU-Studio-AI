@@ -2414,7 +2414,7 @@ class Window(QMainWindow):
         except Exception as exc:self.warning("Projekt konnte nicht geöffnet werden",exc)
 
     def open_project_file(self,path):
-        """Load a project; fields of a newer version are left out with a warning."""
+        """Load a project; newer map fields remain hidden but are preserved."""
         ignored=set()
         image,maps,bookmarks,notes=load_project(path,ignored_fields=ignored)
         versions=read_project_snapshots(path,image)
@@ -2426,8 +2426,8 @@ class Window(QMainWindow):
             fields=', '.join(sorted(ignored))
             QMessageBox.warning(self,'Projekt aus einer neueren Version',
                 f'Dieses Projekt enthält Kennfeldangaben, die diese Version nicht kennt: {fields}.\nSie werden nicht '
-                'angezeigt und gehen beim Speichern verloren. Zum Bearbeiten die neuere Version verwenden oder unter '
-                'neuem Namen speichern.')
+                'angezeigt oder bearbeitet, bleiben beim Speichern aber unverändert erhalten. Für die Bearbeitung dieser '
+                'Felder bitte die neuere Version verwenden.')
 
     @staticmethod
     def _overlaps(a, b):

@@ -1954,7 +1954,7 @@
   "{0}, Verschiebung {1} Byte": "{0}, shift {1} bytes",
   "; Zielort auch beansprucht von ": "; target place also claimed by ",
   "Projekt aus einer neueren Version": "Project from a newer version",
-  "Dieses Projekt enthält Kennfeldangaben, die diese Version nicht kennt: {0}.\nSie werden nicht angezeigt und gehen beim Speichern verloren. Zum Bearbeiten die neuere Version verwenden oder unter neuem Namen speichern.": "This project contains map details this version does not know: {0}.\nThey are not shown and are lost when saving. Use the newer version to edit it, or save under a new name.",
+  "Dieses Projekt enthält Kennfeldangaben, die diese Version nicht kennt: {0}.\nSie werden nicht angezeigt oder bearbeitet, bleiben beim Speichern aber unverändert erhalten. Für die Bearbeitung dieser Felder bitte die neuere Version verwenden.": "This project contains map details this version does not know: {0}.\nThey are not shown or editable here, but are preserved unchanged when saving. Use the newer version to edit these fields.",
   "Ungültige Kennfelddefinition im Projekt": "Invalid map definition in the project",
   "Ungültige Kennfelddefinition im Projekt: {0}": "Invalid map definition in the project: {0}",
   "Projekt stammt aus einer neueren Version (unbekannte Felder: ": "Project comes from a newer version (unknown fields: ",

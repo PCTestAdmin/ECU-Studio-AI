@@ -63,8 +63,8 @@ def snapshot_maps(image: BinaryImage, snap: dict) -> list[MapDefinition] | None:
         return None
     if not isinstance(records, list):
         raise ValueError('Ungültige Kennfeldliste im Versionsstand')
-    # Read-only history: the stored records are saved back unchanged, so fields of
-    # newer versions can be left out here without losing them.
+    # Read-only history: the stored records are validated through MapDefinition,
+    # which carries fields from newer versions through any round-trip unchanged.
     maps = [map_from_record(r, set()) for r in records]
     for m in maps:
         m.validate(image.size)
