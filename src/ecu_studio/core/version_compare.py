@@ -59,9 +59,8 @@ class VersionPair:
         return self.match == 'wahrscheinlich'
 
 
-def _differences(source: BinaryImage, target: BinaryImage, a: MapDefinition, b: MapDefinition) -> dict:
-    # Original bytes on both sides: edits in either project must not decide the comparison.
-    src, dst = BinaryImage(source.original), BinaryImage(target.original)
+def _differences(src: BinaryImage, dst: BinaryImage, a: MapDefinition, b: MapDefinition) -> dict:
+    """Cell differences; callers pass the original images (compare_versions)."""
     raw_a, raw_b = src.matrix(a).astype(float), dst.matrix(b).astype(float)
     phys_a, phys_b = src.matrix(a, physical=True), dst.matrix(b, physical=True)
     delta = phys_b - phys_a
@@ -84,7 +83,12 @@ def _axes_state(a: MapDefinition, b: MapDefinition) -> str:
 
 def compare_versions(source: BinaryImage, source_maps: list[MapDefinition], target: BinaryImage,
                      target_maps: list[MapDefinition] = (), *, cancelled=None) -> dict:
-    """Pairs for every source map plus the target maps no source map reaches."""
+    """Pairs for every source map plus the target maps no source map reaches.
+
+    Matching and differences use the ORIGINAL bytes of both versions: edits in a
+    project (ORI -> MOD) must not decide which map corresponds to which.
+    """
+    source, target = BinaryImage(source.original), BinaryImage(target.original)
     transfers = transfer_names(source, target, source_maps, cancelled=cancelled)
     if cancelled and cancelled():
         return {'pairs': [], 'target_only': [], 'cancelled': True}
@@ -178,8 +182,41 @@ def adopt_definitions(pairs: list[VersionPair], target_maps: list[MapDefinition]
                 'Ungeprüft: Funktion und Skalierung am Zielstand bestätigen.')
         new = replace(t, source='transfer-proposed', verified=False, label_origin=f'Softwarestand-Abgleich · {p.match}',
                       label_evidence=note, notes=(p.source.notes + ' ' + note).strip())
+        if p.axes == 'abweichend/ungeprüft':
+            # The stored axes of Stand B were not confirmed: Stand A's values must not
+            # pass for them (value transfer compares definition axes).
+            new.axes_x, new.axes_y = [], []
+            new.notes += ' Achsen in Stand B nicht bestätigt – Achswerte nicht übernommen.'
         added.append(new)
         protocol.append({'utc': stamp, 'action': 'definition-adopted', 'name': t.name, 'source_label': source_label,
                          'source_offset': p.source.offset, 'target_offset': t.offset, 'match': p.match,
                          'evidence': p.evidence, 'changed_cells': p.changed_cells})
     return added, protocol
+
+
+def transfer_links(pairs: list[VersionPair], target_maps: list[MapDefinition], *,
+                   confirm_probable: bool = False) -> tuple[dict[int, int], list[str]]:
+    """Explicit source -> target pairing for core/smart_transfer, and why other pairs were left out.
+
+    Only pairs that may be adopted qualify, and only where Stand B already holds
+    exactly that definition (same place, size and format). Value checks - confirmed
+    definitions, units, axes, overflow - stay with plan_transfer.
+    """
+    places: dict[tuple, list[int]] = {}
+    for j, m in enumerate(target_maps):
+        places.setdefault((m.offset, m.rows, m.cols, m.dtype, m.endian), []).append(j)
+    links, skipped = {}, []
+    for p in pairs:
+        if not p.adoptable or (p.needs_confirmation and not confirm_probable):
+            skipped.append(f'{p.source.name}: {p.match}' + (f' ({p.conflict})' if p.conflict else ''))
+            continue
+        t = p.target
+        found = places.get((t.offset, t.rows, t.cols, t.dtype, t.endian), [])
+        if len(found) != 1:
+            skipped.append(f'{p.source.name}: ' + ('Definition fehlt in Stand B – zuerst übernehmen' if not found
+                                                   else 'mehrere gleiche Definitionen in Stand B'))
+            continue
+        links[p.source_index] = found[0]
+    if len(set(links.values())) != len(links):
+        raise ValueError('Ein Zielkennfeld ist mehrfach gepaart')
+    return links, skipped

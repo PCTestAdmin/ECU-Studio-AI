@@ -19,7 +19,11 @@ Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-2
   Liste „nur in Stand B“.
 - Übernahme nur von Definitionen (BIN unverändert), alles oder nichts, „wahrscheinlich“ nur mit Bestätigung,
   mehrdeutig nie; Protokoll im Projekt-Journal und Versionsstand mit den übernommenen Definitionen.
-- MS43 E46 → E39 (1454 Definitionen): alle 1140 zugeordneten am richtigen Ort.
+- MS43 E46 → E39 (1454 Definitionen, 0,31 s): alle 1140 zugeordneten am richtigen Ort. Zugeordnet wird über die
+  Originale beider Stände, Bearbeitungen in Stand A ändern die Zuordnung nicht.
+- **Werteänderungen von Stand A übertragen …**: markierte, eindeutige Zuordnungen gehen an den geprüften
+  Delta-Transfer (bestätigte Identität und Definitionen, gleiche Achsen und Einheiten, Vorschau, ein Undo-Schritt).
+  Nicht bestätigte Achsen in Stand B werden bei der Definitionsübernahme nicht aus Stand A übernommen.
 
 **Projektbibliothek und Versionen**
 - Projektliste mit Familie, HW/SW-Kennung, Definitionsquellen, App-Version, geprüften/ungeprüften/geänderten

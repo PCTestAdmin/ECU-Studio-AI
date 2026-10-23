@@ -1957,6 +1957,16 @@
   "Dieses Projekt enthält Kennfeldangaben, die diese Version nicht kennt: {0}.\nSie werden nicht angezeigt und gehen beim Speichern verloren. Zum Bearbeiten die neuere Version verwenden oder unter neuem Namen speichern.": "This project contains map details this version does not know: {0}.\nThey are not shown and are lost when saving. Use the newer version to edit it, or save under a new name.",
   "Ungültige Kennfelddefinition im Projekt": "Invalid map definition in the project",
   "Ungültige Kennfelddefinition im Projekt: {0}": "Invalid map definition in the project: {0}",
-  "Projekt stammt aus einer neueren Version (unbekannte Felder: ": "Project comes from a newer version (unknown fields: "
+  "Projekt stammt aus einer neueren Version (unbekannte Felder: ": "Project comes from a newer version (unknown fields: ",
+  "{0} · {1} Paarungen aus dem Softwarestand-Abgleich": "{0} · {1} pairings from the software version comparison",
+  "Nicht alle markierten übertragbar": "Not all marked maps can be transferred",
+  "Werteänderungen von Stand A übertragen …": "Transfer value changes from version A …",
+  "Stand A enthält keine Änderungen gegenüber seinem Original. Übertragen werden nur Änderungen aus einem Projekt (ORI → MOD).": "Version A has no changes against its original. Only changes from a project (ORI → MOD) are transferred.",
+  "Keine markierte Zuordnung ist übertragbar:\n": "No marked match can be transferred:\n",
+  "{0} Paarungen gehen in die Vorschau, {1} nicht:\n": "{0} pairings go into the preview, {1} do not:\n",
+  " Achsen in Stand B nicht bestätigt – Achswerte nicht übernommen.": " Axes not confirmed in version B – axis values not adopted.",
+  "Ein Zielkennfeld ist mehrfach gepaart": "A target map is paired more than once",
+  "Definition fehlt in Stand B – zuerst übernehmen": "Definition missing in version B – adopt it first",
+  "mehrere gleiche Definitionen in Stand B": "several identical definitions in version B"
  }
 }

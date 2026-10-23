@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFileDia
                                QVBoxLayout, QWidget)
 from ..core.model import BinaryImage, MapDefinition, load_project
 from ..core.name_transfer import MEASURED, definition_maps
-from ..core.version_compare import CLASSES, FILTERS, adopt_definitions, compare_versions, filter_pairs
+from ..core.version_compare import CLASSES, FILTERS, adopt_definitions, compare_versions, filter_pairs, transfer_links
 from ..core.versioning import make_snapshot
 from .next_dialogs import AsyncDialog
 
@@ -102,7 +102,9 @@ class VersionCompareDialog(AsyncDialog):
         buttons.addWidget(self.confirm_probable)
         buttons.addStretch()
         for title, method in (('Alle eindeutigen markieren', self.mark_unique), ('In Stand B öffnen', self.open_target),
-                              ('Markierte übernehmen …', self.adopt), ('Schließen', self.reject)):
+                              ('Markierte übernehmen …', self.adopt),
+                              ('Werteänderungen von Stand A übertragen …', self.transfer_values),
+                              ('Schließen', self.reject)):
             button = QPushButton(title)
             button.clicked.connect(method)
             buttons.addWidget(button)
@@ -254,6 +256,37 @@ class VersionCompareDialog(AsyncDialog):
             return
         self.window.apply_adopted_definitions(added, protocol, self.source_label)
         self.compare()
+
+    def transfer_values(self):
+        """Hand the marked pairs to the reviewed value transfer (ORI → MOD changes of Stand A)."""
+        pairs = self.marked()
+        if not pairs:
+            self.error('Zuerst Kennfelder in der Spalte „Übernehmen“ markieren')
+            return
+        if not self.source.dirty_bytes:
+            self.error('Stand A enthält keine Änderungen gegenüber seinem Original. Übertragen werden nur '
+                       'Änderungen aus einem Projekt (ORI → MOD).')
+            return
+        try:
+            links, skipped = transfer_links(pairs, self.window.maps,
+                                            confirm_probable=self.confirm_probable.isChecked())
+        except ValueError as exc:
+            self.error(exc)
+            return
+        if not links:
+            self.error('Keine markierte Zuordnung ist übertragbar:\n' + '\n'.join(skipped[:20]))
+            return
+        if skipped:
+            QMessageBox.information(self, 'Nicht alle markierten übertragbar',
+                                    f'{len(links)} Paarungen gehen in die Vorschau, {len(skipped)} nicht:\n' +
+                                    '\n'.join(skipped[:20]))
+        from .next_dialogs import SmartTransferDialog
+        transfer = SmartTransferDialog(self.window)
+        transfer.source_loaded(self.source_label, (self.source, self.source_maps, [], ''))
+        transfer.links = links
+        transfer.link_target_key = [m.asdict() for m in self.window.maps]
+        transfer.source_name.setText(f'{self.source_label} · {len(links)} Paarungen aus dem Softwarestand-Abgleich')
+        transfer.exec()
 
     def open_target(self):
         p = self.current_pair()
