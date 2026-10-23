@@ -1,5 +1,42 @@
 ## Unveröffentlicht
 
+Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-23.md).
+
+**Gemeinsame Achsen (Gruppenkennfelder)**
+- Kennfelder kennen die Dateiadresse ihrer X-/Y-Stützstellen (A2L `STD_AXIS`/`COM_AXIS` mit Achsobjekt-Namen,
+  XDF eingebettete und verlinkte Achsen, Kopf-/Kennlinien-Datensätze und Code-Verweise der Erkennung). Gespeichert
+  im Projekt; alte Projekte laden unverändert.
+- Neues Modul `core/axis_groups.py`: Gruppen **nur über dieselbe Achsadresse**, mit Evidenz *aus Definition* oder
+  *strukturell, ungeprüft* und Markierung *unsicher* bei Widersprüchen. Gleiche Achswerte an anderer Adresse sind nur
+  eine Hypothese. Katalog („Achse geteilt“), Detailbereich, Funktionsgruppen (inkl. CSV) und Funktionsgraph zeigen
+  die Gruppen; der Funktionsgraph gruppierte vorher nach gleichen Achswerten.
+- Gemessen an MS43 430069 (Rolle *training*): 491 von 491 erkannten Gruppenpaaren richtig, 86 % der Referenzpaare
+  unter den exakt gefundenen Kennfeldern.
+
+**Softwarestände vergleichen und Definitionen übernehmen** (*Werkzeuge*, neu)
+- Zuordnung über eindeutige Anker in Klassen exakt / strukturell / wahrscheinlich / mehrdeutig / nicht zuordenbar;
+  gleiche Adresse allein ist kein Beleg. Differenzen je Kennfeld, zwei synchronisierte Wertetabellen, Filter,
+  Liste „nur in Stand B“.
+- Übernahme nur von Definitionen (BIN unverändert), alles oder nichts, „wahrscheinlich“ nur mit Bestätigung,
+  mehrdeutig nie; Protokoll im Projekt-Journal und Versionsstand mit den übernommenen Definitionen.
+- MS43 E46 → E39 (1454 Definitionen): alle 1140 zugeordneten am richtigen Ort.
+
+**Projektbibliothek und Versionen**
+- Projektliste mit Familie, HW/SW-Kennung, Definitionsquellen, App-Version, geprüften/ungeprüften/geänderten
+  Kennfeldern und Versionen; eigene Tags und Kommentare; Filter nach Familie und Tag. Die Angaben stehen in
+  zusätzlichen Tabellen: Ältere Versionen öffnen und beschreiben dieselbe Projektdatenbank weiterhin.
+- Tests laufen mit temporären Benutzerordnern und berühren die echte Projektdatenbank nicht mehr.
+- Versions-Explorer: zwei beliebige Stände vergleichen (Bytes, Kennfelder, Definitionen).
+
+**Messwerkzeuge**
+- `tools/miss_analysis`: Ursachen verfehlter Referenzkennfelder je Paar.
+- `benchmark_suite`: Version, Commit, Referenzquelle/-lizenz, Achsadress- und Gruppenkennzahlen, `--baseline` für
+  einen Vorher/Nachher-Bericht (mehr Kandidaten allein gilt nie als Verbesserung).
+
+**Nicht erreicht:** Keine Änderung an der Kennfeldsuche. Die Referenzpaare der Prioritätsfamilien (EDC17CP09, EDC16,
+MSD80/85) waren nicht verfügbar; zwei an MS42/MS43 geprüfte Ansätze für Gruppenkennfelder wurden wegen zu geringer
+Präzision verworfen (Bericht, Abschnitt 3).
+
 ## 1.16.3 (22.10.2026)
 
 - **Updater repariert:** Der PowerShell-Updater läuft jetzt mit einem Arbeitsordner außerhalb der Installation,

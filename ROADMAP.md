@@ -94,7 +94,7 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 |:--:|---|---|
 | 🧩 | **TunerStudio-Abstimmungen öffnen** | Speeduino, rusEFI, MegaSquirt – die Definition ist dort öffentlich |
 | 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
-| 🔗 | **Gruppenkennfelder** | Viele Bosch-Kennfelder teilen sich ihre Achsen |
+| 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
 
 <br>
