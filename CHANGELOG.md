@@ -1,5 +1,7 @@
 ## Unveröffentlicht
 
+## 1.16.4 (23.10.2026)
+
 Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-23.md).
 
 **Projektkompatibilität und Werteübernahme**

@@ -17,10 +17,10 @@
 
 <br>
 
-## ![Aktuell: 1.16.3](https://img.shields.io/badge/🎉_AKTUELL-1.16.3_·_veröffentlicht_22.10.2026-1a7f37?style=for-the-badge)
+## ![Aktuell: 1.16.4](https://img.shields.io/badge/🎉_AKTUELL-1.16.4_·_veröffentlicht_23.10.2026-1a7f37?style=for-the-badge)
 
 [Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – installierte Versionen bieten das Update automatisch an.
-Die großen Neuerungen kamen mit **1.16.0** (Tabelle unten); 1.16.1–1.16.3 haben Update-Funktion, Updater und die
+Die großen Neuerungen kamen mit **1.16.0** (Tabelle unten); 1.16.1–1.16.4 haben Update-Funktion, Updater und die
 EDC16/EDC17-Prüfsummenprüfung nachgereicht (siehe „Frühere Versionen“ unten).
 Die Clips sind echte Aufnahmen der App
 mit einer synthetischen Vorführdatei (keine Herstellerdaten).
@@ -133,6 +133,8 @@ Bitte keine Firmware hochladen.
 <details>
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
+
+**1.16.4** · 23.10.2026 – Verlustfreies Laden neuerer Projekte und unabhängige Transfer-Regressionstests
 
 **1.16.3** · 22.10.2026 – Updater-Arbeitsordner und Retry bei Windows-Dateisperren
 
