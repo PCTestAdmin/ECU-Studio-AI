@@ -4,11 +4,15 @@ Routines are approximated by the span between two C16x return instructions
 (RET/RETS/RETI). A table referenced inside a routine belongs to that routine's
 group. Return opcodes can also occur as operand bytes, so a group boundary is a
 structural hint, not a disassembly-proven function boundary.
+
+Shared axes are groups by axis storage address (core/axis_groups), for every CPU.
+Equal axis values at different addresses are listed apart as hypotheses.
 """
 from __future__ import annotations
 import bisect
 import re
 from dataclasses import dataclass, field
+from .axis_groups import axis_value_hints, shared_axis_groups
 from .model import BinaryImage, MapDefinition
 from .structure_scan import c16x_reference_positions
 
@@ -24,10 +28,6 @@ class FunctionGroup:
     @property
     def size(self) -> int:
         return len(self.members)
-
-
-def _axes_key(m: MapDefinition):
-    return (tuple(m.axes_x), tuple(m.axes_y)) if m.axes_x else None
 
 
 def build_function_graph(image: BinaryImage, maps: list[MapDefinition], lo: int = 0,
@@ -47,17 +47,15 @@ def build_function_graph(image: BinaryImage, maps: list[MapDefinition], lo: int 
             if i not in group.members:
                 group.members.append(i)
     groups = sorted((g for g in by_routine.values() if g.size >= 2), key=lambda g: (-g.size, g.routine_start))
-    shared: dict[tuple, list[int]] = {}
-    for i, m in enumerate(maps):
-        key = _axes_key(m)
-        if key and min(m.rows, m.cols) > 1:
-            shared.setdefault(key, []).append(i)
-    axis_groups = [members for members in shared.values() if len(members) >= 2]
-    return {'groups': groups, 'shared_axes': axis_groups, 'referenced': sum(1 for m in maps if m.offset in refs)}
+    axis_groups = shared_axis_groups(maps)
+    return {'groups': groups, 'shared_axes': axis_groups, 'axis_hints': axis_value_hints(maps, axis_groups),
+            'referenced': sum(1 for m in maps if m.offset in refs)}
 
 
 def related_maps(graph: dict, index: int) -> dict[str, list[int]]:
-    """Indices related to one map: same routine, same axes."""
+    """Indices related to one map: same routine, same stored axis, equal axis values (hypothesis)."""
     same_routine = sorted({j for g in graph['groups'] if index in g.members for j in g.members} - {index})
-    same_axes = sorted({j for members in graph['shared_axes'] if index in members for j in members} - {index})
-    return {'routine': same_routine, 'axes': same_axes}
+    same_axes = sorted({j for g in graph['shared_axes'] if index in g.indices for j in g.indices} - {index})
+    hinted = sorted({j for members in graph.get('axis_hints', []) if index in members for j in members}
+                    - {index} - set(same_axes))
+    return {'routine': same_routine, 'axes': same_axes, 'axis_hints': hinted}

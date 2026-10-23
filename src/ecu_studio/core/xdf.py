@@ -105,9 +105,10 @@ def _mapped(address: int,base: int,subtract: bool)->int:
     return address-base if subtract else address+base
 
 
-def _axis_values(axis:ET.Element|None, count:int, image: BinaryImage,
-                 base:int,subtract:bool,lookup:dict[str,ET.Element]) -> list[float]:
-    if axis is None or count<=0 or count>512:return []
+def _axis_read(axis:ET.Element|None, count:int, image: BinaryImage,
+                 base:int,subtract:bool,lookup:dict[str,ET.Element]) -> tuple[list[float],int|None]:
+    """Axis values and the file offset they are read from (None for labels/unread)."""
+    if axis is None or count<=0 or count>512:return [],None
     labels=axis.findall('LABEL')
     if labels:
         values=[None]*count
@@ -117,7 +118,7 @@ def _axis_values(axis:ET.Element|None, count:int, image: BinaryImage,
                 if 0<=idx<count:values[idx]=float(label.get('value','').strip())
             except (ValueError,TypeError):pass
         if all(v is not None and math.isfinite(v) for v in values):
-            return [float(x) for x in values]
+            return [float(x) for x in values],None
     emb=axis.find('EMBEDDEDDATA')
     # A linked axis is a separately stored scalar/table. Follow only one level.
     link=axis.find('embedinfo')
@@ -140,47 +141,52 @@ def _axis_values(axis:ET.Element|None, count:int, image: BinaryImage,
                         mtag=scaling_axis.find('MATH')
                         expression=mtag.get('equation','X') if mtag is not None else 'X'
                         parse_equation(expression)
-                    except (ValueError,SyntaxError):return []
+                    except (ValueError,SyntaxError):return [],None
                 else:
                     try:
                         mtag=axis.find('MATH')
                         expression=mtag.get('equation','X') if mtag is not None else 'X'
                         parse_equation(expression)
-                    except (ValueError,SyntaxError):return []
-            else:return []
-        else:return []
+                    except (ValueError,SyntaxError):return [],None
+            else:return [],None
+        else:return [],None
     else:
         try:
             mtag=axis.find('MATH')
             expression=mtag.get('equation','X') if mtag is not None else 'X'
             parse_equation(expression)
-        except (ValueError,SyntaxError):return []
-    if emb is None or not emb.get('mmedaddress'):return []
+        except (ValueError,SyntaxError):return [],None
+    if emb is None or not emb.get('mmedaddress'):return [],None
     bits=_integer(emb.get('mmedelementsizebits'),8)
-    if bits not in (8,16,32):return []
+    if bits not in (8,16,32):return [],None
     flags=_integer(emb.get('mmedtypeflags'))
-    if flags & ~0x07:return []
+    if flags & ~0x07:return [],None
     width=bits//8
     step_bits=_integer(emb.get('mmedmajorstridebits'),0)
     # A stride of 0 means default packed axis. Other explicit forms are
     # accepted only if they are exactly equivalent to packed 1D storage.
-    if step_bits and (abs(step_bits)<bits or step_bits%8):return []
+    if step_bits and (abs(step_bits)<bits or step_bits%8):return [],None
     # TunerPro has inconsistent negative minor axis semantics; abstain.
-    if _integer(emb.get('mmedminorstridebits'))<0:return []
+    if _integer(emb.get('mmedminorstridebits'))<0:return [],None
     try:
         start=_mapped(_integer(emb.get('mmedaddress')),base,subtract)
         stride=(abs(step_bits)//8 if step_bits else width)
-        if start<0 or start+(count-1)*stride+width>image.size:return []
+        if start<0 or start+(count-1)*stride+width>image.size:return [],None
         values=[]
         for idx in range(count):
             physical_idx=count-1-idx if step_bits<0 else idx
             raw=int.from_bytes(image.read(start+physical_idx*stride,width),
                                'little' if flags&0x02 else 'big',signed=bool(flags&0x01))
             v=evaluate_equation(expression,raw)
-            if not math.isfinite(v):return []
+            if not math.isfinite(v):return [],None
             values.append(round(v,8))
-        return values
-    except (ValueError,IndexError,OverflowError):return []
+        return values,start
+    except (ValueError,IndexError,OverflowError):return [],None
+
+
+def _axis_values(axis:ET.Element|None, count:int, image: BinaryImage,
+                 base:int,subtract:bool,lookup:dict[str,ET.Element]) -> list[float]:
+    return _axis_read(axis,count,image,base,subtract,lookup)[0]
 
 
 def recognize_ms43(image:BinaryImage) -> dict:
@@ -320,8 +326,8 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
             record['bin_offset']=f'0x{offset:X}' if offset>=0 else str(offset)
             if offset<0:
                 reject('Adresse außerhalb BIN');continue
-            ax_x=_axis_values(x,cols,image,result.base_offset,result.base_subtract,lookup) if table else []
-            ax_y=_axis_values(y,rows,image,result.base_offset,result.base_subtract,lookup) if table else []
+            ax_x,at_x=_axis_read(x,cols,image,result.base_offset,result.base_subtract,lookup) if table else ([],None)
+            ax_y,at_y=_axis_read(y,rows,image,result.base_offset,result.base_subtract,lookup) if table else ([],None)
             kind='Unbekannt'
             unit=(z.findtext('units') or '').strip()
             categories=[]
@@ -338,6 +344,7 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
                 notes=('XDF: '+combined_desc[:650] if combined_desc else 'TunerPro-XDF')+
                       f' | Formel: {(z.find("MATH").get("equation") if z.find("MATH") is not None else "X")}',
                 ecu_address=ecu_address,axes_x=ax_x,axes_y=ax_y,
+                axis_x_offset=at_x if ax_x else None,axis_y_offset=at_y if ax_y else None,
                 axis_x_unit=(x.findtext('units') or '').strip() if table and x is not None else '',
                 axis_y_unit=(y.findtext('units') or '').strip() if table and y is not None else '',
                 folder=categories[0] if categories else '',

@@ -132,6 +132,7 @@ def match_verified(image: BinaryImage, catalog: DefinitionCatalog, *,
         proposed=MapDefinition(**m.asdict())
         proposed.offset=offset
         proposed.candidate_region_start=None
+        proposed.axis_x_offset=proposed.axis_y_offset=None   # similar values do not locate axes
         proposed.source='transfer-proposed'
         proposed.verified=False
         proposed.confidence=round(best_score,4)

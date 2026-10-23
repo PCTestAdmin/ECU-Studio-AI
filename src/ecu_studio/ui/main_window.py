@@ -49,6 +49,7 @@ from ..core.axis_inference import suggest_adjacent_axes
 from ..core.checksum_audit import (load_checksum_profile, audit_export, write_audit_json,
                                   plan_checksum_correction, apply_checksum_correction, correction_preview)
 from ..core.map_groups import group_maps, export_groups_csv
+from ..core.axis_groups import group_index, shared_axis_groups
 from ..recognition.identity_registry import identify_vehicle, import_identity_manifest, identity_stats
 from ..core.library import MapLibrary
 from ..core.intelligence import LEXICON, export_detection_report, suggest_reference_shapes, label_from_metadata, enrich_with_exact_references
@@ -1026,7 +1027,8 @@ class Window(QMainWindow):
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
             if not tier_matches(m,tier):continue
             visible.append(i)
-        self.catalog_model.set_context(self.maps,visible,patch_offsets)
+        self.axis_group_index=group_index(shared_axis_groups(self.maps))
+        self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
         for row,i in enumerate(visible):
             if self.maps[i] is previous:
                 self.map_list.setCurrentIndex(self.catalog_model.index(row,0))
@@ -1067,12 +1069,23 @@ class Window(QMainWindow):
         evidence="Verifiziert (manuell)" if m.verified else "NICHT verifiziert"
         extra = (f"\nECU-Adresse: 0x{m.ecu_address:X}" if m.ecu_address is not None else "")
         axes = (f"\nAchsenbeschreibung: {m.axes_info}" if m.axes_info else "")
+        axes += self._shared_axis_text(m)
         math_info=(f'\nXDF-Umrechnung: {m.equation} (schreibgeschützt)' if m.equation else '')
         self.map_hint.setText(f"{evidence} · Quelle: {m.source}{extra}{axes}{math_info}\n"
             f"Struktur-Score: {m.confidence:.2f} (keine Wahrscheinlichkeit)\n{m.notes}")
         if show_table:
             self.tabs.setCurrentWidget(self.map_table)
         self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
+
+    def _shared_axis_text(self, m) -> str:
+        """Shared stored axes of the selected map and its partner maps (first five)."""
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        lines=[]
+        for g in getattr(self,'axis_group_index',{}).get(index,()):
+            partners=[self.maps[i].name for i in g.indices if i!=index]
+            more=f' (+{len(partners)-5})' if len(partners)>5 else ''
+            lines.append(f'\n{g.describe()}\nTeilt die Achse mit: '+', '.join(partners[:5])+more)
+        return ''.join(lines)
 
     def show_raw2d(self):
         """Open a raw BIN trace at the current hex cursor or selected map."""
@@ -2896,9 +2909,10 @@ class Window(QMainWindow):
         try:graph=build_function_graph(self.image,self.maps,*self._code_window())
         except Exception as exc:
             self.warning('Funktionsgraph fehlgeschlagen',exc);return
-        if not graph['groups'] and not graph['shared_axes']:
-            QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise auf die geladenen Kennfelder gefunden. '
-                                    'Derzeit wird C16x-Code (Siemens MS4x, Bosch ME7) ausgewertet.')
+        if not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']:
+            QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise und keine gemeinsamen Achsen gefunden. '
+                                    'Code-Verweise werden derzeit für C16x (Siemens MS4x, Bosch ME7) ausgewertet; '
+                                    'gemeinsame Achsen brauchen bekannte Achsadressen.')
             return
         FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m)).exec()
 

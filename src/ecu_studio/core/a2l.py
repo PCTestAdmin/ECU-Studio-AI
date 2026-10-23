@@ -429,7 +429,7 @@ class A2LCatalog:
             if ch.cal_type not in ('VALUE', 'CURVE', 'MAP', 'VAL_BLK'):
                 result.unsupported.append(prefix + f': {ch.cal_type} nicht unterstützt')
                 continue
-            counts, axis_values, problem, shared_axes = {}, {}, '', []
+            counts, axis_values, problem, shared_axes, shared_at = {}, {}, '', [], {}
             for name, desc in zip('XY', ch.axis_descriptors[:2]):
                 kind = desc.head[0] if desc.head else ''
                 maxpts = parse_num(desc.head[3]) if len(desc.head) > 3 else 0
@@ -456,6 +456,7 @@ class A2LCatalog:
                         break
                     counts[name], axis_values[name] = len(rec['X']), ('raw', rec['X'], desc.head[2])
                     shared_axes.append((f'{ref[0]}', rec['X_at'], len(rec['X'])))
+                    shared_at[name] = (ref[0], rec['X_at'][0])
                 elif kind == 'STD_AXIS':
                     axis_values[name] = ('std', maxpts, desc.head[2])
                 else:
@@ -518,6 +519,11 @@ class A2LCatalog:
                               ecu_address=ch.address, record_layout=ch.layout,
                               axes_info=' | '.join(f'{a}:{b}({n})' for a, b, n in ch.axes),
                               axes_x=axes.get('X', []), axes_y=axes.get('Y', []))
+            # Where each axis is stored: inline in the record, or a shared AXIS_PTS object.
+            for name in 'XY':
+                ref, at = shared_at.get(name, ('', rec[name + '_at'][0] if name + '_at' in rec else None))
+                setattr(m, f'axis_{name.lower()}_offset', at)
+                setattr(m, f'axis_{name.lower()}_ref', ref)
             try:
                 m.validate(size)
             except ValueError:

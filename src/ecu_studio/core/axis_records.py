@@ -180,6 +180,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                     m=MapDefinition(f'Achsen-/Header-Kandidat @ 0x{end:08X}',end,rows,cols,
                                         dtype,storage,source='heuristic',confidence=.44,
                                         axes_x=x,axes_y=y,
+                                        axis_x_offset=axis_start,axis_y_offset=axis_start+cols*axis_width,
                                         record_layout='candidate:nx,ny,x,y,z',
                                         candidate_region_start=header,
                                         axes_info='Rohachsen aus Count/Axis-Hypothese; Einheiten und Orientierung ungeprüft',

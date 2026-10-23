@@ -66,6 +66,13 @@ class MapDefinition:
     # firmware (see core/confidence.py); None = not calibrated. Not a guarantee.
     evidence_tier: str = ""
     calibrated_rate: float | None = None
+    # File offsets of the stored X/Y breakpoints (None = not known). Maps whose
+    # axis is read from the same offset share that axis (see core/axis_groups.py).
+    # *_ref names a separately stored axis object of a definition (A2L AXIS_PTS).
+    axis_x_offset: int | None = None
+    axis_y_offset: int | None = None
+    axis_x_ref: str = ""
+    axis_y_ref: str = ""
 
     def raw_from_physical(self, value: float) -> int | float:
         if self.equation:
@@ -126,6 +133,9 @@ class MapDefinition:
         if self.candidate_region_start is not None and (type(self.candidate_region_start) is not int or
                 not 0<=self.candidate_region_start<=self.offset):
             raise ValueError('Ungültiger Beginn des vermuteten Records')
+        for axis_offset in (self.axis_x_offset, self.axis_y_offset):
+            if axis_offset is not None and (type(axis_offset) is not int or not 0 <= axis_offset < size):
+                raise ValueError('Achsenadresse außerhalb der BIN-Datei')
         if self.dtype not in FORMATS:
             raise ValueError("Nicht unterstützter Datentyp")
         if self.storage_order not in ("row-major", "column-major"):

@@ -10,10 +10,12 @@ class CatalogueModel(QAbstractListModel):
         self.maps=[]
         self.indices=[]
         self.patches=[]
+        self.axis_groups={}
 
-    def set_context(self,maps,indices,patches):
+    def set_context(self,maps,indices,patches,axis_groups=None):
         self.beginResetModel()
         self.maps,self.indices,self.patches=maps,indices,patches
+        self.axis_groups=axis_groups or {}
         self.endResetModel()
 
     def rowCount(self,parent=QModelIndex()):
@@ -39,8 +41,10 @@ class CatalogueModel(QAbstractListModel):
                     if m.source=='bundled-definition' else
                     f' · {t(m.evidence_tier)} {m.calibrated_rate:.0%}' if m.calibrated_rate is not None else
                     f' · {t(m.evidence_tier)}' if m.evidence_tier else ' · Vorschlag' if m.label_origin else '')
+            groups=self.axis_groups.get(i,())
+            shared=(' · Achse geteilt'+(' (unsicher)' if any(g.uncertain for g in groups) else '')) if groups else ''
             return (f"{marker} {star}{t(m.name)}{'  [geändert]' if changed else ''}{folder}\n"
-                    f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}  | Typ: {t(m.kind)}{status}')
+                    f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}  | Typ: {t(m.kind)}{status}{shared}')
         if role==Qt.ItemDataRole.DecorationRole and m.evidence_tier:
             return _tier_dot(m.evidence_tier)
         if role==Qt.ItemDataRole.ToolTipRole:
@@ -48,7 +52,8 @@ class CatalogueModel(QAbstractListModel):
                   if m.calibrated_rate is not None else
                   f'Evidenzklasse ohne ausreichende Messung ({m.evidence_tier})' if m.evidence_tier else
                   f'Strukturwert: {m.confidence:.2f} (keine Wahrscheinlichkeit)')
-            return f'{m.kind}\n{m.label_origin or m.source}\n{m.label_evidence or m.notes}\n{rate}'
+            shared=''.join('\n'+g.describe() for g in self.axis_groups.get(i,()))
+            return f'{m.kind}\n{m.label_origin or m.source}\n{m.label_evidence or m.notes}\n{rate}{shared}'
 
 
 TIER_COLORS={'gesichert':'#2EA043','wahrscheinlich':'#D29922','Vermutung':'#8B949E','nicht kalibriert':'#6E7681'}

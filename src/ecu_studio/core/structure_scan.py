@@ -724,6 +724,8 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         if pair:
             m.axes_x = [float(v) for v in pair[0].values]
             m.axes_y = [float(v) for v in pair[1].values] if pair[1] else []
+            m.axis_x_offset = pair[0].offset
+            m.axis_y_offset = pair[1].offset if pair[1] else None
             hints = [f'X {quantity_hint(pair[0])}'] + ([f'Y {quantity_hint(pair[1])}'] if pair[1] else [])
             m.axes_info = (f'Rohachsen aus Code-Referenz: X @ 0x{pair[0].offset:X}'
                            + (f', Y @ 0x{pair[1].offset:X}' if pair[1] else '')
