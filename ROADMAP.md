@@ -79,6 +79,19 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <br>
 
+## ![Im nächsten Update](https://img.shields.io/badge/📦_IM_NÄCHSTEN_UPDATE-fertig,_noch_nicht_veröffentlicht-0969da?style=for-the-badge)
+
+Fertig und getestet, kommt mit der nächsten Version. Alle Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md).
+
+| | Thema | Was es bringt |
+|:--:|---|---|
+| 🔗 | **Gemeinsame Achsen** | Katalog, Detailansicht und Funktionsgraph zeigen, welche Kennfelder sich eine gespeicherte Achse teilen – nur über die Adresse belegt, nie über ähnliche Werte. MS43: 491 von 491 erkannten Paaren richtig |
+| 🔀 | **Softwarestände vergleichen** | Zwei Stände nebeneinander: Kennfelder zuordnen (exakt · strukturell · wahrscheinlich · mehrdeutig), Unterschiede je Zelle, Definitionen und geprüfte Werteänderungen übernehmen |
+| 🗂️ | **Projektbibliothek** | Projekte nach Familie, Kennung, Tags und Kommentaren suchen und filtern; zwei beliebige Versionen eines Projekts vergleichen |
+| 🔬 | **Fehlfundanalyse** | Zeigt je Steuergerät, warum Kennfelder übersehen werden; Benchmark mit Vorher/Nachher-Urteil |
+
+<br>
+
 ## ![In Arbeit](https://img.shields.io/badge/🔨_IN_ARBEIT-läuft_gerade-bf8700?style=for-the-badge)
 
 | | Thema | Stand |
@@ -96,6 +109,7 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 | 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
 | 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
+| 📦 | **Offenes Kennfeldpaket** | Definitionen mit Achsen, Gruppen, Herkunft und Prüfstatus zwischen Projekten austauschen – dokumentiertes, offenes Format |
 
 <br>
 
