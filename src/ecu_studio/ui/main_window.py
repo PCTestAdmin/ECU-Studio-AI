@@ -671,6 +671,7 @@ class Window(QMainWindow):
         act(revisions,"Versionsstände verwalten / Kennfeld übernehmen …",self.revisions_dialog,"Ctrl+Shift+V")
         act(tools,"Schnellbefehle / Kommandopalette …",self.command_palette,"Ctrl+Shift+P")
         act(tools,"AI Smart Map Transfer …",self.smart_transfer)
+        act(tools,'Softwarestände vergleichen und Definitionen übernehmen …',self.compare_software_versions)
         act(tools,'Softwarestände: Kennfelder mathematisch abgleichen …',self.match_software_maps)
         act(tools,'Softwarestände: Namen aus Schwesterstand übernehmen …',self.transfer_sister_names)
         act(tools,"AI Log-to-Map Analyzer …",self.log_to_map)
@@ -3170,6 +3171,32 @@ class Window(QMainWindow):
             transfer.links=dialog.selected_links;transfer.link_target_key=dialog.target_key
             transfer.source_name.setText(f'{len(transfer.links)} mathematische Paarungen ausgewählt')
             transfer.exec()
+
+    def compare_software_versions(self):
+        if not self.require_image():return
+        from .version_compare_dialog import VersionCompareDialog
+        VersionCompareDialog(self).exec()
+
+    def apply_adopted_definitions(self,added,protocol,source_label):
+        """Add adopted definitions, log them and keep the result as a project version."""
+        self.maps.extend(added)
+        self.maps.sort(key=lambda m:m.offset)
+        self.image.journal.extend(dict(entry,label=f'Definition übernommen: {entry["name"]}',revision=self.image.revision,
+                                       changes=[]) for entry in protocol)
+        title=f'Definitionen aus {source_label}'[:120]
+        note='\n'.join(f'{e["name"]}: 0x{e["source_offset"]:X} → 0x{e["target_offset"]:X} ({e["match"]}; {e["evidence"]})'
+                       for e in protocol)[:10_000]
+        try:
+            self.snapshots.append(make_snapshot(self.image,title,note,maps=self.maps))
+        except ValueError as exc:
+            self.warning('Versionsstand nicht angelegt',exc)
+        self.refresh_map_list();self.update_status();self.update_diff()
+        self.statusBar().showMessage(f'{len(added)} Definitionen übernommen · ungeprüft · Versionsstand „{title}“ angelegt',8000)
+        answer=QMessageBox.question(self,'Projekt speichern',
+            f'{len(added)} Definitionen übernommen und als Versionsstand „{title}“ festgehalten. Projekt jetzt speichern?',
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.Yes)
+        if answer==QMessageBox.StandardButton.Yes:
+            self.save_project()
 
     def transfer_sister_names(self):
         """Names and layouts from a sister software version with a definition (proposals only)."""
