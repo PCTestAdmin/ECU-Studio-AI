@@ -363,6 +363,27 @@ class BinaryImage:
         self._redo.clear()
 
 
+def map_from_record(record: dict, ignored: set[str] | None = None) -> MapDefinition:
+    """A map from a project record, also one written by a newer version.
+
+    Fields this version does not know are left out and collected in ``ignored``;
+    without that set they are refused, so no caller drops data unknowingly.
+    """
+    if not isinstance(record, dict):
+        raise ValueError('Ungültige Kennfelddefinition im Projekt')
+    known = MapDefinition.__dataclass_fields__
+    unknown = set(record) - set(known)
+    if unknown:
+        if ignored is None:
+            raise ValueError('Projekt stammt aus einer neueren Version (unbekannte Felder: '
+                             + ', '.join(sorted(unknown)) + ')')
+        ignored |= unknown
+    try:
+        return MapDefinition(**{k: v for k, v in record.items() if k in known})
+    except TypeError as exc:
+        raise ValueError(f'Ungültige Kennfelddefinition im Projekt: {exc}') from None
+
+
 def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookmarks: list[dict], notes: str, snapshots: list[dict] | None = None, *, overwrite=True) -> None:
     from .storage import atomic_write, canonical_digest
     for m in maps:
@@ -391,7 +412,9 @@ def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookm
                  backup=overwrite, protected=(image.path, original), overwrite=overwrite)
 
 
-def load_project(path: str) -> tuple[BinaryImage, list[MapDefinition], list[dict], str]:
+def load_project(path: str, *, ignored_fields: set[str] | None = None
+                 ) -> tuple[BinaryImage, list[MapDefinition], list[dict], str]:
+    """``ignored_fields``: collect map fields of newer versions instead of refusing the project."""
     from .storage import canonical_digest
     if Path(path).stat().st_size > 256*1024**2:
         raise ValueError('Projektdatei größer als 256 MiB')
@@ -417,7 +440,7 @@ def load_project(path: str) -> tuple[BinaryImage, list[MapDefinition], list[dict
     if not isinstance(journal,list) or any(not isinstance(entry,dict) for entry in journal):
         raise ValueError('Ungültiges Änderungsprotokoll im Projekt')
     image.journal = journal
-    maps = [MapDefinition(**x) for x in payload.get("maps", [])]
+    maps = [map_from_record(x, ignored_fields) for x in payload.get("maps", [])]
     for m in maps:
         m.validate(image.size)
     return image, maps, payload.get("bookmarks", []), str(payload.get("notes", ""))

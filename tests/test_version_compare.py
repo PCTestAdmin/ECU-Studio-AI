@@ -134,3 +134,114 @@ def test_dialog_workflow_compare_view_adopt_and_save_as_version(tmp_path, monkey
     assert [m.name for m in loaded] == ['SAME'] and image.dirty_bytes == 0
     assert snapshot_maps(image, read_project_snapshots(str(project), image)[-1])[0].name == 'SAME'
     dialog.close(); w.close()
+
+
+def _newer_project(tmp_path):
+    """A project as a later version might write it: one extra map field, valid integrity hash."""
+    import json
+    from ecu_studio.core.storage import canonical_digest
+    image = BinaryImage(bytes(4096))
+    path = tmp_path / 'neu.ecustudio'
+    save_project(str(path), image, [MapDefinition('KF', 0x100, 4, 4, 'u8', source='xdf')], [], '',
+                 [make_snapshot(image, 'v1', maps=[MapDefinition('KF', 0x100, 4, 4, 'u8')])])
+    payload = json.loads(path.read_text(encoding='utf-8'))
+    payload['maps'][0]['zukunftsfeld'] = 1
+    payload['snapshots'][0]['maps'][0]['zukunftsfeld'] = 1
+    payload.pop('integrity_sha256')
+    payload['integrity_sha256'] = canonical_digest(payload)
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    return path
+
+
+def test_projects_of_newer_versions_load_with_named_unknown_fields(tmp_path):
+    from ecu_studio.core.model import read_project_snapshots
+    path = _newer_project(tmp_path)
+    with pytest.raises(ValueError, match='neueren Version.*zukunftsfeld'):
+        load_project(str(path))                                   # strict by default: nothing dropped silently
+    ignored = set()
+    image, maps, _, _ = load_project(str(path), ignored_fields=ignored)
+    assert ignored == {'zukunftsfeld'} and maps[0].name == 'KF'
+    assert snapshot_maps(image, read_project_snapshots(str(path), image)[0])[0].name == 'KF'
+
+
+def test_window_warns_when_opening_a_newer_project(tmp_path, monkeypatch):
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QMessageBox
+    from tests.test_ui_filters_banner import _window
+    app, w = _window(tmp_path, monkeypatch)
+    shown = []
+    monkeypatch.setattr(QMessageBox, 'warning', lambda *a, **k: shown.append(a[2]))
+    w.open_project_file(str(_newer_project(tmp_path)))
+    assert [m.name for m in w.maps] == ['KF'] and len(w.snapshots) == 1
+    assert shown and 'zukunftsfeld' in shown[0] and 'verloren' in shown[0]
+    w.close()
+
+
+def _identity(image):
+    from ecu_studio.core.smart_transfer import FirmwareIdentity
+    return FirmwareIdentity(image.digest, 'Synthetisch', 'HW1', 'SW', 'Testprotokoll', True)
+
+
+def test_marked_pairs_drive_the_reviewed_value_transfer():
+    from ecu_studio.core.smart_transfer import apply_transfer, plan_transfer
+    from ecu_studio.core.version_compare import transfer_links
+    source, target, maps = _versions()
+    maps[0].verified = True
+    maps[0].axes_x, maps[0].axes_y = list(range(0, 800, 100)), list(range(8))   # e.g. labelled XDF axes
+    same = maps[0]
+    source.commit([(same.cell_offset(2, 3), source.byte(same.cell_offset(2, 3)),
+                    source.byte(same.cell_offset(2, 3)) + 4)], label='MOD')      # +4 raw = +2.0 % in Stand A
+    pairs = compare_versions(source, maps, target)['pairs']
+    links, skipped = transfer_links(pairs, [])
+    assert links == {} and 'Definition fehlt' in skipped[0]                 # adopt first
+    added, _ = adopt_definitions(pairs[:1], [], source_label='A')
+    added[0].verified = True                                                 # reviewed by the user
+    links, skipped = transfer_links(pairs, added)
+    assert links == {0: 0} and any('wahrscheinlich' in s for s in skipped)   # CHANGED needs confirmation
+    plan = plan_transfer(source, target, maps, added, source_identity=_identity(source),
+                         target_identity=_identity(target), links=links)
+    (ready,) = [m for m in plan.maps if m.status == 'ready']
+    (cell,) = ready.cells
+    assert (cell.row, cell.col, cell.offset) == (2, 3, added[0].cell_offset(2, 3)) and cell.change_value == 2.0
+    before = target.byte(cell.offset)
+    apply_transfer(target, plan, [plan.maps.index(ready)], confirmed=True)
+    assert target.byte(cell.offset) == before + 4 and target.dirty_bytes == 1
+    target.undo()
+    assert target.dirty_bytes == 0 and target.original == target.materialize()
+
+
+def test_dialog_hands_marked_pairs_to_the_transfer_dialog(tmp_path, monkeypatch):
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from tests.test_ui_filters_banner import _window
+    from ecu_studio.ui import next_dialogs
+    from ecu_studio.ui.version_compare_dialog import VersionCompareDialog
+    app, w = _window(tmp_path, monkeypatch)
+    source, target, maps = _versions()
+    source.commit([(0x1005, source.byte(0x1005), source.byte(0x1005) ^ 1)], label='MOD')
+    pairs = compare_versions(source, maps, target)['pairs']
+    added, _ = adopt_definitions(pairs[:1], [], source_label='A')
+    w.load_state(target, added, [], '', None)
+    opened = {}
+    monkeypatch.setattr(next_dialogs.SmartTransferDialog, 'exec',
+                        lambda self: opened.update(links=dict(self.links), source=self.source))
+    dialog = VersionCompareDialog(w)
+    dialog.source, dialog.source_maps, dialog.source_label = source, maps, 'Stand A'
+    dialog.compared(compare_versions(source, maps, target, w.maps))
+    dialog.mark_unique()
+    dialog.transfer_values()
+    assert opened == {'links': {0: 0}, 'source': source}
+    dialog.close(); w.close()
+
+
+def test_unconfirmed_target_axes_are_not_carried_over():
+    source, target, maps = _versions()
+    maps[0].axes_x, maps[0].axis_x_offset = list(range(8)), 0x0F00
+    assert compare_versions(source, maps, target)['pairs'][0].axes == 'gleich'      # moved with the map, bytes equal
+    changed = bytearray(target.original)
+    changed[0x0F00 + SHIFT] ^= 0xFF                                                 # axis bytes differ in Stand B
+    pair = compare_versions(source, maps, BinaryImage(bytes(changed)))['pairs'][0]
+    assert pair.match == 'exakt' and pair.axes == 'abweichend/ungeprüft'
+    (new,), _ = adopt_definitions([pair], [], source_label='A')
+    assert new.axes_x == [] and 'nicht bestätigt' in new.notes
