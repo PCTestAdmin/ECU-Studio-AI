@@ -134,3 +134,45 @@ def test_dialog_workflow_compare_view_adopt_and_save_as_version(tmp_path, monkey
     assert [m.name for m in loaded] == ['SAME'] and image.dirty_bytes == 0
     assert snapshot_maps(image, read_project_snapshots(str(project), image)[-1])[0].name == 'SAME'
     dialog.close(); w.close()
+
+
+def _newer_project(tmp_path):
+    """A project as a later version might write it: one extra map field, valid integrity hash."""
+    import json
+    from ecu_studio.core.storage import canonical_digest
+    image = BinaryImage(bytes(4096))
+    path = tmp_path / 'neu.ecustudio'
+    save_project(str(path), image, [MapDefinition('KF', 0x100, 4, 4, 'u8', source='xdf')], [], '',
+                 [make_snapshot(image, 'v1', maps=[MapDefinition('KF', 0x100, 4, 4, 'u8')])])
+    payload = json.loads(path.read_text(encoding='utf-8'))
+    payload['maps'][0]['zukunftsfeld'] = 1
+    payload['snapshots'][0]['maps'][0]['zukunftsfeld'] = 1
+    payload.pop('integrity_sha256')
+    payload['integrity_sha256'] = canonical_digest(payload)
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    return path
+
+
+def test_projects_of_newer_versions_load_with_named_unknown_fields(tmp_path):
+    from ecu_studio.core.model import read_project_snapshots
+    path = _newer_project(tmp_path)
+    with pytest.raises(ValueError, match='neueren Version.*zukunftsfeld'):
+        load_project(str(path))                                   # strict by default: nothing dropped silently
+    ignored = set()
+    image, maps, _, _ = load_project(str(path), ignored_fields=ignored)
+    assert ignored == {'zukunftsfeld'} and maps[0].name == 'KF'
+    assert snapshot_maps(image, read_project_snapshots(str(path), image)[0])[0].name == 'KF'
+
+
+def test_window_warns_when_opening_a_newer_project(tmp_path, monkeypatch):
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QMessageBox
+    from tests.test_ui_filters_banner import _window
+    app, w = _window(tmp_path, monkeypatch)
+    shown = []
+    monkeypatch.setattr(QMessageBox, 'warning', lambda *a, **k: shown.append(a[2]))
+    w.open_project_file(str(_newer_project(tmp_path)))
+    assert [m.name for m in w.maps] == ['KF'] and len(w.snapshots) == 1
+    assert shown and 'zukunftsfeld' in shown[0] and 'verloren' in shown[0]
+    w.close()

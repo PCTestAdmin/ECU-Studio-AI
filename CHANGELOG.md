@@ -26,6 +26,9 @@ Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-2
   Kennfeldern und Versionen; eigene Tags und Kommentare; Filter nach Familie und Tag. Die Angaben stehen in
   zusätzlichen Tabellen: Ältere Versionen öffnen und beschreiben dieselbe Projektdatenbank weiterhin.
 - Tests laufen mit temporären Benutzerordnern und berühren die echte Projektdatenbank nicht mehr.
+- **Projekte aus neueren Versionen** öffnen jetzt mit einer Warnung, die die unbekannten Kennfeldangaben nennt
+  (sie gehen beim Speichern verloren), statt mit einem Fehler abzubrechen. Hinweis: Projekte dieses Stands lassen
+  sich in 1.16 und älter **nicht** öffnen – dort fehlt diese Toleranz noch.
 - Versions-Explorer: zwei beliebige Stände vergleichen (Bytes, Kennfelder, Definitionen).
 
 **Messwerkzeuge**

@@ -22,7 +22,7 @@ CLASS_COLORS = {'exakt': '#2EA043', 'strukturell': '#2EA043', 'wahrscheinlich': 
 def load_source(path: str, definition: str | None = None) -> tuple[BinaryImage, list[MapDefinition], str]:
     """A project (definitions inside) or a BIN with its XDF/A2L/CSV definition."""
     if Path(path).suffix.lower() == '.ecustudio':
-        image, maps, _, _ = load_project(path)
+        image, maps, _, _ = load_project(path, ignored_fields=set())   # read only: nothing is saved back
         return image, [m for m in maps if m.rows * m.cols >= 2], Path(path).stem
     if not definition:
         raise ValueError('Für eine BIN wird die Definition des Stands benötigt')

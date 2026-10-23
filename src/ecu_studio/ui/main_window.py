@@ -2410,14 +2410,24 @@ class Window(QMainWindow):
         if not self.ok_to_replace():return
         p,_=QFileDialog.getOpenFileName(self,"Projekt öffnen","","ECU Studio (*.ecustudio)")
         if not p:return
-        try:
-            image,maps,bookmarks,notes=load_project(p)
-            versions=read_project_snapshots(p,image)
-        except Exception as exc:self.warning("Projekt konnte nicht geöffnet werden",exc);return
-        self.load_state(image,maps,bookmarks,notes,p)
+        try:self.open_project_file(p)
+        except Exception as exc:self.warning("Projekt konnte nicht geöffnet werden",exc)
+
+    def open_project_file(self,path):
+        """Load a project; fields of a newer version are left out with a warning."""
+        ignored=set()
+        image,maps,bookmarks,notes=load_project(path,ignored_fields=ignored)
+        versions=read_project_snapshots(path,image)
+        self.load_state(image,maps,bookmarks,notes,path)
         self.snapshots=versions
         self.saved_fingerprint=self.project_state()
         self.update_diff()
+        if ignored:
+            fields=', '.join(sorted(ignored))
+            QMessageBox.warning(self,'Projekt aus einer neueren Version',
+                f'Dieses Projekt enthält Kennfeldangaben, die diese Version nicht kennt: {fields}.\nSie werden nicht '
+                'angezeigt und gehen beim Speichern verloren. Zum Bearbeiten die neuere Version verwenden oder unter '
+                'neuem Namen speichern.')
 
     @staticmethod
     def _overlaps(a, b):
@@ -3435,12 +3445,7 @@ class Window(QMainWindow):
                 return
             path=found[i.row()]['path']
             try:
-                image,maps,bookmarks,notes=load_project(path)
-                versions=read_project_snapshots(path,image)
-                self.load_state(image,maps,bookmarks,notes,path)
-                self.snapshots=versions
-                self.saved_fingerprint=self.project_state()
-                self.update_diff()
+                self.open_project_file(path)
                 dialog.accept()
             except Exception as exc:
                 self.warning('Projekt konnte nicht geöffnet werden',exc)

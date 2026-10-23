@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import hashlib
 from typing import Any
 
-from .model import BinaryImage, MapDefinition
+from .model import BinaryImage, MapDefinition, map_from_record
 
 
 @dataclass(frozen=True)
@@ -63,10 +63,9 @@ def snapshot_maps(image: BinaryImage, snap: dict) -> list[MapDefinition] | None:
         return None
     if not isinstance(records, list):
         raise ValueError('Ungültige Kennfeldliste im Versionsstand')
-    try:
-        maps = [MapDefinition(**r) for r in records]
-    except TypeError as exc:
-        raise ValueError(f'Ungültige Kennfelddefinition im Versionsstand: {exc}') from None
+    # Read-only history: the stored records are saved back unchanged, so fields of
+    # newer versions can be left out here without losing them.
+    maps = [map_from_record(r, set()) for r in records]
     for m in maps:
         m.validate(image.size)
     return maps
