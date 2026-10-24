@@ -1,0 +1,70 @@
+{
+  "kind": "local control benchmark; not independent OEM validation",
+  "measured_commit": "90f266d",
+  "source_sha256": "b7c56fcbce67750baa7e994308908109758649f87edf2841a6fa6f8081c6c415",
+  "baseline_commit": "76b1a93",
+  "pair": {
+    "name": "MS42-0110C6",
+    "family": "Siemens MS42",
+    "software": "0110C6",
+    "role": "training",
+    "data_kind": "real",
+    "sha256": "010d6bf17bcfe46a9f436ba8e11dff375466ee948aaaf10d43a1d8325757b2cc",
+    "reference_sha256": "ab94fbfc9c21f2e8829e338df9f214e992c7bc9acbefdab3a5799eafdf5a41bb",
+    "reference_2d": 213,
+    "exact_2d": 22,
+    "found_2d": 143,
+    "recall_2d": 0.498,
+    "precision_2d": 0.72,
+    "seconds": 2.33,
+    "peak_mb": 14.0,
+    "exact_1d": 398,
+    "false_positives_2d": 40,
+    "false_negatives_2d": 107
+  },
+  "baseline": {
+    "exact_2d": 22,
+    "found_2d": 143,
+    "recall_2d": 0.498,
+    "precision_2d": 0.72,
+    "seconds": 2.34,
+    "exact_1d": 398
+  },
+  "miss_summary": {
+    "reference_2d": 213,
+    "missed": 191,
+    "outcomes": {
+      "kein Kandidat": 72,
+      "falscher Start": 98,
+      "falsche Größe": 21
+    },
+    "attributes": {
+      "Achsen getrennt": 191,
+      "gemeinsame Achse": 132,
+      "gleiche Geometrie": 169,
+      "flache Werte": 7
+    }
+  },
+  "package_performance": [
+    {
+      "maps": 100,
+      "median_seconds": 0.096,
+      "bytes": 101715,
+      "measurements": 3
+    },
+    {
+      "maps": 1000,
+      "median_seconds": 0.717,
+      "bytes": 1014534,
+      "measurements": 3
+    },
+    {
+      "maps": 5000,
+      "median_seconds": 3.869,
+      "bytes": 5078534,
+      "measurements": 3
+    }
+  ],
+  "priority_families": "not measured - reference data unavailable",
+  "note": "IoU precision/recall differ from exact layouts. Local timing samples, not an established speed improvement. Python allocation peak, not RSS. Raw data stays local."
+}

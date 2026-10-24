@@ -12,7 +12,8 @@
 - `tools.validation_report` verbindet die bestehenden Benchmarks und Fehlfundanalysen mit lokalem SHA-256-Manifest,
   getrennten Datenrollen und JSON-/Markdown-Ausgabe. Geänderte Referenz, Rolle oder Software ist nicht vergleichbar.
 - Keine Änderung am Scanner oder an OEM-Korrektursperren. Prioritätsfamilien ohne Referenzen bleiben **nicht neu gemessen**.
-  [Format](docs/MAP_PACK.md), [Messworkflow](docs/REFERENCE_VALIDATION.md).
+  [Format](docs/MAP_PACK.md), [Messworkflow](docs/REFERENCE_VALIDATION.md),
+  [technischer Prüfbericht](docs/ANALYSE_2026-10-24.md).
 
 ## 1.16.4 (23.10.2026)
 

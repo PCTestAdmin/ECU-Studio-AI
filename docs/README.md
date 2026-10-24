@@ -2,6 +2,7 @@
 
 | Dokument | Inhalt |
 |---|---|
+| [ANALYSE_2026-10-24.md](ANALYSE_2026-10-24.md) | 1.17-Kandidat: Kennfeldpaket, Workflow, Messnachweise, Windows-Prüfung und offene Referenzdaten |
 | [ECU_SUPPORT.md](ECU_SUPPORT.md) | Welche Steuergeräte mit welchen Referenzen gemessen sind – Trefferquote, Präzision, was nicht validiert ist |
 | [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung |
 | [MAP_PACK.md](MAP_PACK.md) | Offenes Kennfeldpaket v2, Grenzen, Herkunft, Vorschau, Undo und Softwarestand-Abgleich |
