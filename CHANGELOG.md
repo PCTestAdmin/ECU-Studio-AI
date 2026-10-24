@@ -1,3 +1,14 @@
+## Unveröffentlicht
+
+- Open-Source-Detektoren am fixierten Quellstand verglichen; zwei eigenständig implementierte Strukturversuche
+  bleiben außerhalb des produktiven Scanners. Neuer `tools.detector_benchmark` nutzt die bestehenden
+  hashgebundenen Messungen für Baseline, Einzelversuch und konservative Kombination.
+- Negative Achszeiger werden vor dem Bytezugriff abgewiesen; keine Dateiumwicklung durch Python-Indizierung.
+- Wiederholte Record-Oberflächenprüfungen werden pro Scan begrenzt wiederverwendet. Auf der synthetischen
+  64-KiB-Rampenkontrolle sinkt der Median von 35,965 auf 8,750 s bei identischen Resultaten; kein allgemeiner
+  ECU-Geschwindigkeitsfaktor. Neue reale Kennfeldtreffer sind nicht nachgewiesen.
+- [Quellcodevergleich, Herkunft, Messungen und Grenzen](docs/OPEN_SOURCE_DETECTION_BENCHMARK.md).
+
 ## 1.17.0 (24.10.2026)
 
 **Offenes Kennfeldpaket und integrierter Projektworkflow**

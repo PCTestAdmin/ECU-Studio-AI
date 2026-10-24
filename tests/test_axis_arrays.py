@@ -38,6 +38,15 @@ def test_isolated_or_random_arrays_are_not_axes():
     assert scan_count_axes(bytes(data))==[]
 
 
+def test_axis_pointer_cannot_wrap_from_negative_file_offset():
+    from ecu_studio.core.axis_arrays import axis_at
+    # A negative pointer previously read the final byte as the count and then
+    # treated the first four bytes as an axis: a fabricated wraparound record.
+    data = bytes([10, 20, 30, 40, 7, 8, 9, 4])
+    for header in (-1, -9, len(data), True, 1.5):
+        assert axis_at(data, header) is None
+
+
 def _image_with_lookup(gap_y_x):
     """Calibration page with a Y/X axis chain and an 8x6 table, plus code that
     loads Y, then X, then the table, like Siemens MS43 lookups."""

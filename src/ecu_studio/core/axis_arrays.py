@@ -41,6 +41,8 @@ def axis_at(data: bytes, header: int) -> CountAxis | None:
     Values may be signed (temperature or offset breakpoints); the stored
     ``values`` are interpreted accordingly. No chain neighbour is required.
     """
+    if type(header) is not int or not 0 <= header < len(data):
+        return None
     for width in (1, 2):
         if header + width > len(data):
             continue

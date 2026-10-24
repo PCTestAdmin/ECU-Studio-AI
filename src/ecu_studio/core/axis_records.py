@@ -5,6 +5,7 @@ word counts and byte/word axes. This is not a universal ECU record decoder.
 No physical units or functional names can be inferred from this layout alone.
 """
 from __future__ import annotations
+from functools import lru_cache
 import numpy as np
 from .model import BinaryImage, MapDefinition
 from .axis_inference import _plausibility
@@ -139,8 +140,22 @@ def _x_axis_possible(buf: bytes, counts: np.ndarray, starts: np.ndarray, phase: 
     return keep
 
 
-def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, include_u32=False):
+def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, include_u32=False,
+                      evidence_cache_size=512):
+    if type(evidence_cache_size) is not int or not 0 <= evidence_cache_size <= 512:
+        raise ValueError('Evidence cache size must be between 0 and 512')
     if max_results <= 0 or image.size < 32:return []
+    # Surface/width checks depend only on packed values and their interpretation,
+    # not on file position or axis labels. Repeating flash patterns used to run
+    # identical NumPy percentile/alias checks tens of thousands of times. Bound
+    # this cache to one scan; firmware bytes never remain in a global cache.
+    @lru_cache(maxsize=evidence_cache_size)
+    def value_evidence(rows, cols, dtype, endian, raw):
+        sample = BinaryImage(raw)
+        view = MapDefinition('', 0, rows, cols, dtype, endian)
+        ev = surface_evidence(sample.matrix(view), min_unique=4)
+        alias = ev['valid'] and narrower_storage_alias(sample, view, ev)
+        return ev, alias
     buf=image.read(0,min(image.size,2*1024*1024))
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
@@ -187,8 +202,8 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         label_origin='Dimensionsheader + zwei monotone Rohachsen (ungeprüft)',
                                         notes=f'Layout-Hypothese: {count_width*8}-Bit nx/ny, {axis_width*8}-Bit Achsen ({order}); keine physikalische Skalierung.')
                                     if end+m.length>len(buf):continue
-                                    ev=surface_evidence(image.matrix(m),min_unique=4)
-                                    if ev['valid'] and not narrower_storage_alias(image,m,ev):
+                                    ev,alias=value_evidence(m.rows,m.cols,m.dtype,m.endian,image.read(m.offset,m.length))
+                                    if ev['valid'] and not alias:
                                         found.append((ev['score'],m))
                                     elif ev['reason']==FLAT_REASON and _flat_record(m,axis_width,kind,image):
                                         found.append((FLAT_SCORE,m))
