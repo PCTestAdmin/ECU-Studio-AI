@@ -9,6 +9,10 @@ geschätzt. Für jeden Meilenstein wurde der **damalige Erkennungscode** aus der
 > **Präzision** = Anteil der Funde, die auf ein echtes Kennfeld fallen – nur bei vollständiger Referenz angegeben.
 > **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
 
+**1.17.0:** Offenes Kennfeldpaket v2, Projektintegration und hashgebundener Messworkflow; der Scanner bleibt
+unverändert. Die MS42-Trainingskontrolle bleibt bei 22/213 exakten 2D-Layouts. Für die Bosch-/MSD-Prioritätsfamilien
+gibt es keine neue Referenzmessung. [Prüfbericht](ANALYSE_2026-10-24.md).
+
 ## Meilensteine
 
 | Kürzel | Stand | Was neu war |

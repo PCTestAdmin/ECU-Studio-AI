@@ -22,6 +22,7 @@ Rules that keep the numbers honest:
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import time
 import tracemalloc
@@ -111,6 +112,9 @@ def run_pair(entry: dict, memory: bool = False) -> dict:
            'exact_2d': s2['exact_layouts'], 'reference_1d': len(lines), 'found_1d': s1['candidates'],
            'exact_1d': s1['exact'], 'seconds': round(elapsed, 2), 'peak_mb': round(peak / 2**20, 1) if peak is not None else None}
     row.update(axes_agreement(areas, tables))
+    key = lambda m: (m.offset, min(m.rows, m.cols), max(m.rows, m.cols), m.width)
+    reference_keys = {key(m) for m in tables}
+    row['exact_layouts'] = [list(k) for k in sorted({key(m) for m in areas} & reference_keys)]
     row['type_exact_2d'] = type_agreement(image, areas, tables)
     # Axis storage and shared-axis groups (core/axis_groups): only where the
     # reference states where axes are stored; group pairs among exact matches.
@@ -156,9 +160,20 @@ def run(entries: list[dict], memory: bool = False) -> dict:
         rows.append(row)
     independent = [r for r in rows if r['role'] == 'test']
     return {'format': 1, 'rows': rows, 'version': __version__, 'commit': _commit(),
+            'source_sha256': source_digest(),
             'independent_pairs': len(independent),
             'note': ('Nur role=test zählt als unabhängig. Präzision nur bei vollständiger Referenz. '
                      'Gruppen = nahezu identische Softwarestände.')}
+
+
+def source_digest():
+    """Bind reports to the actual Python sources, including uncommitted work."""
+    root = Path(__file__).resolve().parents[1]
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob('*.py')):
+        digest.update(path.relative_to(root).as_posix().encode('utf-8'))
+        digest.update(b'\0'); digest.update(path.read_bytes()); digest.update(b'\0')
+    return digest.hexdigest()
 
 
 def _commit() -> str:
@@ -202,7 +217,8 @@ def compare_runs(before: dict, after: dict) -> dict:
     pairs = []
     for r in after['rows']:
         b = old.get(r['name'])
-        if b is None or b.get('sha256') != r.get('sha256'):
+        bindings = ('sha256', 'reference_sha256', 'software', 'role', 'complete_reference', 'data_kind', 'family')
+        if b is None or any(b.get(k) != r.get(k) for k in bindings):
             pairs.append({'name': r['name'], 'verdict': 'nicht vergleichbar'})
             continue
         d_exact = r['exact_2d'] - b['exact_2d']
@@ -219,6 +235,10 @@ def compare_runs(before: dict, after: dict) -> dict:
         pairs.append({'name': r['name'], 'family': r['family'], 'role': r['role'], 'verdict': verdict,
                       **{k: [b.get(k), r.get(k)] for k in ('exact_2d', 'found_2d', 'recall_2d', 'precision_2d',
                                                             'exact_1d', 'seconds')}})
+        if 'exact_layouts' in b and 'exact_layouts' in r:
+            prior, current = {tuple(k) for k in b['exact_layouts']}, {tuple(k) for k in r['exact_layouts']}
+            pairs[-1].update(new_exact_layouts=[list(k) for k in sorted(current - prior)],
+                             lost_exact_layouts=[list(k) for k in sorted(prior - current)])
     return {'format': 1, 'before': {k: before.get(k) for k in ('version', 'commit')},
             'after': {k: after.get(k) for k in ('version', 'commit')}, 'pairs': pairs,
             'regressions': [p['name'] for p in pairs if p['verdict'] == 'schlechter']}

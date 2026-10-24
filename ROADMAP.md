@@ -17,11 +17,14 @@
 
 <br>
 
-## ![Aktuell: 1.16.4](https://img.shields.io/badge/🎉_AKTUELL-1.16.4_·_veröffentlicht_23.10.2026-1a7f37?style=for-the-badge)
+## ![Aktuell: 1.17.0](https://img.shields.io/badge/🎉_AKTUELL-1.17.0_·_veröffentlicht_24.10.2026-1a7f37?style=for-the-badge)
 
 [Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – installierte Versionen bieten das Update automatisch an.
-Die großen Neuerungen kamen mit **1.16.0** (Tabelle unten); 1.16.1–1.16.4 haben Update-Funktion, Updater und die
-EDC16/EDC17-Prüfsummenprüfung nachgereicht (siehe „Frühere Versionen“ unten).
+**1.17.0** ergänzt das [offene Kennfeldpaket v2](docs/MAP_PACK.md): Import/Export mit Vorschau, Herkunft,
+Konfliktprüfung und Undo sowie lokale Paket-/Projektvorschläge und den vorhandenen Softwarestand-Abgleich.
+Der [Messworkflow](docs/REFERENCE_VALIDATION.md) bindet lokale Referenzmessungen an Hashes und Datenrollen.
+Scanner und OEM-Korrektursperren bleiben unverändert; neue Bosch-Referenzmessungen fehlen weiterhin.
+Die folgenden Clips zeigen die bereits seit **1.16.0** verfügbaren Funktionen.
 Die Clips sind echte Aufnahmen der App
 mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
@@ -81,9 +84,9 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <br>
 
-## ![Im nächsten Update](https://img.shields.io/badge/🚀_IM_NÄCHSTEN_UPDATE-fertig,_noch_nicht_veröffentlicht-0969da?style=for-the-badge)
+## Bereits verfügbar seit 1.16.4
 
-Fertig und getestet, kommt mit der nächsten Version. Alle Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md).
+Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md).
 
 | | Thema | Was es bringt |
 |:--:|---|---|
@@ -111,7 +114,6 @@ Fertig und getestet, kommt mit der nächsten Version. Alle Messungen im [Bericht
 | 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
 | 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
-| 📦 | **Offenes Kennfeldpaket** | Definitionen mit Achsen, Gruppen, Herkunft und Prüfstatus zwischen Projekten austauschen – dokumentiertes, offenes Format |
 
 <br>
 

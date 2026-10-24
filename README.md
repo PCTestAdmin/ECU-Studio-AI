@@ -43,6 +43,8 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 - **Measured, not promised:** on held-out test data never used for tuning, e.g. Siemens MSD85 279 of 1026 maps
   found exactly at 81 % precision; per-ECU results in the [support matrix](docs/ECU_SUPPORT.md).
 - **English interface:** *Einstellungen → Sprache / Language → English* (defaults to the system language).
+- **New in 1.17:** [open map packs](docs/MAP_PACK.md), with metadata-only export, review before import,
+  shared-axis groups and undo, plus [hash-locked local reference reports](docs/REFERENCE_VALIDATION.md).
 - **Deliberately out of scope:** automatic "stage 1" tuning, disabling emission or protection functions, flash approval.
 
 [⬇ Download for Windows](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – portable ZIP or installer,

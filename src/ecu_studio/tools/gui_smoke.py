@@ -113,6 +113,34 @@ def run(output):
         window.project_store.index(project)
         assert len(window.project_store.search('smoke'))==1
         result['checks'].append('project persistence / original backup / searchable index')
+        # Exercise the new package modules in the portable EXE as well as source
+        # tests, using only synthetic definitions and original bytes.
+        from ..core.map_pack import make_pack, write_pack
+        from ..ui.map_pack_dialog import MapPackDialog
+        from PySide6.QtWidgets import QMessageBox
+        package_path = Path(directory) / 'synthetic.ecupack.json'
+        write_pack(package_path, make_pack(image, window.maps))
+        pack_window = Window()
+        pack_image = BinaryImage(raw)
+        pack_window.load_state(pack_image, [], [], '', None)
+        pack_dialog = MapPackDialog(pack_window, package_path)
+        assert pack_dialog.worker.wait(10000)
+        app.processEvents()
+        assert pack_dialog.preview and not pack_dialog.preview.conflicts
+        pack_dialog.show(); app.processEvents()
+        assert pack_dialog.grab().save(str(out / 'map-pack-preview.png'))
+        with patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.Yes):
+            pack_dialog.apply()
+        assert len(pack_window.maps) == 2 and len(pack_window.snapshots) == 1
+        assert not any(d.verified for d in pack_window.maps)
+        pack_window.undo(); assert not pack_window.maps and not pack_window.snapshots
+        pack_window.redo(); assert len(pack_window.maps) == 2
+        pack_window.project_store.index_pack(package_path)
+        pack_window.update_local_suggestions()
+        assert any(d['kind'] == 'pack' and d['relation'] == 'exact' for d in pack_window.local_suggestions)
+        assert pack_image.original == pack_image.materialize() == bytes(raw)
+        pack_window.saved_fingerprint = pack_window.project_state(); pack_window.close()
+        result['checks'].append('map-pack v2 / GUI preview / unverified import / catalog undo-redo / local suggestion / original unchanged')
         # Exercise the independent cross-manufacturer format path in the actual
         # window, including float rendering and ORI/MOD curves.
         import struct

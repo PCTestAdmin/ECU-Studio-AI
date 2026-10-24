@@ -122,12 +122,12 @@ def test_map_pack_sha_guard_and_catalogue_check(tmp_path):
     original=BinaryImage(bytes(40))
     export_map_pack(str(file),[m],original)
     maps,explain=import_map_pack(str(file),image=original)
-    assert len(maps)==1 and maps[0].verified and 'Exakt' in explain
+    assert len(maps)==1 and not maps[0].verified and 'Exakt' in explain
     different=BinaryImage(bytes(39))
     with pytest.raises(ValueError,match='SHA-256'):
         import_map_pack(str(file),image=different)
-    maps,explain=import_map_pack(str(file),image=different,allow_mismatch=True)
-    assert maps[0].verified is False
+    with pytest.raises(ValueError,match='SHA-256'):
+        import_map_pack(str(file),image=different,allow_mismatch=True)
 
 
 def test_unsigned_8bit_structural_scan():

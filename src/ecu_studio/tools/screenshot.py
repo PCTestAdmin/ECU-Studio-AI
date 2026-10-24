@@ -67,6 +67,7 @@ def main(argv=None) -> int:
     parser.add_argument('out', type=Path)
     parser.add_argument('--size', default='1510x930')
     parser.add_argument('--version-compare', action='store_true')
+    parser.add_argument('--map-pack', action='store_true')
     args = parser.parse_args(argv)
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
     if sys.platform == 'win32':
@@ -77,6 +78,9 @@ def main(argv=None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
     QCoreApplication.setOrganizationName('ECU Studio Screenshot')
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    if args.map_pack:
+        map_pack(args.out, app)
+        return 0
     if args.version_compare:
         version_compare(args.out, app)
         print(f'Vergleichsdialog in {args.out}')
@@ -109,6 +113,37 @@ def main(argv=None) -> int:
         win.deleteLater()
     print(f'{len(maps)} Kandidaten; Screenshots in {args.out}')
     return 0
+
+
+def map_pack(out, app):
+    """Package preview screenshots, synthetic data and isolated local settings."""
+    import tempfile
+    from PySide6.QtCore import QSettings
+    from PySide6.QtTest import QTest
+    from ecu_studio.core.map_pack import make_pack, write_pack
+    from ecu_studio.ui.main_window import Window
+    from ecu_studio.ui.map_pack_dialog import MapPackDialog
+    from ecu_studio.core.project_store import ProjectStore
+    out.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as folder:
+        QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, folder)
+        source, maps, _ = synthetic_versions()
+        for m in maps[:4]:
+            m.axis_x_offset = 0x1800; m.axis_x_ref = 'SYNTHETIC_SHARED_X'
+        path = Path(folder) / 'synthetic.ecupack.json'
+        write_pack(path, make_pack(source, maps[:4]))
+        for theme in ('dark', 'light'):
+            window = Window(); window.project_store = ProjectStore(Path(folder) / 'index.sqlite3')
+            window.set_theme(theme); window.load_state(source, [], [], '', None)
+            dialog = MapPackDialog(window, path)
+            dialog.resize(1180, 760)
+            assert dialog.worker.wait(10000)
+            app.processEvents()
+            dialog.show(); app.processEvents(); QTest.qWait(50)
+            assert dialog.pack is not None
+            dialog.grab().save(str(out / f'{theme}-map-pack.png'))
+            dialog.close(); window.saved_fingerprint = window.project_state(); window.close()
+            app.processEvents()
 
 
 if __name__ == '__main__':

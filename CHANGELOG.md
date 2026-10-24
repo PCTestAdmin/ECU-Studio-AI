@@ -1,4 +1,22 @@
-## Unveröffentlicht
+## 1.17.0 (24.10.2026)
+
+**Offenes Kennfeldpaket und integrierter Projektworkflow**
+- Bestehendes JSON-Map-Pack auf Version 2 erweitert: Original-Hash/-Größe, erkannte ECU-/HW-/SW-Kennungen,
+  Definitionen inklusive Strides, Achsadressen und Gruppen, optionale Beschreibungen/Belege und Integritäts-Hash.
+  Keine Firmware oder Patches. Format 1 bleibt lesbar; unbekannte Felder werden angezeigt und blockieren die Übernahme.
+- Importvorschau mit Konflikten; keine Überschreibung vorhandener Definitionen und keine automatische Verifikation.
+  Abweichende Hashes laufen mit lokaler Quell-BIN durch den bestehenden Softwarestand-Vergleich statt an gleiche Offsets.
+- Paketübernahme plus Projektversionsstand sind als gemeinsame Katalogtransaktion mit Strg+Z/Strg+Y rückgängig machbar,
+  in zeitlicher Reihenfolge mit Byte-Bearbeitungen. Lokaler Projektindex merkt Pakete und bietet beim Öffnen Vorschläge an.
+- Export: alle, bestätigte oder ausgewählte Definitionen; Achsadressen/Gruppen optional; private Freitexte standardmäßig aus.
+- `tools.validation_report` verbindet die bestehenden Benchmarks und Fehlfundanalysen mit lokalem SHA-256-Manifest,
+  getrennten Datenrollen und JSON-/Markdown-Ausgabe. Geänderte Referenz, Rolle oder Software ist nicht vergleichbar.
+- Keine Änderung am Scanner oder an OEM-Korrektursperren. Prioritätsfamilien ohne Referenzen bleiben **nicht neu gemessen**.
+  [Format](https://github.com/PCTestAdmin/ECU-Studio-AI/blob/v1.17.0/docs/MAP_PACK.md),
+  [Messworkflow](https://github.com/PCTestAdmin/ECU-Studio-AI/blob/v1.17.0/docs/REFERENCE_VALIDATION.md),
+  [technischer Prüfbericht](https://github.com/PCTestAdmin/ECU-Studio-AI/blob/v1.17.0/docs/ANALYSE_2026-10-24.md).
+- Geprüft: 591 Tests bestanden, 7 optionale Referenztests übersprungen; synthetischer GUI-Ablauf und Windows-Paketbau.
+  Die MS42-Kontrolle bleibt bei 22/213 exakten 2D-Layouts. Kein neuer unabhängiger OEM- oder Transfernachweis.
 
 ## 1.16.4 (23.10.2026)
 

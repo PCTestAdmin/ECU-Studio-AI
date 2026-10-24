@@ -44,6 +44,9 @@ class ProjectStore:
             c.execute('CREATE INDEX IF NOT EXISTS project_meta_family ON project_meta(family)')
             c.execute('CREATE TABLE IF NOT EXISTS annotations(path TEXT PRIMARY KEY, tags TEXT NOT NULL, '
                       'comment TEXT NOT NULL)')
+            c.execute('CREATE TABLE IF NOT EXISTS map_packs(path TEXT PRIMARY KEY, source_sha256 TEXT NOT NULL, '
+                      'family TEXT NOT NULL, hardware TEXT NOT NULL, software TEXT NOT NULL, maps INTEGER NOT NULL)')
+            c.execute('CREATE INDEX IF NOT EXISTS pack_hash ON map_packs(source_sha256)')
 
     @contextmanager
     def connect(self):
@@ -100,6 +103,35 @@ class ProjectStore:
     def families(self) -> list[str]:
         with self.connect() as c:
             return [r[0] for r in c.execute("SELECT DISTINCT family FROM project_meta WHERE family!='' ORDER BY family")]
+
+    def index_pack(self, path):
+        import json
+        from .map_pack import read_pack
+        pack = read_pack(path)
+        ident = pack.document.get('identity', {'family': '', 'hardware': [], 'software': []})
+        with self.connect() as c:
+            c.execute('INSERT OR REPLACE INTO map_packs VALUES(?,?,?,?,?,?)',
+                      (str(Path(path).resolve()), pack.sha256, ident['family'], json.dumps(ident['hardware']),
+                       json.dumps(ident['software']), len(pack.document['maps'])))
+
+    def suggestions(self, image):
+        """Local index lookup only; suggestions never load or apply definitions."""
+        from .identification import identify
+        ident = identify(image)
+        out = []
+        with self.connect() as c:
+            c.row_factory = sqlite3.Row
+            for r in c.execute('SELECT path,source_sha256,family,hardware,software,maps FROM map_packs '
+                               'WHERE source_sha256=? OR (family=? AND family!=\'\') LIMIT 50',
+                               (image.digest, ident.family or '')):
+                exact = r['source_sha256'] == image.digest
+                out.append(dict(r, kind='pack', relation='exact' if exact else 'related'))
+            for r in c.execute('SELECT p.path,p.original_sha256 AS source_sha256,COALESCE(m.family,\'\') AS family,p.maps '
+                               'FROM projects p LEFT JOIN project_meta m ON m.path=p.path '
+                               'WHERE p.original_sha256=? OR (m.family=? AND m.family!=\'\') LIMIT 50',
+                               (image.digest, ident.family or '')):
+                out.append(dict(r, kind='project', relation='exact' if r['source_sha256'] == image.digest else 'related'))
+        return sorted(out, key=lambda r: (r['relation'] != 'exact', r['kind'], r['path']))
 
     def search(self,query='',limit=500,*,family='',tag=''):
         if not 1<=limit<=5000:
