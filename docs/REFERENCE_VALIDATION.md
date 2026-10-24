@@ -46,7 +46,7 @@ Datenabhängigkeit liefert dieser Vergleich nicht; die Gruppenzuordnung muss fac
 In CI sind in diesem Workflow nur `data_kind=synthetic` erlaubt. Der Bericht übernimmt keine Eingabepfade;
 Fehlerausgaben des CLI unterdrücken pfadführende Decoder-/Dateisystemdetails. Ausgabeziele dürfen weder
 Original, Referenz, Manifest noch Baseline überschreiben. Höchstens 100 Paare, 2 MiB Manifest und 128 MiB pro
-Eingabedatei; Firmware wird wie im übrigen Programm nur lesend geöffnet.
+Eingabedatei, insgesamt höchstens 512 MiB; Firmware wird wie im übrigen Programm nur lesend geöffnet.
 
 `--memory` misst den Python-Allokationspeak in einem separaten Scannerlauf (`tracemalloc`), nicht den gesamten
 Prozess-RSS. Laufzeit und Speicher werden deshalb nicht im selben Scan gemessen. `--limits` vergleicht zusätzlich

@@ -67,3 +67,16 @@ def test_changed_reference_or_role_not_comparable():
     for change in ({'reference_sha256': 'new'}, {'role': 'development'}, {'complete_reference': False}, {'family': 'other'}):
         after = copy.deepcopy(before); after['rows'][0].update(change)
         assert benchmark_suite.compare_runs(before, after)['pairs'][0]['verdict'] == 'nicht vergleichbar'
+
+
+def test_near_identical_cross_role_groups_rejected_before_scan(tmp_path, monkeypatch):
+    path, pair = locked(tmp_path)
+    other = _pair(tmp_path, 'different-alias', 8)
+    other.update({k: pair[k] for k in ('software', 'source', 'license', 'data_kind', 'complete')})
+    other.update(role='development', group='separate-label')
+    for key, digest in (('bin', 'sha256'), ('reference', 'reference_sha256')):
+        other[digest] = hashlib.sha256(Path(other[key]).read_bytes()).hexdigest()
+    path.write_text(json.dumps({'schema': 1, 'pairs': [pair, other]}))
+    entries = load_manifest(path)
+    monkeypatch.setattr(benchmark_suite, 'run', lambda *a, **k: pytest.fail('must refuse before scanning'))
+    with pytest.raises(ValueError, match='Near-identical'): validation_report.run(entries)

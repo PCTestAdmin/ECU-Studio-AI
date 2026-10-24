@@ -5,6 +5,7 @@ Private inputs stay local; reports contain public aliases, hashes and metrics.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -14,6 +15,16 @@ from ecu_studio.tools import benchmark_suite, miss_analysis
 
 
 def run(entries, *, memory=False, limits=False):
+    # Check every cross-role pair, not only greedy group representatives. This
+    # also rejects a near-identical bridge between two declared groups.
+    data = [Path(e['bin']).read_bytes() for e in entries]
+    for i, a in enumerate(entries):
+        if hashlib.sha256(data[i]).hexdigest() != a['sha256']:
+            raise ValueError('Firmware changed since manifest validation')
+        for j in range(i):
+            if a['role'] != entries[j]['role'] and benchmark_suite.similarity(data[i], data[j]) >= benchmark_suite.SAME_IMAGE:
+                raise ValueError('Near-identical firmware split across training/development/test')
+    del data
     # The original benchmark remains the single source of detection metrics.
     result = benchmark_suite.run(entries, memory=memory)
     # Near-identical binaries may not be split across declared independence groups.
@@ -26,6 +37,11 @@ def run(entries, *, memory=False, limits=False):
         row.update(software=entry['software'], reference_sha256=entry['reference_sha256'],
                    data_kind=entry['data_kind'], declared_group=entry['group'])
     result['miss_analysis'] = [miss_analysis.run_pair(e, limits=limits) for e in entries]
+    # An input modified during the run must not produce a hash-locked report.
+    for e in entries:
+        for key, digest in (('bin', 'sha256'), ('reference', 'reference_sha256')):
+            if hashlib.sha256(Path(e[key]).read_bytes()).hexdigest() != e[digest]:
+                raise ValueError('Reference inputs changed during validation')
     result['independent_pairs'] = sum(e['role'] == 'test' and e['data_kind'] == 'real' for e in entries)
     result['synthetic_pairs'] = sum(e['data_kind'] == 'synthetic' for e in entries)
     return result

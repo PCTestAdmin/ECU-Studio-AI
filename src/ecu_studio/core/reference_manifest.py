@@ -19,7 +19,7 @@ def load_manifest(path: str | Path) -> list[dict]:
     pairs = obj.get('pairs')
     if not isinstance(pairs, list) or not 1 <= len(pairs) <= 100:
         raise ValueError('Expected 1..100 reference pairs')
-    entries, names, roles = [], set(), {}
+    entries, names, roles, total = [], set(), {}, 0
     for i, item in enumerate(pairs):
         if not isinstance(item, dict):
             raise ValueError(f'Pair {i}: expected object')
@@ -48,6 +48,9 @@ def load_manifest(path: str | Path) -> list[dict]:
                 file = (path.parent / item[key]).resolve()
                 if file.stat().st_size > limit:
                     raise ValueError(f'{name}: input size limit exceeded')
+                total += file.stat().st_size
+                if total > 512 * 1024**2:
+                    raise ValueError('Reference input budget exceeds 512 MiB')
                 actual = hashlib.sha256(file.read_bytes()).hexdigest()
             except (OSError, KeyError, TypeError):
                 raise ValueError(f'{name}: local {key} unavailable') from None
