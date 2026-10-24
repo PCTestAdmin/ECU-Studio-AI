@@ -84,6 +84,30 @@ def test_pointer_direction_byte_order_alias_and_overlap_rejected():
     assert scan_pointer_chains(short) == []
 
 
+def test_signed_word_axes_and_competing_cell_widths():
+    image, _, headers = pointer_fixture(width=2)
+    raw = bytearray(image.original)
+    axis = [6, -100, -50, 0, 20, 50, 80]
+    raw[0x101:0x10f] = np.array(axis, '<i2').tobytes()
+    found = scan_pointer_chains(BinaryImage(bytes(raw)))
+    assert len(found) == 3 and found[0].axes_x == axis[1:]
+    assert found[0].axis_x_offset == 0x103
+    # A plausible extra header at the byte-width boundary contradicts the
+    # word-width boundary; the first table must lose its unique interpretation.
+    middle = headers[0]+4+24
+    raw[middle:middle+4] = raw[headers[0]:headers[0]+4]
+    d = {}; found = scan_pointer_chains(BinaryImage(bytes(raw)), diagnostics=d)
+    assert all(m.offset != headers[0]+4 for m in found) and d['ambiguous'] >= 1
+
+
+def test_anchor_budget_never_emits_partial_results(monkeypatch):
+    import ecu_studio.core.experimental_detectors as experiment
+    monkeypatch.setattr(experiment, 'c16x_reference_anchors', lambda *args: list(range(20_001)))
+    d = {}
+    assert scan_aligned_records(BinaryImage(bytes(100)), diagnostics=d) == []
+    assert d['incomplete']
+
+
 def test_truncation_cancellation_limits_and_scope():
     image, maps, headers = pointer_fixture()
     assert scan_pointer_chains(BinaryImage(image.original[:headers[1]])) == []
