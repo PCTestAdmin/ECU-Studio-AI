@@ -2,7 +2,7 @@
 
 Das bestehende Format `ecu-studio-map-pack` wird erweitert, kein zweites Paketformat eingeführt.
 Dateiendung: `.ecupack.json`, UTF-8-JSON ohne ausführbaren Code oder Firmwarebytes.
-Version 1 bleibt lesbar. Die Version 2 ist ein Entwicklungsstand für 1.17; es wird hierdurch kein Release veröffentlicht.
+Version 1 bleibt lesbar. Die Version 2 ist ab ECU Studio AI 1.17.0 verfügbar.
 
 ## Inhalt
 
