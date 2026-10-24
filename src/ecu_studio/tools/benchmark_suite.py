@@ -86,21 +86,39 @@ def type_agreement(image, found, reference) -> int:
     return correct
 
 
-def run_pair(entry: dict, memory: bool = False) -> dict:
+def run_pair(entry: dict, memory: bool = False, *, detector=None) -> dict:
     image = BinaryImage.from_file(entry['bin'])
     anchor = int(entry['anchor'], 0) if isinstance(entry.get('anchor'), str) else entry.get('anchor')
     tables = reference_tables(entry['reference'], image, anchor=anchor)
     lines = reference_lines(entry['reference'], image, anchor=anchor)
+    def scan():
+        # Experimental scanners receive bytes only: no reference or private filename.
+        target = BinaryImage(image.original)
+        found = (scan_calibration_candidates(target, use_definitions=False) if detector is None
+                 else detector(target))
+        if target.dirty_bytes or target.digest != image.digest or target.original != image.original:
+            raise ValueError('Detection must not modify the input image')
+        for m in found:
+            m.validate(image.size)
+            if detector is not None and m.verified:
+                raise ValueError('Experimental discovery cannot verify definitions')
+        return found
     begin = time.perf_counter()
-    found = scan_calibration_candidates(image, use_definitions=False)
+    found = scan()
     elapsed = time.perf_counter() - begin
     peak = None
     if memory:
         # Separate run: tracing slows the scan and must not distort the timing.
+        if tracemalloc.is_tracing():
+            raise ValueError('Memory measurement requires an inactive tracer')
         tracemalloc.start()
-        scan_calibration_candidates(image, use_definitions=False)
-        peak = tracemalloc.get_traced_memory()[1]
-        tracemalloc.stop()
+        try:
+            repeated = scan()
+            if [m.asdict() for m in repeated] != [m.asdict() for m in found]:
+                raise ValueError('Detector results changed between timing and memory runs')
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
     areas = [m for m in found if min(m.rows, m.cols) > 1]
     s2, s1 = score(areas, tables), score_lines([m for m in found if min(m.rows, m.cols) == 1], lines)
     complete = bool(entry.get('complete'))
@@ -148,14 +166,14 @@ def group_images(entries: list[dict]) -> list[int]:
     return group
 
 
-def run(entries: list[dict], memory: bool = False) -> dict:
+def run(entries: list[dict], memory: bool = False, *, detector=None) -> dict:
     for e in entries:
         if e.get('role', 'development') not in ROLES:
             raise ValueError(f"{e['name']}: role muss {ROLES} sein")
     groups = group_images(entries)
     rows = []
     for e, g in zip(entries, groups):
-        row = run_pair(e, memory)
+        row = run_pair(e, memory) if detector is None else run_pair(e, memory, detector=detector)
         row['group'] = entries[g]['name']
         rows.append(row)
     independent = [r for r in rows if r['role'] == 'test']
