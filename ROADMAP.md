@@ -99,6 +99,7 @@ Fertig und getestet, kommt mit der nächsten Version. Alle Messungen im [Bericht
 | | Thema | Stand |
 |:--:|---|---|
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
+| 📦 | **Offenes Kennfeldpaket v2 (1.17-Kandidat)** | Import/Export mit Vorschau, Herkunft, Konfliktprüfung, Undo und lokalem Softwarestand-Abgleich ([Format](docs/MAP_PACK.md)); noch nicht veröffentlicht |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Rechnerische Prüfung eingebaut; OEM-Nachweise für sichere Korrektur fehlen noch |
 
 <br>
@@ -111,7 +112,6 @@ Fertig und getestet, kommt mit der nächsten Version. Alle Messungen im [Bericht
 | 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
 | 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
-| 📦 | **Offenes Kennfeldpaket** | Definitionen mit Achsen, Gruppen, Herkunft und Prüfstatus zwischen Projekten austauschen – dokumentiertes, offenes Format |
 
 <br>
 

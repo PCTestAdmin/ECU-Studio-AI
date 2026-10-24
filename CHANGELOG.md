@@ -1,5 +1,19 @@
 ## Unveröffentlicht
 
+**Entwicklungsstand für 1.17.0 – offenes Kennfeldpaket**
+- Bestehendes JSON-Map-Pack auf Version 2 erweitert: Original-Hash/-Größe, erkannte ECU-/HW-/SW-Kennungen,
+  Definitionen inklusive Strides, Achsadressen und Gruppen, optionale Beschreibungen/Belege und Integritäts-Hash.
+  Keine Firmware oder Patches. Format 1 bleibt lesbar; unbekannte Felder werden angezeigt und blockieren die Übernahme.
+- Importvorschau mit Konflikten; keine Überschreibung vorhandener Definitionen und keine automatische Verifikation.
+  Abweichende Hashes laufen mit lokaler Quell-BIN durch den bestehenden Softwarestand-Vergleich statt an gleiche Offsets.
+- Paketübernahme plus Projektversionsstand sind als gemeinsame Katalogtransaktion mit Strg+Z/Strg+Y rückgängig machbar,
+  in zeitlicher Reihenfolge mit Byte-Bearbeitungen. Lokaler Projektindex merkt Pakete und bietet beim Öffnen Vorschläge an.
+- Export: alle, bestätigte oder ausgewählte Definitionen; Achsadressen/Gruppen optional; private Freitexte standardmäßig aus.
+- `tools.validation_report` verbindet die bestehenden Benchmarks und Fehlfundanalysen mit lokalem SHA-256-Manifest,
+  getrennten Datenrollen und JSON-/Markdown-Ausgabe. Geänderte Referenz, Rolle oder Software ist nicht vergleichbar.
+- Keine Änderung am Scanner oder an OEM-Korrektursperren. Prioritätsfamilien ohne Referenzen bleiben **nicht neu gemessen**.
+  [Format](docs/MAP_PACK.md), [Messworkflow](docs/REFERENCE_VALIDATION.md).
+
 ## 1.16.4 (23.10.2026)
 
 Bericht mit allen Messungen: [docs/ANALYSE_2026-10-23.md](docs/ANALYSE_2026-10-23.md).

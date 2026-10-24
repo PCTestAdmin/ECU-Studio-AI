@@ -205,8 +205,8 @@ class BinaryImage:
         self.path = path
         self.digest = hashlib.sha256(self.original).hexdigest()
         self._patches: dict[int, int] = {}
-        self._undo: list[list[tuple[int, int, int]]] = []
-        self._redo: list[list[tuple[int, int, int]]] = []
+        self._undo: list[list[tuple[int, int, int]] | MetadataChange] = []
+        self._redo: list[list[tuple[int, int, int]] | MetadataChange] = []
         self.revision = 0  # Invalidates plot caches even if patch count is unchanged.
         self.journal: list[dict] = []
         self.last_change_metadata = False

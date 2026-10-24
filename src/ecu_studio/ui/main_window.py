@@ -310,6 +310,10 @@ class Window(QMainWindow):
         banner.addWidget(hide_button)
         self.identity_banner.hide()
         layout.addWidget(self.identity_banner)
+        self.local_resources = QPushButton('Lokale Projekte und Kennfeldpakete …')
+        self.local_resources.clicked.connect(self.show_local_suggestions)
+        self.local_resources.hide()
+        layout.addWidget(self.local_resources)
         self.tabs=QTabWidget()
         self.tabs.currentChanged.connect(self.sync_map_editor)
         self.tabs.setDocumentMode(True)
@@ -971,6 +975,7 @@ class Window(QMainWindow):
         self.diff_view.setPlainText("Noch keine Änderungen in dieser Sitzung.\nTipps: Kennfeldscan mit Strg+K, Offset-Sprung mit Strg+G, Hex-Suche mit Strg+F.")
         self.saved_fingerprint = self.project_state()
         self.statusBar().showMessage("Datei geladen · Original unverändert",5000)
+        self.update_local_suggestions()
 
     def update_status(self):
         if not self.image: return
@@ -1782,6 +1787,13 @@ class Window(QMainWindow):
         if self.image and self.image.redo():self.on_edited()
 
     def on_edited(self):
+        if self.image and self.image.last_change_metadata:
+            for pane in self.map_editors:
+                self.tabs.removeTab(self.tabs.indexOf(pane)); pane.deleteLater()
+            self.map_editors = []
+            self.selected = None
+            self.map_model.set_map(None, None)
+            self.image.last_change_metadata = False
         # Virtual HEX model reads the patch overlay lazily. Repaint visible rows only;
         # sending a multi-million-row dataChanged range freezes large BINs.
         self.hex_table.viewport().update()
@@ -2205,39 +2217,51 @@ class Window(QMainWindow):
 
     def save_map_pack(self):
         if not self.require_image():return
-        path,_=self.save_destination(self,"Eigenes ECU-Studio-Map-Pack exportieren",
-                           "ecu_maps.ecupack.json","ECU-Studio-Map-Pack (*.json)")
-        if not path:return
-        try:
-            export_map_pack(path,self.maps,self.image)
-            self.statusBar().showMessage(f"{len(self.maps)} Kennfelder exportiert",7000)
-        except Exception as exc:self.warning("Map-Pack-Export fehlgeschlagen",exc)
+        from .map_pack_dialog import export_dialog
+        export_dialog(self)
 
     def open_map_pack(self):
         if not self.require_image():return
         path,_=QFileDialog.getOpenFileName(self,"Eigenes ECU-Studio-Map-Pack importieren","",
                                            "ECU-Studio-Map-Pack (*.json)")
         if not path:return
+        from .map_pack_dialog import MapPackDialog
+        MapPackDialog(self, path).exec()
+
+    def update_local_suggestions(self):
         try:
-            try:defs,message=import_map_pack(path,image=self.image)
-            except ValueError as exc:
-                if 'SHA-256' not in str(exc):raise
-                answer=QMessageBox.question(self,"Anderer ECU-Softwarestand",
-                    str(exc)+"\n\nTrotzdem als UNGEPRÜFTE Definitionen an gleichen Offsets laden?",
-                    QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No)
-                if answer != QMessageBox.StandardButton.Yes:return
-                defs,message=import_map_pack(path,image=self.image,allow_mismatch=True)
-            known={(m.offset,m.rows,m.cols,m.dtype,m.endian) for m in self.maps}
-            added=0
-            for m in defs:
-                key=(m.offset,m.rows,m.cols,m.dtype,m.endian)
-                if key not in known:
-                    self.maps.append(m);known.add(key);added+=1
-            self.maps.sort(key=lambda m:m.offset)
-            self.refresh_map_list();self.update_status()
-            QMessageBox.information(self,"Map-Pack importiert",f"{added} Kennfelder neu. {message}")
-        except Exception as exc:self.warning("Map-Pack-Import fehlgeschlagen",exc)
+            self.local_suggestions = self.project_store.suggestions(self.image) if self.image else []
+        except Exception as exc:
+            self.local_suggestions = []
+            self.statusBar().showMessage(f'Lokale Vorschläge nicht verfügbar: {exc}', 5000)
+        self.local_resources.setVisible(bool(self.local_suggestions))
+        self.local_resources.setText(f'{len(self.local_suggestions)} lokale Projekte / Kennfeldpakete prüfen …')
+
+    def show_local_suggestions(self):
+        if not self.require_image():return
+        dialog = QDialog(self); dialog.setWindowTitle('Lokale Projekte und Kennfeldpakete')
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel('Gleicher Hash = gleicher Originalstand. Gleiche Familie = nur ein Vergleichsvorschlag.'))
+        choices = QComboBox()
+        for row in self.local_suggestions:
+            choices.addItem(f'{row["kind"]} · {row["relation"]} · {Path(row["path"]).name}', row)
+        layout.addWidget(choices)
+        def open_selected():
+            row = choices.currentData()
+            if not row:return
+            dialog.accept()
+            if row['kind'] == 'pack':
+                from .map_pack_dialog import MapPackDialog
+                MapPackDialog(self, row['path']).exec()
+            else:
+                from .version_compare_dialog import VersionCompareDialog, load_source
+                compare = VersionCompareDialog(self)
+                compare.run_task(lambda: load_source(row['path']), compare.source_loaded)
+                compare.exec()
+        button = QPushButton('Inhalt oder Softwarestand-Vergleich öffnen'); button.clicked.connect(open_selected)
+        layout.addWidget(button)
+        close = QPushButton('Abbrechen'); close.clicked.connect(dialog.reject); layout.addWidget(close)
+        dialog.exec()
 
     def inspect_catalogue(self):
         if not self.require_image():return
