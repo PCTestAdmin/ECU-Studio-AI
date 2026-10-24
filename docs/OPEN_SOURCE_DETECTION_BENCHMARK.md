@@ -49,6 +49,11 @@ Bei ZedSuite wurden im U31-Modul drei Tests zur Template-Konfiguration gelesen, 
 Identitätstests. Sie ersetzen keinen auf unseren Dateien ausgeführten Referenzbenchmark. Eigene reale
 Bench-Aussagen des Projekts werden hier nicht als unabhängig nachgemessene Qualität verwendet.
 
+Zentrale nachprüfbare Stellen sind [ZedSuites U31-Decoder](https://github.com/LeZed97/ZedSuite/blob/77d75fb9e28df04379fd6d1912197947f1cce0c0/src-tauri/src/detector/ecu/bosch/edc16u31/mod.rs),
+[BimmerSteins strukturelle Header](https://github.com/CAATZ/bimmerstein-bin-analyzer/blob/d3e292169680cc56707c3b60337dddcad090c622/packages/engine/src/structural.ts),
+[dessen Laufzeit-Grids](https://github.com/CAATZ/bimmerstein-bin-analyzer/blob/d3e292169680cc56707c3b60337dddcad090c622/packages/engine/src/family/ms41/runtime-grids.ts)
+und [xdfkits feldweises Alignment](https://github.com/nyetlabs/xdfkit/blob/a8f985358bc3167b60552ddeba96fa65a4c29a1a/lint/record.go).
+
 BimmerStein hat im jetzigen Stand messbare Qualitätsdefinitionen, exakte Gates und Negativtests im Repository.
 Das geht über die ältere Beschreibung in `OPEN_SOURCE_VERGLEICH.md` hinaus. Die Tests der Laufzeit-Grids
 prüfen unter anderem widersprüchliche Zweige, unbekannte Instruktionen, Schreibzugriffe auf Achszustände und
@@ -228,5 +233,62 @@ Die Gegenprobe der beiden realen Paare zeigt keinerlei Änderung an den gemessen
 oder exakten Layoutschlüsseln: 22/213 und 197/367. Einzelzeiten MS42 2,29 → 2,09 s, MS43 3,75 → 3,72 s;
 daraus wird kein belastbarer Laufzeitgewinn bei realer Firmware abgeleitet.
 
-Die gezielten Cache-/Experiment-/Achsprüfungen bestehen mit 43 Tests. Die abschließenden vollständigen
-Regressionstests und die erneute Methodenmessung am optimierten Stand ergänzen diesen Zwischenstand.
+## Abschließende Gegenprüfung und Übergabe
+
+Die erneute vollständige Methodenmessung am optimierten Stand `f5cccfd` liefert bei allen 14 Paaren
+und allen fünf Varianten (Baseline sowie je Einzelversuch/Kombination) **dieselben Qualitätskennzahlen**
+wie der erste Lauf. Dazu gehören exakte Layoutschlüssel, Kandidatenzahlen, IoU-Werte, Typ-/Achs- und
+Gruppenkennzahlen. Die gemessenen Python-Quellen sind mit SHA-256
+`9d839b13709ee73d7693d90bf9801ffb4a85c02a7b4f60f79c25bb4c01c21b1e` gebunden.
+Der Rampen-Kontrolllauf braucht jetzt 8,69 s bei weiterhin 95,9 MiB Python-Allokationspeak.
+Diese Optimierung reduziert hier die Wiederholungsarbeit, nicht den Gesamt-Speicherpeak.
+
+| Reale Kontrolle, finaler Lauf | Baseline | + Zeigerketten | + ausgerichtete Records | Python-Peak der Kombinationen |
+|---|---:|---:|---:|---:|
+| MS42 0110C6, Sekunden | 2,02 | 2,08 | 2,17 | 13,9 MiB |
+| MS43 430069 lokal, Sekunden | 3,56 | 4,02 | 3,78 | 18,3 MiB |
+
+Auf den realen Kontrollen ist kein belastbarer Laufzeit- oder Erkennungsgewinn der Prototypen belegt.
+Die [aggregierte Messdatei](validation/open-source-detection-summary.json) enthält die Ergebnisse aller
+Varianten und Eingabehashes sowie die dreifache Cache-Gegenprobe. Sie enthält keine Firmwarebytes,
+Definitionen, privaten Eingabepfade oder vollständigen Adresslisten.
+
+Die vollständige [Windows-CI](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/40099108788)
+besteht unter Python 3.11 und 3.12 jeweils mit **629 bestandenen, 7 übersprungenen und 0 fehlgeschlagenen Tests**.
+Die vollständige lokale Suite unter Python 3.13.2 besteht ebenfalls: **629 bestanden, 7 übersprungen**
+in 98,39 s. Ausgangsstand: 591 bestanden, entsprechend 38 zusätzlichen parametrisierten Testfällen.
+Die sieben übersprungenen Fälle benötigen ausdrücklich konfigurierte lokale Referenzdateien.
+Ein Release-Build oder GUI-Umbau ist nicht Bestandteil dieser Runde; Produktversion und Schutzmechanismen
+bleiben unverändert. Die neuen Messkommandos stehen außerhalb des normalen App-Arbeitsablaufs.
+
+### Commits und Dateien
+
+Der [Entwurfs-PR #7](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/7) enthält die Umsetzung und Nachweise.
+
+| Commit | Änderung |
+|---|---|
+| `b4f8c6c` | Negative/typfalsche Achszeiger und Regressionstest |
+| `2921684` | Isolierte Prototypen und Erweiterung des bestehenden Messsystems |
+| `f5cccfd` | Begrenzter Cache, Gleichheits-, Wiederholungs- und Budgetprüfungen |
+| `ae9cd47` | Gepinnter Quellcodevergleich, Kriterien und erste Messnachweise |
+
+Der abschließende Ergebniscommit ergänzt die aggregierten Daten und Endprüfung. Vollständiger
+[Dateidiff](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/7/files):
+
+- `src/ecu_studio/core/axis_arrays.py`, `axis_records.py`, `experimental_detectors.py`.
+- `src/ecu_studio/tools/benchmark_suite.py`, `detector_benchmark.py`.
+- `tests/test_axis_arrays.py`, `test_experimental_detectors.py`, `test_detector_benchmark.py`,
+  `test_record_evidence_cache.py`.
+- `CHANGELOG.md`, `docs/README.md`, `docs/OPEN_SOURCE_VERGLEICH.md`, dieser Bericht und
+  `docs/validation/open-source-detection-summary.json`.
+
+### Nächste technische Prioritäten
+
+1. Ein rechtmäßig nutzbares MS41-Paar mit vollständiger, hashgebundener Achs-/Tabellenreferenz beschaffen;
+   direkte Teildatei und busabgebildeter Vollread unterscheiden. Entwicklung und unabhängige Teststände
+   schon vor dem nächsten Decoderexperiment trennen.
+2. BimmerSteins gestagte Achszustände und sichere Vorgängerpfad-Konsistenz als kleine, eigenständige
+   C166-Erweiterung prüfen. Ohne echten Mehrgewinn und gesicherte Speicherabbildung nicht aktivieren.
+3. Mit passenden Bosch-/MSD-Referenzen die Selektor-/Gruppenregeln und die Konfliktentscheidung messen.
+   Den Rampen-Fehlalarm gesondert untersuchen; ihn nicht durch eine pauschale Regel gegen monotone oder
+   wiederholte Daten ausblenden. Auch reale Tabellen können solche Daten enthalten.
