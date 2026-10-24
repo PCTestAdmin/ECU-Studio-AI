@@ -99,3 +99,26 @@ def test_export_filters_and_optional_axes(tmp_path, monkeypatch):
         assert len(pack.document['maps']) == expected and not pack.document['axis_groups']
         if mode == 2: assert pack.document['maps'][0]['name'] == maps[1].name
     window.saved_fingerprint = window.project_state(); window.close()
+
+
+def test_pack_comparison_passes_locked_source_and_full_provenance(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+    from ecu_studio.ui.map_pack_dialog import MapPackDialog
+    app, window = _window(tmp_path, monkeypatch)
+    source, definitions, target = synthetic_versions()
+    source_path = tmp_path / 'stand-A.bin'; source_path.write_bytes(source.original)
+    pack_path = tmp_path / 'example.ecupack.json'
+    write_pack(pack_path, make_pack(source, definitions[:3]))
+    window.load_state(target, [], [], '', None)
+    dialog = MapPackDialog(window, pack_path); wait(app, dialog)
+    assert not dialog.adopt.isEnabled() and dialog.compare.isEnabled()
+    monkeypatch.setattr(QFileDialog, 'getOpenFileName', lambda *a, **k: (str(source_path), ''))
+    loaded = []
+    monkeypatch.setattr(dialog, 'source_loaded', loaded.append)
+    dialog.compare_source(); wait(app, dialog)
+    image, maps, label = loaded[0]
+    assert image.digest == source.digest and source.digest in label
+    assert len(maps) == 3 and all(not m.verified for m in maps)
+    assert not window.maps and not target.dirty_bytes
+    dialog.reject()
+    window.saved_fingerprint = window.project_state(); window.close()

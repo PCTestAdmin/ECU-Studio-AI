@@ -83,7 +83,7 @@ class MapPackDialog(AsyncDialog):
         def load():
             source = BinaryImage.from_file(path)
             maps = source_for_comparison(self.pack, source)
-            return source, maps, 'Kennfeldpaket ' + self.pack.sha256[:12]
+            return source, maps, 'Kennfeldpaket ' + self.pack.sha256
         self.run_task(load, self.source_loaded)
 
     def source_loaded(self, loaded):
