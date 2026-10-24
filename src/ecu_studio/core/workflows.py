@@ -120,34 +120,13 @@ def catalogue_check(maps: list[MapDefinition], file_size: int) -> dict:
 
 def export_map_pack(path: str, maps: list[MapDefinition], image: BinaryImage) -> None:
     """Portable *own* JSON catalogue format, not proprietary WinOLS .kp format."""
-    target=Path(path)
-    payload={'format':'ecu-studio-map-pack','version':1,'source_sha256':image.digest,
-             'source_size':image.size,'maps':[m.asdict() for m in maps]}
-    tmp=target.with_name(target.name+'.tmp')
-    try:
-        tmp.write_text(json.dumps(payload,indent=2,ensure_ascii=False),encoding='utf-8')
-        tmp.replace(target)
-    finally:tmp.unlink(missing_ok=True)
+    from .map_pack import make_pack, write_pack
+    write_pack(path, make_pack(image, maps), protected=(image.path,))
 
 
 def import_map_pack(path: str, *, image: BinaryImage, allow_mismatch: bool = False) -> tuple[list[MapDefinition],str]:
-    source=Path(path)
-    if source.stat().st_size > 30*1024*1024:
-        raise ValueError('Map-Pack-Datei zu groß')
-    payload=json.loads(source.read_text(encoding='utf-8'))
-    if payload.get('format')!='ecu-studio-map-pack' or payload.get('version')!=1:
-        raise ValueError('Kein unterstütztes ECU-Studio-Map-Pack')
-    matches=payload.get('source_sha256')==image.digest
-    if not matches and not allow_mismatch:
-        raise ValueError('Die Map-Definitionen gehören zu einer anderen BIN (SHA-256 weicht ab).')
-    records=payload.get('maps')
-    if not isinstance(records,list) or len(records)>100_000:
-        raise ValueError('Ungültige Kennfeldliste')
-    maps=[]
-    for rec in records:
-        m=MapDefinition(**rec)
-        m.validate(image.size)
-        m.verified=bool(m.verified and matches)
-        m.source='pack'
-        maps.append(m)
-    return maps, ('Exakt gleicher Originalstand' if matches else 'ANDERER Softwarestand: Offsets nicht verifiziert')
+    from .map_pack import read_pack, preview_pack
+    preview = preview_pack(read_pack(path), image, [])
+    if preview.conflicts:
+        raise ValueError('; '.join(preview.conflicts))
+    return [MapDefinition(**r) for r in preview.records], 'Exakt gleicher Originalstand; ungeprüfte Definitionen'

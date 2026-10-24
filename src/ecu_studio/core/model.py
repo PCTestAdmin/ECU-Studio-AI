@@ -175,6 +175,29 @@ class MapDefinition:
         return data
 
 
+@dataclass
+class MetadataChange:
+    """Catalog transactions share the byte undo stack to preserve edit order."""
+    maps: list
+    before: list[dict]
+    after: list[dict]
+    snapshots: list | None = None
+    snapshots_before: list | None = None
+    snapshots_after: list | None = None
+
+    def apply(self, forward):
+        expected, target = (self.before, self.after) if forward else (self.after, self.before)
+        if [m.asdict() for m in self.maps] != expected:
+            raise ValueError('Definitions changed; metadata undo/redo refused')
+        snapshot_expected = self.snapshots_before if forward else self.snapshots_after
+        if self.snapshots is not None and self.snapshots != snapshot_expected:
+            raise ValueError('Versions changed; metadata undo/redo refused')
+        restored = [map_from_record(copy.deepcopy(r), set()) for r in target]
+        self.maps[:] = restored
+        if self.snapshots is not None:
+            self.snapshots[:] = copy.deepcopy(self.snapshots_after if forward else self.snapshots_before)
+
+
 class BinaryImage:
     """Copy-on-write byte overlay, with groupable undo/redo and exact export."""
     def __init__(self, original: bytes, path: Optional[str] = None):
@@ -186,6 +209,7 @@ class BinaryImage:
         self._redo: list[list[tuple[int, int, int]]] = []
         self.revision = 0  # Invalidates plot caches even if patch count is unchanged.
         self.journal: list[dict] = []
+        self.last_change_metadata = False
 
     @classmethod
     def from_file(cls, path: str) -> BinaryImage:
@@ -274,6 +298,15 @@ class BinaryImage:
     def undo(self) -> bool:
         if not self._undo:
             return False
+        if isinstance(self._undo[-1], MetadataChange):
+            change = self._undo[-1]
+            change.apply(False)
+            self._undo.pop(); self._redo.append(change)
+            self.revision += 1
+            self.last_change_metadata = True
+            self._record('Undo definitions', [])
+            return True
+        self.last_change_metadata = False
         changes = self._undo.pop()
         self._apply(changes, False)
         self._redo.append(changes)
@@ -283,11 +316,31 @@ class BinaryImage:
     def redo(self) -> bool:
         if not self._redo:
             return False
+        if isinstance(self._redo[-1], MetadataChange):
+            change = self._redo[-1]
+            change.apply(True)
+            self._redo.pop(); self._undo.append(change)
+            self.revision += 1
+            self.last_change_metadata = True
+            self._record('Redo definitions', [])
+            return True
+        self.last_change_metadata = False
         changes = self._redo.pop()
         self._apply(changes, True)
         self._undo.append(changes)
         self._record('Redo', changes)
         return True
+
+    def commit_metadata(self, maps, before, after, *, label, evidence=None, snapshots=None, snapshots_after=None):
+        change = MetadataChange(maps, [m.asdict() for m in before], [m.asdict() for m in after],
+                                snapshots, copy.deepcopy(snapshots), copy.deepcopy(snapshots_after))
+        change.apply(True)
+        self.last_change_metadata = True
+        self.revision += 1
+        self._undo.append(change)
+        self._redo.clear()
+        self._record(label, [])
+        self.journal[-1]['evidence'] = evidence or {}
 
     def raw_value(self, m: MapDefinition, row: int, col: int) -> int | float:
         m.validate(self.size)
