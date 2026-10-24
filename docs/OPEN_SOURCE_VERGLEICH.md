@@ -1,5 +1,10 @@
 # Vergleich quelloffener ECU-Werkzeuge (erstellt 20.10.2026, aktualisiert 21.10.2026)
 
+**Neuer Quellcode-Audit vom 24.10.2026:** [Detektorvergleich](OPEN_SOURCE_DETECTION_BENCHMARK.md).
+Insbesondere besitzt BimmerStein im dort fixierten neueren Stand ein Eval-System mit exakten Gates und
+MS41-Datenfluss-/Achszuordnungstests. Die folgenden Abschnitte dokumentieren die damalige Untersuchung;
+ihre Aussage über fehlende Messsysteme darf nicht ungeprüft auf den neuen Stand übertragen werden.
+
 Grundlage: GitHub-Metadaten, Projektbeschreibungen und gezielt gelesene Quelldateien **quelloffener** Projekte.
 Fremder Code wurde **nicht** übernommen; übernommen wurden nur Ideen, eigenständig implementiert und an eigenen
 Referenzen gemessen. Kommerzielle Werkzeuge (z. B. WinOLS) werden nicht zerlegt, sondern höchstens von außen
