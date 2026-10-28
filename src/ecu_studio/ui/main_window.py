@@ -77,13 +77,14 @@ from .catalogue import CatalogueModel
 
 
 TIER_FILTERS=('Alle Konfidenzen','Gesichert (≥ 90 %)','Wahrscheinlich (60–90 %)','Vermutung (< 60 %)',
-              'Geprüft / aus Definition')
+              'Geprüft / aus Definition','Noch nicht manuell geprüft')
 
 
 def tier_matches(m,choice:str)->bool:
     """Catalogue filter by measured evidence tier (core/confidence.py)."""
     if choice==TIER_FILTERS[0]:return True
     if choice==TIER_FILTERS[4]:return m.verified or m.source not in ('heuristic','reference-shape','transfer-proposed','ml-proposed')
+    if choice==TIER_FILTERS[5]:return not m.verified      # review queue: everything the user has not confirmed
     return (m.evidence_tier or '').casefold()==choice.split(' (')[0].casefold()
 
 
@@ -589,9 +590,47 @@ class Window(QMainWindow):
         menu.addAction('In 2D-Rohdaten anzeigen',lambda:(self.raw2d.go_offset(self.selected.offset), self.tabs.setCurrentWidget(self.raw2d)) if self.selected else None)
         menu.addSeparator()
         menu.addAction('Kennfeld-Check',self.check_map)
+        menu.addAction('Kennfelddefinition bearbeiten / prüfen …',self.edit_definition_dialog)
         menu.addAction('Batchbearbeitung',self.batch_transform)
         menu.addAction('Offset als Lesezeichen',self.bookmark_selected_map)
         menu.exec(self.map_list.viewport().mapToGlobal(pos))
+
+    def edit_definition_dialog(self):
+        """Guided review/edit of the selected definition; commits an undoable definition change only."""
+        if not self.require_image():return
+        if not self.selected:
+            QMessageBox.information(self,'Kennfelddefinition','Zuerst ein Kennfeld im Katalog markieren.');return
+        from .definition_dialog import DefinitionDialog
+        from ..core.definition_edit import commit
+        dialog=DefinitionDialog(self.image,self.selected,self)
+        if dialog.exec()!=QDialog.DialogCode.Accepted or dialog.proposal is None:return
+        try:
+            new=commit(self.image,self.maps,dialog.proposal,confirmed=True)
+        except ValueError as exc:
+            self.warning('Definition nicht übernommen',exc);return
+        self.on_edited()
+        self.refresh_map_list();self.select_map(new)
+        self.statusBar().showMessage('Kennfelddefinition übernommen (Rückgängig mit Strg+Z) – BIN unverändert',7000)
+
+    def export_xdf_file(self):
+        """TunerPro XDF of the catalogue, read back with the own importer before it is reported as written."""
+        if not self.require_image():return
+        if not self.maps:
+            QMessageBox.information(self,'XDF-Export','Der Katalog enthält keine Kennfelder.');return
+        name=Path(self.image.path).stem if self.image.path else 'ecu_studio'
+        path,_=self.save_destination(self,'Kennfelder als TunerPro-XDF exportieren',f'{name}.xdf','TunerPro XDF (*.xdf)')
+        if not path:return
+        from ..core.xdf_export import export_xdf, verify_roundtrip
+        try:
+            report=export_xdf(path,self.image,self.maps,title=name)
+            problems=verify_roundtrip(path,self.image,self.maps)
+        except Exception as exc:
+            self.warning('XDF-Export fehlgeschlagen',exc);return
+        check=('Rückimport geprüft: alle exportierten Felder stimmen überein.' if not problems else
+               'Rückimport weicht ab – Datei nicht verwenden:\n'+'\n'.join(problems[:12]))
+        box=QMessageBox.warning if problems else QMessageBox.information
+        box(self,'XDF-Export',report.summary()+'\n\n'+check+
+            '\n\nAdressen sind Dateioffsets (Basis 0). Ungeprüfte Definitionen bleiben ungeprüft.')
 
     def jump_selected_map(self):
         if self.selected:self.jump(self.selected.offset)
@@ -666,6 +705,7 @@ class Window(QMainWindow):
         act(file,"MS43-430069: Offline-Kennfeldvorschau (81) …",self.load_ms43_offline_preview)
         act(file,"Eigenes ECU-Map-Pack importieren …",self.open_map_pack)
         act(file,"Eigenes ECU-Map-Pack exportieren …",self.save_map_pack)
+        act(file,"Kennfelder als TunerPro-XDF exportieren …",self.export_xdf_file)
         act(file,"Kennfelddefinitionen exportieren …",self.export_maps)
         act(file,"Erkennungsbericht als CSV …",self.export_recognition)
         act(file,"Patch-Audit als CSV …",self.export_audit)
@@ -719,6 +759,7 @@ class Window(QMainWindow):
         act(tools,"Wiederholen",self.redo,"Ctrl+Y")
         act(tools,"Zum ersten geänderten Byte",self.goto_first_edit)
         act(tools,"Kennfeld-Check",self.check_map)
+        act(tools,"Kennfelddefinition bearbeiten / prüfen …",self.edit_definition_dialog,"Ctrl+E")
         act(tools,"Kennfelder automatisch gruppieren …",self.open_map_groups,"Ctrl+Shift+G")
         act(tools,"ECU-Checksummenprofil importieren …",self.load_checksum_manifest)
         act(tools,"Checksum- und Plausibilitätsprüfung …",self.open_checksum_audit,"Ctrl+Shift+Q")

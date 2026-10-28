@@ -31,6 +31,11 @@ def test_confidence_filter(tmp_path, monkeypatch):
         shown[choice] = w.catalog_model.rowCount()
     assert shown[TIER_FILTERS[0]] == 3
     assert shown[TIER_FILTERS[1]] == 1 and shown[TIER_FILTERS[3]] == 1 and shown[TIER_FILTERS[4]] == 1
+    assert shown[TIER_FILTERS[5]] == 3                       # nothing confirmed by the user yet
+    w.maps[2].verified = True
+    w.tier_filter.setCurrentIndex(0); w.tier_filter.setCurrentIndex(5)
+    assert w.catalog_model.rowCount() == 2
+    w.saved_fingerprint = w.project_state()            # test edit: no "unsaved changes" question
     w.close()
 
 
