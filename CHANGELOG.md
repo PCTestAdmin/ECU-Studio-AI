@@ -1,5 +1,18 @@
 ## Unveröffentlicht
 
+- **Kennfelddefinition bearbeiten / prüfen …** (Strg+E, Werkzeuge und Kontextmenü der Kennfeldliste): Name,
+  Beschreibung, Adresse, Größe, Datentyp, Byte-Reihenfolge, Faktor/Offset, Einheiten, X-/Y-Achsenadresse mit eigenem
+  Datentyp und Faktor, Prüfstatus. „Prüfen“ zeigt Änderungen, Warnungen und eine Vorschau der Werte aus den
+  aktuellen Dateibytes; „Übernehmen“ erst danach und nur nach Bestätigung, als rückgängig machbare
+  Definitionsänderung. Die BIN wird nie verändert; „geprüft“ setzt nur der Nutzer. Achsen werden nur neu gelesen,
+  wenn der Nutzer ihre Leseart ändert (sonst blieben importierte Achsen mit unbekannter Skalierung nicht erhalten).
+- **Kennfelder als TunerPro-XDF exportieren …** (Datei-Menü): XML-XDF 1.70 für Tabellen, Kennlinien und Konstanten
+  mit 8/16/32 Bit, Vorzeichen, Byte-Reihenfolge, Speicherordnung, Strides, Formel, Einheiten und Ordner. Achsen als
+  feste Stützstellen (folgen keiner späteren Achsenänderung). 32-Bit-Gleitkomma und ungültige Definitionen werden
+  mit Grund ausgelassen. Jeder Export wird sofort mit dem eigenen XDF-Importer zurückgelesen und Feld für Feld
+  verglichen; nur dann meldet die App „Rückimport geprüft“. In TunerPro selbst ist der Export nicht getestet.
+- Konfidenzfilter „Noch nicht manuell geprüft“: alle Kennfelder, die der Nutzer noch nicht bestätigt hat.
+
 - Open-Source-Detektoren am fixierten Quellstand verglichen; zwei eigenständig implementierte Strukturversuche
   bleiben außerhalb des produktiven Scanners. Neuer `tools.detector_benchmark` nutzt die bestehenden
   hashgebundenen Messungen für Baseline, Einzelversuch und konservative Kombination.
