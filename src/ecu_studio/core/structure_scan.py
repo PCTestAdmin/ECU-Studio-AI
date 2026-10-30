@@ -48,6 +48,7 @@ REFERENCE_LAYOUT = 'candidate:code-reference'
 PITCH_LAYOUT = 'candidate:row-pitch'
 POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
+PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -706,7 +707,14 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             continue
         taken.insert(k, (off, stop))
         referenced = score >= ANCHOR_SCORE
-        if called:
+        if called and calls[off].prelookup:
+            n = len(calls[off].sites)
+            evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt den Datenstart; '
+                        f'Achsen aus den beiden vorangehenden Achsensuchen desselben Codepfads: '
+                        f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
+                        f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
+            origin = PRELOOKUP_ORIGIN
+        elif called:
             n = len(calls[off].sites)
             evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) '
                         f'übergibt Datenstart und Achsen: X @ 0x{pair[0].header:X} ({pair[0].count} Punkte)'

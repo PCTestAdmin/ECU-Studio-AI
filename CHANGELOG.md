@@ -1,5 +1,14 @@
 ## Unveröffentlicht
 
+- **TriCore-Aufrufe, zweite Stufe (MSD80):** Achszeiger, die eine Funktion früh auf dem Stack ablegt und erst
+  vor dem Aufruf wieder lädt, werden über die nächste vorangehende Belegung des Slots aufgelöst (nur bei
+  einmaliger sp-Änderung und ohne herausgegebene Slotadressen). Getrennte Interpolation (Achsensuche je Achse,
+  danach Kennfeldaufruf nur mit Daten) wird pfadgebunden erkannt; Routinenrollen folgen aus dem Aufrufverhalten,
+  die Zellbreite nur aus exakter Lückenfüllung. Eigene, nicht kalibrierte Evidenzklasse `code:call-pre`.
+  MSD80 I8A0S (Entwicklungsdaten): exakte 2D-Kennfelder 61 → 71 von 99, Konflikte mit der XDF 13 → 11,
+  Gruppenpaare 17 → 33. MS42/MS43, alle Negativkontrollen und EDC17C69 unverändert. Behoben: 16-Bit-`ld.a a15,[sp]`
+  verwarf den alten a15-Wert nicht ([Bericht, Abschnitt 10](docs/ANALYSE_2026-10-30.md)).
+
 - **Kennfelder aus TriCore-Interpolationsaufrufen** (Siemens MSD80 und andere Vollflash-Images mit derselben
   Aufrufkonvention): Der Code übergibt Tabellendaten in `a4` und die Köpfe von X-/Y-Achse in `a5`/`a6`. Der neue
   Decoder `core/tricore_refs.py` liest daraus Start, Größe und Achsen; die Zellbreite folgt ohne Referenz aus dem

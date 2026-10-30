@@ -10,7 +10,7 @@ import pytest
 from ecu_studio.core.confidence import evidence_class
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
-from ecu_studio.core.structure_scan import scan_structures, CALL_LAYOUT
+from ecu_studio.core.structure_scan import scan_structures, CALL_LAYOUT, PRELOOKUP_ORIGIN
 from ecu_studio.core.tricore_refs import (looks_like_tricore, call_sites, call_descriptors, cell_widths,
                                           MIN_CALLS)
 
@@ -172,6 +172,129 @@ def test_call_tables_do_not_use_up_the_smoothness_budget():
     assert len([m for m in found if m.record_layout == CALL_LAYOUT]) == len(tables)
 
 
+# --- Stack slots and split (prelookup) interpolation -------------------------------------------
+
+def sub_sp(n):
+    return (0x20 | (n & 0xFF) << 8).to_bytes(2, 'little')          # sub.a sp,#n
+
+
+def st_a15_sp(off):
+    return (0xF8 | (off // 4) << 8).to_bytes(2, 'little')          # st.a [sp]off,a15
+
+
+def ld_a_sp(a, off):                                                # ld.a a,[sp]off10 (BO)
+    w = 0x09 | a << 8 | 10 << 12 | (off & 0x3F) << 16 | 0x26 << 22 | ((off >> 6) & 0xF) << 28
+    return w.to_bytes(4, 'little')
+
+
+def image_with(make_code, n_tables=24):
+    """64 KiB image: u8 5x6 tables from 0x8000, X (6 pts, u8) at 0xC000, X2 (4 pts) at 0xC008,
+    Y (5 pts, u16) at 0xC010; routines at 0x7000.. (ret); code from make_code(tables) at 0x100."""
+    img = bytearray(0x10000)
+    y, x = np.mgrid[:5, :6]
+    tables = []
+    for i in range(n_tables):
+        t = 0x8000 + i * 30
+        img[t:t + 30] = (10 + 3 * y + 2 * x + i).astype('u1').tobytes()
+        tables.append(t)
+    for off, raw in ((0xC000, u8_axis([5, 9, 20, 40, 60, 90])), (0xC008, u8_axis([1, 2, 3, 4])),
+                     (0xC010, u16_axis([500, 1000, 2000, 3000, 4000]))):
+        img[off:off + len(raw)] = raw
+    for r in (0x7000, 0x7100, 0x7200, 0x7300):
+        img[r:r + 2] = RET
+    code = bytearray(make_code(tables, 0x100))
+    while len(code) < 0x6000:
+        code += movh_a(12, 0xD000) + RET + RET
+    img[0x100:0x100 + len(code)] = code[:0x6F00]
+    return bytes(img), tables
+
+
+def stack_function(tables, base, *, escape=False, two_frames=False, reassign_from=None):
+    """call F; F: sub.a sp; X and Y header pointers into [sp]4/[sp]20; per table: an unrelated
+    call (clobbers a2-a7), a4 = table, a5/a6 reloaded from the stack, call routine."""
+    entry = base + 4 + 2
+    code = bytearray(call(base, entry) + RET)
+    code += sub_sp(24)
+    if two_frames:
+        code += sub_sp(8)
+    code += load(15, 0xC000) + st_a15_sp(4) + load(15, 0xC010) + st_a15_sp(20)
+    if escape:
+        code += lea(2, 10, 4)                     # slot address handed out: a callee may write it
+    for i, t in enumerate(tables):
+        if reassign_from is not None and i == reassign_from:
+            code += load(15, 0xC008) + st_a15_sp(4)
+        at = base + len(code)
+        code += call(at, 0x7200)
+        code += load(4, t) + ld_a_sp(5, 4) + ld_a_sp(6, 20)
+        code += call(base + len(code), 0x7000)
+    return bytes(code + RET)
+
+
+def test_axis_pointers_reloaded_from_stack_slots():
+    data, tables = image_with(stack_function)
+    assert call_descriptors(data) != {}
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    assert all((d.x_axis.header, d.y_axis.header, d.prelookup) == (0xC000, 0xC010, False) for d in desc.values())
+    assert all(c.x_header is None for c in call_sites(data, stack=False) if c.data in tables)
+
+
+def test_stack_reload_takes_the_nearest_preceding_store():
+    data, tables = image_with(lambda t, b: stack_function(t, b, reassign_from=12))
+    desc = call_descriptors(data)
+    assert {desc[t].x_axis.header for t in tables[:12]} == {0xC000}
+    assert {desc[t].x_axis.header for t in tables[12:]} == {0xC008}
+
+
+@pytest.mark.parametrize('kw', [{'escape': True}, {'two_frames': True}])
+def test_stack_slots_are_not_trusted_when_sp_moves_twice_or_a_slot_address_escapes(kw):
+    data, tables = image_with(lambda t, b: stack_function(t, b, **kw))
+    assert looks_like_tricore(data)
+    assert not any(c.x_header for c in call_sites(data) if c.data in tables)
+    assert call_descriptors(data) == {}
+
+
+def prelookup_code(tables, base, *, single=False):
+    """Per table: a4 = X header -> call P1, a4 = Y header -> call P2, a4 = table -> call M."""
+    code = bytearray()
+    for t in tables:
+        code += load(4, 0xC000) + call(base + len(code) + 8, 0x7100)
+        if not single:
+            code += load(4, 0xC010) + call(base + len(code) + 8, 0x7200)
+        code += load(4, t) + call(base + len(code) + 8, 0x7300) + RET
+    return bytes(code)
+
+
+def test_split_interpolation_takes_axes_from_the_two_prelookups_on_the_path():
+    data, tables = image_with(prelookup_code)
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    assert all((d.x_axis.header, d.y_axis.header, d.prelookup) == (0xC000, 0xC010, True) for d in desc.values())
+    widths = cell_widths(desc, list(desc) + [0xC000, 0xC010])
+    # Exactly filled gaps give the width; the last table (gap to the axis pool) stays open.
+    assert widths == {t: 1 for t in tables[:-1]}
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert {(m.offset, m.rows, m.cols) for m in called} == {(t, 5, 6) for t in tables[:-1]}
+    assert all(m.label_origin.startswith(PRELOOKUP_ORIGIN) and evidence_class(m) == 'code:call-pre:2d'
+               and m.evidence_tier == 'nicht kalibriert' for m in called)
+
+
+def test_one_prelookup_is_not_enough_for_a_table():
+    data, tables = image_with(lambda t, b: prelookup_code(t, b, single=True))
+    assert call_descriptors(data) == {}
+
+
+@pytest.mark.parametrize('cut', [0x10000 - 1, 0x6F03, 0x200])
+def test_truncated_and_damaged_images_do_not_fail(cut):
+    data, _ = image_with(prelookup_code)
+    call_descriptors(data[:cut])
+    damaged = bytearray(data)
+    damaged[0x1000:0x1400] = bytes(range(256)) * 4      # garbage inside the code
+    desc = call_descriptors(bytes(damaged))
+    assert all(0x8000 <= d < 0xC000 for d in desc)
+
+
 MSD80_SHA = 'c53ff0d4da3aafb0aee93b2a4df165b4f98229752b2bc2ea694a2699bc396b38'
 
 
@@ -193,7 +316,7 @@ def test_real_msd80_calls_find_reference_tables_without_conflicts(msd80):
     maps = scan_calibration_candidates(image)
     exact = {(r.offset, r.width) for r in ref if min(r.rows, r.cols) >= 4 and any(
         m.offset == r.offset and m.width == r.width and {m.rows, m.cols} == {r.rows, r.cols} for m in maps)}
-    assert len(exact) >= 61      # 39 before TriCore calls (measured 2026-10-30)
+    assert len(exact) >= 71      # 39 before TriCore calls, 61 with a5/a6 only (measured 2026-10-30)
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert len(called) > 700
     for m in called:              # no call table contradicts the reference

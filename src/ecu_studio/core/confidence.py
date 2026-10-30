@@ -29,7 +29,10 @@ def evidence_class(m: MapDefinition) -> str:
         return f"code:{'1d' if one_d else '2d'}:{axes}"
     if layout == 'candidate:code-call':
         # Own class: rates measured for C16x code references do not carry over.
-        return f"code:call:{'1d' if one_d else '2d'}"
+        # Axes linked through earlier axis searches are weaker than axes in a5/a6.
+        from .structure_scan import PRELOOKUP_ORIGIN
+        kind = 'call-pre' if (m.label_origin or '').startswith(PRELOOKUP_ORIGIN) else 'call'
+        return f"code:{kind}:{'1d' if one_d else '2d'}"
     if layout == 'candidate:code-reference-generic':
         return 'code:generic'
     if layout == 'candidate:pointer-descriptor':
