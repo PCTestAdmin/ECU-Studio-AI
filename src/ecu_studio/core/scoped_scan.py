@@ -14,6 +14,7 @@ from .precision import rank_candidates
 from .axis_records import scan_axis_records, record_axes
 from .curve_records import scan_curve_records
 from .structure_scan import scan_structures, lookup_descriptors
+from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence, tier_for
@@ -22,7 +23,7 @@ from .map_groups import mark_twins
 from . import parallel
 
 RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
-INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis','candidate:curve-record')
+INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis','candidate:curve-record','candidate:code-call')
 
 
 def _merged(spans):
@@ -121,17 +122,19 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # and code bytes cannot produce smoothness-only candidates).
     regions=data_regions(mask,gap=block_size(len(raw))) if mask is not None else None
     axes=scan_count_axes(raw,lo,hi) if structure_limit>0 else []
+    calls=call_descriptors(raw,lo,hi) if structure_limit>0 else {}
     if structure_limit>0:
         # Axes named by lookup calls are code-confirmed even without a chain.
         known={ax.header for ax in axes}
         spans=[(ax.header,ax.end) for ax in axes]
-        for pair in lookup_descriptors(raw,lo,hi).values():
+        pairs=list(lookup_descriptors(raw,lo,hi).values())+[(c.x_axis,c.y_axis) for c in calls.values()]
+        for pair in pairs:
             for ax in pair:
                 if ax and ax.header not in known and not any(ax.header<e and s<ax.end for s,e in spans):
                     axes.append(ax);known.add(ax.header);spans.append((ax.header,ax.end))
         axes.sort(key=lambda ax:ax.header)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,
-                               axes=axes,regions=regions) if structure_limit>0 else []
+                               axes=axes,regions=regions,calls=calls) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
     if jobs is not None:

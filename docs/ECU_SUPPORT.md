@@ -26,8 +26,8 @@ Lernmodell/Konfidenz daran kalibriert. Die Referenzdateien und die Firmware lieg
 | Steuergerät | Prozessor | Status | Softwarestände | exakt 2D (Spanne der Stände) | Präzision 2D | Grenzen / benötigt |
 |---|---|---|---:|---|---|---|
 | Bosch EDC17CP09 | Infineon TriCore | ✅ validiert | 1 | 463/703 | 85% | Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea). |
-| Siemens MSD80 | PowerPC | ✅ validiert | 6 | 217–224 von 864 | 81% / 82% | Kalibrierbereich aus S19; Identität nur über A2L-EPK. |
-| Siemens MSD85 | PowerPC | ✅ validiert | 1 | 279/1026 | 81% | Ein Softwarestand; Identität nur über A2L-EPK. |
+| Siemens MSD80 | Infineon TriCore (am Vollflash I8A0S nachgewiesen; früher als PowerPC geführt) | ✅ validiert | 6 | 217–224 von 864 | 81% / 82% | Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: zusätzlich Kennfelder aus TriCore-Interpolationsaufrufen, an I8A0S (Community-XDF, *development*) 39 → 61 von 99 exakt, siehe [Analyse 30.10.](ANALYSE_2026-10-30.md). |
+| Siemens MSD85 | ungeprüft (MSD80: TriCore) | ✅ validiert | 1 | 279/1026 | 81% | Ein Softwarestand; Identität nur über A2L-EPK. |
 | Bosch EDC16C35 | PowerPC (MPC5xx) | ✅ validiert | 1 | 283/387 | 81% | Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
 | Bosch EDC16C31 | PowerPC (MPC5xx) | ✅ validiert | 1 | 272/364 | 82% | Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
 | BMW ME9 | PowerPC | ✅ validiert | 1 | 98/233 | 62% | Ein Softwarestand. |

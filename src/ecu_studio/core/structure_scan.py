@@ -10,6 +10,9 @@ Two independent evidence sources, both geometry-only (NOT map identification):
    *start* hint; it is not proof of a table, and code also references rows or
    cells inside tables. Observed on Siemens MS43; MS42 code uses other forms,
    where this source simply yields nothing.
+3. Interpolation calls (Infineon TriCore, e.g. Siemens MSD80): a4 = table data,
+   a5/a6 = headers of its X/Y axes, see tricore_refs. Start, shape and axes come
+   from the code; the cell width from the next known object.
 
 Benchmarked against real MS43/MS42 images with matching XDF files (see
 tools/structure_benchmark.py). Labels/units still require XDF/A2L metadata.
@@ -23,6 +26,7 @@ from numpy.lib.stride_tricks import sliding_window_view
 from .model import BinaryImage, MapDefinition
 from .axis_arrays import scan_count_axes, axis_at, quantity_hint, CountAxis, MIN_POINTS, MAX_POINTS
 from .cpu_refs import detect_cpu, GENERIC_LAYOUT
+from .tricore_refs import call_descriptors, cell_widths
 from .parallel import ordered_map
 
 # Signed views: two's-complement tables (e.g. Bosch ME7 ignition maps) wrap around
@@ -43,6 +47,7 @@ ANCHORING_FAMILIES = ('68k',)   # other-CPU references strong enough to fix a st
 REFERENCE_LAYOUT = 'candidate:code-reference'
 PITCH_LAYOUT = 'candidate:row-pitch'
 POINTER_LAYOUT = 'candidate:pointer-descriptor'
+CALL_LAYOUT = 'candidate:code-call'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -454,10 +459,10 @@ def referenced_axes(address: int, refs: dict[int, list[int]], axes_by_header: di
     return None
 
 
-def _axis_fit(data: bytes, a: int, rows: int, cols: int, end: int):
+def _axis_fit(data: bytes, a: int, rows: int, cols: int, end: int, views=VIEWS):
     """Best (cost, width, endian, dtype) for an axis-given shape at a, or None."""
     best = None
-    for dtype, w, endian in VIEWS:
+    for dtype, w, endian in views:
         if a % w or a + rows * cols * w > end:
             continue
         if w == 1 and _interleaved_constant(data[a:a + min(64, rows * cols)]):
@@ -523,7 +528,7 @@ def anchored_fit(data: bytes, a: int, b: int):
 
 def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, *,
                     max_results: int = 400, cancelled=None, axes=None,
-                    regions: list[tuple[int, int]] | None = None) -> list[MapDefinition]:
+                    regions: list[tuple[int, int]] | None = None, calls=None) -> list[MapDefinition]:
     """Non-overlapping table-shaped regions in [start, end); offsets are absolute.
 
     ``regions`` limits the smoothness-only (row-pitch) search, e.g. to data-like
@@ -532,6 +537,9 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     ``axes`` are count-prefixed breakpoint arrays (see axis_arrays), scanned here
     when not given. They fix the shape of code-referenced tables and are never
     reported as 2-D tables themselves.
+
+    ``calls`` are TriCore interpolation calls (tricore_refs.call_descriptors),
+    computed here when not given.
     """
     end = image.size if end is None else min(end, image.size)
     if end - start < 64:
@@ -546,7 +554,12 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     generic_only = {a for a in generic if start <= a < end} - set(refs) - set(descriptors)
     # Pointer descriptors (Denso SH-2) name start, shape, type and axes outright.
     pointed = pointer_descriptors(data, start, end)
-    anchors = sorted(set(refs) | set(descriptors) | generic_only | set(pointed))
+    # TriCore interpolation calls name start, shape and axes; the cell width
+    # follows from the next object the calls name (see tricore_refs.cell_widths).
+    calls = call_descriptors(data, start, end) if calls is None else calls
+    call_width = cell_widths(calls, list(calls) + [ax.header for c in calls.values()
+                                                   for ax in (c.x_axis, c.y_axis) if ax])
+    anchors = sorted(set(refs) | set(descriptors) | generic_only | set(pointed) | set(calls))
     axes_by_header = {ax.header: ax for ax in axes}
     axis_spans = sorted((ax.header, ax.end) for ax in axes)
 
@@ -559,11 +572,22 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     inline_starts, generic_confirmed = set(), set()
     proposals = [(ANCHOR_SCORE + 2.5, z, r, c, dtype, 'big', w, (x, y))
                  for z, (r, c, dtype, w, x, y) in pointed.items()]
+    for z, call in calls.items():
+        w = call_width.get(z)
+        if w is None:
+            continue
+        rows = call.y_axis.count if call.y_axis else 1
+        # TriCore is little endian; the smoother reading decides the sign only.
+        views = tuple(v for v in VIEWS if v[1] == w and (w == 1 or v[2] == 'little'))
+        f = _axis_fit(data, z, rows, call.x_axis.count, end, views)
+        cost, dtype = (f[0], f[3]) if f else (1., 'u8' if w == 1 else 'u16')
+        proposals.append((ANCHOR_SCORE + 2.4 - cost, z, rows, call.x_axis.count, dtype, 'little', w,
+                          (call.x_axis, call.y_axis)))
     # (score, offset, rows, cols, dtype, endian, width, (x_axis, y_axis) | None)
     for a, b in zip(anchors, anchors[1:] + [end]):
         if cancelled and cancelled():
             return []
-        if a in pointed:
+        if a in pointed or a in calls:
             continue
         if with_inline and a in refs and a not in descriptors:
             records = inline_records(data, a, end)
@@ -671,9 +695,10 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     taken, chosen = list(axis_spans), []
     counts = [0, 0]   # 2-D readings, curves: curves come last and get their own budget
     for score, off, rows, c, dtype, endian, w, pair in proposals:
-        if counts[rows == 1] >= max_results:
-            if rows == 1:
-                break
+        # Interpolation calls are bounded by the code itself; they must not use up
+        # the budget of the smoothness search (MSD80: 4 exact pitch tables lost).
+        called = pair is not None and off in calls and pair[0] is calls[off].x_axis
+        if not called and counts[rows == 1] >= max_results:
             continue
         stop = off + rows * c * w
         k = bisect.bisect_left(taken, (off, off))
@@ -681,7 +706,14 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             continue
         taken.insert(k, (off, stop))
         referenced = score >= ANCHOR_SCORE
-        if off in pointed:
+        if called:
+            n = len(calls[off].sites)
+            evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) '
+                        f'übergibt Datenstart und Achsen: X @ 0x{pair[0].header:X} ({pair[0].count} Punkte)'
+                        + (f', Y @ 0x{pair[1].header:X} ({pair[1].count} Punkte)' if pair[1] else '')
+                        + f'; Zellbreite {w} Byte aus dem nächsten benannten Objekt.')
+            origin = 'TriCore-Aufruf + Achsen (ungeprüft)'
+        elif off in pointed:
             evidence = ('Beschreibungsblock mit Zeigern auf Achsen und Daten (Anzahl X/Y, Datentyp) '
                         f'nennt Start und Größe; X @ 0x{pair[0].offset:X} ({pair[0].count} Punkte), '
                         f'Y @ 0x{pair[1].offset:X} ({pair[1].count} Punkte).')
@@ -716,7 +748,8 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         m = MapDefinition(
             name=f'Strukturkandidat @ 0x{off:08X}', offset=off, rows=rows, cols=c, dtype=dtype, endian=endian,
             source='heuristic', confidence=round(min(.45, .45 * (score - ANCHOR_SCORE if referenced else score / 8)), 3),
-            record_layout=(POINTER_LAYOUT if off in pointed else GENERIC_LAYOUT if off in generic_confirmed else
+            record_layout=(CALL_LAYOUT if called else POINTER_LAYOUT if off in pointed else
+                           GENERIC_LAYOUT if off in generic_confirmed else
                            REFERENCE_LAYOUT if referenced else PITCH_LAYOUT),
             label_origin=origin,
             label_evidence=evidence + ' Geometrie-Hypothese, KEIN identifiziertes Kennfeld.',
@@ -732,5 +765,5 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                            + '; Einheiten und Skalierung ungeprüft. '
                            + ' · '.join(h for h in hints if not h.endswith(' ')))
         chosen.append(m)
-        counts[rows == 1] += 1
+        counts[rows == 1] += not called
     return sorted(chosen, key=lambda m: m.offset)

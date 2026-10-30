@@ -12,7 +12,7 @@ from functools import lru_cache
 from .model import BinaryImage, MapDefinition
 
 STRUCTURAL_LAYOUTS = ('candidate:nx,ny,x,y,z', 'candidate:code-reference', 'candidate:row-pitch',
-                      'candidate:code-reference-generic', 'candidate:pointer-descriptor')
+                      'candidate:code-reference-generic', 'candidate:pointer-descriptor', 'candidate:code-call')
 
 
 @lru_cache(maxsize=1)
@@ -55,7 +55,7 @@ def surface_evidence(values, *, min_unique=12) -> dict:
 
 
 EVIDENCED_LAYOUTS=('candidate:nx,ny,x,y,z','candidate:code-reference','candidate:code-reference-generic',
-                   'candidate:pointer-descriptor')
+                   'candidate:pointer-descriptor','candidate:code-call')
 
 
 def _header_inside(plain):
@@ -108,7 +108,7 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
             # coarse tables are still tables, so surface smoothness cannot veto.
             # Header records reach this point only after the record scan accepted
             # their counts and axes (flat value blocks included, see axis_records).
-            axis_backed=m.record_layout in ('candidate:code-reference','candidate:pointer-descriptor','candidate:nx,ny,x,y,z') and bool(m.axes_x) and bool(m.axes_y)
+            axis_backed=m.record_layout in ('candidate:code-reference','candidate:code-call','candidate:pointer-descriptor','candidate:nx,ny,x,y,z') and bool(m.axes_x) and bool(m.axes_y)
             if not ev['valid']:
                 if not axis_backed:
                     reject(m,'insufficient-surface-evidence');continue
@@ -136,7 +136,7 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
                 ambiguous=bool(alt['valid'] and alt['score']>=ev['score']-.025)
             strength=.65*ev['score']+.35*min(1.,max(0.,m.confidence)/.45)
             if ambiguous:strength*=.76
-            if m.record_layout in ('candidate:nx,ny,x,y,z','candidate:code-reference','candidate:pointer-descriptor'):strength+=.12
+            if m.record_layout in ('candidate:nx,ny,x,y,z','candidate:code-reference','candidate:code-call','candidate:pointer-descriptor'):strength+=.12
             if synthetic_hint is not None:
                 # Gentle prioritisation only, never removal. Unvalidated real
                 # domain: synthetic training is NOT a safe negative gate.

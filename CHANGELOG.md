@@ -1,5 +1,15 @@
 ## Unveröffentlicht
 
+- **Kennfelder aus TriCore-Interpolationsaufrufen** (Siemens MSD80 und andere Vollflash-Images mit derselben
+  Aufrufkonvention): Der Code übergibt Tabellendaten in `a4` und die Köpfe von X-/Y-Achse in `a5`/`a6`. Der neue
+  Decoder `core/tricore_refs.py` liest daraus Start, Größe und Achsen; die Zellbreite folgt ohne Referenz aus dem
+  nächsten benannten Objekt. Gemessen an einem MSD80-Vollflash (I8A0S, Community-XDF, Entwicklungsdaten): exakte
+  2D-Kennfelder 39 → 61 von 99, Kennlinien 115 → 160 von 262, gemeinsame Achsen 17/17. Keine neue Kollision mit
+  der Referenz; MS42/MS43 und alle Negativkontrollen unverändert; EDC17C69 bleibt ohne Treffer. Eigene,
+  nicht kalibrierte Evidenzklasse `code:call`. Reine Kalibrierbereiche (S19) enthalten keinen Code und bleiben
+  unverändert. MSD80 ist nachweislich TriCore, nicht PowerPC
+  ([Bericht](docs/ANALYSE_2026-10-30.md)).
+
 - **Kennfelddefinition bearbeiten / prüfen …** (Strg+E, Werkzeuge und Kontextmenü der Kennfeldliste): Name,
   Beschreibung, Adresse, Größe, Datentyp, Byte-Reihenfolge, Faktor/Offset, Einheiten, X-/Y-Achsenadresse mit eigenem
   Datentyp und Faktor, Prüfstatus. „Prüfen“ zeigt Änderungen, Warnungen und eine Vorschau der Werte aus den

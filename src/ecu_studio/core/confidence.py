@@ -27,6 +27,9 @@ def evidence_class(m: MapDefinition) -> str:
     if layout == 'candidate:code-reference':
         axes = 'axes2' if m.axes_x and m.axes_y else 'axis1' if m.axes_x else 'noaxes'
         return f"code:{'1d' if one_d else '2d'}:{axes}"
+    if layout == 'candidate:code-call':
+        # Own class: rates measured for C16x code references do not carry over.
+        return f"code:call:{'1d' if one_d else '2d'}"
     if layout == 'candidate:code-reference-generic':
         return 'code:generic'
     if layout == 'candidate:pointer-descriptor':

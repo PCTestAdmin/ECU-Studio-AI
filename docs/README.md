@@ -3,6 +3,7 @@
 | Dokument | Inhalt |
 |---|---|
 | [OPEN_SOURCE_DETECTION_BENCHMARK.md](OPEN_SOURCE_DETECTION_BENCHMARK.md) | Quellcodevergleich, isolierte Detektorversuche und reproduzierbare Qualitätsgrenzen |
+| [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md) | TriCore-Interpolationsaufrufe (MSD80): Recherche, Prozessornachweis, Messung, Grenzen |
 | [ANALYSE_2026-10-24.md](ANALYSE_2026-10-24.md) | 1.17-Kandidat: Kennfeldpaket, Workflow, Messnachweise, Windows-Prüfung und offene Referenzdaten |
 | [ECU_SUPPORT.md](ECU_SUPPORT.md) | Welche Steuergeräte mit welchen Referenzen gemessen sind – Trefferquote, Präzision, was nicht validiert ist |
 | [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung |
