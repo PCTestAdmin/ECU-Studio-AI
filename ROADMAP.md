@@ -24,12 +24,21 @@
 Konfliktprüfung und Undo sowie lokale Paket-/Projektvorschläge und den vorhandenen Softwarestand-Abgleich.
 Der [Messworkflow](docs/REFERENCE_VALIDATION.md) bindet lokale Referenzmessungen an Hashes und Datenrollen.
 Scanner und OEM-Korrektursperren bleiben unverändert; neue Bosch-Referenzmessungen fehlen weiterhin.
-Die folgenden Clips zeigen die bereits seit **1.16.0** verfügbaren Funktionen.
-Die Clips sind echte Aufnahmen der App
-mit einer synthetischen Vorführdatei (keine Herstellerdaten).
+Die Clips sind echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten),
+die neuesten Funktionen stehen oben.
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
+<tr><td>
+
+**Kennfeldpakete** – Definitionen als offenes Paket exportieren und in einem anderen Projekt importieren: Vorschau aller Einträge, Prüfung von Original-Hash und Konflikten, ausdrückliche Übernahme mit Undo. Keine BIN-Bytes im Paket.<br><img src="docs/clips/mappack.gif" width="720" alt="Kennfeldpakete">
+
+</td><td align="center"><b>1.17.0</b></td></tr>
+<tr><td>
+
+**Softwarestände vergleichen** – Stand A mit Definitionen laden: Die Kennfelder werden im geöffneten Stand B gefunden, auch wenn alles verschoben ist (hier +512 Byte). Unterschiede je Zelle nebeneinander, Definitionen gezielt übernehmen.<br><img src="docs/clips/versions.gif" width="720" alt="Softwarestände vergleichen">
+
+</td><td align="center"><b>1.16.4</b></td></tr>
 <tr><td>
 
 **Doppelt so viele Treffer** – Ein Klick auf <i>Scan</i>: Die Suche findet Kennfelder über ihre Achsen im Kopf, jede Fundstelle bekommt eine gemessene Konfidenz. Anklicken zeigt sofort die Heatmap.<br><img src="docs/clips/scan.gif" width="720" alt="Doppelt so viele Treffer">
@@ -84,6 +93,36 @@ mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <br>
 
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-fertig_im_Quellcode-0969da?style=for-the-badge)
+
+Diese Funktionen sind bereits im Quellcode und kommen mit der nächsten Version.
+
+<table>
+<tr><th align="left">Neu</th><th>Version</th></tr>
+<tr><td>
+
+**Kennfelddefinition bearbeiten / prüfen** – <i>Strg+E</i>: Name, Adresse, Größe, Datentyp, Faktor, Einheit und Achsen ändern. <i>Prüfen</i> zeigt jede Änderung und eine Vorschau aus den echten Dateibytes, <i>Übernehmen</i> erst danach – rückgängig machbar, die BIN bleibt unverändert.<br><img src="docs/clips/definition.gif" width="720" alt="Kennfelddefinition bearbeiten">
+
+</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+<tr><td>
+
+**XDF-Export** – Den Katalog als TunerPro-XDF speichern. Jede exportierte Datei wird sofort mit dem eigenen Importer zurückgelesen und Feld für Feld verglichen – erst dann heißt es „Rückimport geprüft“.<br><img src="docs/clips/xdfexport.gif" width="720" alt="XDF-Export">
+
+</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+<tr><td>
+
+**Kennfelder aus TriCore-Programmcode** – Bei Siemens-MSD80-Vollflashs liest die Suche die Interpolationsaufrufe des Programmcodes: Datenstart, beide Achsen und der Zelltyp kommen direkt aus dem Code. Auf einem MSD80 mit Community-XDF 39 → 73 von 99 Kennfeldern exakt ([Bericht](docs/ANALYSE_2026-10-30.md)).
+
+</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+<tr><td>
+
+**Filter „Noch nicht manuell geprüft“** – Alle Kennfelder, die du noch nicht selbst bestätigt hast, auf einen Blick.
+
+</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+</table>
+
+<br>
+
 ## Bereits verfügbar seit 1.16.4
 
 Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md).
@@ -111,7 +150,7 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 | | Thema | Warum |
 |:--:|---|---|
 | 🧩 | **TunerStudio-Abstimmungen öffnen** | Speeduino, rusEFI, MegaSquirt – die Definition ist dort öffentlich |
-| 🧠 | **Kennfelder aus dem Programmcode** | Größter Hebel für EDC17 und MED17 (TriCore, PowerPC) |
+| 🧠 | **Kennfelder aus dem Programmcode für Bosch** | Für Siemens MSD80 (TriCore) fertig; EDC17 und MED17 übergeben Kennfelder anders und brauchen eigene Referenzen |
 | 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
 | ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
 

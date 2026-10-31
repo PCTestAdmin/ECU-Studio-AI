@@ -4,8 +4,9 @@ Usage: python -m ecu_studio.tools.feature_clips OUT_DIR [--only NAME ...]
 
 Runs the actual main window offscreen on a synthetic showcase image
 (core/showcase.py, no manufacturer data), drives it like a user would and
-draws a mouse pointer with click marks into the frames. Settings go to a
-temporary scope; the user's layout and preferences stay untouched.
+draws a mouse pointer with click marks into the frames. Settings, the project
+database, recovery copies and every other per-user file go to a temporary
+folder; the user's layout, preferences and projects stay untouched.
 """
 from __future__ import annotations
 import argparse
@@ -19,7 +20,8 @@ import numpy as np
 WIDTH = 1360
 HEIGHT = 820
 OUT_WIDTH = 960
-CLIPS = ('scan', 'filter', 'view3d', 'compare', 'support', 'english')
+CLIPS = ('scan', 'filter', 'view3d', 'compare', 'support', 'versions', 'mappack', 'definition', 'xdfexport',
+         'english')
 
 
 class Recorder:
@@ -109,6 +111,24 @@ class Recorder:
             self.frames.append(self._compose(click=c))
             self.durations.append(60)
 
+    def type_into(self, widget, text: str, ms: int = 55) -> None:
+        """Type text character by character into a line edit (one frame per character)."""
+        widget.clear()
+        for ch in text:
+            widget.insert(ch)
+            self.frames.append(self._compose())
+            self.durations.append(ms)
+
+    def wait(self, busy, step: int = 120, limit: float = 90.) -> None:
+        """Hold frames while ``busy()`` is true (a worker thread of the app is running)."""
+        end = time.monotonic() + limit
+        while busy():
+            if time.monotonic() > end:
+                raise RuntimeError('Aufnahme: Vorgang der App nicht rechtzeitig fertig')
+            self.hold(step)
+            time.sleep(.06)
+        self.app.processEvents()
+
     def save(self, path: Path) -> int:
         from .gif_writer import write_gif
         return write_gif(path, self.frames, self.durations)
@@ -167,6 +187,12 @@ def main(argv=None) -> int:
     from PySide6.QtCore import QCoreApplication, QSettings
     from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
     work = Path(tempfile.mkdtemp(prefix='ecu-clips-'))
+    # Projects, packs, recovery copies and models live under the user folders:
+    # a recording must never write there.
+    home = work / 'home'
+    home.mkdir()
+    for name in ('USERPROFILE', 'HOME', 'LOCALAPPDATA', 'APPDATA'):
+        os.environ[name] = str(home)
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(work / 'settings'))
     app = QApplication.instance() or QApplication(sys.argv[:1])
@@ -199,6 +225,26 @@ def main(argv=None) -> int:
         box.close()
         return QMessageBox.StandardButton.Ok
     QMessageBox.information = staticmethod(info)
+
+    def question(parent, title, text, *a, **k):
+        rec = rec_holder.get('rec')
+        if rec is None:
+            return QMessageBox.StandardButton.Yes
+        box = QMessageBox(parent)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.show()
+        previous = rec.overlay
+        rec.overlay = box
+        rec.hold(900)
+        yes = box.button(QMessageBox.StandardButton.Yes)
+        rec.move(rec.at(yes), 450)
+        rec.click()
+        rec.overlay = previous
+        box.close()
+        return QMessageBox.StandardButton.Yes
+    QMessageBox.question = staticmethod(question)
     results = {}
 
     def finish(name, rec):
@@ -350,6 +396,179 @@ def main(argv=None) -> int:
         finally:
             QDialog.exec = original_exec
         finish('support', rec)
+        _close(win)
+
+    def shown(dialog, size):
+        dialog.resize(*size)
+        dialog.show()
+        rec_holder['rec'].overlay = dialog
+
+    def press(button, ms=500):
+        rec = rec_holder['rec']
+        rec.move(rec.at(button), ms)
+        rec.click(button.click)
+
+    if 'versions' in wanted:
+        # Stand A: the showcase with its definitions, saved as a project.
+        # Stand B: a later software version - calibration moved by 0x200 bytes,
+        # a few maps changed. No definitions in B: the dialog transfers them.
+        from ecu_studio.core.model import save_project
+        project = work / 'stand_a.ecustudio'
+        save_project(str(project), image, list(maps), [], 'Stand A (synthetisch)')
+        raw = bytearray(image.read(0, image.size))
+        first = min(m.offset for m in maps)
+        shift = 0x200
+        newer = bytearray(raw[:first - shift]) + bytearray([0xFF]) * shift + raw[first - shift:]
+        b_path = work / 'stand_b.bin'
+        b_path.write_bytes(bytes(newer))
+        stand_b = BinaryImage.from_file(str(b_path))
+        for k, m in enumerate([m for m in maps if m.rows >= 8 and m.cols >= 8][:3]):
+            moved = type(m)(**{**m.asdict(), 'offset': m.offset + shift})
+            for r in range(moved.rows // 2, moved.rows):
+                for c in range(moved.cols // 2, moved.cols):
+                    stand_b.write_physical(moved, r, c, round(stand_b.physical_value(moved, r, c) * (1.05 + .03 * k)))
+        b_path.write_bytes(stand_b.materialize())
+        win = _window(app, BinaryImage.from_file(str(b_path)), [])
+        rec = rec_holder['rec'] = Recorder(app, win)
+        original_get = QFileDialog.getOpenFileName
+        original_exec = QDialog.exec
+        QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (str(project), ''))
+
+        def play(dialog):
+            from PySide6.QtWidgets import QPushButton
+            shown(dialog, (1180, 680))
+            rec.hold(1400)
+            load = next(b for b in dialog.findChildren(QPushButton) if b.text().startswith('Stand A laden'))
+            press(load, 600)
+            rec.wait(lambda: dialog.result is None or (dialog.worker and dialog.worker.isRunning()))
+            rec.hold(1500)
+            table = dialog.table
+            # The first matched table whose values differ between the two versions.
+            row = next((r for r in range(table.rowCount())
+                        if table.item(r, 7) and not table.item(r, 7).text().startswith(('0/', '0'))), 0)
+            cell = table.visualItemRect(table.item(row, 1)).center()
+            rec.move(rec.at(table.viewport(), cell.x() / table.viewport().width(),
+                            cell.y() / table.viewport().height()), 700)
+            rec.click(lambda: table.selectRow(row))
+            rec.hold(3600)
+            dialog.close()
+            return 0
+        QDialog.exec = lambda self: play(self)
+        try:
+            rec.hold(600)
+            win.compare_software_versions()       # the clip ends inside the dialog
+        finally:
+            QFileDialog.getOpenFileName = original_get
+            QDialog.exec = original_exec
+        finish('versions', rec)
+        _close(win)
+
+    if 'mappack' in wanted:
+        # Export from a window with definitions, import into a fresh window of
+        # the same file: preview, explicit adoption, catalogue filled.
+        pack_path = work / 'showcase.ecupack.json'
+        source_win = _window(app, image, list(maps))
+        rec = rec_holder['rec'] = Recorder(app, source_win)
+        original_save = QFileDialog.getSaveFileName
+        original_get = QFileDialog.getOpenFileName
+        original_exec = QDialog.exec
+        QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (str(pack_path), ''))
+        QFileDialog.getOpenFileName = staticmethod(lambda *a, **k: (str(pack_path), ''))
+
+        def play_export(dialog):
+            from PySide6.QtWidgets import QPushButton
+            shown(dialog, (900, 560))
+            rec.hold(1600)
+            save = next(b for b in dialog.findChildren(QPushButton) if b.text().startswith('Paket speichern'))
+            press(save, 600)
+            rec.hold(300)
+            rec.overlay = None
+            dialog.close()
+            return 0
+        QDialog.exec = lambda self: play_export(self)
+        try:
+            rec.hold(600)
+            rec.click(source_win.save_map_pack)
+            rec.hold(500)
+            target_win = _window(app, BinaryImage.from_file(str(source)), [])
+            rec.base = target_win
+            rec.hold(1000)
+
+            def play_import(dialog):
+                shown(dialog, (1120, 640))
+                rec.wait(lambda: dialog.worker and dialog.worker.isRunning())
+                rec.hold(1800)
+                if dialog.adopt.isEnabled():
+                    press(dialog.adopt, 600)
+                rec.overlay = None
+                dialog.close()
+                return 0
+            QDialog.exec = lambda self: play_import(self)
+            rec.click(target_win.open_map_pack)
+            target_win.refresh_map_list()
+            rec.hold(2600)
+        finally:
+            QFileDialog.getSaveFileName = original_save
+            QFileDialog.getOpenFileName = original_get
+            QDialog.exec = original_exec
+        finish('mappack', rec)
+        _close(source_win)
+        _close(target_win)
+
+    if 'definition' in wanted:
+        win = _window(app, image, list(maps))
+        index = _select(win, big)
+        win.tabs.setCurrentWidget(win.view2d)
+        rec = rec_holder['rec'] = Recorder(app, win)
+        rect = win.map_list.visualRect(index)
+        rec.hold(700)
+        rec.move(rec.at(win.map_list.viewport(), rect.center().x() / win.map_list.viewport().width(),
+                        rect.center().y() / win.map_list.viewport().height()), 600)
+        rec.click()
+        rec.hold(400)
+        original_exec = QDialog.exec
+
+        def play(dialog):
+            shown(dialog, (1180, 700))
+            rec.hold(1000)
+            rec.move(rec.at(dialog.name, .3), 500)
+            rec.click()
+            rec.type_into(dialog.name, 'Ladedruck Sollwert')
+            rec.move(rec.at(dialog.factor, .4), 500)
+            rec.click(lambda: dialog.factor.setValue(0.001))
+            rec.hold(250)
+            rec.move(rec.at(dialog.unit, .3), 400)
+            rec.click()
+            rec.type_into(dialog.unit, 'bar')
+            press(dialog.check_button, 500)
+            rec.hold(2600)
+            press(dialog.apply_button, 600)
+            result = QDialog.result(dialog)   # the dialog names a label "result"
+            rec.overlay = None
+            dialog.close()
+            return result
+        QDialog.exec = lambda self: play(self)
+        try:
+            win.edit_definition_dialog()
+        finally:
+            QDialog.exec = original_exec
+        rec.hold(2600)
+        finish('definition', rec)
+        _close(win)
+
+    if 'xdfexport' in wanted:
+        win = _window(app, image, list(maps))
+        rec = rec_holder['rec'] = Recorder(app, win)
+        original_save = QFileDialog.getSaveFileName
+        QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (str(work / 'showcase.xdf'), ''))
+        try:
+            rec.hold(700)
+            rec.move(rec.at(win.menuBar(), .03), 600)
+            rec.click(win.export_xdf_file)
+        finally:
+            QFileDialog.getSaveFileName = original_save
+        rec.hold(600)
+        finish('xdfexport', rec)
         _close(win)
 
     if 'english' in wanted:
