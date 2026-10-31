@@ -1,5 +1,39 @@
 ## Unveröffentlicht
 
+- **Offline zuerst: automatische Update-Prüfung ab Werk aus.** Ohne eigene Einstellung baut ECU Studio AI keine
+  Netzwerkverbindung mehr von selbst auf. „Einstellungen → Automatisch nach Updates suchen“ schaltet sie ein; eine
+  bereits gespeicherte Wahl (ein oder aus) bleibt erhalten. „Jetzt nach Updates suchen“ funktioniert unverändert.
+  Die Prüfung fragt nur die GitHub-Releases-API ab und sendet keine Dateien.
+
+- **Lokale Referenzsuche beim Öffnen einer BIN:** Projekte und Kennfeldpakete werden jetzt auch über gleiche
+  Hardware- und Softwarenummern gefunden (eigene indizierte Tabelle; ältere Einträge werden beim Öffnen aus den
+  gespeicherten Metadaten ergänzt, ohne eine BIN zu lesen). Jeder Vorschlag zeigt Stufe und Grund: „nachgewiesen“
+  nur bei identischer Datei (SHA-256), „wahrscheinlich“ bei gleicher Softwarenummer (mit oder ohne Hardware),
+  „mehrdeutig“ bei nur gleicher Hardwarenummer oder Familie. Bisher zählten nur gleicher Hash und gleiche Familie,
+  auf 50 Einträge begrenzt, sodass ein Projekt mit gleicher Softwarenummer fehlen konnte. „Bestehende Projekte
+  indexieren …“ schreibt in wenigen Transaktionen statt einer je Projekt, zeigt Fortschritt, lässt sich abbrechen
+  und meldet Fehler gesammelt. Synthetischer Benchmark mit 20 000 Projekten und 2 000 Paketen
+  (`python -m ecu_studio.tools.library_benchmark`): Datenbankanteil je indiziertem Projekt 17,4 → 0,27 ms,
+  Vorschläge beim Öffnen 25,5 → 28,2 ms, einmalige Ergänzung beim ersten Öffnen 0,3 s.
+
+- **Definition bearbeiten und XDF-Export, Fehlerbehebungen:** Eine strukturelle Änderung (Adresse, Größe,
+  Datentyp, Byte-Reihenfolge, Faktor/Offset, Achsenadresse oder -werte) setzt den Prüfstatus einer geprüften
+  Definition jetzt zurück; nur ein ausdrücklicher Klick auf „Fachlich geprüft“ bestätigt ihn erneut. Vorher blieb
+  er mit einer Warnung bestehen. Eine gespeicherte Achsenadresse lässt sich im Dialog durch Leeren des Feldes
+  entfernen (vorher blieb sie erhalten). Der XDF-Export schreibt in eine temporäre Datei, prüft sie per Rückimport
+  und ersetzt das Ziel erst danach in einem Schritt; bei Abweichung oder Schreibfehler bleibt eine vorhandene Datei
+  unverändert. Die Rückimport-Prüfung verglich bisher falsche Paare, sobald eine ungültige Definition im Katalog
+  stand, und meldete dann fälschlich „Datei nicht verwenden“. Der Bericht sagt jetzt ausdrücklich, dass der
+  Rückimport mit dem eigenen Import erfolgt und kein Test in TunerPro ist.
+
+- **Firmware-Schutz für das Repository:** Pre-Commit- und Pre-Push-Hooks (`.githooks/`, aktivieren mit
+  `python src\ecu_studio\tools\firmware_guard.py install`) blockieren Firmware-, Dump-, Definitions-, Archiv- und
+  Datenbankdateien, umbenannte Binärdateien, eingebettete Hex-/Base64-/Intel-HEX-Daten, Dateien über 1 MiB, private
+  Datenordner und den konfigurierten lokalen Datenordner. Geprüft wird der Index (auch bei selektivem Staging) bzw.
+  jeder ausgehende Commit samt Commit-Nachricht und dem ganzen gepushten Baum. Öffentliche Ausnahmen (synthetische
+  Beispiele, mitgelieferte GPL-XDFs) gelten nur für Pfad + SHA-256. CI prüft den Baum erneut. Die bisherige Historie
+  wurde vollständig geprüft: keine Firmware ([Beschreibung und Restrisiken](docs/FIRMWARE_PROTECTION.md)).
+
 - **Dokumentation und App-Daten aktualisiert:** „Hilfe → Unterstützte Steuergeräte“ führt MSD80 jetzt als TriCore
   (vorher PowerPC), MSD85 als ungeprüft und Delco Multec S als nicht validiert; Messwerte unverändert. PROGRESS.md mit
   den TriCore-Stufen, Roadmap-Grafik auf 1.17.0, Modellkarte mit den heutigen Trefferquoten je Beweisart und dem

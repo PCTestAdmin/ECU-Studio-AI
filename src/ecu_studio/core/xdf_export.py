@@ -20,15 +20,31 @@ project does not accept TunerPro's float flag, so the result could not be
 verified) and definitions that do not validate against the image.
 ``verify_roundtrip`` reads the written file with the project's own XDF importer
 and compares every exported field.
+
+The file is written to a temporary file next to the target, read back and
+compared there, and only then moved over the target in one step. A failed
+export or a read-back difference raises ``XdfExportError`` and leaves an
+existing target file untouched. The read-back uses this project's importer, not
+TunerPro itself.
 """
 from __future__ import annotations
 import math
+import os
+import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from .model import BinaryImage, MapDefinition
 
 FLAG_SIGNED, FLAG_LITTLE, FLAG_COLUMN_MAJOR = 0x01, 0x02, 0x04
+
+
+class XdfExportError(ValueError):
+    """Export not written: the read-back differs (``problems``) or writing failed."""
+
+    def __init__(self, message: str, problems: list[str] | None = None):
+        super().__init__(message)
+        self.problems = problems or []
 
 
 @dataclass
@@ -101,8 +117,24 @@ def _axis(table, axis_id: str, count: int, values: list[float], unit: str):
     _math(axis, 'X')
 
 
-def export_xdf(path: str | Path, image: BinaryImage, maps: list[MapDefinition], *, title: str = '') -> ExportReport:
-    """Write ``maps`` as an XDF for ``image``; returns what was exported and what not (with reasons)."""
+def skip_reason(m: MapDefinition, image: BinaryImage) -> str | None:
+    """Why ``m`` is not exported (None = exported). Shared by the export and its read-back check."""
+    if m.dtype == 'f32':
+        return '32-Bit-Gleitkomma wird nicht exportiert (Rückimport nicht prüfbar)'
+    try:
+        m.validate(image.size)
+    except ValueError as exc:
+        return f'Definition ungültig: {exc}'
+    return None
+
+
+def export_xdf(path: str | Path, image: BinaryImage, maps: list[MapDefinition], *, title: str = '',
+               verify: bool = True) -> ExportReport:
+    """Write ``maps`` as an XDF for ``image``; returns what was exported and what not (with reasons).
+
+    Atomic: the target is replaced only after the complete file was written and (``verify``) read back
+    without differences; otherwise ``XdfExportError`` is raised and an existing target stays as it was.
+    """
     report = ExportReport(path=str(path))
     root = ET.Element('XDFFORMAT', version='1.70')
     header = ET.SubElement(root, 'XDFHEADER')
@@ -121,13 +153,9 @@ def export_xdf(path: str | Path, image: BinaryImage, maps: list[MapDefinition], 
     category = {name: i for i, name in enumerate(folders)}
     uid = 0x1000
     for m in maps:
-        if m.dtype == 'f32':
-            report.skipped.append((m.name, '32-Bit-Gleitkomma wird nicht exportiert (Rückimport nicht prüfbar)'))
-            continue
-        try:
-            m.validate(image.size)
-        except ValueError as exc:
-            report.skipped.append((m.name, f'Definition ungültig: {exc}'))
+        reason = skip_reason(m, image)
+        if reason:
+            report.skipped.append((m.name, reason))
             continue
         table = m.rows * m.cols > 1
         entry = ET.SubElement(root, 'XDFTABLE' if table else 'XDFCONSTANT', uniqueid=f'0x{uid:X}', flags='0x0')
@@ -159,9 +187,35 @@ def export_xdf(path: str | Path, image: BinaryImage, maps: list[MapDefinition], 
                             'aber keiner späteren Änderung der Achsenbytes.')
     if any(not m.verified for m in maps):
         report.notes.append('Ungeprüfte Definitionen bleiben ungeprüft – der Export bestätigt nichts fachlich.')
+    if verify:
+        report.notes.append('Rückimport mit dem XDF-Import von ECU Studio AI geprüft; ein Test in TunerPro selbst '
+                            'ist das nicht.')
     ET.indent(root)
-    Path(path).write_bytes(b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding='utf-8'))
+    _write_checked(Path(path), b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding='utf-8'),
+                   image, maps if verify else None)
     return report
+
+
+def _write_checked(target: Path, payload: bytes, image: BinaryImage, maps: list[MapDefinition] | None):
+    """Temporary file in the target folder -> fsync -> optional read-back -> atomic replace."""
+    handle, temp = tempfile.mkstemp(prefix=f'.{target.stem}.', suffix='.xdf.tmp', dir=target.parent)
+    try:
+        with os.fdopen(handle, 'wb') as fp:
+            fp.write(payload)
+            fp.flush()
+            os.fsync(fp.fileno())
+        if maps is not None:
+            problems = verify_roundtrip(temp, image, maps)
+            if problems:
+                raise XdfExportError('Rückimport weicht ab – Datei nicht geschrieben:\n' + '\n'.join(problems[:12]),
+                                     problems)
+        os.replace(temp, target)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 COMPARED = ('offset', 'rows', 'cols', 'dtype', 'endian', 'unit', 'storage_order', 'major_stride_bits',
@@ -172,7 +226,7 @@ def verify_roundtrip(path: str | Path, image: BinaryImage, maps: list[MapDefinit
     """Differences between ``maps`` and the file read back by the project's XDF importer (empty = identical)."""
     from .xdf import read_xdf
     back = read_xdf(str(path), image)
-    expected = [m for m in maps if m.dtype != 'f32']
+    expected = [m for m in maps if skip_reason(m, image) is None]
     problems = []
     if len(back.maps) != len(expected):
         problems.append(f'{len(expected)} exportiert, {len(back.maps)} wieder eingelesen')

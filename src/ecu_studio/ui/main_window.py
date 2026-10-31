@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QFormLayout, QComboBox, QSpinBox, QApplication,
     QDoubleSpinBox, QPlainTextEdit, QInputDialog, QAbstractItemView, QGroupBox,
     QHeaderView, QMenu, QStatusBar, QDialog, QDialogButtonBox, QTextEdit, QCheckBox, QTableWidget, QTableWidgetItem,
-    QDockWidget, QToolBar, QStyle, QScrollArea, QFrame, QTreeWidget, QTreeWidgetItem, QProgressBar, QListView
+    QDockWidget, QToolBar, QStyle, QScrollArea, QFrame, QTreeWidget, QTreeWidgetItem, QProgressBar, QListView,
+    QProgressDialog
 )
 from .theme import stylesheet, palette
 from .. import __version__
@@ -2282,11 +2283,20 @@ class Window(QMainWindow):
         if not self.require_image():return
         dialog = QDialog(self); dialog.setWindowTitle('Lokale Projekte und Kennfeldpakete')
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel('Gleicher Hash = gleicher Originalstand. Gleiche Familie = nur ein Vergleichsvorschlag.'))
+        note = QLabel('Nur eine identische Datei (SHA-256) ist ein Nachweis. Gleiche Hardware-/Softwarenummer oder '
+                      'Familie sind Vorschläge zum Vergleichen. Übernommen wird nichts ohne Vorschau und Bestätigung.')
+        note.setWordWrap(True); layout.addWidget(note)
         choices = QComboBox()
         for row in self.local_suggestions:
-            choices.addItem(f'{row["kind"]} · {row["relation"]} · {Path(row["path"]).name}', row)
-        layout.addWidget(choices)
+            kind = 'Kennfeldpaket' if row['kind'] == 'pack' else 'Projekt'
+            name = Path(row['path']).name
+            choices.addItem(f'{row["level"]} · {kind} · {name}', row)
+            choices.setItemData(choices.count() - 1, row['evidence'], Qt.ItemDataRole.ToolTipRole)
+        evidence = QLabel(); evidence.setWordWrap(True)
+        choices.currentIndexChanged.connect(
+            lambda *_: evidence.setText(choices.currentData()['evidence'] if choices.currentData() else ''))
+        layout.addWidget(choices); layout.addWidget(evidence)
+        evidence.setText(choices.currentData()['evidence'] if choices.currentData() else '')
         def open_selected():
             row = choices.currentData()
             if not row:return
@@ -3498,11 +3508,19 @@ class Window(QMainWindow):
             search()
         def index_existing():
             paths,_=QFileDialog.getOpenFileNames(dialog,'Projekte indexieren','','ECU Studio (*.ecustudio)')
-            for path in paths:
-                try:
-                    self.project_store.index(path)
-                except Exception as exc:
-                    self.warning('Indexierung fehlgeschlagen',exc)
+            if not paths:return
+            # Batch indexing with progress and cancel; failures are listed once at the end.
+            progress=QProgressDialog('Projekte werden indexiert …','Abbrechen',0,len(paths),dialog)
+            progress.setWindowModality(Qt.WindowModality.WindowModal);progress.setMinimumDuration(400)
+            def step(done,total):
+                progress.setValue(done);QApplication.processEvents()
+            result=self.project_store.index_many(paths,progress=step,cancelled=progress.wasCanceled)
+            progress.setValue(len(paths))
+            if result.errors:
+                lines='\n'.join(f'{Path(p).name}: {reason}' for p,reason in result.errors[:20])
+                self.warning('Indexierung teilweise fehlgeschlagen',f'{len(result.errors)} Datei(en) nicht indexiert:\n{lines}')
+            if result.cancelled:
+                self.statusBar().showMessage(f'Indexierung abgebrochen – {result.indexed} Projekt(e) indexiert',6000)
             search()
         def open_selected():
             i=view.currentIndex()

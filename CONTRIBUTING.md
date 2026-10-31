@@ -6,7 +6,9 @@ Danke für dein Interesse! Hier steht, wie Beiträge am besten ankommen.
 
 1. **Keine Original-Firmware hochladen.** BIN-, ORI- oder OLS-Dateien von Herstellern sind urheberrechtlich
    geschützt – weder in Issues noch in Pull Requests. Teile stattdessen Prüfsumme (SHA-256), Größe,
-   Steuergeräte-/Softwarekennung und Messergebnisse.
+   Steuergeräte-/Softwarekennung und Messergebnisse. Firmware und private Definitionen gehören in einen Ordner
+   **außerhalb** des Repositorys; der Firmware-Schutz prüft jeden Commit und Push
+   ([docs/FIRMWARE_PROTECTION.md](docs/FIRMWARE_PROTECTION.md)).
 2. **Messen statt behaupten.** Änderungen an der Erkennung brauchen eine Vorher/Nachher-Messung mit
    `python -m ecu_studio.tools.benchmark_suite MANIFEST.json --baseline ALT.json` auf mindestens einem
    Referenzpaar (Manifest und Rollen: [docs/REFERENCE_VALIDATION.md](docs/REFERENCE_VALIDATION.md));
@@ -22,8 +24,12 @@ Danke für dein Interesse! Hier steht, wie Beiträge am besten ankommen.
 py -m venv .venv
 .venv\Scripts\activate
 pip install -e .[dev,train]
+python src\ecu_studio\tools\firmware_guard.py install
 python -m pytest -q
 ```
+
+`firmware_guard.py install` aktiviert die Git-Hooks in `.githooks/`: Pre-Commit prüft den Index, Pre-Push alle
+ausgehenden Commits. Vor jedem Push zusätzlich `git log --stat origin/main..HEAD` und den Diff lesen.
 
 ## Pull Requests
 

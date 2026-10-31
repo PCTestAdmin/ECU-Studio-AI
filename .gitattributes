@@ -6,3 +6,6 @@
 # Pinned by Git blob hash (manifest.json, calibration_corpus.json): must stay
 # byte-identical, so never convert line endings here.
 src/ecu_studio/recognition/data/** -text
+# Git hooks are shell scripts: keep LF everywhere, also on Windows checkouts
+.githooks/* text eol=lf
+.firmware-guard.json text eol=lf

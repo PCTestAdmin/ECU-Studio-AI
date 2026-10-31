@@ -16,6 +16,9 @@ from .model import FORMATS, BinaryImage, MapDefinition, map_from_record
 # Fields the guided editor may change. Everything else is carried over unchanged.
 EDITABLE = ('name', 'notes', 'offset', 'rows', 'cols', 'dtype', 'endian', 'factor', 'bias', 'unit',
             'axis_x_offset', 'axis_y_offset', 'axis_x_unit', 'axis_y_unit', 'verified')
+# Changes that make an earlier review meaningless (where and how values and axes are read and scaled).
+STRUCTURAL = ('offset', 'rows', 'cols', 'dtype', 'endian', 'factor', 'bias', 'axis_x_offset', 'axis_y_offset',
+              'axes_x', 'axes_y')
 
 
 @dataclass
@@ -58,8 +61,14 @@ def read_axis(image: BinaryImage, spec: AxisSpec, count: int) -> list[float]:
 
 
 def propose(image: BinaryImage, current: MapDefinition, fields: dict, *,
-            axis_x: AxisSpec | None = None, axis_y: AxisSpec | None = None) -> EditProposal:
-    """Validated proposal; raises ValueError with a user-readable reason when invalid."""
+            axis_x: AxisSpec | None = None, axis_y: AxisSpec | None = None,
+            reconfirmed: bool = False) -> EditProposal:
+    """Validated proposal; raises ValueError with a user-readable reason when invalid.
+
+    ``axis_x``/``axis_y``: None keeps the axis as it is; ``AxisSpec(None)`` removes the stored axis address and
+    its values. A structural change of a verified definition resets ``verified`` unless the user explicitly
+    confirmed the review again for this edit (``reconfirmed``).
+    """
     unknown = set(fields) - set(EDITABLE)
     if unknown:
         raise ValueError('Nicht bearbeitbare Felder: ' + ', '.join(sorted(unknown)))
@@ -78,6 +87,8 @@ def propose(image: BinaryImage, current: MapDefinition, fields: dict, *,
         values = getattr(proposed, f'axes_{which}')
         if spec is not None:
             values = read_axis(image, spec, count)
+            if spec.offset is None and getattr(current, f'axis_{which}_offset') is not None:
+                warnings.append(f'{which.upper()}-Achsenadresse entfernt – die daraus gelesenen Werte ebenfalls.')
             setattr(proposed, f'axis_{which}_offset', spec.offset)
             if spec.offset is not None and len(set(values)) == len(values) and values != sorted(values) \
                     and values != sorted(values, reverse=True):
@@ -95,10 +106,16 @@ def propose(image: BinaryImage, current: MapDefinition, fields: dict, *,
             raise ValueError(f'{which.upper()}-Achse hat {len(values)} Werte, das Kennfeld {count}')
     if proposed.verified and not current.verified:
         warnings.append('Wird als geprüft markiert – nur nach fachlicher Prüfung bestätigen.')
-    if (proposed.offset, proposed.dtype, proposed.endian, proposed.rows, proposed.cols) != \
-            (current.offset, current.dtype, current.endian, current.rows, current.cols) and current.verified \
-            and proposed.verified:
-        warnings.append('Geometrie einer geprüften Definition geändert – Prüfung erneut bestätigen.')
+    structural = [key for key in STRUCTURAL if getattr(proposed, key) != getattr(current, key)]
+    if structural and current.verified and proposed.verified:
+        if reconfirmed:
+            warnings.append('Struktur einer geprüften Definition geändert – Prüfung ausdrücklich erneut bestätigt.')
+        else:
+            # The review covered the old address/type/scaling/axes; it does not carry over to new ones.
+            proposed.verified = False
+            fields_text = ', '.join(structural)
+            warnings.append(f'Struktur geändert ({fields_text}) – Prüfstatus zurückgesetzt. '
+                            'Nach erneuter Prüfung den Prüfstatus ausdrücklich wieder setzen.')
     return EditProposal(current, proposed, warnings)
 
 

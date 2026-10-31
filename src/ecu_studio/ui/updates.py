@@ -98,7 +98,8 @@ class UpdateController:
 
     # -- settings -------------------------------------------------------------------------
     def auto_enabled(self) -> bool:
-        return str(self.settings.value(KEY_AUTO, 'true')).lower() in ('true', '1')
+        # Offline first: off unless the user switched it on. A stored choice (on or off) is kept as it is.
+        return str(self.settings.value(KEY_AUTO, 'false')).lower() in ('true', '1')
 
     def set_auto(self, enabled: bool):
         self.settings.setValue(KEY_AUTO, 'true' if enabled else 'false')

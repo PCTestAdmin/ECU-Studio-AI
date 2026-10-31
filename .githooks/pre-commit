@@ -1,0 +1,12 @@
+#!/bin/sh
+# Firmware guard: blocks commits that would contain ECU firmware or private reference data.
+# Checks the index (exactly what will be committed), including selectively staged content.
+root=$(git rev-parse --show-toplevel) || exit 1
+guard="$root/src/ecu_studio/tools/firmware_guard.py"
+for py in "$ECU_STUDIO_GUARD_PYTHON" "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python" python py python3; do
+    if [ -n "$py" ] && command -v "$py" >/dev/null 2>&1 && "$py" -c "import sys" >/dev/null 2>&1; then
+        exec "$py" -I "$guard" staged
+    fi
+done
+echo "firmware guard: no working Python found - commit blocked" >&2
+exit 1

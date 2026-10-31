@@ -7,10 +7,17 @@ Compatibility: the ``projects`` table and ``user_version`` 1 are unchanged, so
 older versions keep opening and writing the same database. Newer metadata lives
 in additional tables (``project_meta``, ``annotations``); rows indexed by an
 older version simply have no metadata until they are indexed again.
+
+Hardware and software numbers are also kept one per row in ``identifiers``
+(indexed), so opening a BIN finds projects and map packs with the same numbers
+without scanning text. Rows written before that table existed are filled from
+the stored metadata when the index is opened; no BIN is read for that.
 """
 from __future__ import annotations
 import bisect
+import json
 import sqlite3
+from dataclasses import dataclass, field
 from pathlib import Path
 from contextlib import contextmanager
 from .model import load_project, read_project_snapshots
@@ -18,6 +25,33 @@ from .model import load_project, read_project_snapshots
 META = ('family', 'hardware', 'software', 'definition_sources', 'app_version', 'created',
         'verified', 'unverified', 'changed_maps', 'versions')
 DETECTED_SOURCES = ('heuristic', 'reference-shape', 'transfer-proposed', 'ml-proposed', 'tcu-pair-heuristic')
+# How a local project or map pack relates to an opened BIN, strongest first. Only "exact" is proof.
+RELATIONS = {
+    'exact': ('nachgewiesen', 'Identische Datei (SHA-256)'),
+    'software+hardware': ('wahrscheinlich', 'Gleiche Hardware- und Softwarenummer – Kalibrierung kann trotzdem '
+                                            'abweichen (z. B. geänderte Datei)'),
+    'software': ('wahrscheinlich', 'Gleiche Softwarenummer – Hardware nicht bestätigt'),
+    'hardware': ('mehrdeutig', 'Nur gleiche Hardwarenummer – anderer Softwarestand möglich'),
+    'related': ('mehrdeutig', 'Nur gleiche Steuergerätefamilie – nur zum Vergleich'),
+}
+RANK = {name: i for i, name in enumerate(RELATIONS)}
+MATCH_LIMIT = 200     # rows per hardware/software number
+FAMILY_LIMIT = 50     # rows per family-only lookup (weakest relation, as before)
+BATCH = 200           # projects per transaction in index_many
+
+
+def _ids(values) -> list[str]:
+    """Normalised identifier list from a list or a comma-separated text."""
+    if isinstance(values, str):
+        values = values.split(',')
+    return sorted({str(v).strip().upper() for v in values if str(v).strip()})
+
+
+@dataclass
+class IndexResult:
+    indexed: int = 0
+    errors: list[tuple[str, str]] = field(default_factory=list)     # (path, reason)
+    cancelled: bool = False
 
 
 class ProjectStore:
@@ -47,6 +81,31 @@ class ProjectStore:
             c.execute('CREATE TABLE IF NOT EXISTS map_packs(path TEXT PRIMARY KEY, source_sha256 TEXT NOT NULL, '
                       'family TEXT NOT NULL, hardware TEXT NOT NULL, software TEXT NOT NULL, maps INTEGER NOT NULL)')
             c.execute('CREATE INDEX IF NOT EXISTS pack_hash ON map_packs(source_sha256)')
+            c.execute('CREATE INDEX IF NOT EXISTS pack_family ON map_packs(family)')
+            c.execute('CREATE TABLE IF NOT EXISTS identifiers(path TEXT NOT NULL, kind TEXT NOT NULL, '
+                      'value TEXT NOT NULL, PRIMARY KEY(path, kind, value))')
+            c.execute('CREATE INDEX IF NOT EXISTS identifier_value ON identifiers(kind, value)')
+            self._backfill(c)
+
+    def _backfill(self, c):
+        """Identifiers for rows indexed before the table existed (or by an older version), from stored metadata."""
+        for path, hardware, software in c.execute(
+                "SELECT path, hardware, software FROM project_meta WHERE (hardware!='' OR software!='') "
+                "AND path NOT IN (SELECT path FROM identifiers)").fetchall():
+            self._write_ids(c, path, hardware, software)
+        for path, hardware, software in c.execute(
+                'SELECT path, hardware, software FROM map_packs WHERE path NOT IN (SELECT path FROM identifiers)'
+                ).fetchall():
+            try:
+                self._write_ids(c, path, json.loads(hardware), json.loads(software))
+            except (TypeError, ValueError):
+                continue
+
+    @staticmethod
+    def _write_ids(c, path, hardware, software):
+        c.execute('DELETE FROM identifiers WHERE path=?', (path,))
+        c.executemany('INSERT OR IGNORE INTO identifiers VALUES(?,?,?)',
+                      [(path, 'hw', v) for v in _ids(hardware)] + [(path, 'sw', v) for v in _ids(software)])
 
     @contextmanager
     def connect(self):
@@ -61,6 +120,40 @@ class ProjectStore:
             c.close()
 
     def index(self,path):
+        self._upsert(*self._record(path))
+
+    def index_many(self, paths, progress=None, cancelled=None) -> IndexResult:
+        """Index many project files: few transactions instead of one per file, per-file errors collected.
+
+        ``progress(done, total)`` is called after each file; ``cancelled()`` returning True stops before the
+        next file (everything indexed so far is kept).
+        """
+        paths, result, pending = list(paths), IndexResult(), []
+
+        def flush():
+            if pending:
+                with self.connect() as c:
+                    for row, meta in pending:
+                        self._upsert(row, meta, c)
+                result.indexed += len(pending)
+                pending.clear()
+        for done, path in enumerate(paths, 1):
+            if cancelled is not None and cancelled():
+                result.cancelled = True
+                break
+            try:
+                pending.append(self._record(path))
+            except Exception as exc:
+                result.errors.append((str(path), str(exc)))
+            if len(pending) >= BATCH:
+                flush()
+            if progress is not None:
+                progress(done, len(paths))
+        flush()
+        return result
+
+    def _record(self, path):
+        """(projects row, metadata) of one project file; the expensive part of indexing (loads the project)."""
         from ecu_studio import __version__
         from .identification import identify
         p=Path(path).resolve()
@@ -79,18 +172,21 @@ class ProjectStore:
               'definition_sources':', '.join(sorted({m.source for m in maps if m.source not in DETECTED_SOURCES})),
               'app_version':__version__,'created':modified,'verified':verified,'unverified':len(maps)-verified,
               'changed_maps':changed,'versions':versions}
-        self._upsert((str(p),p.stem,image.digest,image.size,len(maps),notes,search,modified),meta)
+        return (str(p),p.stem,image.digest,image.size,len(maps),notes,search,modified),meta
 
-    def _upsert(self,row:tuple,meta:dict):
+    def _upsert(self,row:tuple,meta:dict,c=None):
         """One project row (the layout older versions write) plus its metadata; ``created`` keeps its first value."""
+        if c is None:
+            with self.connect() as c:
+                return self._upsert(row,meta,c)
         updates=', '.join(f'{k}=excluded.{k}' for k in META if k!='created')
-        with self.connect() as c:
-            c.execute('INSERT INTO projects VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET '
-                      'name=excluded.name, original_sha256=excluded.original_sha256, bytes=excluded.bytes, '
-                      'maps=excluded.maps, notes=excluded.notes, search_text=excluded.search_text, modified=excluded.modified',
-                      row)
-            c.execute(f'INSERT INTO project_meta(path,{",".join(META)}) VALUES({",".join("?"*(len(META)+1))}) '
-                      f'ON CONFLICT(path) DO UPDATE SET {updates}',(row[0],*(meta[k] for k in META)))
+        c.execute('INSERT INTO projects VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET '
+                  'name=excluded.name, original_sha256=excluded.original_sha256, bytes=excluded.bytes, '
+                  'maps=excluded.maps, notes=excluded.notes, search_text=excluded.search_text, modified=excluded.modified',
+                  row)
+        c.execute(f'INSERT INTO project_meta(path,{",".join(META)}) VALUES({",".join("?"*(len(META)+1))}) '
+                  f'ON CONFLICT(path) DO UPDATE SET {updates}',(row[0],*(meta[k] for k in META)))
+        self._write_ids(c,row[0],meta['hardware'],meta['software'])
 
     def annotate(self,path,tags:list[str],comment:str=''):
         clean=sorted({t.strip() for t in tags if t.strip()})
@@ -113,25 +209,71 @@ class ProjectStore:
             c.execute('INSERT OR REPLACE INTO map_packs VALUES(?,?,?,?,?,?)',
                       (str(Path(path).resolve()), pack.sha256, ident['family'], json.dumps(ident['hardware']),
                        json.dumps(ident['software']), len(pack.document['maps'])))
+            self._write_ids(c, str(Path(path).resolve()), ident['hardware'], ident['software'])
 
     def suggestions(self, image):
-        """Local index lookup only; suggestions never load or apply definitions."""
+        """Local projects and map packs related to ``image``, strongest relation first (index lookup only).
+
+        Never loads or applies a definition. Each row carries ``relation`` (see RELATIONS), ``level``
+        (nachgewiesen / wahrscheinlich / mehrdeutig) and a readable ``evidence``. Only an identical SHA-256 is
+        proof; equal hardware/software numbers do not exclude a modified or differently calibrated file.
+        """
         from .identification import identify
         ident = identify(image)
-        out = []
+        hardware, software = set(_ids(ident.hardware)), set(_ids(ident.software))
+        family = ident.family or ''
+        rows = {}
         with self.connect() as c:
             c.row_factory = sqlite3.Row
-            for r in c.execute('SELECT path,source_sha256,family,hardware,software,maps FROM map_packs '
-                               'WHERE source_sha256=? OR (family=? AND family!=\'\') LIMIT 50',
-                               (image.digest, ident.family or '')):
-                exact = r['source_sha256'] == image.digest
-                out.append(dict(r, kind='pack', relation='exact' if exact else 'related'))
-            for r in c.execute('SELECT p.path,p.original_sha256 AS source_sha256,COALESCE(m.family,\'\') AS family,p.maps '
-                               'FROM projects p LEFT JOIN project_meta m ON m.path=p.path '
-                               'WHERE p.original_sha256=? OR (m.family=? AND m.family!=\'\') LIMIT 50',
-                               (image.digest, ident.family or '')):
-                out.append(dict(r, kind='project', relation='exact' if r['source_sha256'] == image.digest else 'related'))
-        return sorted(out, key=lambda r: (r['relation'] != 'exact', r['kind'], r['path']))
+            pack_sql = 'SELECT path,source_sha256,family,hardware,software,maps FROM map_packs WHERE '
+            project_sql = ("SELECT p.path,p.original_sha256 AS source_sha256,COALESCE(m.family,'') AS family,"
+                           "COALESCE(m.hardware,'') AS hardware,COALESCE(m.software,'') AS software,p.maps "
+                           'FROM projects p LEFT JOIN project_meta m ON m.path=p.path WHERE ')
+            queries = [(pack_sql + 'source_sha256=?', (image.digest,)),
+                       (project_sql + 'p.original_sha256=?', (image.digest,))]
+            ids = [('hw', v) for v in hardware] + [('sw', v) for v in software]
+            if ids:
+                found = {r[0] for kind, value in ids for r in c.execute(
+                    'SELECT path FROM identifiers WHERE kind=? AND value=? LIMIT ?', (kind, value, MATCH_LIMIT))}
+                found = sorted(found)
+                for i in range(0, len(found), 500):
+                    chunk = found[i:i + 500]
+                    marks = ','.join('?' * len(chunk))
+                    queries += [(pack_sql + f'path IN ({marks})', chunk), (project_sql + f'p.path IN ({marks})', chunk)]
+            if family:
+                queries += [(pack_sql + 'family=? LIMIT ?', (family, FAMILY_LIMIT)),
+                            (project_sql + 'm.family=? LIMIT ?', (family, FAMILY_LIMIT))]
+            for sql, args in queries:
+                kind = 'pack' if sql.startswith(pack_sql) else 'project'
+                for r in c.execute(sql, args):
+                    row = dict(r, kind=kind)
+                    if kind == 'pack':
+                        try:
+                            own_hw, own_sw = set(_ids(json.loads(row['hardware']))), set(_ids(json.loads(row['software'])))
+                        except (TypeError, ValueError):
+                            own_hw, own_sw = set(), set()
+                    else:
+                        own_hw, own_sw = set(_ids(row['hardware'])), set(_ids(row['software']))
+                    # Relation from the row's current metadata (an older version may have re-indexed it).
+                    if row['source_sha256'] == image.digest:
+                        relation = 'exact'
+                    elif software & own_sw:
+                        relation = 'software+hardware' if hardware & own_hw else 'software'
+                    elif hardware & own_hw:
+                        relation = 'hardware'
+                    elif family and row['family'] == family:
+                        relation = 'related'
+                    else:
+                        continue
+                    shared = sorted((software & own_sw) | (hardware & own_hw))
+                    level, evidence = RELATIONS[relation]
+                    row.update(relation=relation, level=level,
+                               evidence=evidence + (f' ({", ".join(shared)})' if shared else
+                                                    f' ({family})' if relation == 'related' else ''))
+                    key = (kind, row['path'])
+                    if key not in rows or RANK[relation] < RANK[rows[key]['relation']]:
+                        rows[key] = row
+        return sorted(rows.values(), key=lambda r: (RANK[r['relation']], r['kind'], r['path']))
 
     def search(self,query='',limit=500,*,family='',tag=''):
         if not 1<=limit<=5000:
