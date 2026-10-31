@@ -31,7 +31,7 @@ geschätzt. Für jeden Meilenstein wurde der **damalige Erkennungscode** aus der
 | **M9** | nach 1.17.0 · `0096eeb` | Achszeiger aus Stackslots, getrennte Achsensuche (Prelookup) |
 | **M10** | nach 1.17.0 · `86f6efb` | Zellbreite und Vorzeichen aus den Ladebefehlen der Routine, benannte Nachbarn als Grenze |
 
-## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → 1.16.0
+## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → 1.16.0 und heute
 
 ```mermaid
 xychart-beta
@@ -43,16 +43,25 @@ xychart-beta
     bar [12, 26, 23, 36, 9, 1]
 ```
 
-<sub>Überlagerte Balken, von hinten nach vorn: 1.16.0 · 1.15.0 · 1.14 (alte Raster-Erkennung).</sub>
+<sub>Überlagerte Balken, von hinten nach vorn: 1.16.0 · 1.15.0 · 1.14 (alte Raster-Erkennung). 1.16.0 ist die letzte
+Messung dieser Referenzen; was heute gilt, steht in der letzten Spalte der Tabelle.</sub>
 
-| Steuergerät | 1.14 | 1.15.0 | 1.16.0 | Faktor zu 1.14 |
-|---|---:|---:|---:|---:|
-| Bosch EDC17CP09 | 12 | 157 | **463** | ×39 |
-| Siemens MSD85 · *Test* | 26 | 148 | **279** | ×11 |
-| Siemens MSD80 · *Test* | 23 | 133 | **217** | ×9 |
-| Bosch EDC16C31 | 36 | 123 | **272** | ×8 |
-| BMW ME9.2.1 | 9 | 109 | **170** | ×19 |
-| Siemens MS43 | 1 | 197 | **197** | ×197 |
+| Steuergerät | 1.14 | 1.15.0 | 1.16.0 | Faktor zu 1.14 | heute (1.17.0 und nächstes Update) |
+|---|---:|---:|---:|---:|---|
+| Bosch EDC17CP09 | 12 | 157 | **463** | ×39 | nicht neu gemessen ¹ |
+| Siemens MSD85 · *Test* | 26 | 148 | **279** | ×11 | nicht neu gemessen ² |
+| Siemens MSD80 · *Test* | 23 | 133 | **217** | ×9 | nicht neu gemessen ²; Vollflash siehe [unten](#msd80-vollflash-teil-referenz-entwicklungsdaten) |
+| Bosch EDC16C31 | 36 | 123 | **272** | ×8 | nicht neu gemessen ³ |
+| BMW ME9.2.1 | 9 | 109 | **170** | ×19 | nicht neu gemessen ³ |
+| Siemens MS43 | 1 | 197 | **197** | ×197 | **197** (neu gemessen 31.10.2026) |
+
+<sub>Seit 1.16.0 hat sich an der Erkennung nur geändert: Achsadressen für gemeinsame Achsen, das Abweisen ungültiger
+Achszeiger, ein Cache mit nachweislich identischen Ergebnissen und die TriCore-Stufen M8–M10. Die Referenzpaare dieser
+Tabelle lagen für einen neuen Lauf nicht vor.
+¹ TriCore: Die neue Stufe könnte hier wirken; beim verwandten Bosch EDC17C69 fand sie keine Aufrufe (0 Deskriptoren).
+² Die Teststände sind reine Kalibrierbereiche ohne Programmcode; die TriCore-Stufe kann dort nicht greifen.
+³ PowerPC: Die TriCore-Stufe ist für diesen Code nicht gedacht; ihre Vorabprüfung wurde an PowerPC-Images aber nicht
+gemessen.</sub>
 
 ## Vollständige Hersteller-Referenz (A2L) – Präzision belastbar
 
