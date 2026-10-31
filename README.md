@@ -4,26 +4,33 @@
 
 <br>
 
-[![Version](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?cacheSeconds=3600&label=Downloads&color=2f81f7)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
-[![Tests](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml/badge.svg)](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml)
-[![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-2f81f7)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#installation)
+[![Version](https://img.shields.io/github/v/release/PCTestAdmin/ECU-Studio-AI?label=Version&sort=semver&style=flat-square&color=2f81f7&logo=github&logoColor=white)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/PCTestAdmin/ECU-Studio-AI/total?cacheSeconds=3600&label=Downloads&style=flat-square&color=2f81f7&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik03IDFoMnY3LjZsMi4zLTIuMyAxLjQgMS40TDggMTIuNCAzLjMgNy43bDEuNC0xLjRMNyA4LjZ6TTIgMTNoMTJ2MkgyeiIvPjwvc3ZnPg==)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases)
+[![Tests](https://img.shields.io/github/actions/workflow/status/PCTestAdmin/ECU-Studio-AI/tests.yml?branch=main&label=Tests&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/workflows/tests.yml)
+[![Letzter Commit](https://img.shields.io/github/last-commit/PCTestAdmin/ECU-Studio-AI/main?label=Letzter%20Commit&style=flat-square&color=8957e5&logo=git&logoColor=white)](https://github.com/PCTestAdmin/ECU-Studio-AI/commits/main)
+<br>
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows&logoColor=white)](#installation)
+[![Python](https://img.shields.io/badge/Python-3.10%E2%80%933.13-3776AB?style=flat-square&logo=python&logoColor=white)](#entwicklung)
+[![Lizenz: GPL-3.0](https://img.shields.io/badge/Lizenz-GPL--3.0-2f81f7?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
+[![Sterne](https://img.shields.io/github/stars/PCTestAdmin/ECU-Studio-AI?label=Sterne&style=flat-square&color=d29922&logo=github&logoColor=white)](https://github.com/PCTestAdmin/ECU-Studio-AI/stargazers)
 
-**Open-Source-Kalibrier-Workbench für Motor- und Getriebesteuergeräte.**<br>
-Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und schützt vor Fehlern beim Bearbeiten.
+## Kennfelder finden – auch ohne Definition.<br>Mit Beweis, nicht mit Bauchgefühl.
+
+**ECU Studio AI** ist eine Open-Source-Kalibrier-Workbench für Motor- und Getriebesteuergeräte.<br>
+Sie liest den Programmcode des Steuergeräts, findet Kennfelder samt Achsen und sagt dir bei jedem Fund,<br>
+**wie sicher er ist – gemessen an echten Herstellerdaten.**
 
 <br>
 
 [![Herunterladen](https://img.shields.io/badge/⬇_Herunterladen-Windows_x64-2ea043?style=for-the-badge)](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)
 &nbsp;
-[![Fortschritt](https://img.shields.io/badge/📈_Fortschritt-je_Version-8957e5?style=for-the-badge)](docs/PROGRESS.md)
+[![In Aktion](https://img.shields.io/badge/🎬_In_Aktion-Clips-e5534b?style=for-the-badge)](#in-aktion)
 &nbsp;
 [![Steuergeräte](https://img.shields.io/badge/🚗_Steuergeräte-gemessen-d29922?style=for-the-badge)](docs/ECU_SUPPORT.md)
 &nbsp;
-[![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-fertig_%C2%B7_in_Arbeit_%C2%B7_geplant-0969da?style=for-the-badge)](ROADMAP.md)
+[![Fortschritt](https://img.shields.io/badge/📈_Fortschritt-je_Version-8957e5?style=for-the-badge)](docs/PROGRESS.md)
 
-<sub>Kein Python nötig · Deutsch &amp; English · Updates mit Prüfsumme, Sicherung und Rollback · Originaldatei bleibt immer unverändert</sub>
+<sub>Kein Python nötig · Deutsch &amp; English · Updates mit Prüfsumme und Rollback · Die Originaldatei wird nie verändert</sub>
 
 </div>
 
@@ -33,38 +40,263 @@ Findet Kennfelder auch ohne Definition, zeigt nachvollziehbar, *warum* – und s
 
 **ECU Studio AI** is an open-source calibration workbench for engine and transmission control units (Windows, GPL-3.0).
 
-- **Finds calibration maps without a definition:** count/axis record headers, code references and structure
-  analysis. Every candidate carries a *measured* confidence (hit rate on manufacturer reference data), not a guess.
-- **Works with definitions** you already have: TunerPro XDF, ASAM A2L / DAMOS (with EPK software-ID check),
-  RomRaider XML, CSV.
-- **Edit safely:** hex, table, heatmap, 3D and curve views, ORI/MOD comparison with per-cell difference heatmap,
-  checksum verification and correction (only where the algorithm is proven on the original), flash preflight.
-  The original file is never changed.
-- **Measured, not promised:** on held-out test data never used for tuning, e.g. Siemens MSD85 279 of 1026 maps
-  found exactly at 81 % precision; per-ECU results in the [support matrix](docs/ECU_SUPPORT.md).
+- **Finds calibration maps without a definition** – from code references (C16x, TriCore, 68k, SH-2, HC11, 8051),
+  record headers with axes, and structure analysis. Every candidate carries a *measured* confidence, not a guess.
+- **Works with the definitions you have:** TunerPro XDF, ASAM A2L / DAMOS (with EPK software-ID check), RomRaider XML, CSV.
+- **Edit safely:** hex, table, heatmap, 3D and curve views, ORI/MOD comparison, checksum verification and correction
+  (only where the algorithm is proven on the original), flash preflight. The original file is never changed.
+- **Measured, not promised:** e.g. Siemens MSD85 279 of 1026 maps found exactly at 81 % precision on held-out test
+  data; all results per ECU in the [support matrix](docs/ECU_SUPPORT.md).
 - **English interface:** *Einstellungen → Sprache / Language → English* (defaults to the system language).
-- **New in 1.17:** [open map packs](docs/MAP_PACK.md), with metadata-only export, review before import,
-  shared-axis groups and undo, plus [hash-locked local reference reports](docs/REFERENCE_VALIDATION.md).
 - **Deliberately out of scope:** automatic "stage 1" tuning, disabling emission or protection functions, flash approval.
 
 [⬇ Download for Windows](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – portable ZIP or installer,
-no Python needed. Feature clips: [Roadmap](ROADMAP.md). The rest of this page is in German.
+no Python needed. The rest of this page is in German.
 
 </details>
 
 ---
 
-## Inhalt
+## ⚡ Auf einen Blick
 
-| | |
-|---|---|
-| [🚀 Installation](#installation) | Herunterladen, starten, aktualisieren |
-| [✨ Funktionen](#funktionen) | Erkennen, prüfen, bearbeiten |
-| [📊 Erkennungsgüte](#erkennung) | Gemessen gegen Hersteller-Definitionen |
-| [🚗 Steuergeräte](#steuergeraete) | Was unterstützt und was gemessen ist |
-| [⚙️ So funktioniert es](#funktionsweise) | Vom Byte zum Kennfeld |
-| [🛡️ Sicherheit](#sicherheit) | Preflight, Prüfsummen, Grenzen |
-| [🧑‍💻 Entwicklung](#entwicklung) | Quellcode, Tests, Releases |
+<table>
+<tr>
+<td width="33%" valign="top" align="center">
+
+### 🔍 Findet
+**Kennfelder, Kennlinien und Achsen**<br>
+in unbekannten BIN-Dateien – aus den Adressen, die der Programmcode selbst lädt, aus Datensätzen mit Achsen
+und aus der Struktur der Daten.
+
+</td>
+<td width="33%" valign="top" align="center">
+
+### 🔬 Belegt
+**Jeder Fund nennt seinen Beweis**<br>
+und eine Trefferquote, die an Herstellerdefinitionen gemessen wurde – *gesichert*, *wahrscheinlich* oder
+*Vermutung*. Kein Fund gibt sich als mehr aus, als er ist.
+
+</td>
+<td width="33%" valign="top" align="center">
+
+### 🛡️ Schützt
+**Bearbeiten ohne Risiko für das Original**<br>
+Änderungen liegen als nachvollziehbare Ebene über der Datei, mit Preflight, Zwillings-Check, geprüften
+Checksummen und Undo.
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+| **463** von 703 | **279** von 1026 | **0** | **6** | **650+** |
+|:---:|:---:|:---:|:---:|:---:|
+| Kennfelder exakt gefunden<br><sub>Bosch EDC17CP09 · Hersteller-A2L</sub> | Kennfelder exakt auf **Testdaten**<br><sub>Siemens MSD85 · nie zum Einstellen genutzt</sub> | Fehlalarme<br><sub>auf Zufallsdaten, gelöschtem Flash, Nullen</sub> | Definitionsformate<br><sub>XDF · A2L · DAMOS · RomRaider · CSV · Kennfeldpaket</sub> | automatische Tests<br><sub>bei jeder Änderung</sub> |
+
+</div>
+
+---
+
+<a id="in-aktion"></a>
+
+## 🎬 In Aktion
+
+<p align="center">
+  <img src="docs/clips/scan.gif" width="760" alt="Kennfeldsuche mit einem Klick: Kandidaten mit Konfidenz, Achsen und Beweis">
+  <br><sub><b>Ein Klick – Kennfelder samt Achsen, jeweils mit Beweisart und gemessener Konfidenz.</b></sub>
+</p>
+
+<table>
+<tr>
+<td width="50%" align="center"><img src="docs/clips/view3d.gif" width="100%" alt="3D-Ansicht eines Kennfelds"><br><sub><b>3D-Ansicht</b> – Form eines Kennfelds sofort erfassen</sub></td>
+<td width="50%" align="center"><img src="docs/clips/compare.gif" width="100%" alt="ORI/MOD-Vergleich"><br><sub><b>ORI/MOD-Vergleich</b> – jede Zelle, jede Differenz</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src="docs/clips/filter.gif" width="100%" alt="Filter nach Konfidenz"><br><sub><b>Filter</b> – nach Konfidenz, Prüfstatus und Beweisart</sub></td>
+<td width="50%" align="center"><img src="docs/clips/support.gif" width="100%" alt="Unterstützte Steuergeräte"><br><sub><b>Unterstützte Steuergeräte</b> – mit Messwerten direkt in der App</sub></td>
+</tr>
+</table>
+
+<details>
+<summary><b>📸 Weitere Ansichten</b></summary>
+<br>
+
+| Kennfeldtabelle (hell) | Heatmap (dunkel) | 3D-Ansicht (dunkel) |
+|:---:|:---:|:---:|
+| <img src="docs/images/light-table.png" width="280"> | <img src="docs/images/dark-heatmap.png" width="280"> | <img src="docs/images/dark-3d.png" width="280"> |
+| **Softwarestand-Vergleich** | **Kennfeldpaket** | **English UI** |
+| <img src="docs/images/dark-version-compare.png" width="280"> | <img src="docs/images/dark-map-pack.png" width="280"> | <img src="docs/clips/english.gif" width="280"> |
+
+<sub>Alle Aufnahmen mit synthetischen Demo-Dateien aus <a href="examples/README.md"><code>examples/demo</code></a>.</sub>
+
+</details>
+
+---
+
+<a id="funktionsweise"></a>
+
+## 🔬 Beweis statt Bauchgefühl
+
+Die meisten Werkzeuge suchen nach „glatten Flächen“. ECU Studio AI fragt zuerst: **Wo greift der Programmcode
+auf Daten zu – und mit welchen Achsen?** Jeder Fund wird nach seiner stärksten Beweisart eingestuft.
+Die Trefferquote jeder Beweisart wurde an Herstellerdefinitionen gemessen:
+
+| Beweisart | Was gefunden wird | Trefferquote |
+|---|---|---:|
+| 🟢 **Code-Verweis + zwei Achsen** | Der Code lädt Kennfeld und beide Achsen gemeinsam | **100 %** <sub>(227)</sub> |
+| 🟢 **Code-Verweis + eine Achse** | Kennlinie, vom Code mit ihrer Achse geladen | **99 %** <sub>(159)</sub> |
+| 🟢 **Code-Verweis** | Startadresse direkt aus dem Programmcode | **97 %** <sub>(35)</sub> |
+| 🟡 **Kopf-Datensatz** | `nx, ny, X-Achse, Y-Achse, Werte` direkt hintereinander | **87–88 %** <sub>(2077)</sub> |
+| 🟡 **Achsen-Array** | Anzahl + steigende Stützstellen | **54 %** <sub>(MS4x: 97–100 %)</sub> |
+| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg – ein Lernmodell ordnet nach | **22 %** <sub>(1321)</sub> |
+
+<sub>Anzahl der gemessenen Funde in Klammern. Gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den Hersteller-A2L von ME9,
+ME9.2.1, EDC17CP09, EDC16C35/C31; MSD80/85 bleiben als Testdaten außen vor. Lernmodell und Kalibrierung:
+<a href="docs/MODELLKARTE.md">docs/MODELLKARTE.md</a>.</sub>
+
+```mermaid
+flowchart LR
+    BIN[BIN-Datei] --> P{Profil<br/>bekannt?}
+    P -- ja --> W[Kalibrierfenster]
+    P -- nein --> M[Code/Daten-<br/>Trennung]
+    W --> E
+    M --> E
+    subgraph E[Beweise sammeln]
+        C[Code-Verweise<br/>C16x · TriCore · 68k · SH-2 · HC11 · 8051]
+        H[Datensätze mit<br/>Anzahl und Achsen]
+        A[Achsen-Arrays]
+        D[Datenmuster]
+    end
+    E --> R[Lesarten<br/>abwägen]
+    R --> K[Konfidenz aus<br/>gemessenen Quoten]
+    K --> UI[Katalog · Graph<br/>Signal-Tracing]
+```
+
+> [!NOTE]
+> Alle Funde sind **Geometrie-Hypothesen**: Start, Größe, Datentyp und Achsen. Name, Einheit und Funktion kommen
+> nur aus einer passenden Definition oder deiner eigenen Prüfung – nie aus einer Vermutung.
+
+<details>
+<summary><b>🧪 Neu in der Forschung: Kennfelder aus TriCore-Interpolationsaufrufen (Siemens MSD80)</b></summary>
+<br>
+
+Siemens-MSD80-Vollflashs sind Infineon-TriCore-Code. Die Interpolationsroutinen bekommen Tabellendaten und die Köpfe
+beider Achsen direkt in Registern übergeben (`a4` / `a5` / `a6`), teils über Stackslots oder eine getrennte
+Achsensuche. ECU Studio AI liest diese Aufrufe aus und leitet Zellbreite und Vorzeichen aus den Ladebefehlen der
+Routine ab.
+
+Auf einem MSD80-Vollflash mit Community-XDF (Entwicklungsdaten, Teilreferenz): **39 → 73 von 99** Kennfeldern exakt,
+Datentyp bei 62 davon richtig, gemeinsame Achsen 37/37, keine neuen Widersprüche zur Referenz.
+Ausführlich: [docs/ANALYSE_2026-10-30.md](docs/ANALYSE_2026-10-30.md).
+
+</details>
+
+---
+
+<a id="erkennung"></a>
+
+## 📊 Erkennungsgüte
+
+Blind gemessen: Die Herstellerdefinition dient **nur als Referenz**, nie als Eingabe. Präzision steht nur dort,
+wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
+
+| Steuergerät | Referenz | Exakt erkannte Kennfelder | Präzision |
+|---|---|---|---:|
+| Bosch EDC17CP09 | Hersteller-A2L | `█████████████████░░░░░░░░░` **463** / 703 | **85 %** |
+| Siemens MSD85 · *Test* | Hersteller-A2L | `███████░░░░░░░░░░░░░░░░░░░` **279** / 1026 | **81 %** |
+| Siemens MSD80 · *Test* (6 Stände) | Hersteller-A2L | `███████░░░░░░░░░░░░░░░░░░░` **217–224** / 864 | **81–82 %** |
+| Bosch EDC16C35 | Hersteller-A2L | `███████████████████░░░░░░░` **283** / 387 | **81 %** |
+| Bosch EDC16C31 | Hersteller-A2L | `███████████████████░░░░░░░` **272** / 364 | **82 %** |
+| Siemens MS43 | Community-XDF | `██████████████░░░░░░░░░░░░` **197** / 379 | **79 %** |
+| BMW ME9.2.1 | Hersteller-A2L | `██████████░░░░░░░░░░░░░░░░` **170** / 460 | **72 %** |
+| Siemens MSD80 Vollflash · *Entwicklung* | Community-XDF (Teil) | `███████████████████░░░░░░░` **73** / 99 | – |
+| Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
+
+<sub>Balken = Anteil exakt gefundener Kennfelder. Die MSD80/85-Teststände sind reine Kalibrierbereiche ohne
+Programmcode; die TriCore-Codeanalyse wirkt nur auf Vollflashs.</sub>
+
+**Keine Fehlalarme auf Nicht-Kennfelddaten:** 9 Zufallsdateien bis 2 MB, komprimierte Daten, gelöschter Flash, Nullen
+→ **0** Kandidaten. Auf reinem Programmcode (Windows-DLLs) entstehen Funde, alle eingestuft als *Vermutung*.
+
+> 📈 **Wie sich die Erkennung von Version zu Version verbessert hat: [docs/PROGRESS.md](docs/PROGRESS.md)**<br>
+> 🔁 Selbst nachmessen: `python -m ecu_studio.tools.benchmark_suite` · Workflow: [docs/REFERENCE_VALIDATION.md](docs/REFERENCE_VALIDATION.md)
+
+---
+
+<a id="steuergeraete"></a>
+
+## 🚗 Steuergeräte
+
+| Familie | Prozessor | Code-Verweise | Achsen | Status |
+|---|---|:---:|:---:|---|
+| Bosch EDC17CP09 (BMW) | TriCore | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| Siemens MSD80 (BMW) | TriCore | ✅ <sub>Vollflash</sub> | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
+| Siemens MSD85 (BMW) | <sub>ungeprüft</sub> | – | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
+| Bosch EDC16C31 / C35 (BMW) | PowerPC | – | ✅ | ✅ gemessen · Hersteller-A2L |
+| BMW ME9 / ME9.2.1 | PowerPC | – | ✅ | ✅ validiert · Hersteller-A2L |
+| Siemens MS43 (BMW) | C167 | ✅ | ✅ | ✅ validiert · Standard-XDFs inklusive |
+| Siemens MS41 / MS42 (BMW) | C167 | ✅ | ✅ | 🟡 gemessen, Erkennung gering (MS42: 22 von 213 exakt) |
+| Siemens MS45 | C167 | – | ✅ | 🟡 gemessen, Erkennung gering (30 von 472 exakt) |
+| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | ✅ gemessen |
+| BMW MSS54 | CPU32 | – | ✅ | ✅ gemessen · vollständige XDF |
+| GM P01 | 68k | ✅ | – | ✅ gemessen |
+| Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | ✅ gemessen |
+| Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
+| Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
+| Continental SIM2K (Hyundai) | TriCore | – | 🟡 | 🟡 gemessen, Erkennung unzureichend |
+| Speeduino (Open Source) | AVR / ARM | – | – | 🟡 gemessen (14 Abstimmungen), ohne Definition schwach – `.ini` ist öffentlich |
+| Delco Multec S („D98…“) | HC12 | – | – | ⚪ keine rechtlich nutzbaren Referenzdaten – [Recherche](docs/DELCO_D98_RESEARCH.md) |
+| EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos · SID | – | – | – | ⚪ nicht validiert – keine rechtlich sicheren Referenzdaten öffentlich |
+
+<sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
+Alle Softwarestände und Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.md</a> · in der App:
+<b>Hilfe → Unterstützte Steuergeräte …</b></sub>
+
+> 🤝 **Du hast ein Original mit passender, rechtmäßig nutzbarer Definition?** Genau solche Messungen bringen das
+> Projekt weiter – siehe [CONTRIBUTING.md](CONTRIBUTING.md). Bitte **keine Original-Firmware hochladen**.
+
+---
+
+<a id="funktionen"></a>
+
+## ✨ Alle Funktionen
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🔍 Erkennen
+- **Kennfelder ohne Definition** über Programmcode-Verweise, Datensätze mit Achsen und Datenmuster
+- **Achsen** erkannt, zugeordnet und als **gemeinsame Achsgruppen** dargestellt
+- **Gemessene Konfidenz** je Fund
+- **Dubletten** und Überwachungskopien markiert
+- **Softwarestand-Vergleich** mit Namensübertragung
+- Funktionsgraph und Signal-Tracing
+
+</td>
+<td width="33%" valign="top">
+
+### 🛡️ Prüfen
+- **Flash-Preflight** für jede geänderte Byteposition
+- **Zwillingskennfelder** auf gleiche Änderung geprüft
+- **Checksummen** mit geprüften Profilen, Korrektur mit Byte-Vorschau, Suche unbekannter Layouts
+- **Software-Kennung (EPK)** gegen die Definition
+- Drei getrennte Stufen: Prüfsummen · Preflight · Flashvalidierung
+
+</td>
+<td width="33%" valign="top">
+
+### ✏️ Bearbeiten
+- **Definitionen:** XDF, A2L/DAMOS, RomRaider, CSV, HEX/S19, [Kennfeldpakete](docs/MAP_PACK.md)
+- **Ansichten:** Tabelle, Heatmap, 2D, **3D**, Hex-Editor, Speicheratlas
+- **ORI/MOD-Vergleich** zellgenau
+- **Definition bearbeiten** mit Vorschau, **XDF-Export** mit Rückimport-Prüfung
+- Undo/Redo, Projektstände, Batch mit Vorschau
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -72,13 +304,13 @@ no Python needed. Feature clips: [Roadmap](ROADMAP.md). The rest of this page is
 
 ## 🚀 Installation
 
-> **Drei Schritte, ohne Python oder Terminal.**
+> **Drei Schritte – ohne Python, ohne Terminal.**
 
-1. **[Neueste Version herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)**
-   - `ECU-Studio-AI-<version>-windows-x64.zip` – **portabel**: entpacken, fertig
-   - `ECU-Studio-AI-<version>-setup.exe` – **Installer**: Startmenü-Eintrag und Deinstallation, ohne Administratorrechte
-2. `ECU-Studio-AI.exe` starten.
-3. **Datei → BIN öffnen …** – zum Ausprobieren liegt unter [`examples/demo`](examples/README.md) eine synthetische Demo-Datei.
+| | |
+|:---:|---|
+| **1** | **[Neueste Version herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest)** – `…-windows-x64.zip` (portabel: entpacken, fertig) oder `…-setup.exe` (Installer, ohne Administratorrechte) |
+| **2** | `ECU-Studio-AI.exe` starten |
+| **3** | **Datei → BIN öffnen …** – zum Ausprobieren liegt unter [`examples/demo`](examples/README.md) eine synthetische Demo-Datei |
 
 <details>
 <summary><b>⚠️ Windows meldet „Der Computer wurde durch Windows geschützt“?</b></summary>
@@ -112,168 +344,9 @@ Weg automatisch auf Windows Server 2022 und 2025 durchgespielt.
 
 ---
 
-<a id="funktionen"></a>
-
-## ✨ Funktionen
-
-<table>
-<tr>
-<td width="33%" valign="top">
-
-### 🔍 Erkennen
-- **Kennfelder ohne Definition** – über Programmcode-Verweise, Datensätze mit Achsen und Datenmuster
-- **Achsen** erkannt und zugeordnet, Skalierungsvorschläge
-- **Gemessene Konfidenz** je Fund: *gesichert*, *wahrscheinlich* oder *Vermutung*
-- **Dubletten** und Überwachungskopien markiert
-- Funktionsgraph und Signal-Tracing
-
-</td>
-<td width="33%" valign="top">
-
-### 🛡️ Prüfen
-- **Flash-Preflight** für jede geänderte Byteposition
-- **Zwillingskennfelder** auf gleiche Änderung geprüft
-- **Checksummen** mit geprüften Profilen, Korrektur mit Byte-Vorschau, Suche unbekannter Layouts
-- Software-Kennung (EPK) gegen die Definition
-- Drei getrennte Stufen: Prüfsummen · Preflight · Flashvalidierung
-
-</td>
-<td width="33%" valign="top">
-
-### ✏️ Bearbeiten
-- **Definitionen**: XDF, A2L/DAMOS, RomRaider, CSV, HEX/S19
-- Tabelle, Heatmap, 2D, **3D**, Hex-Editor, Speicheratlas
-- **ORI/MOD-Vergleich** zellgenau
-- Undo/Redo, Projektstände, Batch mit Vorschau
-- Original bleibt **immer** unverändert
-
-</td>
-</tr>
-</table>
-
-<div align="center">
-
-| Kennfeldtabelle (hell) | Heatmap (dunkel) | 3D-Ansicht (dunkel) |
-|:---:|:---:|:---:|
-| <img src="docs/images/light-table.png" width="280"> | <img src="docs/images/dark-heatmap.png" width="280"> | <img src="docs/images/dark-3d.png" width="280"> |
-
-<sub>Screenshots mit der synthetischen Demo-Datei <code>examples/demo/demo_multi_map.bin</code>.</sub>
-
-</div>
-
----
-
-<a id="erkennung"></a>
-
-## 📊 Erkennungsgüte
-
-Blind gemessen: Die Definition des Herstellers dient **nur als Referenz**, nie als Eingabe. Die Präzision ist nur dort
-angegeben, wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
-
-| Steuergerät | Referenz | exakt erkannte Kennfelder | Präzision |
-|---|---|---:|---:|
-| Bosch EDC17CP09 | Hersteller-A2L | **463** von 703 | **85 %** |
-| Siemens MSD85 · *Test* | Hersteller-A2L | **279** von 1026 | **81 %** |
-| Siemens MSD80 · *Test* (6 Stände) | Hersteller-A2L | **217–224** von 864 | **81–82 %** |
-| Bosch EDC16C35 | Hersteller-A2L | **283** von 387 | **81 %** |
-| Bosch EDC16C31 | Hersteller-A2L | **272** von 364 | **82 %** |
-| Siemens MS43 | Community-XDF | **197** von 379 | **79 %** |
-| BMW ME9.2.1 | Hersteller-A2L | **170** von 460 | **72 %** |
-| Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
-
-Stand: 1.16.0 (Werte von 1.15.0 in [docs/PROGRESS.md](docs/PROGRESS.md)). Welche Steuergeräte validiert,
-teilweise oder noch gar nicht gemessen sind, zeigt [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) und in der App
-**Hilfe → Unterstützte Steuergeräte …**.
-
-**Fehlalarme** auf Daten ohne Kennfelder (9 Zufallsdateien bis 2 MB, komprimiert, gelöschter Flash, Nullen): **0** Kandidaten.
-Auf Programmcode ohne Kalibrierdaten (Windows-DLLs) entstehen Kandidaten, alle mit der Stufe *Vermutung*.
-
-> 📈 **Wie sich die Erkennung von Version zu Version verbessert hat: [docs/PROGRESS.md](docs/PROGRESS.md)**<br>
-> 🔬 Alle Messwerte je Variante: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md) · reproduzierbar mit `python -m ecu_studio.tools.benchmark_suite`
-
-<details>
-<summary><b>Trefferquote je Beweisart und Lernmodell</b></summary>
-<br>
-
-Anteil der Funde, die exakt an einem echten Objekt beginnen (gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den
-Hersteller-A2L von ME9, ME9.2.1, EDC17CP09, EDC16C35/C31; MSD80/85 bleiben als Testdaten außen vor):
-
-| Beweisart | Anzahl | Trefferquote |
-|---|---:|---:|
-| Code-Verweis + zwei Achsen | 227 | 100 % |
-| Code-Verweis + Achse (Kennlinie) | 159 | 99 % |
-| Code-Verweis ohne Achsen | 35 | 97 % |
-| Achse aus Kopf-Datensatz | 1383 | 88 % |
-| Kopf-Datensatz (nx, ny, X, Y, Kennfeld) | 694 | 87 % |
-| Achsen-Arrays mit Anzahl-Präfix (MS4x allein 97–100 %) | 2374 | 54 % |
-| nur Datenmuster | 1321 | 22 % |
-
-Für reine Datenmuster-Funde ordnet ein Lernmodell nach; geprüft jeweils auf einer beim Training ausgelassenen Familie
-(Präzision bei 80 % Trefferquote): Hyundai SIM2K 14 → 34 %, BMW MSS54 7 → 32 %, alte 8-Bit-Motronic 5 → 35 %,
-Siemens MS4x 29 → 50 %. Details: [docs/MODELLKARTE.md](docs/MODELLKARTE.md).
-</details>
-
----
-
-<a id="steuergeraete"></a>
-
-## 🚗 Steuergeräte
-
-| Familie | Prozessor | Code-Verweise | Achsen | Status |
-|---|---|:---:|:---:|---|
-| Siemens MS43 (BMW) | C167 | ✅ | ✅ | ✅ validiert · Standard-XDFs inklusive |
-| Siemens MS41 / MS42 (BMW) | C167 | ✅ | ✅ | 🟡 gemessen, Erkennung gering (MS42: 22 von 213 exakt) |
-| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | ✅ gemessen |
-| Bosch EDC17CP09 (BMW) | TriCore | – | ✅ | ✅ gemessen · Hersteller-A2L |
-| Siemens MSD80 / MSD85 (BMW) | PowerPC | – | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
-| Bosch EDC16C31 / C35 (BMW) | PowerPC | – | ✅ | ✅ gemessen · Hersteller-A2L |
-| BMW ME9 / ME9.2.1 | PowerPC | – | ✅ | ✅ validiert · Hersteller-A2L |
-| Siemens MS45 | C167 | – | ✅ | 🟡 gemessen, Erkennung gering (30 von 472 exakt) |
-| Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | ✅ gemessen |
-| GM P01 | 68k | ✅ | – | ✅ gemessen |
-| Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
-| Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
-| BMW MSS54 | CPU32 | – | ✅ | ✅ gemessen · vollständige XDF |
-| Continental SIM2K (Hyundai) | TriCore | – | 🟡 | 🟡 gemessen, Erkennung unzureichend |
-| Speeduino (Open Source) | AVR / ARM | – | – | 🟡 gemessen (14 Abstimmungen), ohne Definition schwach – `.ini` ist öffentlich |
-| EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos · SID | – | – | – | ⚪ nicht validiert – keine rechtlich sicheren Referenzdaten öffentlich |
-
-<sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
-Konkrete Softwarestände und alle Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.md</a>.</sub>
-
----
-
-<a id="funktionsweise"></a>
-
-## ⚙️ So funktioniert es
-
-```mermaid
-flowchart LR
-    BIN[BIN-Datei] --> P{Profil<br/>bekannt?}
-    P -- ja --> W[Kalibrierfenster]
-    P -- nein --> M[Code/Daten-<br/>Trennung]
-    W --> E
-    M --> E
-    subgraph E[Beweise sammeln]
-        C[Code-Verweise<br/>C16x · 68k · SH-2 · HC11 · 8051]
-        H[Datensätze mit<br/>Anzahl und Achsen]
-        A[Achsen-Arrays]
-        D[Datenmuster]
-    end
-    E --> R[Lesarten<br/>abwägen]
-    R --> K[Konfidenz aus<br/>gemessenen Quoten]
-    K --> UI[Katalog · Graph<br/>Signal-Tracing]
-```
-
-Wo der Programmcode auf ein Kennfeld zeigt, stimmt der Start praktisch immer; wo nur Datenmuster sprechen, ist es eine
-Vermutung – und wird auch so angezeigt. Alle Funde sind **Geometrie-Hypothesen**: Name, Einheit und Funktion kommen
-nur aus einer passenden Definition oder deiner Prüfung, nie aus einer Vermutung.
-
----
-
 <a id="sicherheit"></a>
 
-## 🛡️ Sicherheit
+## 🛡️ Sicherheit und Grenzen
 
 > [!WARNING]
 > **ECU Studio AI gibt keine Flashfreigabe.** Checksummen werden nur mit einem geprüften, an die Original-Firmware
@@ -281,7 +354,13 @@ nur aus einer passenden Definition oder deiner Prüfung, nie aus einer Vermutung
 > Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen. Eingriffe können Typgenehmigung, Abgasverhalten und
 > Versicherungsschutz betreffen.
 
-- **Original bleibt unverändert** – alle Änderungen liegen als nachvollziehbare Ebene darüber.
+| ✅ Was ECU Studio AI tut | 🚫 Was es bewusst **nicht** tut |
+|---|---|
+| Original unverändert lassen – Änderungen als nachvollziehbare Ebene | Automatisches „Stage 1“-Tuning |
+| Funde mit Beweis und gemessener Konfidenz zeigen | Abgas- oder Schutzfunktionen abschalten |
+| Checksummen nur mit geprüftem Profil korrigieren | Flashfreigaben erteilen |
+| Firmware lokal halten – sie wird nie hochgeladen | Kennfeldnamen erfinden |
+
 - **Keine Firmware im Repository** – Tests verhindern Programmdateien, Archive und Firmware außerhalb von `examples/`.
 - **Fremddaten:** mitgelieferte MS4x-XDFs (MS4x Dev Team) und rusEFI-Presets unter GPL-3.0, Herkunft in den `NOTICE.txt`
   unter `src/ecu_studio/recognition/data/`.
@@ -301,12 +380,11 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 
 | | |
 |---|---|
-| 📚 [Dokumentation](docs/README.md) | Aufbau des Quellcodes, Werkzeuge, Benchmarks |
+| 📚 [Dokumentation](docs/README.md) | Aufbau des Quellcodes, Werkzeuge, Benchmarks, Forschungsberichte |
 | 🚢 [Release-Ablauf](docs/RELEASE.md) | Version, CHANGELOG, Tag – Build, Update-Test und Veröffentlichung laufen automatisch |
 | 🧪 [Beispiele](examples/README.md) | Synthetische Demo-Dateien und Vorlagen |
 | 📝 [CHANGELOG](CHANGELOG.md) | Alle Änderungen |
-| 🗺️ [Roadmap](ROADMAP.md) | Was fertig ist, was in Arbeit ist und was als Nächstes kommt – mit Clips |
-| 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** – bitte **keine Original-Firmware** hochladen |
+| 🤝 [Mitmachen](CONTRIBUTING.md) | Besonders willkommen: **Messungen an weiteren Steuergeräten** |
 
 ### 🗺️ Roadmap
 
@@ -314,8 +392,6 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
   <img alt="Roadmap: veröffentlicht, nächstes Update, in Arbeit, als Nächstes" src="docs/images/roadmap-light.svg" width="100%">
 </picture></a>
-
-<p align="center"><img src="docs/clips/scan.gif" width="720" alt="Kennfeldsuche mit einem Klick (Aufnahme der App, synthetische Datei)"></p>
 
 **→ [Ganze Roadmap](ROADMAP.md)** – jede neue Funktion mit kurzem Clip aus der App
 
