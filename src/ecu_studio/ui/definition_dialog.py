@@ -45,6 +45,9 @@ class DefinitionDialog(QDialog):
         self.unit = QLineEdit(m.unit)
         self.verified = QCheckBox('Fachlich geprüft (nur nach eigener Prüfung setzen)')
         self.verified.setChecked(m.verified)
+        # Only a click by the user re-confirms a review after a structural change (see propose()).
+        self.reconfirmed = False
+        self.verified.clicked.connect(self._reconfirm)
         for label, widget in (('Name', self.name), ('Beschreibung', self.notes), ('Adresse (Dateioffset)', self.offset),
                               ('Zeilen', self.rows), ('Spalten', self.cols), ('Datentyp', self.dtype),
                               ('Byte-Reihenfolge', self.endian), ('Faktor', self.factor), ('Offset', self.bias),
@@ -93,7 +96,8 @@ class DefinitionDialog(QDialog):
         form = QFormLayout(box)
         w = {'box': box, 'offset': QLineEdit('' if offset is None else f'0x{offset:X}'),
              'dtype': QComboBox(), 'endian': QComboBox(), 'factor': QDoubleSpinBox(), 'unit': QLineEdit(unit)}
-        w['offset'].setPlaceholderText('leer = Werte unverändert lassen')
+        w['offset'].setPlaceholderText('leer = keine gespeicherte Achsenadresse')
+        w['stored'] = offset
         w['dtype'].addItems(list(FORMATS)); w['dtype'].setCurrentText(dtype)
         w['endian'].addItems(['big', 'little']); w['endian'].setCurrentText(endian)
         w['factor'].setDecimals(8); w['factor'].setRange(-1e9, 1e9); w['factor'].setValue(1.0)
@@ -117,7 +121,8 @@ class DefinitionDialog(QDialog):
             return None
         offset = _offset(w['offset'].text())
         if offset is None:
-            return None
+            # Emptied field of a stored axis = remove that address; otherwise keep the imported values.
+            return AxisSpec(None) if w['stored'] is not None else None
         return AxisSpec(offset, w['dtype'].currentText(), w['endian'].currentText(), w['factor'].value())
 
     def fields(self) -> dict:
@@ -126,6 +131,9 @@ class DefinitionDialog(QDialog):
                 'endian': self.endian.currentText(), 'factor': self.factor.value(), 'bias': self.bias.value(),
                 'unit': self.unit.text(), 'axis_x_unit': self.axis_x['unit'].text(),
                 'axis_y_unit': self.axis_y['unit'].text(), 'verified': self.verified.isChecked()}
+
+    def _reconfirm(self, checked):
+        self.reconfirmed = bool(checked)
 
     def _invalidate(self, *_):
         self.proposal = None
@@ -137,11 +145,17 @@ class DefinitionDialog(QDialog):
             if _offset(self.offset.text()) is None:
                 raise ValueError('Adresse fehlt')
             proposal = propose(self.image, self.definition, self.fields(),
-                               axis_x=self._axis_spec(self.axis_x), axis_y=self._axis_spec(self.axis_y))
+                               axis_x=self._axis_spec(self.axis_x), axis_y=self._axis_spec(self.axis_y),
+                               reconfirmed=self.reconfirmed)
         except ValueError as exc:
             self.result.setText(f'<b>Nicht übernehmbar:</b> {exc}')
             self.table.clear(); self.table.setRowCount(0); self.table.setColumnCount(0)
             return False
+        if self.verified.isChecked() and not proposal.proposed.verified:
+            # Review reset by a structural change: show it, a click on the box confirms it again.
+            self.verified.blockSignals(True)
+            self.verified.setChecked(False)
+            self.verified.blockSignals(False)
         self.proposal = proposal
         self._show_preview(proposal.proposed)
         changes = proposal.changes

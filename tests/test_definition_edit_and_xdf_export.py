@@ -122,3 +122,82 @@ def test_equations_keep_own_formula_and_affine_sign():
     assert equation(MapDefinition('a', 0, factor=0.1, bias=-40)) == 'X*0.1-40'
     assert equation(MapDefinition('b', 0)) == 'X'
     assert equation(MapDefinition('c', 0, equation='X*X/10')) == 'X*X/10'
+
+
+# -- review status, axis removal, safe export (fixes 31.10.2026) ------------------------------
+
+def _verified(m):
+    m.verified = True
+    m.axis_x_offset = 0x200
+    return m
+
+
+@pytest.mark.parametrize('fields', [{'offset': 0x102}, {'rows': 2, 'cols': 8}, {'dtype': 's16'}, {'endian': 'little'},
+                                    {'factor': 0.2}, {'bias': 1.0}])
+def test_structural_change_resets_review_unless_reconfirmed(fields):
+    image, maps = _image(), _maps()
+    m = _verified(maps[0])
+    p = propose(image, m, dict(fields, verified=True))
+    assert not p.proposed.verified and any('Prüfstatus zurückgesetzt' in w for w in p.warnings)
+    assert p.changes['verified'] == (True, False)
+    q = propose(image, m, dict(fields, verified=True), reconfirmed=True)
+    assert q.proposed.verified and any('erneut bestätigt' in w for w in q.warnings)
+
+
+def test_axis_change_resets_review_but_text_edits_keep_it():
+    image, maps = _image(), _maps()
+    m = _verified(maps[0])
+    assert not propose(image, m, {'verified': True}, axis_y=AxisSpec(0x210, 'u16')).proposed.verified
+    kept = propose(image, m, {'name': 'Neuer Name', 'notes': 'Notiz', 'unit': 'bar', 'verified': True})
+    assert kept.proposed.verified and not any('zurückgesetzt' in w for w in kept.warnings)
+
+
+def test_stored_axis_address_can_be_removed():
+    image, maps = _image(), _maps()
+    m = maps[0]
+    m.axis_x_offset = 0x200
+    p = propose(image, m, {}, axis_x=AxisSpec(None))
+    assert p.proposed.axis_x_offset is None and p.proposed.axes_x == []
+    assert p.changes['axis_x_offset'] == (0x200, None)
+    assert any('Achsenadresse entfernt' in w for w in p.warnings)
+    new = commit(image, maps, p, confirmed=True)
+    assert new.axis_x_offset is None and image.undo() and maps[0].axis_x_offset == 0x200
+
+
+def test_roundtrip_check_ignores_definitions_the_export_skipped(tmp_path):
+    # Before the fix an invalid definition in front shifted the comparison by one entry.
+    image = _image()
+    maps = [MapDefinition('Zu groß', 4000, 16, 16, 'u16'), *_maps()]
+    report = export_xdf(tmp_path / 'x.xdf', image, maps)
+    assert report.exported == 3 and verify_roundtrip(tmp_path / 'x.xdf', image, maps) == []
+
+
+def test_export_replaces_the_target_only_after_a_clean_read_back(tmp_path, monkeypatch):
+    from ecu_studio.core import xdf_export
+    image, maps = _image(), _maps()
+    target = tmp_path / 'ziel.xdf'
+    target.write_bytes(b'ALT')
+    monkeypatch.setattr(xdf_export, 'verify_roundtrip', lambda *a, **k: ['Kennfeld A: offset 256 != 0'])
+    with pytest.raises(xdf_export.XdfExportError, match='nicht geschrieben') as error:
+        export_xdf(target, image, maps)
+    assert error.value.problems == ['Kennfeld A: offset 256 != 0']
+    assert target.read_bytes() == b'ALT' and [p.name for p in tmp_path.iterdir()] == ['ziel.xdf']
+    monkeypatch.undo()
+    report = export_xdf(target, image, maps)
+    assert target.read_bytes().startswith(b'<?xml') and report.exported == 3
+    assert any('nicht' in n and 'TunerPro' in n for n in report.notes)
+    assert [p.name for p in tmp_path.iterdir()] == ['ziel.xdf']
+
+
+def test_failed_write_leaves_target_and_no_temp_file(tmp_path, monkeypatch):
+    from ecu_studio.core import xdf_export
+    image, maps = _image(), _maps()
+    target = tmp_path / 'ziel.xdf'
+    target.write_bytes(b'ALT')
+
+    def broken(*_):
+        raise OSError('Datenträger voll')
+    monkeypatch.setattr(xdf_export.os, 'fsync', broken)
+    with pytest.raises(OSError, match='voll'):
+        export_xdf(target, image, maps)
+    assert target.read_bytes() == b'ALT' and [p.name for p in tmp_path.iterdir()] == ['ziel.xdf']

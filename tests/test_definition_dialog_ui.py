@@ -84,3 +84,24 @@ def test_xdf_export_from_window_reports_roundtrip_and_skips_float(window, tmp_pa
     kind, text = shown[0]
     assert kind == 'info' and target.exists()
     assert '1 Definitionen exportiert' in text and 'Float' in text and 'Rückimport geprüft' in text
+
+
+def test_dialog_removes_a_stored_axis_address_when_the_field_is_cleared(window):
+    from ecu_studio.ui.definition_dialog import DefinitionDialog
+    window.maps[0].axis_x_offset = 0x200
+    window.maps[0].axes_x = [800, 1600, 2400, 3200]
+    d = DefinitionDialog(window.image, window.maps[0], window)
+    d.axis_x['offset'].setText('')
+    assert d.check() and d.proposal.proposed.axis_x_offset is None and d.proposal.proposed.axes_x == []
+    assert 'Achsenadresse entfernt' in d.result.text()
+
+
+def test_dialog_resets_review_on_structural_change_until_reconfirmed(window):
+    from ecu_studio.ui.definition_dialog import DefinitionDialog
+    window.maps[0].verified = True
+    d = DefinitionDialog(window.image, window.maps[0], window)
+    d.offset.setText('0x102')
+    assert d.check() and not d.proposal.proposed.verified and not d.verified.isChecked()
+    assert 'Prüfstatus zurückgesetzt' in d.result.text()
+    d.verified.click()                                   # explicit re-confirmation by the user
+    assert d.check() and d.proposal.proposed.verified

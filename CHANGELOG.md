@@ -1,5 +1,15 @@
 ## Unveröffentlicht
 
+- **Definition bearbeiten und XDF-Export, Fehlerbehebungen:** Eine strukturelle Änderung (Adresse, Größe,
+  Datentyp, Byte-Reihenfolge, Faktor/Offset, Achsenadresse oder -werte) setzt den Prüfstatus einer geprüften
+  Definition jetzt zurück; nur ein ausdrücklicher Klick auf „Fachlich geprüft“ bestätigt ihn erneut. Vorher blieb
+  er mit einer Warnung bestehen. Eine gespeicherte Achsenadresse lässt sich im Dialog durch Leeren des Feldes
+  entfernen (vorher blieb sie erhalten). Der XDF-Export schreibt in eine temporäre Datei, prüft sie per Rückimport
+  und ersetzt das Ziel erst danach in einem Schritt; bei Abweichung oder Schreibfehler bleibt eine vorhandene Datei
+  unverändert. Die Rückimport-Prüfung verglich bisher falsche Paare, sobald eine ungültige Definition im Katalog
+  stand, und meldete dann fälschlich „Datei nicht verwenden“. Der Bericht sagt jetzt ausdrücklich, dass der
+  Rückimport mit dem eigenen Import erfolgt und kein Test in TunerPro ist.
+
 - **Firmware-Schutz für das Repository:** Pre-Commit- und Pre-Push-Hooks (`.githooks/`, aktivieren mit
   `python src\ecu_studio\tools\firmware_guard.py install`) blockieren Firmware-, Dump-, Definitions-, Archiv- und
   Datenbankdateien, umbenannte Binärdateien, eingebettete Hex-/Base64-/Intel-HEX-Daten, Dateien über 1 MiB, private
