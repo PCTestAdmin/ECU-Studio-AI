@@ -2,6 +2,7 @@
 
 | Dokument | Inhalt |
 |---|---|
+| [SPRINT_NAECHSTER.md](SPRINT_NAECHSTER.md) | Nächster Sprint: Referenzsuche, Hintergrund-Indizierung, XDF-Achsen, Erkennung, unabhängige Benchmarks – mit Abnahmekriterien |
 | [FIRMWARE_PROTECTION.md](FIRMWARE_PROTECTION.md) | Firmware-Schutz: lokale Ablage, Git-Hooks, Regeln, Ausnahmen, Prüfung vor dem Push, Restrisiken |
 | [ANALYSE_2026-10-31.md](ANALYSE_2026-10-31.md) | Firmware-Schutz, Fehlerbehebungen bei Definition/XDF-Export, lokale Referenzsuche mit Benchmark, Aufgabenstand |
 | [OPEN_SOURCE_DETECTION_BENCHMARK.md](OPEN_SOURCE_DETECTION_BENCHMARK.md) | Quellcodevergleich, isolierte Detektorversuche und reproduzierbare Qualitätsgrenzen |
