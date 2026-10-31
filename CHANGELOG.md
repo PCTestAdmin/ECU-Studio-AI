@@ -1,5 +1,7 @@
 ## Unveröffentlicht
 
+## 1.18.0 (31.10.2026)
+
 - **Offline zuerst: automatische Update-Prüfung ab Werk aus.** Ohne eigene Einstellung baut ECU Studio AI keine
   Netzwerkverbindung mehr von selbst auf. „Einstellungen → Automatisch nach Updates suchen“ schaltet sie ein; eine
   bereits gespeicherte Wahl (ein oder aus) bleibt erhalten. „Jetzt nach Updates suchen“ funktioniert unverändert.
