@@ -1,5 +1,16 @@
 ## Unveröffentlicht
 
+- **Lokale Referenzsuche beim Öffnen einer BIN:** Projekte und Kennfeldpakete werden jetzt auch über gleiche
+  Hardware- und Softwarenummern gefunden (eigene indizierte Tabelle; ältere Einträge werden beim Öffnen aus den
+  gespeicherten Metadaten ergänzt, ohne eine BIN zu lesen). Jeder Vorschlag zeigt Stufe und Grund: „nachgewiesen“
+  nur bei identischer Datei (SHA-256), „wahrscheinlich“ bei gleicher Softwarenummer (mit oder ohne Hardware),
+  „mehrdeutig“ bei nur gleicher Hardwarenummer oder Familie. Bisher zählten nur gleicher Hash und gleiche Familie,
+  auf 50 Einträge begrenzt, sodass ein Projekt mit gleicher Softwarenummer fehlen konnte. „Bestehende Projekte
+  indexieren …“ schreibt in wenigen Transaktionen statt einer je Projekt, zeigt Fortschritt, lässt sich abbrechen
+  und meldet Fehler gesammelt. Synthetischer Benchmark mit 20 000 Projekten und 2 000 Paketen
+  (`python -m ecu_studio.tools.library_benchmark`): Datenbankanteil je indiziertem Projekt 17,4 → 0,27 ms,
+  Vorschläge beim Öffnen 25,5 → 28,2 ms, einmalige Ergänzung beim ersten Öffnen 0,3 s.
+
 - **Definition bearbeiten und XDF-Export, Fehlerbehebungen:** Eine strukturelle Änderung (Adresse, Größe,
   Datentyp, Byte-Reihenfolge, Faktor/Offset, Achsenadresse oder -werte) setzt den Prüfstatus einer geprüften
   Definition jetzt zurück; nur ein ausdrücklicher Klick auf „Fachlich geprüft“ bestätigt ihn erneut. Vorher blieb
