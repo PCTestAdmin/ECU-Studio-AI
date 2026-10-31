@@ -9,9 +9,11 @@ geschätzt. Für jeden Meilenstein wurde der **damalige Erkennungscode** aus der
 > **Präzision** = Anteil der Funde, die auf ein echtes Kennfeld fallen – nur bei vollständiger Referenz angegeben.
 > **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
 
-**1.17.0:** Offenes Kennfeldpaket v2, Projektintegration und hashgebundener Messworkflow; der Scanner bleibt
-unverändert. Die MS42-Trainingskontrolle bleibt bei 22/213 exakten 2D-Layouts. Für die Bosch-/MSD-Prioritätsfamilien
-gibt es keine neue Referenzmessung. [Prüfbericht](ANALYSE_2026-10-24.md).
+> **Stand 31.10.2026.** Die Tabellen zu den Hersteller-A2L zeigen die Messung von **1.16.0**: Die Referenzpaare
+> (EDC17CP09, MSD80/85, EDC16, ME9 …) liegen nicht im Repository und standen für spätere Runden nicht zur Verfügung.
+> **1.17.0** hat den Scanner nicht verändert (Kennfeldpaket, Messworkflow – [Prüfbericht](ANALYSE_2026-10-24.md)).
+> **Nach 1.17.0** kam die Erkennung über TriCore-Programmcode dazu (M8–M10). Sie wirkt nur auf Vollflash-Images mit
+> Code und wurde an einem MSD80-Vollflash gemessen, siehe [MSD80-Vollflash](#msd80-vollflash-teil-referenz-entwicklungsdaten).
 
 ## Meilensteine
 
@@ -25,6 +27,9 @@ gibt es keine neue Referenzmessung. [Prüfbericht](ANALYSE_2026-10-24.md).
 | **M5** | 20.10. | Mehr Kopf-Datensätze (55 → 200), A2L-Referenzen |
 | **M6** | **1.15.0** | Kopf-Datensätze mit Vorzeichen, bis 1000, Achsen als Kandidaten |
 | **M7** | **1.16.0** | Kopf-Datensätze auch mit flachen Werten, Datensatz-Ketten, Vorrang und kein Limit für belegte Funde |
+| **M8** | nach 1.17.0 · `cef592a` | TriCore-Interpolationsaufrufe: Kennfeld in `a4`, Achsköpfe in `a5`/`a6`; MSD80 als TriCore erkannt |
+| **M9** | nach 1.17.0 · `0096eeb` | Achszeiger aus Stackslots, getrennte Achsensuche (Prelookup) |
+| **M10** | nach 1.17.0 · `86f6efb` | Zellbreite und Vorzeichen aus den Ladebefehlen der Routine, benannte Nachbarn als Grenze |
 
 ## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → 1.16.0
 
@@ -162,6 +167,32 @@ xychart-beta
 | Siemens MSD85 · *Test* | 4.39 | 44.22 | 14.86 | 11.85 |
 | Bosch ME7.5 (VAG 06A906032HS) | 7.3 | 26.63 | 13.32 | 10.62 |
 | Bosch MED17.1.62 (404A) | 11.38 | 92.98 | 30.22 | 26.55 |
+
+## MSD80-Vollflash (Teil-Referenz, Entwicklungsdaten)
+
+Siemens MSD80 I8A0S, vollständiger 2-MiB-Flash mit Programmcode, Community-XDF mit 99 2D-Kennfeldern ab 4×4
+(unvollständig: nur Trefferquote und exakte Funde sind aussagekräftig). Die Datei wurde zum Entwickeln der
+M8–M10-Regeln genutzt; sie ist **kein unabhängiger Test**. Die bisherigen *Test*-Stände MSD80/85 sind reine
+Kalibrierbereiche ohne Code; dort ändert sich durch M8–M10 nichts.
+
+```mermaid
+xychart-beta
+    title "MSD80-Vollflash: exakt erkannte Kennfelder (von 99)"
+    x-axis ["1.17.0", "M8", "M9", "M10"]
+    y-axis "Kennfelder" 0 --> 99
+    bar [39, 61, 71, 73]
+```
+
+| Kennzahl | 1.17.0 | M8 | M9 | M10 |
+|---|---:|---:|---:|---:|
+| 2D exakt (von 99) | 39 | 61 | 71 | **73** |
+| davon Datentyp richtig | 28 | 45 | 53 | **62** |
+| Kennlinien exakt (von 262) | 115 | 160 | 163 | **164** |
+| Gemeinsame Achsen gefunden/richtig | 0/0 | 17/17 | 33/33 | **37/37** |
+| Funde, die der XDF widersprechen (2D) | 18 | 13 | 11 | **11** |
+
+Kontrollen bei jedem Schritt unverändert: MS42 22/213, MS43 197/379, alle synthetischen Negativdateien,
+Bosch EDC17C69 (0 TriCore-Deskriptoren). Details und Grenzen: [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md).
 
 ## Grenzen dieser Messung
 

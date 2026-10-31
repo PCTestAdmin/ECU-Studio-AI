@@ -9,32 +9,32 @@
 <text x="171.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#3fb950">VERÖFFENTLICHT</text>
 <rect x="40" y="186" width="262" height="496" rx="12" fill="#161b22" stroke="#30363d"/>
 <rect x="40" y="186" width="262" height="6" rx="3" fill="#3fb950"/>
-<text x="58" y="224" font-size="20" font-weight="700" fill="#e6edf3">1.16.4</text>
-<text x="284" y="224" text-anchor="end" font-size="13" fill="#9198a1">23.10.2026</text>
+<text x="58" y="224" font-size="20" font-weight="700" fill="#e6edf3">1.17.0</text>
+<text x="284" y="224" text-anchor="end" font-size="13" fill="#9198a1">24.10.2026</text>
 <rect x="52" y="246" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="246" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="272" font-size="14" font-weight="600" fill="#e6edf3">Doppelt so viele Treffer</text>
-<text x="68" y="293" font-size="12.5" fill="#9198a1">exakt erkannte Kennfelder</text>
+<text x="68" y="272" font-size="14" font-weight="600" fill="#e6edf3">Kennfeldpakete</text>
+<text x="68" y="293" font-size="12.5" fill="#9198a1">Definitionen austauschen, mit Undo</text>
 <rect x="52" y="318" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="318" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="344" font-size="14" font-weight="600" fill="#e6edf3">Kennlinien erkannt</text>
-<text x="68" y="365" font-size="12.5" fill="#9198a1">fast doppelt so viele 1D-Objekte</text>
+<text x="68" y="344" font-size="14" font-weight="600" fill="#e6edf3">Softwarestand-Vergleich</text>
+<text x="68" y="365" font-size="12.5" fill="#9198a1">Kennfelder trotz Verschiebung</text>
 <rect x="52" y="390" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="390" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="416" font-size="14" font-weight="600" fill="#e6edf3">2–4× schneller</text>
-<text x="68" y="437" font-size="12.5" fill="#9198a1">nutzt alle CPU-Kerne</text>
+<text x="68" y="416" font-size="14" font-weight="600" fill="#e6edf3">Gemeinsame Achsen</text>
+<text x="68" y="437" font-size="12.5" fill="#9198a1">in Katalog und Funktionsgraph</text>
 <rect x="52" y="462" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="462" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="488" font-size="14" font-weight="600" fill="#e6edf3">ORI/MOD-Vergleich</text>
-<text x="68" y="509" font-size="12.5" fill="#9198a1">Differenz-Heatmap je Zelle</text>
+<text x="68" y="488" font-size="14" font-weight="600" fill="#e6edf3">Projektbibliothek</text>
+<text x="68" y="509" font-size="12.5" fill="#9198a1">suchen, filtern, vergleichen</text>
 <rect x="52" y="534" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="534" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="560" font-size="14" font-weight="600" fill="#e6edf3">Prüfsummen ME7/MED9/ME9</text>
-<text x="68" y="581" font-size="12.5" fill="#9198a1">am Original bewiesen</text>
+<text x="68" y="560" font-size="14" font-weight="600" fill="#e6edf3">Doppelt so viele Treffer</text>
+<text x="68" y="581" font-size="12.5" fill="#9198a1">seit 1.16 · 2–4× schneller</text>
 <rect x="52" y="606" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="606" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="632" font-size="14" font-weight="600" fill="#e6edf3">Englische Oberfläche</text>
-<text x="68" y="653" font-size="12.5" fill="#9198a1">Einstellungen → Sprache</text>
+<text x="68" y="632" font-size="14" font-weight="600" fill="#e6edf3">ORI/MOD-Vergleich</text>
+<text x="68" y="653" font-size="12.5" fill="#9198a1">Differenz-Heatmap je Zelle</text>
 <circle cx="457.0" cy="150" r="15" fill="#d29922"/>
 <circle cx="457.0" cy="150" r="9" fill="#0d1117"/>
 <text x="457.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#d29922">IN ARBEIT</text>
@@ -52,16 +52,16 @@
 <text x="354" y="365" font-size="12.5" fill="#9198a1">berechnet · OEM-Nachweis fehlt</text>
 <rect x="338" y="390" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="390" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="416" font-size="14" font-weight="600" fill="#e6edf3">Gemeinsame Achsen</text>
-<text x="354" y="437" font-size="12.5" fill="#9198a1">fertig · im nächsten Update</text>
+<text x="354" y="416" font-size="14" font-weight="600" fill="#e6edf3">Kennfelder aus TriCore-Code</text>
+<text x="354" y="437" font-size="12.5" fill="#9198a1">MSD80: 39 → 73 von 99 · fertig</text>
 <rect x="338" y="462" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="462" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="488" font-size="14" font-weight="600" fill="#e6edf3">Softwarestand-Abgleich</text>
-<text x="354" y="509" font-size="12.5" fill="#9198a1">fertig · im nächsten Update</text>
+<text x="354" y="488" font-size="14" font-weight="600" fill="#e6edf3">Definition bearbeiten</text>
+<text x="354" y="509" font-size="12.5" fill="#9198a1">mit Vorschau · fertig</text>
 <rect x="338" y="534" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="534" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="560" font-size="14" font-weight="600" fill="#e6edf3">Projektbibliothek</text>
-<text x="354" y="581" font-size="12.5" fill="#9198a1">fertig · im nächsten Update</text>
+<text x="354" y="560" font-size="14" font-weight="600" fill="#e6edf3">XDF-Export</text>
+<text x="354" y="581" font-size="12.5" fill="#9198a1">mit Rückimport-Prüfung · fertig</text>
 <circle cx="743.0" cy="150" r="15" fill="#ab7df8"/>
 <circle cx="743.0" cy="150" r="9" fill="#0d1117"/>
 <text x="743.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#ab7df8">ALS NÄCHSTES</text>
@@ -75,8 +75,8 @@
 <text x="640" y="293" font-size="12.5" fill="#9198a1">Speeduino · rusEFI</text>
 <rect x="624" y="318" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="624" y="318" width="4" height="62" rx="2" fill="#ab7df8"/>
-<text x="640" y="344" font-size="14" font-weight="600" fill="#e6edf3">Kennfelder aus dem Code</text>
-<text x="640" y="365" font-size="12.5" fill="#9198a1">TriCore · PowerPC</text>
+<text x="640" y="344" font-size="14" font-weight="600" fill="#e6edf3">Bosch-Code-Verweise</text>
+<text x="640" y="365" font-size="12.5" fill="#9198a1">EDC17 · MED17 · PowerPC</text>
 <rect x="624" y="390" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="624" y="390" width="4" height="62" rx="2" fill="#ab7df8"/>
 <text x="640" y="416" font-size="14" font-weight="600" fill="#e6edf3">Gruppenkennfelder finden</text>
@@ -87,8 +87,8 @@
 <text x="640" y="509" font-size="12.5" fill="#9198a1">keine SmartScreen-Warnung</text>
 <rect x="624" y="534" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="624" y="534" width="4" height="62" rx="2" fill="#ab7df8"/>
-<text x="640" y="560" font-size="14" font-weight="600" fill="#e6edf3">Offenes Kennfeldpaket</text>
-<text x="640" y="581" font-size="12.5" fill="#9198a1">Definitionen austauschen</text>
+<text x="640" y="560" font-size="14" font-weight="600" fill="#e6edf3">Letzte MSD80-Lücken</text>
+<text x="640" y="581" font-size="12.5" fill="#9198a1">bedingte Sprünge im Code</text>
 <circle cx="1029.0" cy="150" r="15" fill="#8b949e"/>
 <circle cx="1029.0" cy="150" r="9" fill="#0d1117"/>
 <text x="1029.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#8b949e">WARTET AUF TESTDATEN</text>

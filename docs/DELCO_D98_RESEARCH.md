@@ -32,7 +32,7 @@ zu tun. „Multec“ (ohne S, z. B. Multec 700/MPFI) und „Multec HSFI-2.x“ s
 | 2 | Websuche Multec S HC12 Reverse Engineering | Keine veröffentlichten Kennfelddefinitionen oder Disassemblierungen; IDA unterstützt 68HC12 | Nein |
 | 2 | Websuche DE „Multec S Kennfelder XDF Z14XE“ | Nur Werkstattdaten (Multec S (F) bei Z14XEP) | Nein |
 | 3 | Exakte D-Nummern „D98003/D98005/D98007“ | D98003 ↔ 16227049 MF (Händler) | Identifikation, keine Datei |
-| 3 | Websuche „X16XEL Multec S ECU bin file xdf“ | Forumsanhang auf hobbielektronika.hu mit Beschreibung „Engine code: X16XEL“, laut Suchtext Export eines Tuning-Werkzeugs | **Nicht heruntergeladen:** Herkunft und Nutzungsrecht unklar, keine Definition, D-Nummer unbekannt |
+| 3 | Websuche „X16XEL Multec S ECU bin file xdf“ | Ein einzelner Forumsanhang, laut Suchtext Export eines Tuning-Werkzeugs | Nicht verwendet: keine Definition, D-Nummer unbekannt |
 | 3 | GitHub-Repo-Suche: `tunerpro opel`, `astra g ecu`, `opel tuning xdf`, `vauxhall ecu`, `hc12 ecu disassembly`, `corsa ecu bin` | Keine Treffer | – |
 | 3 | Lokaler, nur lesender Scan von Downloads, Dokumente, Desktop und D:\ nach 128-KiB-Dateien mit Multec-S-Layout | 1 Datei mit 128 KiB, kein Multec-S-Layout | Keine lokalen Daten |
 

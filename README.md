@@ -147,12 +147,13 @@ Die Trefferquote jeder Beweisart wurde an Herstellerdefinitionen gemessen:
 | 🟢 **Code-Verweis + zwei Achsen** | Der Code lädt Kennfeld und beide Achsen gemeinsam | **100 %** <sub>(227)</sub> |
 | 🟢 **Code-Verweis + eine Achse** | Kennlinie, vom Code mit ihrer Achse geladen | **99 %** <sub>(159)</sub> |
 | 🟢 **Code-Verweis** | Startadresse direkt aus dem Programmcode | **97 %** <sub>(35)</sub> |
-| 🟡 **Kopf-Datensatz** | `nx, ny, X-Achse, Y-Achse, Werte` direkt hintereinander | **87–88 %** <sub>(2077)</sub> |
-| 🟡 **Achsen-Array** | Anzahl + steigende Stützstellen | **54 %** <sub>(MS4x: 97–100 %)</sub> |
-| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg – ein Lernmodell ordnet nach | **22 %** <sub>(1321)</sub> |
+| 🟢 **Kopf-Datensatz mit Achsen** | `nx, ny, X-Achse, Y-Achse, Werte` direkt hintereinander | **82–98 %** <sub>(945)</sub> |
+| 🟢 **Achse aus Kopf-Datensatz** | Stützstellen eines solchen Datensatzes | **91 %** <sub>(2461)</sub> |
+| 🟡 **Achsen-Array** | Anzahl + steigende Stützstellen | **57 %** <sub>(2538)</sub> |
+| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg – ein Lernmodell ordnet nach | **23 %** <sub>(1135)</sub> |
 
-<sub>Anzahl der gemessenen Funde in Klammern. Gemessen auf MS43, MS42, Hyundai ×2, MSS54 und den Hersteller-A2L von ME9,
-ME9.2.1, EDC17CP09, EDC16C35/C31; MSD80/85 bleiben als Testdaten außen vor. Lernmodell und Kalibrierung:
+<sub>Anzahl der gemessenen Funde in Klammern. Gemessen auf MS43, MS42, MS45, MSS54, Hyundai ×2 und den Hersteller-A2L
+von ME9, ME9.2.1 und EDC17CP09; die MSD80/85-Teststände bleiben außen vor. Klassen, Lernmodell und Grenzen:
 <a href="docs/MODELLKARTE.md">docs/MODELLKARTE.md</a>.</sub>
 
 ```mermaid

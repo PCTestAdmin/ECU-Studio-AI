@@ -1,8 +1,13 @@
-# ECU-Unterstützung: was gemessen ist und was nicht (Stand 21.10.2026)
+# ECU-Unterstützung: was gemessen ist und was nicht (Messungen 21.10.2026, ergänzt 31.10.2026)
 
 Diese Seite und das Fenster **Hilfe → Unterstützte Steuergeräte …** in der App zeigen dieselben Daten
 (`src/ecu_studio/recognition/data/ecu_support.json`, erzeugt mit `python -m ecu_studio.tools.support_matrix`
-aus Ergebnissen von `benchmark_suite`). Keine Zahl ist von Hand eingetragen.
+aus Ergebnissen von `benchmark_suite`). Die Messwerte der Tabelle stammen aus diesen Läufen.
+
+**Ergänzt am 30./31.10.2026:** MSD80 ist nachweislich TriCore (vorher als PowerPC geführt), MSD85 ist ungeprüft,
+und Delphi/Delco Multec S ist als „nicht validiert“ aufgenommen. Das MSD80-Vollflash-Ergebnis (39 → 73 von 99) ist
+eine Entwicklungsmessung mit Community-XDF aus [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md), kein
+`support_matrix`-Lauf.
 
 ## Status
 

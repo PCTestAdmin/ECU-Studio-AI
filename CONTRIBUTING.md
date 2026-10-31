@@ -8,8 +8,10 @@ Danke für dein Interesse! Hier steht, wie Beiträge am besten ankommen.
    geschützt – weder in Issues noch in Pull Requests. Teile stattdessen Prüfsumme (SHA-256), Größe,
    Steuergeräte-/Softwarekennung und Messergebnisse.
 2. **Messen statt behaupten.** Änderungen an der Erkennung brauchen eine Vorher/Nachher-Messung mit
-   `python -m ecu_studio.tools.structure_benchmark <bin> <xdf>` auf mindestens einem Referenzpaar.
-   Eine Verbesserung auf einer Familie darf andere Familien nicht messbar verschlechtern.
+   `python -m ecu_studio.tools.benchmark_suite MANIFEST.json --baseline ALT.json` auf mindestens einem
+   Referenzpaar (Manifest und Rollen: [docs/REFERENCE_VALIDATION.md](docs/REFERENCE_VALIDATION.md));
+   `python -m ecu_studio.tools.miss_analysis MANIFEST.json` zeigt, warum Kennfelder fehlen. Eine Verbesserung
+   auf einer Familie darf andere Familien und die Negativkontrollen nicht messbar verschlechtern.
 3. **Keine Scheingenauigkeit.** Automatische Funde bleiben Geometrie-Hypothesen. Namen, Einheiten oder
    Funktionen nur aus Definitionen oder bestätigter Prüfung – nie aus Rohdaten erraten.
 4. **Kein Code fremder Tuning-Software.** Nur eigene Implementierungen oder Quellen mit kompatibler Lizenz (GPL-3.0).
@@ -34,7 +36,8 @@ python -m pytest -q
 
 Am wertvollsten sind öffentliche BIN/Definitions-Paare einer noch nicht gemessenen Familie:
 
-1. Benchmark ausführen und Ergebnis (JSON) im Issue „Erkennungsbericht“ posten.
+1. `benchmark_suite` mit einem lokalen Manifest ausführen und das Ergebnis (JSON, enthält nur Zahlen und Hashes)
+   im Issue „Erkennungsbericht“ posten.
 2. Quelle der Definition und ihre Lizenz angeben.
 3. Falls die Definition vollständig ist: `tools/calibrate_confidence.py` mit dem Paar ausführen und das
    Ergebnis beilegen.

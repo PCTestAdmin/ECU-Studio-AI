@@ -212,9 +212,9 @@
  "drop_below": 0.042,
  "drop_rationale": "Held-out (family-out) deciles below 0.042 hit 0.4-0.7 % (about 2 of 543). Sweep MS43/MS42: precision 0.76->0.80 / 0.67->0.72, recall 0.673->0.665 / 0.549->0.498, exact layouts unchanged (197/22). Higher thresholds cost too much MS42 recall.",
  "training_sources": [
-  "Siemens MS43 430069 + MS42 0110C6 (bundled GPL XDFs)",
-  "Hyundai SIM2K x4 (naamons/HyundaiN-TuningLib, GPL-3.0)",
-  "BMW MSS54 partial dumps x12 (saildot4k/MSS54-XDFs)",
+  "Siemens MS43 430069 + MS42 0110C6 (bundled XDFs)",
+  "Hyundai SIM2K x4",
+  "BMW MSS54 partial dumps x12",
   "TunerPro Porsche/Peugeot/Renault x6"
  ],
  "firmware_bytes_included": false

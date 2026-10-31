@@ -25,8 +25,9 @@ FAMILIES = [
     ('Bosch EDC17CP09', ['EDC17CP09'], 'Infineon TriCore', ['EDC17CP09'],
      'Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; '
      'TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea).', ''),
-    ('Siemens MSD80', ['MSD80'], 'PowerPC', ['MSD80'], 'Kalibrierbereich aus S19; Identität nur über A2L-EPK.', ''),
-    ('Siemens MSD85', ['MSD85'], 'PowerPC', ['MSD85'], 'Ein Softwarestand; Identität nur über A2L-EPK.', ''),
+    ('Siemens MSD80', ['MSD80'], 'Infineon TriCore', ['MSD80'],
+     'Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen des Programmcodes, an I8A0S mit Community-XDF (Entwicklungsdaten) 39 → 73 von 99 exakt.', ''),
+    ('Siemens MSD85', ['MSD85'], 'ungeprüft (MSD80: TriCore)', ['MSD85'], 'Ein Softwarestand; Identität nur über A2L-EPK.', ''),
     ('Bosch EDC16C35', ['EDC16C35'], 'PowerPC (MPC5xx)', ['EDC16C35'],
      'Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig.', ''),
     ('Bosch EDC16C31', ['EDC16C31'], 'PowerPC (MPC5xx)', ['EDC16C31'],
@@ -71,6 +72,9 @@ FAMILIES = [
     ('Continental SID208 / SID807 / SID807EVO / SID310 / SID321', ['SID208', 'SID807', 'SID310', 'SID321'],
      'Infineon TriCore', [], '', 'Original-BIN + A2L'),
     ('Siemens MSD81 / MSV70 / MSV80', ['MSD81', 'MSV70', 'MSV80'], 'PowerPC / C167', [], '', 'Original-BIN + A2L'),
+    ('Delphi/Delco Multec S („D98…“)', ['Multec S', 'Multec-S'], 'Motorola HC12', [],
+     'Kein rechtlich nutzbares Abbild öffentlich gefunden; kein Multec-S-Profil.',
+     'Unverändertes 128-KiB-Original mit Kennungsblock + passende Definition zur selben D-Nummer, je 2 Stände'),
     ('Bosch EDC16C34 / EDC16CP34', ['EDC16C34', 'EDC16CP34'], 'PowerPC (MPC5xx)', [], '', 'Original-BIN + A2L'),
     ('Siemens MSS60', ['MSS60'], 'PowerPC', [], 'Nur WinOLS-Projekt (.ols) vorhanden.', 'Original-BIN + A2L'),
 ]

@@ -1,5 +1,11 @@
 ## Unveröffentlicht
 
+- **Dokumentation und App-Daten aktualisiert:** „Hilfe → Unterstützte Steuergeräte“ führt MSD80 jetzt als TriCore
+  (vorher PowerPC), MSD85 als ungeprüft und Delco Multec S als nicht validiert; Messwerte unverändert. PROGRESS.md mit
+  den TriCore-Stufen, Roadmap-Grafik auf 1.17.0, Modellkarte mit den heutigen Trefferquoten je Beweisart und dem
+  Lernmodell, Beweisart-Tabelle der README an die Kalibrierdaten angeglichen. Herkunftsangaben zu nicht
+  mitgelieferten Referenz- und Trainingsdateien entfernt, ebenso `firmware_holdout sources` samt Quellenliste.
+
 - **TriCore-Zelltyp aus dem Programmcode (MSD80):** Breite und Vorzeichen einer Tabelle folgen aus den
   Ladebefehlen ihrer Interpolationsroutine, deren Basis vom Tabellenzeiger `a4` abgeleitet ist; nur bei
   übereinstimmenden Zugriffen, sonst bleibt der Typ als ungeprüft markiert. Diese Breite hat Vorrang vor einer

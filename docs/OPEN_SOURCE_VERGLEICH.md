@@ -23,6 +23,7 @@ verglichen. Angaben zu fremden Projekten geben deren Stand vom 20.10.2026 wieder
 | [tune-editor](https://github.com/TheFlashBold/tune-editor) | GPL-3.0 | TypeScript | Simos12/18, DQ250 | nein | Simos | A2L, XDF, **OLS-Parser** |
 | [xdfkit](https://github.com/nyetlabs/xdfkit) | LGPL-3.0 | Go | Formatwandler | – | – | XDF, KP, DAMOS, A2L |
 | [medc17-checksum-tool](https://github.com/ConnorHowell/medc17-checksum-tool) | MIT | Python | MED17/EDC17 | – | MED17/EDC17 | – |
+| [openremap-core](https://github.com/v-arapidis/openremap-core) *(ergänzt 30.10.2026, Stand `6c6ba85`)* | MIT | Python + Rust | Identifikation vieler Familien, Diff | Strukturfunde; Code-Verweis nur als Bonus (TriCore `movh.a`/`lea` und `[a0]`, PPC `d(r0)`) | einzelne | eigene Rezepte |
 
 **Damals fehlte ECU Studio AI** (20.10.2026): Suche unbekannter Checksummen-Layouts, A2L-Datensätze mit
 gespeicherten Achsen (`STD_AXIS`, `COM_AXIS`), WinOLS-.ols-Import, Vollständigkeitsanzeige je Familie.
@@ -31,7 +32,7 @@ gespeicherten Achsen (`STD_AXIS`, `COM_AXIS`), WinOLS-.ols-Import, Vollständigk
 Unterstützungsmatrix ([ECU_SUPPORT.md](ECU_SUPPORT.md), in der App **Hilfe → Unterstützte Steuergeräte …**).
 
 **Eigenständig in ECU Studio AI:** familienübergreifende Erkennung ohne Definition mit Code-Verweisen
-(C16x, 68k, Denso, HC11, 8051) und Kopf-Datensätzen, gemessene Trefferquoten je Beweisart, Fehlalarm-Messung,
+(C16x, 68k, Denso, HC11, 8051, seit dem 30.10.2026 TriCore-Interpolationsaufrufe mit Achsen und Zelltyp) und Kopf-Datensätzen, gemessene Trefferquoten je Beweisart, Fehlalarm-Messung,
 Steuergeräte-Identifikation mit Fundstelle, Flash-Preflight je Byte.
 
 ## Durchgang 2 – Übernommene und verworfene Ansätze
@@ -44,6 +45,7 @@ Steuergeräte-Identifikation mit Fundstelle, Flash-Preflight je Byte.
 | OLS-Container (ZedSuite, tune-editor `olsParser.ts`) | Marker je Binärversion | Projekte aus WinOLS öffnen | GPL-3.0 kompatibel | **geprüft, nicht übernommen**: In 7 echten Projekten stimmt die so gelesene „Original“-Version nur zu 30–54 % mit der echten Originaldatei überein – der Inhalt ist offenbar kodiert. `.ols` wird klar abgewiesen statt falsch gelesen. |
 | „Erwartete Kennfelder“ (ZedSuite) | Liste je Familie | Vollständigkeitsanzeige | trivial | **ersetzt** durch die gemessene Unterstützungsmatrix |
 | EDC15/EDC16-Checksummen (ZedSuite), MED17 (medc17-checksum-tool) | feste Algorithmen | Profile für diese Familien | MIT/GPL | EDC16/MED17/EDC17 rechnerisch prüfbar; sichere Korrektur bleibt ohne OEM-Originalnachweis gesperrt |
+| Globale Basisregister aus der Boot-Initialisierung (openremap-core `arch/tricore.py`) | `movh.a aN` + `lea aN,[aN]` liefert a0/a1; danach `[aN]`-relative Zugriffe auflösen | TriCore-Adressen ohne Paar im selben Befehlsfenster | Idee frei; eigener Code | **umgesetzt** (30.10.2026) in `core/tricore_refs.py`, zusätzlich Aufrufkonvention a4/a5/a6, Stackslots und Zelltyp ([Bericht](ANALYSE_2026-10-30.md)) |
 
 ## Durchgang 3 – Kritische Gegenprüfung
 
@@ -82,4 +84,6 @@ Spätere Messwerte (z. B. Kopf-Datensätze mit flachen Werten, Vorrang belegter 
    anliegende Wertblöcke) wurde gemessen und verworfen – die Blöcke liegen zwischen anderen Objekten, glatte Daten
    bleiben auch verschoben glatt (EDC17CP09: 132 Funde, 24 exakt). Nötig sind Verweise aus dem Programmcode; direkte
    TriCore-Adressladungen (`movh.a`/`lea`) treffen dort aber fast keine Kennfelder (2 von 20 590 Objekten).
+   Bei Siemens MSD80 funktioniert der Weg über Interpolationsaufrufe (30.10.2026: 39 → 73 von 99 exakt);
+   Bosch EDC17C69 übergibt Kennfelder anders (0 Deskriptoren), dafür fehlt weiter eine Bosch-Referenz.
 2. Checksummen-Profile für MED17/EDC17 und EDC15/16 nach den offenen Algorithmen – nur mit echten Original-Dumps prüfbar.

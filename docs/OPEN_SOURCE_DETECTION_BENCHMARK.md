@@ -155,9 +155,8 @@ Die lokale EDC17C69-Datei ohne passende vollständige Definition ersetzt diese P
 
 Der vollständige Vergleich bei `2921684` umfasst 14 hashgebundene Paare: vier synthetische Strukturdateien,
 acht synthetische Negativkontrollen und zwei reale MS4x-Kontrollen. Beide realen Paare bleiben `training`;
-**unabhängige reale Testpaare: 0**. Die MS43-Datei stammt aus dem lokalen Benutzerbestand, die passende
-430069-Definition aus dem vorhandenen öffentlichen Referenzbestand. Ein OEM-Originalstatus dieser lokalen
-Datei wird nicht zusätzlich behauptet. Diese Messung ersetzt keine unabhängige Freigabe.
+**unabhängige reale Testpaare: 0**. Ein OEM-Originalstatus der MS43-Datei wird nicht behauptet.
+Diese Messung ersetzt keine unabhängige Freigabe.
 
 | Paar / Verfahren | Baseline exakt | Isoliert exakt | Kombiniert exakt | IoU-Präzision vorher / kombiniert | Neue / verlorene exakte Layouts |
 |---|---:|---:|---:|---|---|

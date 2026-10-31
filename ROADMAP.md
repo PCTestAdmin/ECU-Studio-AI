@@ -163,7 +163,8 @@ gemessen**. Rechtlich sichere Testdateien gibt es dafür öffentlich nicht.
 
 > **Bosch** MD1 · MG1 · MED17.5 · MED17.7 · EDC17 (außer CP09)<br>
 > **Continental** Simos · SID<br>
-> **Siemens** MSD81 · MSV70 · MSV80
+> **Siemens** MSD81 · MSV70 · MSV80<br>
+> **Delphi/Delco** Multec S („D98…“) – [Recherche](docs/DELCO_D98_RESEARCH.md)
 
 💡 **Du kannst helfen:** Hast du eine Originaldatei **und** die passende A2L, die du nutzen darfst? Ein einziger Befehl
 misst sie und zeigt das Ergebnis – [so geht's](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird).

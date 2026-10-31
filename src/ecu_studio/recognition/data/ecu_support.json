@@ -37,7 +37,7 @@
   {
    "family": "Siemens MSD80",
    "status": "validiert",
-   "processor": "PowerPC",
+   "processor": "Infineon TriCore",
    "match": [
     "MSD80"
    ],
@@ -157,13 +157,13 @@
      "false_positives_2d": 74
     }
    ],
-   "limits": "Kalibrierbereich aus S19; Identität nur über A2L-EPK.",
+   "limits": "Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen des Programmcodes, an I8A0S mit Community-XDF (Entwicklungsdaten) 39 → 73 von 99 exakt.",
    "needed": ""
   },
   {
    "family": "Siemens MSD85",
    "status": "validiert",
-   "processor": "PowerPC",
+   "processor": "ungeprüft (MSD80: TriCore)",
    "match": [
     "MSD85"
    ],
@@ -1286,6 +1286,18 @@
    "software": [],
    "limits": "",
    "needed": "Original-BIN + A2L"
+  },
+  {
+   "family": "Delphi/Delco Multec S („D98…“)",
+   "status": "nicht validiert",
+   "processor": "Motorola HC12",
+   "match": [
+    "Multec S",
+    "Multec-S"
+   ],
+   "software": [],
+   "limits": "Kein rechtlich nutzbares Abbild öffentlich gefunden; kein Multec-S-Profil.",
+   "needed": "Unverändertes 128-KiB-Original mit Kennungsblock + passende Definition zur selben D-Nummer, je 2 Stände"
   },
   {
    "family": "Bosch EDC16C34 / EDC16CP34",
