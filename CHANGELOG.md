@@ -1,5 +1,10 @@
 ## Unveröffentlicht
 
+- **Offline zuerst: automatische Update-Prüfung ab Werk aus.** Ohne eigene Einstellung baut ECU Studio AI keine
+  Netzwerkverbindung mehr von selbst auf. „Einstellungen → Automatisch nach Updates suchen“ schaltet sie ein; eine
+  bereits gespeicherte Wahl (ein oder aus) bleibt erhalten. „Jetzt nach Updates suchen“ funktioniert unverändert.
+  Die Prüfung fragt nur die GitHub-Releases-API ab und sendet keine Dateien.
+
 - **Lokale Referenzsuche beim Öffnen einer BIN:** Projekte und Kennfeldpakete werden jetzt auch über gleiche
   Hardware- und Softwarenummern gefunden (eigene indizierte Tabelle; ältere Einträge werden beim Öffnen aus den
   gespeicherten Metadaten ergänzt, ohne eine BIN zu lesen). Jeder Vorschlag zeigt Stufe und Grund: „nachgewiesen“

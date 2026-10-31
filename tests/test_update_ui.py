@@ -36,9 +36,37 @@ def test_dialog_text_buttons_and_choice(window):
     assert dialog.choice == ui.UpdateDialog.SKIP
 
 
+def test_automatic_check_is_off_until_switched_on_and_stored_choices_are_kept(window, monkeypatch):
+    started = []
+    monkeypatch.setattr(ui, 'CheckWorker', lambda: started.append(1) or (_ for _ in ()).throw(AssertionError))
+    c = ui.UpdateController(window)
+    assert not c.auto_enabled()                      # new installation: no network on its own
+    c.check(manual=False, startup=True)
+    assert not started
+    window.settings.setValue(ui.KEY_AUTO, 'true')    # explicitly stored by an earlier version
+    assert ui.UpdateController(window).auto_enabled()
+    window.settings.setValue(ui.KEY_AUTO, 'false')
+    assert not ui.UpdateController(window).auto_enabled()
+
+
+def test_manual_check_works_with_automatic_check_off(window, monkeypatch):
+    class Worker:
+        def __init__(self):
+            self.finished_check = type('S', (), {'connect': lambda s, fn: setattr(Worker, 'fn', fn)})()
+        def isRunning(self):
+            return False
+        def start(self):
+            Worker.started = True
+    monkeypatch.setattr(ui, 'CheckWorker', Worker)
+    c = ui.UpdateController(window)
+    assert not c.auto_enabled()
+    c.check(manual=True)
+    assert Worker.started
+
+
 def test_skip_is_remembered_and_auto_check_can_be_disabled(window, monkeypatch):
     c = ui.UpdateController(window)
-    assert c.auto_enabled()
+    c.set_auto(True); assert c.auto_enabled()
     c.set_auto(False); assert not c.auto_enabled()
     c.set_auto(True)
     monkeypatch.setattr(ui.UpdateDialog, 'exec', lambda self: setattr(self, 'choice', self.SKIP))
@@ -136,6 +164,7 @@ def test_start_checks_even_if_checked_recently(window, monkeypatch):
             return False
 
     c = ui.UpdateController(window)
+    c.set_auto(True)                                            # automatic checks are opt-in
     window.settings.setValue(ui.KEY_LAST, time.time())          # checked just now
     monkeypatch.setattr(ui, 'CheckWorker', FakeWorker)
     c.check(manual=False)                                       # hourly timer: not due yet
