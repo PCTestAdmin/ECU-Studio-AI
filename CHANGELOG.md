@@ -1,5 +1,7 @@
 ## Unveröffentlicht
 
+## 1.18.1 (31.10.2026)
+
 - **Programm-Symbol:** ECU Studio AI hat ein eigenes Symbol (Chip mit Kennfeld) für die .exe, Explorer,
   Startmenü, Desktop-Verknüpfung, Installer, Deinstallationseintrag, alle Fenster und die Taskleiste (eigene
   Windows-App-ID, damit dort nicht das Python-Symbol erscheint). Die ICO enthält 16 bis 256 Pixel und wird mit

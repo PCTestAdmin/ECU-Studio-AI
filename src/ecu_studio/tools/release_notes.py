@@ -24,7 +24,7 @@ def notes_for(changelog: str, version: str) -> str:
 FOOTER = """
 ---
 **Installation:** `ECU-Studio-AI-<version>-windows-x64.zip` entpacken und `ECU-Studio-AI.exe` starten, oder den
-Installer `ECU-Studio-AI-<version>-setup.exe` ausführen. Bestehende Installationen bieten das Update automatisch an.
+Installer `ECU-Studio-AI-<version>-setup.exe` ausführen. Bestehende Installationen finden das Update unter „Einstellungen → Jetzt nach Updates suchen“ (automatisch nur, wenn eingeschaltet).
 
 **Windows-Warnung beim ersten Start:** Die EXE ist noch nicht code-signiert. Bei „Der Computer wurde durch Windows
 geschützt“ auf „Weitere Informationen“ → „Trotzdem ausführen“ klicken. Echtheit prüfen: SHA-256 gegen die
