@@ -43,3 +43,54 @@ next-*.xml
 *.ori
 *.ols
 !examples/**/*.bin
+
+# Firmware guard (docs/FIRMWARE_PROTECTION.md). .gitignore is only the first layer; the
+# pre-commit and pre-push hooks in .githooks/ check content as well.
+# Firmware images, dumps and tuning containers
+*.ori
+*.ORI
+*.mod
+*.MOD
+*.frf
+*.sgo
+*.odx
+*.pdx
+*.cbf
+*.s19
+*.s28
+*.s37
+*.srec
+*.mot
+*.hex
+*.HEX
+*.eep
+*.dmp
+*.dump
+*.fls
+*.kp
+*.ecu
+# Private definitions (bundled public XDFs and synthetic examples are whitelisted below)
+*.a2l
+*.A2L
+*.dam
+*.damos
+*.xdf
+*.XDF
+*.xdfx
+!examples/**/*.a2l
+!examples/**/*.xdf
+!examples/**/*.hex
+!examples/**/*.srec
+!src/ecu_studio/recognition/data/definitions/*.xdf
+# Local data folders that must never be inside the repository
+/firmware/
+/references/
+/private-reports/
+/ECU-Studio-Local/
+/mappacks/
+/projects/
+/databases/
+/benchmarks/
+*.sqlite
+*.sqlite3
+*.db

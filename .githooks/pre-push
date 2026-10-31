@@ -1,0 +1,12 @@
+#!/bin/sh
+# Firmware guard: checks every outgoing commit (files, renames, commit messages) and the pushed tip tree.
+# Ref lines arrive on stdin and are passed through to the guard.
+root=$(git rev-parse --show-toplevel) || exit 1
+guard="$root/src/ecu_studio/tools/firmware_guard.py"
+for py in "$ECU_STUDIO_GUARD_PYTHON" "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python" python py python3; do
+    if [ -n "$py" ] && command -v "$py" >/dev/null 2>&1 && "$py" -c "import sys" >/dev/null 2>&1; then
+        exec "$py" -I "$guard" push "$@"
+    fi
+done
+echo "firmware guard: no working Python found - push blocked" >&2
+exit 1

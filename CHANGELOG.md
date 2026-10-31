@@ -1,5 +1,13 @@
 ## Unveröffentlicht
 
+- **Firmware-Schutz für das Repository:** Pre-Commit- und Pre-Push-Hooks (`.githooks/`, aktivieren mit
+  `python src\ecu_studio\tools\firmware_guard.py install`) blockieren Firmware-, Dump-, Definitions-, Archiv- und
+  Datenbankdateien, umbenannte Binärdateien, eingebettete Hex-/Base64-/Intel-HEX-Daten, Dateien über 1 MiB, private
+  Datenordner und den konfigurierten lokalen Datenordner. Geprüft wird der Index (auch bei selektivem Staging) bzw.
+  jeder ausgehende Commit samt Commit-Nachricht und dem ganzen gepushten Baum. Öffentliche Ausnahmen (synthetische
+  Beispiele, mitgelieferte GPL-XDFs) gelten nur für Pfad + SHA-256. CI prüft den Baum erneut. Die bisherige Historie
+  wurde vollständig geprüft: keine Firmware ([Beschreibung und Restrisiken](docs/FIRMWARE_PROTECTION.md)).
+
 - **Dokumentation und App-Daten aktualisiert:** „Hilfe → Unterstützte Steuergeräte“ führt MSD80 jetzt als TriCore
   (vorher PowerPC), MSD85 als ungeprüft und Delco Multec S als nicht validiert; Messwerte unverändert. PROGRESS.md mit
   den TriCore-Stufen, Roadmap-Grafik auf 1.17.0, Modellkarte mit den heutigen Trefferquoten je Beweisart und dem

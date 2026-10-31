@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+      # Firmware guard: the pushed tree must not contain firmware or private references (docs/FIRMWARE_PROTECTION.md).
+      - run: python -I src/ecu_studio/tools/firmware_guard.py tree HEAD
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]" pytest-github-actions-annotate-failures
       # Failures appear as annotations on the run (readable without the full log).
