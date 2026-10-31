@@ -19,14 +19,39 @@ def main():
             return 1
     if sys.argv[1:]==['--self-check']:
         return self_check()
+    set_app_user_model_id()
     app = QApplication(sys.argv)
     app.setApplicationName("ECU Studio AI")
     app.setOrganizationName("ECU Studio")
+    app.setWindowIcon(app_icon())
     apply_language(app)
     from .ui.main_window import Window
     window = Window()
     window.show()
     return app.exec()
+
+
+APP_USER_MODEL_ID = 'PCTestAdmin.ECUStudioAI'
+
+
+def app_icon():
+    """Program icon for all windows and dialogs: the ICO with all sizes, the PNG if Qt's ICO plugin is missing."""
+    from pathlib import Path
+    from PySide6.QtGui import QIcon
+    assets = Path(__file__).resolve().parent / 'ui' / 'assets'
+    icon = QIcon(str(assets / 'app.ico'))
+    return icon if icon.availableSizes() else QIcon(str(assets / 'app_icon.png'))
+
+
+def set_app_user_model_id() -> bool:
+    """Own taskbar identity on Windows, so the taskbar shows the program icon instead of pythonw.exe's."""
+    if sys.platform != 'win32':
+        return False
+    try:
+        import ctypes
+        return ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID) == 0
+    except (AttributeError, OSError):
+        return False
 
 
 def apply_language(app) -> str:

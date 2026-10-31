@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -127,22 +128,165 @@ def signatures(data: bytes) -> list[str]:
     return sorted({s.decode() for s in ECU_SIGNATURES if s in data})
 
 
+MAX_METADATA = 64 * 1024   # text/comment/EXIF bytes an image may carry besides its pixels
+PNG_CHUNKS = {b'IHDR', b'PLTE', b'IDAT', b'IEND', b'tRNS', b'gAMA', b'cHRM', b'sRGB', b'iCCP', b'sBIT', b'pHYs',
+              b'bKGD', b'tIME', b'tEXt', b'zTXt', b'iTXt', b'hIST', b'sPLT', b'eXIf'}
+PNG_CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+
+
+def _png_problem(data: bytes) -> str:
+    """Walk all chunks: CRCs, known types only, bounded metadata, pixel data exactly as large as IHDR says."""
+    import zlib
+    pos, idat, meta, header, ended = 8, [], 0, None, False
+    while pos + 12 <= len(data):
+        size, kind = struct.unpack('>I4s', data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + size]
+        if len(body) != size or pos + 12 + size > len(data):
+            return 'PNG chunk runs past the end of the file'
+        if zlib.crc32(kind + body) != struct.unpack('>I', data[pos + 8 + size:pos + 12 + size])[0]:
+            return f'PNG chunk {kind!r} has a wrong checksum'
+        if kind not in PNG_CHUNKS:
+            return f'unknown PNG chunk {kind.decode("latin-1")!r} (can carry any data)'
+        if kind == b'IHDR':
+            header = struct.unpack('>IIBBBBB', body[:13])
+        elif kind == b'IDAT':
+            idat.append(body)
+        elif kind != b'PLTE':
+            meta += size
+        pos += 12 + size
+        if kind == b'IEND':
+            ended = True
+            break
+    if not ended or header is None:
+        return 'PNG structure incomplete'
+    if len(data) - pos > 16:
+        return f'{len(data) - pos} bytes appended after the image end'
+    if meta > MAX_METADATA:
+        return f'{meta} bytes of PNG metadata'
+    width, height, depth, color, _, _, interlace = header
+    try:
+        pixels = zlib.decompress(b''.join(idat))
+    except zlib.error:
+        return 'PNG pixel data is not valid'
+    if not interlace and color in PNG_CHANNELS:
+        expected = height * (1 + (width * PNG_CHANNELS[color] * depth + 7) // 8)
+        if len(pixels) != expected:
+            return f'PNG pixel data is {len(pixels)} bytes, the header needs {expected}'
+    return ''
+
+
+def _gif_problem(data: bytes) -> str:
+    """Walk header, color tables and blocks up to the trailer, which must be the last byte."""
+    if len(data) < 13:
+        return 'GIF structure incomplete'
+    flags = data[10]
+    pos = 13 + (3 * 2 ** ((flags & 7) + 1) if flags & 0x80 else 0)
+    meta = 0
+
+    def blocks(p):
+        total = 0
+        while p < len(data) and data[p]:
+            total += data[p]
+            p += 1 + data[p]
+        return p + 1, total
+    while pos < len(data):
+        tag = data[pos]
+        if tag == 0x3B:
+            return '' if pos == len(data) - 1 else f'{len(data) - pos - 1} bytes appended after the image end'
+        if tag == 0x21 and pos + 1 < len(data):
+            label = data[pos + 1]
+            pos, size = blocks(pos + 2)
+            if label != 0xF9:                       # comment, application and plain-text blocks
+                meta += size
+        elif tag == 0x2C and pos + 10 <= len(data):
+            local = data[pos + 9]
+            pos += 10 + (3 * 2 ** ((local & 7) + 1) if local & 0x80 else 0) + 1    # + LZW minimum code size
+            pos, _ = blocks(pos)
+        else:
+            return 'GIF block structure broken'
+        if meta > MAX_METADATA:
+            return f'{meta} bytes of GIF comments/extensions'
+    return 'GIF without trailer'
+
+
+def _jpeg_problem(data: bytes) -> str:
+    """Walk segments up to the scan; APPn/COM metadata bounded; EOI must end the file."""
+    pos, meta = 2, 0
+    while pos + 4 <= len(data) and data[pos] == 0xFF:
+        marker = data[pos + 1]
+        if marker == 0xDA:
+            end = data.rfind(b'\xff\xd9')
+            if end < pos:
+                return 'JPEG without end marker'
+            tail = len(data) - end - 2
+            return f'{tail} bytes appended after the image end' if tail > 16 else ''
+        size = struct.unpack('>H', data[pos + 2:pos + 4])[0]
+        if 0xE0 <= marker <= 0xEF or marker == 0xFE:
+            meta += size
+            if meta > MAX_METADATA:
+                return f'{meta} bytes of JPEG metadata'
+        pos += 2 + size
+    return 'JPEG segment structure broken'
+
+
+def _ico_problem(data: bytes) -> str:
+    """Every entry inside the file, entries cover it without gaps; each one a valid PNG or a DIB of exact size."""
+    count = struct.unpack('<H', data[4:6])[0]
+    spans = []
+    for i in range(count):
+        entry = data[6 + 16 * i:22 + 16 * i]
+        if len(entry) < 16:
+            return 'ICO directory runs past the end of the file'
+        width, height, _, _, _, bits, size, offset = struct.unpack('<BBBBHHII', entry)
+        image = data[offset:offset + size]
+        if len(image) != size:
+            return 'ICO entry runs past the end of the file'
+        if image.startswith(b'\x89PNG\r\n\x1a\n'):
+            problem = _png_problem(image)
+            if problem:
+                return f'ICO entry {i}: {problem}'
+        else:
+            w, h = width or 256, height or 256
+            header, dib_bits = struct.unpack('<I', image[:4])[0], struct.unpack('<H', image[14:16])[0]
+            colors = 2 ** dib_bits if dib_bits <= 8 else 0
+            expected = header + 4 * colors + h * (((w * dib_bits + 31) // 32) * 4 + ((w + 31) // 32) * 4)
+            if header != 40 or size != expected:
+                return f'ICO entry {i} is neither PNG nor a DIB of the expected size'
+        spans.append((offset, offset + size))
+    pos = 6 + 16 * count
+    for start, end in sorted(spans):
+        if start != pos:
+            return 'ICO has data between or overlapping its images'
+        pos = end
+    return '' if pos == len(data) else f'{len(data) - pos} bytes appended after the last ICO image'
+
+
+def _webp_problem(data: bytes) -> str:
+    if data[8:12] != b'WEBP' or struct.unpack('<I', data[4:8])[0] + 8 != len(data):
+        return 'RIFF length does not match the file (renamed or appended data?)'
+    pos, meta = 12, 0
+    while pos + 8 <= len(data):
+        kind, size = data[pos:pos + 4], struct.unpack('<I', data[pos + 4:pos + 8])[0]
+        if kind not in (b'VP8 ', b'VP8L', b'VP8X', b'ALPH', b'ANIM', b'ANMF', b'ICCP', b'EXIF', b'XMP '):
+            return f'unknown WEBP chunk {kind!r}'
+        if kind in (b'EXIF', b'XMP ', b'ICCP'):
+            meta += size
+        pos += 8 + size + (size & 1)
+    if meta > MAX_METADATA:
+        return f'{meta} bytes of WEBP metadata'
+    return '' if pos == len(data) else 'WEBP chunk structure broken'
+
+
 def _media_problem(ext: str, data: bytes) -> str:
-    magics = MEDIA_MAGIC[ext]
-    if not data.startswith(magics):
+    """Structural check of an image: a valid header alone does not make a file an image."""
+    if not data.startswith(MEDIA_MAGIC[ext]):
         return f'content is not a {ext.upper()} file (renamed?)'
-    if ext == 'webp' and data[8:12] != b'WEBP':
-        return 'content is not a WEBP file (renamed?)'
-    tail = b''
-    if ext == 'png':
-        end = data.rfind(b'IEND')
-        tail = data[end + 8:] if end >= 0 else data
-    elif ext == 'gif':
-        tail = b'' if data.endswith(b';') else data[-1:]
-    elif ext in ('jpg', 'jpeg'):
-        end = data.rfind(b'\xff\xd9')
-        tail = data[end + 2:] if end >= 0 else data
-    return f'{len(tail)} bytes appended after the image end' if len(tail) > 16 else ''
+    check = {'png': _png_problem, 'gif': _gif_problem, 'jpg': _jpeg_problem, 'jpeg': _jpeg_problem,
+             'ico': _ico_problem, 'webp': _webp_problem}[ext]
+    try:
+        return check(data)
+    except (struct.error, IndexError, ValueError) as error:
+        return f'{ext.upper()} structure broken ({error})'
 
 
 def _groups(pattern, data: bytes):

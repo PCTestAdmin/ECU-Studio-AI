@@ -61,7 +61,7 @@ aus dem Arbeitsverzeichnis. Findet ein Hook kein lauffähiges Python, blockiert 
 | `private-dir` | Pfade mit Ordnern wie `.qa`, `firmware`, `references`, `private-reports`, `mappacks`, `damos`, `a2l`, `originals`, `dumps` |
 | `size` | Dateien über 1 MiB |
 | `binary` | jede Binärdatei ohne Bild-Endung; erkannte Steuergerätekennungen (EDC17, MED17, MSD80, Bosch-Nummern …) werden mit genannt. Fängt **umbenannte** Firmware ab. |
-| `media` | PNG/GIF/JPG/ICO/WEBP, deren Inhalt kein Bild ist oder hinter dem Bildende Daten tragen |
+| `media` | PNG/GIF/JPG/ICO/WEBP, die strukturell kein Bild sind: PNG mit falscher Prüfsumme, unbekanntem Chunk, mehr als 64 KiB Metadaten oder Pixeldaten, die nicht zur Bildgröße passen; GIF/JPEG mit gebrochener Blockfolge oder über 64 KiB Kommentaren/APP-Daten; ICO mit Daten zwischen oder nach den Einzelbildern; WEBP mit falscher RIFF-Länge; jedes Format mit Daten hinter dem Bildende |
 | `payload` | in Text eingebettete Bytes: Hex-Folgen, `\x..`-Escapes, `0x..`-Listen und Hexdumps ab 1 KiB (auch über viele Zeilen oder Strings verteilt; 2 KiB in Summe je Datei), Base64-Blöcke ab 768 dekodierten Binärbytes, ab 8 Intel-HEX-/S-Record-Zeilen. Einzelne Hashwerte (32/40/64/128 Hex-Zeichen) zählen nicht. |
 | `local-path` | Text, der den konfigurierten lokalen Datenordner nennt; lokaler Datenordner im Repository |
 

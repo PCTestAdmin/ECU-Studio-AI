@@ -28,6 +28,7 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\ECU-Studio-AI.exe
+SetupIconFile=..\src\ecu_studio\ui\assets\app.ico
 WizardStyle=modern
 
 [Languages]

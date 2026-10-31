@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -160,13 +161,61 @@ def test_allowlist_is_bound_to_path_and_content(repo):
     assert result.returncode != 0 and 'content changed' in result.stderr
 
 
+def _chunk(kind, body):
+    import zlib
+    return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+
+
+def _png(width=4, height=4, extra=(), pixels=None):
+    """Minimal valid RGBA PNG (filter byte 0 per row), optional extra chunks before IEND."""
+    import zlib
+    raw = pixels if pixels is not None else b''.join(b'\x00' + b'\x10\x80\xff\xff' * width for _ in range(height))
+    return (b'\x89PNG\r\n\x1a\n' + _chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
+            + b''.join(extra) + _chunk(b'IDAT', zlib.compress(raw)) + _chunk(b'IEND', b''))
+
+
+def _ico(*images):
+    head = struct.pack('<HHH', 0, 1, len(images))
+    offset, entries = 6 + 16 * len(images), b''
+    for image in images:
+        entries += struct.pack('<BBBBHHII', 4, 4, 0, 0, 1, 32, len(image), offset)
+        offset += len(image)
+    return head + entries + b''.join(images)
+
+
 def test_media_files_must_be_real_images(repo):
-    png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 16 + b'IEND\xaeB`\x82'
-    write(repo, 'docs/ok.png', png)
-    assert commit(repo, 'docs/ok.png').returncode == 0
-    write(repo, 'docs/smuggle.png', png + synthetic(4096))
+    write(repo, 'docs/ok.png', _png())
+    write(repo, 'docs/icon.ico', _ico(_png()))
+    assert commit(repo, 'docs/ok.png', 'docs/icon.ico').returncode == 0
+    write(repo, 'docs/smuggle.png', _png() + synthetic(4096))
     result = commit(repo, 'docs/smuggle.png')
     assert result.returncode != 0 and 'appended after the image end' in result.stderr
+
+
+GIF_OK = b'GIF89a\x01\x00\x01\x00\x00\x00\x00' + b'\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00' + b';'
+
+
+@pytest.mark.parametrize('name, data, reason', [
+    ('header-only.ico', b'\x00\x00\x01\x00' + synthetic(8192), 'ICO'),
+    ('padded.ico', _ico(_png()) + synthetic(4096), 'appended after the last ICO image'),
+    ('gap.ico', _ico(_png())[:22] + synthetic(2048) + _png(), 'ICO'),
+    ('private-chunk.png', _png(extra=[_chunk(b'fwDt', synthetic(4096))]), 'unknown PNG chunk'),
+    ('big-text.png', _png(extra=[_chunk(b'tEXt', b'k\x00' + b'x' * 70000)]), 'PNG metadata'),
+    ('extra-pixels.png', _png(pixels=b''.join(b'\x00' + b'\x10\x80\xff\xff' * 4 for _ in range(4)) + synthetic(4096)),
+     'header needs'),
+    ('bad-crc.png', _png()[:-4] + b'\x00\x00\x00\x00', 'checksum'),
+    ('ends-with-semicolon.gif', GIF_OK[:-1] + synthetic(4096) + b';', 'GIF'),
+    ('riff.webp', b'RIFF' + struct.pack('<I', 4) + b'WEBP' + synthetic(4096), 'RIFF length'),
+], ids=lambda value: value if isinstance(value, str) and '.' in value else '')
+def test_payloads_disguised_as_images_are_blocked(name, data, reason):
+    findings = guard.scan_blob(f'docs/{name}', data, guard.Config.load(None))
+    assert findings and findings[0].rule == 'media' and reason in findings[0].detail, findings
+
+
+def test_real_images_pass_the_structural_check():
+    assert guard.scan_blob('a.png', _png(), guard.Config.load(None)) == []
+    assert guard.scan_blob('a.gif', GIF_OK, guard.Config.load(None)) == []
+    assert guard.scan_blob('a.ico', _ico(_png(), _png(8, 8)), guard.Config.load(None)) == []
 
 
 def test_local_data_root_must_not_be_named_or_inside_the_repo(repo, monkeypatch):

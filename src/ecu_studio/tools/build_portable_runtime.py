@@ -102,7 +102,10 @@ def build():
     (output/'VERSION.txt').write_text(version+'\n',encoding='ascii')
     compiler=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
     exe=output/EXE_NAME
+    # Program icon in the .exe: Explorer, Start menu, desktop shortcuts and the uninstall entry.
+    icon=root/'src'/'ecu_studio'/'ui'/'assets'/'app.ico'
     subprocess.run([str(compiler),'/nologo','/target:winexe','/platform:x64','/optimize+',
+                    '/win32icon:'+str(icon),
                     '/reference:System.Windows.Forms.dll','/out:'+str(exe),
                     str(root/'packaging'/'windows_launcher.cs')],check=True)
     (output/'RUNTIME_NOTICE.txt').write_text(

@@ -39,4 +39,5 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
+"ecu_studio.ui" = ["assets/*"]
 "ecu_studio.recognition" = ["data/*", "data/definitions/*", "data/i18n/*", "data/training/*", "data/training/sources/*"]

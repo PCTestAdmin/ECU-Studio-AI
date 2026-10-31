@@ -1,5 +1,13 @@
 ## Unveröffentlicht
 
+- **Programm-Symbol:** ECU Studio AI hat ein eigenes Symbol (Chip mit Kennfeld) für die .exe, Explorer,
+  Startmenü, Desktop-Verknüpfung, Installer, Deinstallationseintrag, alle Fenster und die Taskleiste (eigene
+  Windows-App-ID, damit dort nicht das Python-Symbol erscheint). Die ICO enthält 16 bis 256 Pixel und wird mit
+  `python -m ecu_studio.tools.make_app_icon BILD.png` aus einer Vorlage erzeugt.
+- **Firmware-Schutz prüft Bilder jetzt strukturell:** Bisher genügte bei ICO der Dateikopf, und eine PNG mit
+  beliebigen Daten vor `IEND` wäre durchgegangen. Jetzt werden PNG-Chunks samt Prüfsumme und Pixelmenge, GIF- und
+  JPEG-Blöcke, ICO-Einzelbilder und WEBP-Länge geprüft; Metadaten sind auf 64 KiB begrenzt.
+
 ## 1.18.0 (31.10.2026)
 
 - **Offline zuerst: automatische Update-Prüfung ab Werk aus.** Ohne eigene Einstellung baut ECU Studio AI keine
