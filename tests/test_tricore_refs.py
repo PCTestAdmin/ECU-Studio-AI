@@ -187,7 +187,24 @@ def ld_a_sp(a, off):                                                # ld.a a,[sp
     return w.to_bytes(4, 'little')
 
 
-def image_with(make_code, n_tables=24):
+def mov_aa(a, b):
+    return (0x40 | a << 8 | b << 12).to_bytes(2, 'little')
+
+
+def bo_load(op2, d, b, off=0):                                      # ld.* d,[b]off10 (BO, base+offset)
+    w = 0x09 | d << 8 | b << 12 | (off & 0x3F) << 16 | op2 << 22 | ((off >> 6) & 0xF) << 28
+    return w.to_bytes(4, 'little')
+
+
+LD_B, LD_BU, LD_H, LD_HU = 0x20, 0x21, 0x22, 0x23
+
+
+def reader(*op2s):
+    """Interpolation routine body: a2 = a4 (table), then the given loads through a2, ret."""
+    return mov_aa(2, 4) + b''.join(bo_load(op2, 2 + i, 2, i) for i, op2 in enumerate(op2s)) + RET
+
+
+def image_with(make_code, n_tables=24, routines=None):
     """64 KiB image: u8 5x6 tables from 0x8000, X (6 pts, u8) at 0xC000, X2 (4 pts) at 0xC008,
     Y (5 pts, u16) at 0xC010; routines at 0x7000.. (ret); code from make_code(tables) at 0x100."""
     img = bytearray(0x10000)
@@ -201,7 +218,8 @@ def image_with(make_code, n_tables=24):
                      (0xC010, u16_axis([500, 1000, 2000, 3000, 4000]))):
         img[off:off + len(raw)] = raw
     for r in (0x7000, 0x7100, 0x7200, 0x7300):
-        img[r:r + 2] = RET
+        body = (routines or {}).get(r, RET)
+        img[r:r + len(body)] = body
     code = bytearray(make_code(tables, 0x100))
     while len(code) < 0x6000:
         code += movh_a(12, 0xD000) + RET + RET
@@ -265,8 +283,11 @@ def prelookup_code(tables, base, *, single=False):
     return bytes(code)
 
 
+U8_TABLE = {0x7300: reader(LD_BU, LD_BU)}     # table routine M reads unsigned bytes through a4
+
+
 def test_split_interpolation_takes_axes_from_the_two_prelookups_on_the_path():
-    data, tables = image_with(prelookup_code)
+    data, tables = image_with(prelookup_code, routines=U8_TABLE)
     desc = call_descriptors(data)
     assert set(desc) == set(tables)
     assert all((d.x_axis.header, d.y_axis.header, d.prelookup) == (0xC000, 0xC010, True) for d in desc.values())
@@ -281,13 +302,67 @@ def test_split_interpolation_takes_axes_from_the_two_prelookups_on_the_path():
 
 
 def test_one_prelookup_is_not_enough_for_a_table():
-    data, tables = image_with(lambda t, b: prelookup_code(t, b, single=True))
+    data, tables = image_with(lambda t, b: prelookup_code(t, b, single=True), routines=U8_TABLE)
     assert call_descriptors(data) == {}
+
+
+def test_table_routine_without_table_loads_loses_its_role():
+    data, tables = image_with(prelookup_code)          # M is a bare ret: no evidence it reads a table
+    assert call_descriptors(data) == {}
+
+
+@pytest.mark.parametrize('loads, width, signed, dtype', [
+    ((LD_BU, LD_BU), 1, False, 'u8'), ((LD_B, LD_B), 1, True, 's8'),
+    ((LD_BU, LD_B), 1, None, None), ((LD_BU,), None, None, None)])
+def test_cell_width_and_sign_come_from_the_table_loads_of_the_routine(loads, width, signed, dtype):
+    data, tables = image_with(stack_function, routines={0x7000: reader(*loads)})
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    assert {(d.cell_width, d.cell_signed) for d in desc.values()} == {(width, signed)}
+    if dtype:
+        maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+        called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+        assert called and {m.dtype for m in called} == {dtype}
+        assert all('Ladebefehlen der Interpolationsroutine' in m.label_evidence for m in called)
+
+
+def test_loads_overrule_a_gap_that_two_equal_byte_tables_fill_exactly():
+    # Only every other u8 table is named: the gap is exactly twice the table (one u16 reading),
+    # but the routine reads bytes.
+    data, tables = image_with(lambda t, b: stack_function(t[::2], b), n_tables=48,
+                              routines={0x7000: reader(LD_BU, LD_BU)})
+    desc = call_descriptors(data)
+    widths = cell_widths(desc, list(desc) + [0xC000, 0xC010])
+    assert set(widths.values()) == {1}
+    data2, _ = image_with(lambda t, b: stack_function(t[::2], b), n_tables=48)   # no loads: the gap decides
+    desc2 = call_descriptors(data2)
+    assert set(cell_widths(desc2, list(desc2) + [0xC000, 0xC010]).values()) == {2}
+
+
+def thirds_code(tables, base):
+    """Tables i % 3 < 2 after two prelookups; tables i % 3 == 2 passed in a4 without any."""
+    code = bytearray()
+    for i, t in enumerate(tables):
+        if i % 3 < 2:
+            code += load(4, 0xC000) + call(base + len(code) + 8, 0x7100)
+            code += load(4, 0xC010) + call(base + len(code) + 8, 0x7200)
+        code += load(4, t) + call(base + len(code) + 8, 0x7300) + RET
+    return bytes(code)
+
+
+def test_neighbours_named_without_axes_still_bound_a_prelookup_table():
+    data, tables = image_with(thirds_code, n_tables=36, routines=U8_TABLE)
+    desc = call_descriptors(data)
+    middle = [t for i, t in enumerate(tables) if i % 3 == 1]
+    assert set(middle) <= set(desc) and all(tables[i] not in desc for i in range(2, 36, 3))
+    bounds = list(desc) + [0xC000, 0xC010]
+    assert not any(t in cell_widths(desc, bounds) for t in middle)          # gap = two tables
+    assert all(cell_widths(desc, bounds + list(desc.named)).get(t) == 1 for t in middle)
 
 
 @pytest.mark.parametrize('cut', [0x10000 - 1, 0x6F03, 0x200])
 def test_truncated_and_damaged_images_do_not_fail(cut):
-    data, _ = image_with(prelookup_code)
+    data, _ = image_with(prelookup_code, routines=U8_TABLE)
     call_descriptors(data[:cut])
     damaged = bytearray(data)
     damaged[0x1000:0x1400] = bytes(range(256)) * 4      # garbage inside the code
@@ -316,7 +391,7 @@ def test_real_msd80_calls_find_reference_tables_without_conflicts(msd80):
     maps = scan_calibration_candidates(image)
     exact = {(r.offset, r.width) for r in ref if min(r.rows, r.cols) >= 4 and any(
         m.offset == r.offset and m.width == r.width and {m.rows, m.cols} == {r.rows, r.cols} for m in maps)}
-    assert len(exact) >= 71      # 39 before TriCore calls, 61 with a5/a6 only (measured 2026-10-30)
+    assert len(exact) >= 73      # 39 before TriCore calls, 61 with a5/a6, 71 with stack + prelookup, 73 with named neighbours
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert len(called) > 700
     for m in called:              # no call table contradicts the reference

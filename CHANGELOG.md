@@ -1,5 +1,16 @@
 ## Unveröffentlicht
 
+- **TriCore-Zelltyp aus dem Programmcode (MSD80):** Breite und Vorzeichen einer Tabelle folgen aus den
+  Ladebefehlen ihrer Interpolationsroutine, deren Basis vom Tabellenzeiger `a4` abgeleitet ist; nur bei
+  übereinstimmenden Zugriffen, sonst bleibt der Typ als ungeprüft markiert. Diese Breite hat Vorrang vor einer
+  zufällig exakt gefüllten Lücke (22 von 832 Fällen: zwei gleich große Bytetabellen hintereinander). Alle per
+  `a4` an bekannte Kennfeldroutinen übergebenen Adressen begrenzen jetzt die Lücke. Eine Kennfeldroutine nach
+  Achsensuche muss Tabellenzellen lesen. MSD80 I8A0S (Entwicklungsdaten): exakt 71 → 73 von 99, Typ richtig
+  53 → 62, Konflikte unverändert; MS42/MS43, Negativkontrollen und EDC17C69 unverändert
+  ([Bericht, Abschnitt 11](docs/ANALYSE_2026-10-30.md)).
+- **Delco D98 / Multec S:** Recherche dokumentiert; kein rechtmäßig nutzbares Abbild gefunden, daher keine
+  Erkennungsmetrik ([Recherche](docs/DELCO_D98_RESEARCH.md), [Benchmark](docs/DELCO_D98_BENCHMARK.md)).
+
 - **TriCore-Aufrufe, zweite Stufe (MSD80):** Achszeiger, die eine Funktion früh auf dem Stack ablegt und erst
   vor dem Aufruf wieder lädt, werden über die nächste vorangehende Belegung des Slots aufgelöst (nur bei
   einmaliger sp-Änderung und ohne herausgegebene Slotadressen). Getrennte Interpolation (Achsensuche je Achse,

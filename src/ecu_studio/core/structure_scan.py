@@ -527,6 +527,13 @@ def anchored_fit(data: bytes, a: int, b: int):
     return best
 
 
+def _cell_type_note(call, dtype: str) -> str:
+    """Where the sign of a TriCore call table comes from."""
+    if call.cell_signed is None:
+        return ' Vorzeichen aus der glatteren Lesart (ungeprüft).'
+    return f' Datentyp {dtype}: Vorzeichen aus den Ladebefehlen der Interpolationsroutine.'
+
+
 def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, *,
                     max_results: int = 400, cancelled=None, axes=None,
                     regions: list[tuple[int, int]] | None = None, calls=None) -> list[MapDefinition]:
@@ -558,8 +565,8 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     # TriCore interpolation calls name start, shape and axes; the cell width
     # follows from the next object the calls name (see tricore_refs.cell_widths).
     calls = call_descriptors(data, start, end) if calls is None else calls
-    call_width = cell_widths(calls, list(calls) + [ax.header for c in calls.values()
-                                                   for ax in (c.x_axis, c.y_axis) if ax])
+    call_width = cell_widths(calls, list(calls) + list(getattr(calls, 'named', ()))
+                             + [ax.header for c in calls.values() for ax in (c.x_axis, c.y_axis) if ax])
     anchors = sorted(set(refs) | set(descriptors) | generic_only | set(pointed) | set(calls))
     axes_by_header = {ax.header: ax for ax in axes}
     axis_spans = sorted((ax.header, ax.end) for ax in axes)
@@ -578,10 +585,13 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         if w is None:
             continue
         rows = call.y_axis.count if call.y_axis else 1
-        # TriCore is little endian; the smoother reading decides the sign only.
+        # TriCore is little endian. The sign comes from the routine's table loads
+        # when they agree (tricore_refs.routine_cells); otherwise the smoother reading.
         views = tuple(v for v in VIEWS if v[1] == w and (w == 1 or v[2] == 'little'))
+        if call.cell_signed is not None:
+            views = tuple(v for v in views if (v[0][0] == 's') == call.cell_signed)
         f = _axis_fit(data, z, rows, call.x_axis.count, end, views)
-        cost, dtype = (f[0], f[3]) if f else (1., 'u8' if w == 1 else 'u16')
+        cost, dtype = (f[0], f[3]) if f else (1., ('s' if call.cell_signed else 'u') + ('8' if w == 1 else '16'))
         proposals.append((ANCHOR_SCORE + 2.4 - cost, z, rows, call.x_axis.count, dtype, 'little', w,
                           (call.x_axis, call.y_axis)))
     # (score, offset, rows, cols, dtype, endian, width, (x_axis, y_axis) | None)
@@ -713,13 +723,16 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                         f'Achsen aus den beiden vorangehenden Achsensuchen desselben Codepfads: '
                         f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
                         f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
+            evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
         elif called:
             n = len(calls[off].sites)
             evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) '
                         f'übergibt Datenstart und Achsen: X @ 0x{pair[0].header:X} ({pair[0].count} Punkte)'
                         + (f', Y @ 0x{pair[1].header:X} ({pair[1].count} Punkte)' if pair[1] else '')
-                        + f'; Zellbreite {w} Byte aus dem nächsten benannten Objekt.')
+                        + (f'; Zellbreite {w} Byte aus den Ladebefehlen der Interpolationsroutine.'
+                           if calls[off].cell_width else f'; Zellbreite {w} Byte aus dem nächsten benannten Objekt.'))
+            evidence += _cell_type_note(calls[off], dtype)
             origin = 'TriCore-Aufruf + Achsen (ungeprüft)'
         elif off in pointed:
             evidence = ('Beschreibungsblock mit Zeigern auf Achsen und Daten (Anzahl X/Y, Datentyp) '

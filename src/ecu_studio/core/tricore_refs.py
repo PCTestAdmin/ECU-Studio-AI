@@ -344,6 +344,19 @@ def stack_slots(entries: list[int], stores, sp_events) -> dict:
     return out
 
 
+def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int], list[int]]:
+    """(call sites, halfwords, function entries) of one image."""
+    h = _halfwords(data)
+    bases = global_bases(h)
+    sites, stores, sp_events, targets = _walk(h, bases, len(data))
+    entries = sorted(targets)
+    if stack:
+        slots = stack_slots(entries, stores, sp_events)
+        if slots:
+            sites = _walk(h, bases, len(data), slots, entries)[0]
+    return sites, h, entries
+
+
 def call_sites(data: bytes, *, stack: bool = True) -> list[CallSite]:
     """Calls with a resolved a4 (and optional a5/a6), as file offsets.
 
@@ -351,16 +364,91 @@ def call_sites(data: bytes, *, stack: bool = True) -> list[CallSite]:
     through the nearest preceding store in their function (MSD80 keeps axis
     pointers there across long function bodies).
     """
-    h = _halfwords(data)
-    bases = global_bases(h)
-    sites, stores, sp_events, targets = _walk(h, bases, len(data))
-    if not stack:
-        return sites
-    entries = sorted(targets)
-    slots = stack_slots(entries, stores, sp_events)
-    if not slots:
-        return sites
-    return _walk(h, bases, len(data), slots, entries)[0]
+    return _analyse(data, stack)[0]
+
+
+# Loads of table cells: base+offset forms (BO, op2) and 16-bit forms (op) -> (width, signed)
+_BO_LOADS = {0x00: (1, True), 0x01: (1, False), 0x02: (2, True), 0x03: (2, False),       # post-increment
+             0x10: (1, True), 0x11: (1, False), 0x12: (2, True), 0x13: (2, False),       # pre-increment
+             0x20: (1, True), 0x21: (1, False), 0x22: (2, True), 0x23: (2, False)}       # base + offset
+_S16_LOADS = {0x14: (1, False, 'b'), 0x04: (1, False, 'b'), 0x0C: (1, False, 15), 0x08: (1, False, 'c'),
+              0x94: (2, True, 'b'), 0x84: (2, True, 'b'), 0x8C: (2, True, 15), 0x88: (2, True, 'c')}
+MIN_CELL_LOADS = 2
+MAX_BODY = 0x1000
+
+
+def cell_loads(h: list[int], entry: int, end: int) -> Counter:
+    """{(width, signed): n} of loads whose base address register derives from a4.
+
+    Inside a routine a4 is the table pointer; copies and offsets of it
+    (mov.aa, addsc.a, lea, add.a) are followed linearly. Any other write to an
+    address register ends its derivation.
+    """
+    derived = {4}
+    seen: Counter = Counter()
+    i = entry // 2
+    while i * 2 < end and i + 1 < len(h):
+        x = h[i]
+        if x & 1:
+            w = x | (h[i + 1] << 16)
+            op = w & 0xFF
+            if op in (0x09, 0x29):
+                op2 = (w >> 22) & 0x3F
+                if op2 in _BO_LOADS and (w >> 12) & 0xF in derived:
+                    seen[_BO_LOADS[op2]] += 1
+                if op2 & 0xF in (6, 7):
+                    derived.discard((w >> 8) & 0xF)
+            elif op == 0x01:
+                op2, c = (w >> 20) & 0xFF, (w >> 28) & 0xF
+                if op2 == 0x60 and (w >> 12) & 0xF in derived:           # addsc.a c,b,d,n
+                    derived.add(c)
+                elif op2 in (0x01, 0x02) and ((w >> 8) & 0xF in derived or (w >> 12) & 0xF in derived):
+                    derived.add(c)                                       # add.a / sub.a
+                else:
+                    derived.discard(c)
+            elif op == 0xD9:                                             # lea a,[b]off
+                (derived.add if (w >> 12) & 0xF in derived else derived.discard)((w >> 8) & 0xF)
+            elif op in (0x91, 0x11):
+                derived.discard((w >> 28) & 0xF)
+            elif op == 0x99:
+                derived.discard((w >> 8) & 0xF)
+            i += 2
+            continue
+        op = x & 0xFF
+        if op & 0x3F == 0x10 or op == 0x40:                              # addsc.a a,b,d15,n / mov.aa a,b
+            (derived.add if (x >> 12) & 0xF in derived else derived.discard)((x >> 8) & 0xF)
+        elif op in _S16_LOADS:
+            width, signed, f = _S16_LOADS[op]
+            base = 15 if f == 15 else ((x >> 12) & 0xF if f == 'b' else (x >> 8) & 0xF)
+            if base in derived:
+                seen[(width, signed)] += 1
+        elif op in (0xD4, 0xC4, 0xC8, 0xA0, 0x60, 0xB0, 0x30):
+            derived.discard((x >> 8) & 0xF)
+        elif op in (0xD8, 0xCC):
+            derived.discard(15)
+        i += 1
+    return seen
+
+
+def routine_cells(h: list[int], entries: list[int], routines) -> dict[int, tuple]:
+    """{routine: (cell width or None, signed or None)} from its table loads.
+
+    A width (or sign) counts only when every table load of the routine agrees
+    and there are at least MIN_CELL_LOADS of them; mixed loads stay unknown.
+    The routine body ends at the next function entry (at most MAX_BODY bytes).
+    """
+    import bisect
+    out = {}
+    for r in routines:
+        k = bisect.bisect_right(entries, r)
+        end = min(entries[k] if k < len(entries) else r + MAX_BODY, r + MAX_BODY)
+        seen = cell_loads(h, r, end)
+        enough = sum(seen.values()) >= MIN_CELL_LOADS
+        widths = {w for w, _ in seen}
+        signs = {sg for _, sg in seen}
+        out[r] = (widths.pop() if enough and len(widths) == 1 else None,
+                  signs.pop() if enough and len(signs) == 1 else None)
+    return out
 
 
 @dataclass(frozen=True)
@@ -371,9 +459,14 @@ class CallDescriptor:
     callee: int
     sites: tuple[int, ...]
     prelookup: bool = False   # axes from earlier prelookup calls, not from a5/a6
+    cell_width: int | None = None   # from the routine's table loads (routine_cells)
+    cell_signed: bool | None = None
 
 
 MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
+# Both shares are set on one MSD80 file only (development data, not independently validated).
+# Prelookup shares there are bimodal (none between 0.45 and 0.66), so .6 sits in a natural gap;
+# table-routine shares run continuously (0.30 ... 0.71), hence the extra code check in call_descriptors.
 PRELOOKUP_SHARE = .6     # a4-only calls of a prelookup routine naming a parsable axis header
 POSTLOOKUP_SHARE = .6    # a4-only calls of a table routine with two prelookups on the path
 
@@ -409,6 +502,12 @@ def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[i
     return pre, post
 
 
+class Descriptors(dict):
+    """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
+    in a4 to one of the descriptors' routines, with or without resolved axes."""
+    named: frozenset = frozenset()
+
+
 def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
     """{data offset: descriptor} for calls naming table data plus parsable axis headers.
 
@@ -418,12 +517,19 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     ``prelookup`` and accepted only with an exactly fitting cell width.
     A table whose data lies inside one of the named axes, or calls that name the
     same data with different axes, are dropped: such reads are not one table.
+    The result also lists all data addresses passed to the same routines
+    (``Descriptors.named``): neighbours whose axes stay unresolved still bound
+    a table (MSD80: two tables only fit exactly once their neighbour counts).
     """
     hi = len(data) if hi is None else hi
     if not looks_like_tricore(data):
         return {}
-    sites = call_sites(data)
+    sites, h, entries = _analyse(data)
     pre, post = prelookup_roles(data, sites)
+    # The share threshold for table routines has no natural gap on MSD80 (shares
+    # 0.30 ... 0.71 run continuously); a table routine must also read table cells
+    # of one width through a4 (code evidence, see routine_cells).
+    post = {r for r, (width, _) in routine_cells(h, entries, post).items() if width is not None}
     found: dict[int, list] = {}
     for c in sites:
         if not lo <= c.data < hi:
@@ -442,7 +548,9 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via))
     if len({d for d in found}) < MIN_CALLS:
         return {}
-    out = {}
+    cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings})
+    out = Descriptors()
+    out.named = frozenset(c.data for c in sites if c.callee in cells and lo <= c.data < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:
@@ -451,7 +559,7 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         if any(ax.header <= d < ax.end for ax in (x, y) if ax):
             continue
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
-                                all(r[4] for r in readings))
+                                all(r[4] for r in readings), *cells[callee])
     return out
 
 
@@ -467,6 +575,12 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
     and is aligned, and a single possible width decides. Remaining ambiguity is
     settled by the interpolation routine: a routine handles one cell type, so
     the width its decided calls agree on (all of them, at least three) is used.
+
+    A width known from the routine's own table loads (``cell_width``) comes
+    first: it is used when the table fits before the next object. MSD80: in 22
+    of 832 tables the gap was exactly twice the table, two equal byte tables in
+    a row, while the routine reads bytes. Prelookup tables still need the exact
+    fit, now of that width.
     """
     import bisect
     bounds = sorted(set(boundaries))
@@ -477,6 +591,11 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
         nxt = bounds[k] if k < len(bounds) else None
         fits = [w for w in (1, 2) if d % w == 0 and (nxt is None or d + cells * w <= nxt)]
         exact = [w for w in fits if nxt is not None and nxt - (d + cells * w) <= MAX_PAD]
+        if desc.cell_width is not None:
+            w = desc.cell_width
+            ok = w in (exact if desc.prelookup else fits)
+            options[d] = [w] if ok else []
+            continue
         if desc.prelookup:
             # Axes linked through RAM results: only an exact fit confirms the shape.
             options[d] = exact if len(exact) == 1 else []
