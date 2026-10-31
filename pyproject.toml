@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecu-studio-ai"
-version = "1.17.0"
+version = "1.18.0"
 description = "ECU calibration workbench: map detection without definitions, XDF/A2L import, heatmap and 3D views"
 license = {text = "GPL-3.0-only"}
 readme = "README.md"
