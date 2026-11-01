@@ -156,7 +156,12 @@ ARG_REGS = (2, 3, 4, 5, 6, 7)   # address registers that carry call arguments (n
 class Sites(list):
     """Call sites with a resolved a4; ``generic`` lists every call with at least two resolved
     argument registers as (site, callee, ((register, file offset), ...))."""
-    generic: list = []
+    generic: tuple = ()     # set per instance by _walk; never shared between images
+
+    def extended(self, more) -> 'Sites':
+        out = Sites(list(self) + list(more))
+        out.generic = self.generic
+        return out
 
 
 def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True):
@@ -748,7 +753,7 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
                  | record_roles(data, sites))
         roles = {r: v for r, v in roles.items() if r not in known and len(v[1]) == 2}
     if roles:
-        sites = Sites(list(sites) + role_sites(sites.generic, roles))
+        sites = sites.extended(role_sites(sites.generic, roles))
     pre, post = prelookup_roles(data, sites)
     # The share threshold for table routines has no natural gap on MSD80 (shares
     # 0.30 ... 0.71 run continuously); a table routine must also read table cells

@@ -3,7 +3,11 @@
 Usage: python -m ecu_studio.tools.build_candidate_dataset MANIFEST.json OUT.jsonl
 
 Manifest: the benchmark_suite format (name, family, bin, reference, complete,
-role) plus optional "group", "source" and "license". Writes OUT.jsonl (one row
+role) plus optional "group", "source" and "license". Role "training" also needs
+"training_allowed": true - an explicit, recorded decision that the BIN and the
+reference may be used for training (licence/provenance checked). Without it the
+pair is refused, so data that is only cleared for regression or development
+cannot slip into a training set. Writes OUT.jsonl (one row
 per candidate: family, group, pair, role, complete, cls, y, x) and
 OUT.meta.json (tool and app version, feature list, per pair: SHA-256 of BIN and
 reference, source, licence, role, counts; SHA-256 of the JSONL). No firmware
@@ -66,17 +70,31 @@ def pair_rows(pair: dict) -> list[dict]:
     return rows
 
 
+def check_manifest(manifest: list[dict]) -> None:
+    """Refuse training pairs without an explicit training clearance."""
+    blocked = [p.get('name', '?') for p in manifest
+               if p.get('role', 'development') == 'training' and p.get('training_allowed') is not True]
+    if blocked:
+        raise ValueError('Rolle "training" ohne "training_allowed": true (Herkunft/Lizenz für Training nicht '
+                         'freigegeben): ' + ', '.join(blocked))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('manifest', type=Path)
     parser.add_argument('out', type=Path)
     args = parser.parse_args(argv)
     manifest = json.loads(args.manifest.read_text(encoding='utf-8'))
+    try:
+        check_manifest(manifest)
+    except ValueError as exc:
+        parser.error(str(exc))
     lines, pairs = [], []
     for pair in manifest:
         rows = pair_rows(pair)
         lines += [json.dumps(r, ensure_ascii=False) for r in rows]
-        pairs.append({k: pair.get(k) for k in ('name', 'family', 'group', 'role', 'complete', 'source', 'license')}
+        pairs.append({k: pair.get(k) for k in ('name', 'family', 'group', 'role', 'complete', 'source', 'license',
+                                               'training_allowed')}
                      | {'bin_sha256': _sha(pair['bin']), 'reference_sha256': _sha(pair['reference']),
                         'rows': len(rows), 'positives': sum(r['y'] for r in rows)})
         print(f"{pair['name']}: {len(rows)} Kandidaten, {pairs[-1]['positives']} Treffer", flush=True)

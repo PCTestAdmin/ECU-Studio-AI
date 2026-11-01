@@ -15,9 +15,15 @@ plausibility warning for them. Higher score = a human decision matters more:
 
 Decisions are explicit: confirming marks a map as checked by the user
 (``verified``); rejecting removes it and records the rejection in the project's
-review log, so a new scan does not offer the same table again. Nothing here is
-sent anywhere or used for training: confirmed maps only become local references
-when the user adds them to the local library.
+review log, so a new scan does not offer the same table again. Every decision
+can be withdrawn (``zurückgenommen``); the latest entry per table counts.
+
+A rejection is bound to the firmware it was made on (SHA-256 of the original
+file) and to the evidence layer of the rejected detection: it never applies to
+another file, and a later detection with stronger evidence (code/structure
+after a rejected data pattern) is offered again, marked as previously rejected.
+Nothing here is sent anywhere or used for training: confirmed maps only become
+local references when the user adds them to the local library.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -26,7 +32,7 @@ import math
 from .fusion import layer_of
 from .model import MapDefinition
 
-DECISIONS = ('bestätigt', 'abgelehnt')
+DECISIONS = ('bestätigt', 'abgelehnt', 'zurückgenommen')
 LEVELS = ((5., 'hoch'), (2., 'mittel'), (0., 'niedrig'))
 
 
@@ -116,13 +122,36 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
     return items
 
 
-def decision(m: MapDefinition, verdict: str, reason: str = '') -> dict:
-    """A review log entry (stored in the project, never the firmware)."""
+def decision(m: MapDefinition, verdict: str, reason: str = '', image_sha256: str | None = None) -> dict:
+    """A review log entry (stored in the project, never the firmware).
+
+    ``image_sha256`` binds the entry to the original file it was made on; ``layer``
+    records the evidence layer of the decided map (1 definition/user, 2 code/structure,
+    3 data pattern).
+    """
     if verdict not in DECISIONS:
         raise ValueError(f'Unbekannte Entscheidung: {verdict}')
-    return {'offset': m.offset, 'rows': m.rows, 'cols': m.cols, 'dtype': m.dtype, 'endian': m.endian,
-            'name': m.name, 'source': m.source, 'decision': verdict, 'reason': reason.strip(),
-            'at': datetime.datetime.now().isoformat(timespec='seconds')}
+    entry = {'offset': m.offset, 'rows': m.rows, 'cols': m.cols, 'dtype': m.dtype, 'endian': m.endian,
+             'name': m.name, 'source': m.source, 'layer': layer_of(m), 'decision': verdict,
+             'reason': reason.strip(), 'at': datetime.datetime.now().isoformat(timespec='seconds')}
+    if image_sha256:
+        entry['image_sha256'] = image_sha256
+    return entry
+
+
+def entry_key(e: dict) -> tuple:
+    width = MapDefinition('x', 0, rows=1, cols=1, dtype=e['dtype']).width
+    return e['offset'], tuple(sorted((e['rows'], e['cols']))), width
+
+
+def latest(log: list[dict], image_sha256: str | None = None) -> dict[tuple, dict]:
+    """The latest decision per table; entries made on another file are ignored."""
+    state = {}
+    for e in log:
+        if image_sha256 and e.get('image_sha256') not in (None, image_sha256):
+            continue
+        state[entry_key(e)] = e
+    return state
 
 
 def validate_log(log) -> list[dict]:
@@ -132,20 +161,30 @@ def validate_log(log) -> list[dict]:
     for e in log:
         if (not isinstance(e, dict) or e.get('decision') not in DECISIONS
                 or not all(isinstance(e.get(k), int) and e[k] >= 0 for k in ('offset', 'rows', 'cols'))
-                or not isinstance(e.get('dtype'), str)):
+                or not isinstance(e.get('dtype'), str)
+                or e.get('layer', 3) not in (1, 2, 3)
+                or not isinstance(e.get('image_sha256', ''), str)):
             raise ValueError('Ungültiger Eintrag im Prüfprotokoll')
         out.append(dict(e))
     return out
 
 
-def rejected_keys(log: list[dict]) -> set[tuple]:
-    """Tables the user rejected; the latest decision per table counts."""
-    state = {}
-    for e in log:
-        width = MapDefinition('x', 0, rows=1, cols=1, dtype=e['dtype']).width
-        state[(e['offset'], tuple(sorted((e['rows'], e['cols']))), width)] = e['decision']
-    return {k for k, v in state.items() if v == 'abgelehnt'}
+def rejected_keys(log: list[dict], image_sha256: str | None = None) -> dict[tuple, int]:
+    """{table: evidence layer of the rejected detection} for tables whose latest decision is a rejection.
+
+    With ``image_sha256`` only decisions made on that file count (entries without a
+    hash come from projects, which are bound to their file anyway).
+    """
+    return {k: e.get('layer', 3) for k, e in latest(log, image_sha256).items() if e['decision'] == 'abgelehnt'}
 
 
-def is_rejected(m: MapDefinition, keys: set[tuple]) -> bool:
-    return table_key(m) in keys
+def is_rejected(m: MapDefinition, keys: dict[tuple, int]) -> bool:
+    """Rejected, and the new detection is not stronger than the rejected one."""
+    layer = keys.get(table_key(m))
+    return layer is not None and layer_of(m) >= layer
+
+
+def rejected_before(m: MapDefinition, keys: dict[tuple, int]) -> bool:
+    """Rejected once, but now found with stronger evidence: offer again with a note."""
+    layer = keys.get(table_key(m))
+    return layer is not None and layer_of(m) < layer

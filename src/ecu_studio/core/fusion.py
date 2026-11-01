@@ -1,9 +1,12 @@
 """Three recognition layers combined: definition, code/structure, data pattern/ML.
 
 Layer 1 – definitions (XDF, A2L, CSV, RomRaider, bundled, manual, verified maps)
-  are kept as they are. Each is checked against the firmware (bounds, readable
-  axes, not erased). A detected table at exactly the same place, size and cell
-  width confirms it independently ("bestätigt durch Programmcode/Struktur").
+  are kept as they are. Each is checked against the firmware (bounds, axes
+  changing direction; for the whole set see definition_mismatch). A detected
+  table at exactly the same place, size and cell width confirms it
+  independently ("bestätigt durch Programmcode/Struktur").
+  A layer 3 detection at the same place only supports the location (weaker,
+  reported separately as "gestützt durch Datenmuster").
 Layer 2 – code and structure evidence (interpolation calls, code references,
   header records, axis arrays, descriptors) fills gaps the definitions leave.
 Layer 3 – data patterns and model proposals (row pitch, raster, ML/transfer
@@ -16,6 +19,7 @@ detection layer were already deduplicated by the scanner (a table and its
 axes may share a record) and are kept as they are. Nothing is marked verified.
 """
 from __future__ import annotations
+from bisect import bisect_left, insort
 from dataclasses import dataclass, field
 import math
 from .model import BinaryImage, MapDefinition
@@ -57,7 +61,10 @@ class FusionResult:
     maps: list[MapDefinition]
     conflicts: list[Conflict] = field(default_factory=list)
     confirmed: list[MapDefinition] = field(default_factory=list)   # layer 1 maps found again by detection
+    confirmed_layer: dict[int, int] = field(default_factory=dict)  # id(map) -> strongest confirming layer (2 or 3)
     definition_warnings: dict[int, list[str]] = field(default_factory=dict)   # id(map) -> warnings
+    definition_hints: dict[int, list[str]] = field(default_factory=dict)      # id(map) -> informational notes
+    mismatch: str = ''                     # whole definition set does not fit this file (definition_mismatch)
     counts: dict[str, int] = field(default_factory=dict)
 
 
@@ -104,31 +111,64 @@ def sign_proven(m: MapDefinition) -> bool:
     return m.record_layout == 'candidate:code-call' and not m.dtype_alternatives
 
 
+def _checkable(axis, n) -> bool:
+    # A constant axis is an undefined one (XDF "autogen" axes are all zeros), not a wrong version.
+    return n > 1 and axis and len(axis) == n and all(math.isfinite(v) for v in axis) and len(set(axis)) > 1
+
+
+def _reversed(axis) -> bool:
+    # Repeated breakpoints (padding of unused points) are common; a change of direction is not.
+    steps = [b - a for a, b in zip(axis, axis[1:])]
+    return not (all(d >= 0 for d in steps) or all(d <= 0 for d in steps))
+
+
 def definition_check(image: BinaryImage, m: MapDefinition) -> list[str]:
     """Plausibility of a definition against this firmware (layer 1 is kept regardless).
 
-    Detects definitions for another software version: outside the file, axes
-    changing direction, or table bytes erased (0xFF) / empty (0x00).
+    Warnings: outside the file, or an axis changing direction. Measured on local
+    pairs (01.11.2026): right definitions 0.1-0.8 % of checkable definitions with
+    such an axis, a definition of another version or family 87-97 %. Erased or
+    empty table bytes are no warning (right definitions: 11-37 %, unused
+    functions), see definition_hints.
     """
-    warnings = []
     try:
         m.validate(image.size)
     except (ValueError, IndexError) as exc:
         return [f'passt nicht zur Datei: {exc}']
-    for name, axis, n in (('X', m.axes_x, m.cols), ('Y', m.axes_y, m.rows)):
-        # A constant axis is an undefined one (XDF "autogen" axes are all zeros), not a wrong version.
-        if n > 1 and axis and len(axis) == n and all(math.isfinite(v) for v in axis) and len(set(axis)) > 1:
-            # Repeated breakpoints (padding of unused points) are common; a reversal is not.
-            steps = [b - a for a, b in zip(axis, axis[1:])]
-            if not (all(d >= 0 for d in steps) or all(d <= 0 for d in steps)):
-                warnings.append(f'{name}-Achse nicht monoton')
-    if m.length >= 8 and not (m.major_stride_bits or m.minor_stride_bits):
-        raw = image.read(m.offset, m.length)
-        if raw.count(0xFF) == len(raw):
-            warnings.append('Tabellenbereich gelöscht (nur 0xFF)')
-        elif raw.count(0) == len(raw):
-            warnings.append('Tabellenbereich leer (nur 0x00)')
-    return warnings
+    return [f'{name}-Achse nicht monoton' for name, axis, n in (('X', m.axes_x, m.cols), ('Y', m.axes_y, m.rows))
+            if _checkable(axis, n) and _reversed(axis)]
+
+
+def definition_hints(image: BinaryImage, m: MapDefinition) -> list[str]:
+    """Informational: table bytes erased (0xFF) or empty (0x00) - common for unused functions."""
+    if m.length < 8 or m.major_stride_bits or m.minor_stride_bits or m.offset + m.length > image.size:
+        return []
+    raw = image.read(m.offset, m.length)
+    if raw.count(0xFF) == len(raw):
+        return ['Tabellenbereich gelöscht (nur 0xFF)']
+    if raw.count(0) == len(raw):
+        return ['Tabellenbereich leer (nur 0x00)']
+    return []
+
+
+MISMATCH_SHARE = .10     # gap between .008 (right definitions) and .87 (other version/family)
+MISMATCH_MIN = 20        # checkable definitions needed for a statement about the whole file
+
+
+def definition_mismatch(image: BinaryImage, definitions: list[MapDefinition]) -> tuple[float | None, str]:
+    """(share of checkable definitions with an axis changing direction, warning text or '')."""
+    checkable = [m for m in definitions
+                 if any(_checkable(a, n) for a, n in ((m.axes_x, m.cols), (m.axes_y, m.rows)))]
+    if len(checkable) < MISMATCH_MIN:
+        return None, ''
+    bad = sum(any(_checkable(a, n) and _reversed(a) for a, n in ((m.axes_x, m.cols), (m.axes_y, m.rows)))
+              for m in checkable)
+    share = bad / len(checkable)
+    if share < MISMATCH_SHARE:
+        return share, ''
+    return share, (f'Definition passt vermutlich nicht zu dieser Datei: bei {bad} von {len(checkable)} Kennfeldern '
+                   f'({share:.0%}) wechseln die Achswerte die Richtung (passende Definitionen: unter 1 %). '
+                   'Anderer Softwarestand oder andere Familie? Definition und Datei prüfen.')
 
 
 def fuse(image: BinaryImage, definitions: list[MapDefinition], detected: list[MapDefinition]) -> FusionResult:
@@ -144,14 +184,34 @@ def fuse(image: BinaryImage, definitions: list[MapDefinition], detected: list[Ma
         warnings = definition_check(image, m)
         if warnings:
             result.definition_warnings[id(m)] = warnings
-    kept: list[tuple[int, MapDefinition]] = [(layer_of(m), m) for m in definitions]
+        hints = definition_hints(image, m)
+        if hints:
+            result.definition_hints[id(m)] = hints
+    share, result.mismatch = definition_mismatch(image, [m for m in definitions if m.source in DEFINITION_SOURCES])
+    # Kept tables sorted by start: (start, sequence, end, layer, map). Only tables starting less than the
+    # longest kept span before m can reach m, so each lookup scans an address window instead of all kept
+    # tables (pairwise: ~1 s in the UI thread for a MSD80 scan). Hits keep their insertion order.
+    kept: list[tuple[int, int, int, int, MapDefinition]] = []
+    longest = 1
+
+    def keep(layer: int, m: MapDefinition):
+        nonlocal longest
+        start, end = _span(m)
+        insort(kept, (start, len(kept), end, layer, m))
+        longest = max(longest, end - start)
+
+    for m in definitions:
+        keep(layer_of(m), m)
     confirmed_ids = set()
     order = sorted(detected, key=lambda m: (layer_of(m), m.offset))
     for m in order:
         layer = layer_of(m)
-        hits = [(lk, k) for lk, k in kept if lk < layer and _overlap(m, k)]
+        start, end = _span(m)
+        window = kept[bisect_left(kept, (start - longest + 1,)):bisect_left(kept, (end,))]
+        hits = [(lk, k) for _, _, e, lk, k in sorted(window, key=lambda entry: entry[1])
+                if lk < layer and start < e]
         if not hits:
-            kept.append((layer, m))
+            keep(layer, m)
             result.maps.append(m)
             continue
         for lk, k in hits:
@@ -159,6 +219,7 @@ def fuse(image: BinaryImage, definitions: list[MapDefinition], detected: list[Ma
                 if id(k) not in confirmed_ids:
                     confirmed_ids.add(id(k))
                     result.confirmed.append(k)
+                result.confirmed_layer[id(k)] = min(layer, result.confirmed_layer.get(id(k), layer))
                 # Same table, other cell type: a sign disagrees only when proven by code and visible in the values.
                 kind = ('Byte-Reihenfolge' if k.width > 1 and k.endian != m.endian else
                         'Vorzeichen' if (k.dtype[:1] != m.dtype[:1] and sign_proven(m)
@@ -181,21 +242,34 @@ def fuse(image: BinaryImage, definitions: list[MapDefinition], detected: list[Ma
     by_layer = {1: 0, 2: 0, 3: 0}
     for m in result.maps:
         by_layer[layer_of(m)] += 1
+    strong = sum(result.confirmed_layer[id(m)] == 2 for m in result.confirmed)
     result.counts = {'definition': by_layer[1], 'structure': by_layer[2], 'pattern': by_layer[3],
-                     'confirmed': len(result.confirmed), 'conflicts': len(result.conflicts),
-                     'definition_warnings': len(result.definition_warnings)}
+                     'confirmed': strong, 'supported_by_pattern': len(result.confirmed) - strong,
+                     'conflicts': len(result.conflicts),
+                     'definition_warnings': len(result.definition_warnings),
+                     'axis_reversal_share': None if share is None else round(share, 3)}
     return result
 
 
 def annotate(result: FusionResult) -> None:
     """Write confirmations and definition warnings into the maps' notes (never sets ``verified``)."""
     for m in result.confirmed:
-        note = 'Unabhängig bestätigt: Erkennung ohne Definition findet dieselbe Tabelle (Start, Größe, Zellbreite).'
+        if result.confirmed_layer.get(id(m), 2) == 2:
+            note = ('Unabhängig bestätigt durch Programmcode/Struktur: Erkennung ohne Definition findet dieselbe '
+                    'Tabelle (Start, Größe, Zellbreite).')
+        else:
+            note = ('Lage gestützt durch Datenmuster (schwächer als Programmcode/Struktur): Erkennung ohne '
+                    'Definition findet dieselbe Tabelle; Datentyp und Achsen dadurch nicht belegt.')
         if note not in m.notes:
             m.notes = (m.notes + ' ' + note).strip()
     for m in result.maps:
         warnings = result.definition_warnings.get(id(m))
         if warnings:
             note = 'Definitionsprüfung: ' + '; '.join(warnings) + '.'
+            if note not in m.notes:
+                m.notes = (m.notes + ' ' + note).strip()
+        hints = result.definition_hints.get(id(m))
+        if hints:
+            note = 'Hinweis: ' + '; '.join(hints) + ' (bei unbenutzten Funktionen üblich).'
             if note not in m.notes:
                 m.notes = (m.notes + ' ' + note).strip()

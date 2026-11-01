@@ -7,7 +7,7 @@ import os
 import json
 import urllib.request
 from pathlib import Path
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, Signal, QModelIndex, QSettings, QSize, QTimer
@@ -40,8 +40,8 @@ from ..core.profiles import identify_profile, xdf_match_status, local_xdf_candid
 from ..core.definition_registry import remember_pair, lookup_pair, search_local_xdfs
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
-from ..core.fusion import fuse, annotate, layer_of
-from ..core.review_checklist import rejected_keys, is_rejected
+from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
+from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
 from ..core.impact import measure_catalogue, uncovered_patches, export_impact_csv
@@ -1790,6 +1790,7 @@ class Window(QMainWindow):
         fusion=fuse(self.image,[m for m in self.maps if layer_of(m)==1],
                     [m for m in candidates if m.source=='heuristic'])
         annotate(fusion)
+        fusion_kept={id(m) for m in fusion.maps}
         # Kept (not JSON) for the review checklist: conflicts by offset, warnings by map name.
         self.last_fusion={'conflicts':{},'definition_warnings':{m.name:fusion.definition_warnings[id(m)]
                           for m in fusion.maps if id(m) in fusion.definition_warnings}}
@@ -1797,23 +1798,35 @@ class Window(QMainWindow):
             self.last_fusion['conflicts'].setdefault(c.offset,[]).append(c.text())
         self.last_scan_report['fusion']={'counts':fusion.counts,'conflicts':[c.text() for c in fusion.conflicts],
             'definition_warnings':{m.name:fusion.definition_warnings[id(m)] for m in fusion.maps
-                                   if id(m) in fusion.definition_warnings}}
+                                   if id(m) in fusion.definition_warnings},
+            'definition_hints':{m.name:fusion.definition_hints[id(m)] for m in fusion.maps
+                                if id(m) in fusion.definition_hints},
+            'definition_mismatch':fusion.mismatch}
         old={(m.offset,m.rows,m.cols,m.dtype,m.endian,m.name) for m in self.maps}
-        preserved=tuple(self.maps)
+        overlaps_curated=self._overlap_finder([x for x in self.maps if x.source != 'heuristic' or x.verified
+                                               or x.label_origin.startswith('Manuelle')])
         incoming_references=[]
         added=0
         reference_hits=0
         shape_hints=0
-        rejected=rejected_keys(getattr(self,'reviews',[]))
+        # Rejections of this file only; stronger evidence than the rejected one is offered again.
+        rejected=rejected_keys(getattr(self,'reviews',[]),self.image.digest)
         skipped_rejected=0
+        reoffered=0
         for m in sorted(candidates,key=lambda m:(m.source=='heuristic',m.source!='exact-reference',m.offset)):
             # The user rejected this table in the review checklist (stored in the project).
             if m.source=='heuristic' and is_rejected(m,rejected):
                 skipped_rejected+=1
                 continue
+            # A detection the fusion dropped (it overlaps a definition or stronger evidence) stays a reported conflict.
+            if m.source=='heuristic' and id(m) not in fusion_kept:
+                continue
+            if m.source=='heuristic' and rejected_before(m,rejected):
+                note='Früher in der Prüfliste abgelehnt; jetzt mit stärkerem Beleg erkannt – erneut prüfen.'
+                if note not in m.notes:m.notes=(m.notes+' '+note).strip()
+                reoffered+=1
             # Existing curated/CSV maps win over overlapping guesses.
-            if any((x.source != 'heuristic' or x.verified or x.label_origin.startswith('Manuelle'))
-                   and self._overlaps(m,x) for x in preserved):
+            if overlaps_curated(m):
                 continue
             if any(self._overlaps(m,x) for x in incoming_references):
                 continue
@@ -1845,12 +1858,15 @@ class Window(QMainWindow):
            f"Definitionsbasierte Tabellen/Kennlinien: {defined}.\n"
            f"Alte ungeprüfte Strukturvorschläge ersetzt: {len(removed)}.\n"
            f"Exakte Referenztreffer: {reference_hits} · Formhinweise: {shape_hints}.\n"
-           f"Definitionen durch die Erkennung unabhängig bestätigt: {fusion.counts['confirmed']} · "
+           f"Definitionen durch Programmcode/Struktur unabhängig bestätigt: {fusion.counts['confirmed']} · "
+           f"nur durch Datenmuster gestützt: {fusion.counts['supported_by_pattern']} · "
            f"Konflikte zwischen den Erkennungsebenen: {fusion.counts['conflicts']} · "
            f"Definitionen mit Prüfhinweisen: {fusion.counts['definition_warnings']}"
            + (" (Details: Erkennungsbericht exportieren)" if fusion.conflicts or fusion.definition_warnings else "")
            + ".\n"
+           + (f"\nACHTUNG: {fusion.mismatch}\n\n" if fusion.mismatch else "")
            + (f"Im Projekt abgelehnt, nicht erneut angeboten: {skipped_rejected}.\n" if skipped_rejected else "")
+           + (f"Früher abgelehnt, jetzt mit stärkerem Beleg erneut angeboten: {reoffered}.\n" if reoffered else "")
            + "Prüfreihenfolge mit Begründung: Werkzeuge → Prüfliste der erkannten Kennfelder.\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"
            "Mitgelieferte MS4X-Standarddefinitionen bleiben ungeprüfte Zuordnungen; "
@@ -2194,7 +2210,10 @@ class Window(QMainWindow):
         if status == 'rejected':
             self.warning('XDF-Kopplung abgelehnt · Kennung stimmt nicht überein', message)
             return
-        summary=(result.summary() + f'\n\nKompatibilitätsprüfung: {status}\n{message}\n\n'
+        # Axis values read through the XDF at this file's addresses: a wrong version or family reverses most of them.
+        _,mismatch=definition_mismatch(self.image,result.maps)
+        summary=((f'ACHTUNG: {mismatch}\n\n' if mismatch else '')
+                 + result.summary() + f'\n\nKompatibilitätsprüfung: {status}\n{message}\n\n'
                  'Selbst bei gleicher Kennung müssen Software-Patchstand und Adressen geprüft werden.\n\n'
                  'Kopplung basiert auf dem XDF-Dateinamen, nicht '
                  'auf einem kryptografischen Identitätsnachweis. ECU-Softwareversion, '
@@ -2557,6 +2576,21 @@ class Window(QMainWindow):
         start = max(a.offset, b.offset)
         overlap = min(a.offset+a.length,b.offset+b.length)-start
         return overlap >= 0.5 * min(a.length,b.length)
+
+    @classmethod
+    def _overlap_finder(cls, maps):
+        """``any(_overlaps(m, x) for x in maps)`` for many m: maps sorted by start, only those within reach
+        compared (all pairs froze the window for 40 s after a scan with a large XDF loaded)."""
+        spans = sorted(((x.offset, x.offset + x.length, x) for x in maps), key=lambda s: s[0])
+        starts = [s[0] for s in spans]
+        longest = max((end - start for start, end, _ in spans), default=0)
+
+        def finder(m):
+            start, end = m.offset, m.offset + m.length
+            # A 50 % overlap needs touching spans: x.start <= end and x.end >= start.
+            window = spans[bisect_left(starts, start - longest):bisect_right(starts, end)]
+            return any(x_end >= start and cls._overlaps(m, x) for _, x_end, x in window)
+        return finder
 
     def project_state(self):
         if not self.image:return None
@@ -3388,6 +3422,12 @@ class Window(QMainWindow):
                     f'sonst {MEASURED_DETECTED[e][1]}')
         lines='\n'.join(f'  {e}: {n} ({rate(e)})' for e,n in counts.items() if n)
         lines+=('' if detected else '\n  (Ohne vorherigen Kennfeldscan dieser Datei keine Bestätigung durch die Erkennung.)')
+        axes_dropped=sum(bool(t.axes_dropped) for t in result)
+        axes_conflict=sum(bool(t.detection_conflict) for t in result)
+        if axes_dropped:
+            lines+=f'\n  Achsen am Zielort nicht bestätigt, Achswerte nicht übernommen: {axes_dropped}'
+        if axes_conflict:
+            lines+=f'\n  Erkennung findet dieselbe Tabelle mit anderen Achsen (nicht bestätigt): {axes_conflict}'
         answer=QMessageBox.question(self,'Namen aus Schwesterstand',
             f'{len(result)} von {len(maps)} Kennfeldern des Schwesterstands lassen sich in dieser Datei belegen:\n'
             f'{lines or "  keine"}\n\nVerschoben wird nach Ankern, die in beiden Dateien genau einmal vorkommen. '
@@ -3395,15 +3435,29 @@ class Window(QMainWindow):
             '(BIN bleibt unverändert)',
             QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)
         if answer!=QMessageBox.StandardButton.Yes:return
-        existing={(m.offset,m.rows,m.cols) for m in self.maps}
+        def table(m):return m.offset,tuple(sorted((m.rows,m.cols))),m.width
+        existing={table(m):m for m in self.maps}
         added=0
+        gone=set()
         for t in result:
             m=t.target
-            if (m.offset,m.rows,m.cols) in existing:continue
-            self.maps.append(m);existing.add((m.offset,m.rows,m.cols));added+=1
+            old=existing.get(table(m))
+            if old is not None:
+                # Only an unchecked detection without a name gives way: definitions, checked and manual maps stay.
+                if old.source!='heuristic' or old.verified or old.label_origin.startswith('Manuelle'):continue
+                gone.add(id(old))
+            self.maps.append(m);existing[table(m)]=m;added+=1
+        replaced=len(gone)
+        for pane in list(self.map_editors):
+            if id(pane.definition) in gone:self.close_map_tab(pane)
+        if self.selected is not None and id(self.selected) in gone:
+            self.selected=None
+            self.map_model.set_map(None,None)
+        self.maps=[m for m in self.maps if id(m) not in gone]
         self.maps.sort(key=lambda m:m.offset)
         self.refresh_map_list();self.update_status()
-        self.statusBar().showMessage(f'{added} Namensvorschläge aus dem Schwesterstand übernommen · ungeprüft',8000)
+        self.statusBar().showMessage(f'{added} Namensvorschläge aus dem Schwesterstand übernommen · ungeprüft'
+                                     +(f' · {replaced} unbenannte Erkennungen an derselben Stelle ersetzt' if replaced else ''),8000)
 
     def toggle_favorite(self):
         if self.selected:

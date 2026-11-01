@@ -202,7 +202,9 @@ xychart-beta
 | Funde, die der XDF widersprechen (2D) | 18 | 13 | 11 | 11 | 2 ¹ |
 
 ¹ Andere Zählweise (nur 2D-Funde, die eine XDF-Tabelle teilweise überdecken, ohne exakten Treffer): 1.18.2 = 6,
-M11 = 2, beide aus Datenmustern; kein Code-Fund widerspricht der XDF.
+M11 = 2, beide aus Datenmustern; kein Code-Fund widerspricht einer 2D-Tabelle der XDF. Gegenüber Kennlinien gibt
+es Abweichungen (z. B. ein 6×6-Fund, wo die XDF eine 1×6-Kennlinie definiert). M11 ist eine Entwicklungsmessung an
+der Datei, an der die Regeln entstanden – kein unabhängiger Test (siehe [VALIDIERUNG_1.19.0.md](VALIDIERUNG_1.19.0.md)).
 
 Kontrollen bei jedem Schritt unverändert: MS42 22/213, MS43 197/379, alle synthetischen Negativdateien,
 Bosch EDC17C69 (0 TriCore-Deskriptoren); M11 zusätzlich ME9, ME9.2.1, MS45, MED17 ×6, MED9, ME7.5 ×2 unverändert.

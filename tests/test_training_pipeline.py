@@ -52,3 +52,14 @@ def test_training_run_is_logged_and_never_replaces_the_shipped_model_by_itself(t
     assert model['features'] == list(FEATURES) and model['firmware_bytes_included'] is False
     with pytest.raises(SystemExit):
         main([str(data), '--roles', 'training,test'])
+
+
+def test_training_pairs_need_an_explicit_clearance():
+    """Regression 1.19 QA: a BIN cleared only for regression (MS42 provenance) was used as training data."""
+    from ecu_studio.tools.build_candidate_dataset import check_manifest
+    check_manifest([{'name': 'a', 'role': 'training', 'training_allowed': True},
+                    {'name': 'b', 'role': 'development'}, {'name': 'c', 'role': 'test'}])
+    with pytest.raises(ValueError, match='MS42'):
+        check_manifest([{'name': 'MS42', 'role': 'training', 'license': 'XDF GPL-3.0'}])
+    with pytest.raises(ValueError):
+        check_manifest([{'name': 'x', 'role': 'training', 'training_allowed': 'yes'}])

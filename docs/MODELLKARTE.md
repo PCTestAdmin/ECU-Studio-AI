@@ -86,9 +86,12 @@ sind lokal leer oder ohne Herkunftsangabe. Deshalb gibt es jetzt einen festen Ab
 
 ## 2b. Nachtraining am 01.11.2026: Modell **nicht** ersetzt
 
-Rechtlich verwendbar und lokal vorhanden waren nur zwei Paare mit vollständiger Referenz, beide Siemens C167:
-MS43 430069 (eigene Datei des Nutzers, Definition ms4x-net, GPL-3.0) und MS42 0110C6 (Definition ms4x-net,
-GPL-3.0). Weitere lokale Paare (ME9, ME9.2.1, MS45, MED17, MED9, ME7) haben **keine dokumentierte Herkunft** und
+Lokal vorhanden waren nur zwei Paare mit vollständiger Referenz, beide Siemens C167: MS43 430069 (eigene Datei
+des Nutzers, Definition ms4x-net, GPL-3.0) und MS42 0110C6 (Definition ms4x-net, GPL-3.0). **Korrektur
+(Validierung 01.11.2026):** Die MS42-BIN stammt aus dem Repository ms4x-net/ms42; ihr Herkunftsvermerk
+(`.qa/v113-research/ms42-provenance.json`) erlaubt nur eine Kompatibilitäts-Regression, **kein Training und keine
+Weitergabe**. Der Lauf hätte sie nicht als *training* führen dürfen. Das Kandidatenmodell wurde nicht übernommen,
+seine lokalen Artefakte sind gelöscht, und der Datensatzbau verlangt jetzt `training_allowed: true` je Paar. Weitere lokale Paare (ME9, ME9.2.1, MS45, MED17, MED9, ME7) haben **keine dokumentierte Herkunft** und
 wurden deshalb nicht zum Training verwendet, nur zur lokalen Messung (siehe Entwicklungsbericht).
 
 | Ausgelassene Familie | Kandidaten | Treffer | AUC neu | AUC ausgeliefert | Präzision @ 80 % neu | ausgeliefert |
@@ -107,6 +110,46 @@ vollständiger Definition für Bosch MD1/MG1/MED17.x/EDC17, Continental Simos/SI
 vollständiger Referenz sind Open-Source-Steuergeräte: rusEFI (GPL-3.0, bereits im Kalibrier-Ranker), Speeduino
 (Definition GPL-2.0, Abstimmungen CC BY-NC 4.0 – „nicht kommerziell“, für ein mitgeliefertes Modell rechtlich
 zu klären). Diese Daten beschreiben keine OEM-Steuergeräte; ihr Nutzen für Bosch/Siemens ist unbelegt.
+
+## 2b′. Überprüfung der Modellentscheidung (Validierung 01.11.2026)
+
+Nachgerechnet mit denselben Daten und Familien-Auslassung (Bootstrap, 2000 Ziehungen):
+
+| Ausgelassene Familie | AUC-Differenz neu − ausgeliefert | 95-%-Intervall | Brier neu | Brier ausgeliefert | Basisrate | mittlerer Score neu / ausgeliefert |
+|---|---:|---|---:|---:|---:|---|
+| Siemens MS42 | −0,019 | [−0,069; +0,027] | 0,148 | 0,157 | 0,32 | 0,33 / 0,40 |
+| Siemens MS43 | −0,010 | [−0,092; +0,070] | 0,170 | 0,125 | 0,21 | 0,42 / 0,33 |
+
+- **Entscheidung bestätigt, aber aus Datenmangel:** Beide Intervalle enthalten 0 – keines der Modelle ist
+  nachweisbar besser. Weil die Beweislast beim neuen Modell liegt, bleibt das ausgelieferte.
+- **Unbekannte Familien sind damit nicht bewertet:** MS42 und MS43 sind Schwesterfamilien (Siemens C167, ähnlicher
+  Datensatzaufbau). Die Auslassung einer Familie misst hier die Übertragung auf einen nahen Verwandten, nicht auf
+  Bosch, TriCore oder PowerPC.
+- **Kalibrierung:** Der mittlere Score liegt bei beiden Modellen in der Nähe der Basisrate, aber mit Abweichungen bis
+  0,21 (neu, MS43). Die App zeigt deshalb nicht den Score, sondern die familienweise gemessene Trefferquote des
+  Score-Bereichs (`heldout_rate_table`).
+- **Datenüberschneidung:** keine identischen Merkmalszeilen zwischen den Familien. Das ausgelieferte Modell hat MS4x
+  bereits im Training gesehen; der Vergleich begünstigt es.
+- **Klassenverteilung:** 228 Kandidaten, 66 Treffer (MS42 32 %, MS43 21 %); das Training gewichtet die Klassen aus.
+- **Herkunft des ausgelieferten Modells (offen):** Es wurde am 19.10.2026 unter anderem mit MS42 0110C6 (Vermerk:
+  kein Training) und mit Hyundai-SIM2K-, MSS54- und TunerPro-Paaren ohne dokumentierte Herkunft trainiert; diese
+  Quellen sind lokal nicht mehr vorhanden. Das Modell enthält keine Firmwarebytes, nur 20 Gewichte. Ob es
+  ausgeliefert bleiben soll oder die Datenmuster-Bewertung ohne Modell laufen soll, entscheidet der Nutzer.
+
+### Verifiziertes Nutzerfeedback (Konzept, nicht umgesetzt)
+
+Die Prüfliste speichert Bestätigungen und Ablehnungen im Projekt. Daraus ließen sich später Trainingsbeispiele
+gewinnen, aber **nur kontrolliert**:
+
+1. **Kein automatisches Lernen.** Entscheidungen bleiben im Projekt. Ein Export in einen Datensatz geschieht nur auf
+   ausdrücklichen Befehl und nur für Dateien, die der Nutzer für Training freigibt (`training_allowed`).
+2. **Gruppierung nach Firmware:** Alle Beispiele einer Originaldatei (SHA-256 im Prüfprotokoll) bilden eine Gruppe
+   und liegen nie auf beiden Seiten einer Auswertung.
+3. **Verzerrung beachten:** Bestätigt und abgelehnt wird nur, was die Erkennung angeboten hat. Feedback ergänzt
+   daher Referenzen mit vollständiger Definition, ersetzt sie aber nicht. Nicht entschiedene Funde sind keine
+   Negativbeispiele.
+4. **Gleiche Ersetzungsregel:** Ein Modell mit Feedback ersetzt das ausgelieferte nur über das bestehende Gate,
+   gemessen an Familien, die nicht im Feedback vorkommen.
 
 ## 2c. Code- und Strukturbelege sind kein Lernmodell
 

@@ -1,33 +1,50 @@
 ## Unveröffentlicht
 
-Kennfelderkennung ohne Definition (Entwicklungszweig `feature/1.19-recognition`, noch kein Release, Versionsnummer
-unverändert). Messungen, Daten und Grenzen: [Entwicklungsbericht](docs/ANALYSE_2026-11-01.md).
+Kennfelderkennung ohne Definition, abgesichert durch eine abschließende Prüfung (Branch `feature/1.19-recognition`,
+noch kein Release, Versionsnummer unverändert). Messungen, Daten und Grenzen: [Entwicklungsbericht](docs/ANALYSE_2026-11-01.md)
+und [Validierungsbericht](docs/VALIDIERUNG_1.19.0.md). Status je Funktion: *validiert* = an unabhängigen Referenzen
+nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
 
-- **TriCore-Programmcode:** Interpolationsaufrufe, die einen Datensatzkopf übergeben (Anzahl und Stützstellen beider
-  Achsen vor den Daten, auch gemischt 8/16 Bit), werden erkannt; die Zellbreite kommt aus den Ladebefehlen der Routine
-  ohne die Zählerzugriffe. Bedingte Sprünge werden verfolgt, und wo eine Routine ihre Argumente in anderen Registern
-  als `a4`/`a5`/`a6` erwartet, wird die Belegung aus ihrem Aufrufverhalten abgeleitet. MSD80-Vollflash I8A0S
-  (Entwicklungsdaten, Teil-XDF): 73 → 84 von 99 Kennfeldern exakt, Kennlinien 164 → 173. Alle anderen
-  Vergleichspaare unverändert.
-- **Drei Erkennungsebenen:** Definitionen bleiben unverändert; Funde aus Code/Struktur füllen Lücken vor
-  Datenmustern/KI. Findet die Erkennung dieselbe Tabelle wie eine Definition, wird die Definition als unabhängig
-  bestätigt markiert (nicht als geprüft); Widersprüche (Start, Größe, Zellbreite, Byte-Reihenfolge, belegtes
-  Vorzeichen) stehen im Scanbericht. Definitionen werden auf Plausibilität geprüft (Dateigrenzen, Achsrichtung,
-  gelöschter/leerer Bereich).
+- **TriCore-Programmcode (experimentell):** Interpolationsaufrufe, die einen Datensatzkopf übergeben (Anzahl und
+  Stützstellen beider Achsen vor den Daten, auch gemischt 8/16 Bit), werden erkannt. Die Zellbreite kommt aus den
+  Ladebefehlen der Routine ohne die Zählerzugriffe. Bedingte Sprünge werden verfolgt. Erwartet eine Routine ihre
+  Argumente in anderen Registern als `a4`/`a5`/`a6`, wird die Belegung aus ihrem Aufrufverhalten abgeleitet.
+  Gemessen nur am MSD80-Vollflash I8A0S, an dem auch entwickelt wurde (Teil-XDF): 73 → 84 von 99 Kennfeldern exakt,
+  Kennlinien 164 → 173. Für andere TriCore-Stände gibt es keine unabhängige Referenz. Alle anderen
+  Vergleichspaare liefern dieselben Ergebnisse wie 1.18.2.
+- **Drei Erkennungsebenen:** Definitionen bleiben unverändert. Funde aus Code und Struktur füllen Lücken, bevor
+  Datenmuster und KI zum Zug kommen. Findet die Erkennung über Programmcode oder Struktur dieselbe Tabelle wie eine
+  Definition, gilt die Definition als „unabhängig bestätigt“ (nicht als geprüft). Ein Fund allein über Datenmuster
+  stützt nur die Lage und wird getrennt gezählt. Widersprüche (Start, Größe, Zellbreite, Byte-Reihenfolge, belegtes
+  Vorzeichen) stehen im Scanbericht. Ein Fund, der eine Definition teilweise überlappt, wird nicht mehr zusätzlich in
+  die Liste übernommen.
+- **Falsche Definition erkannt:** Kehren sich bei mehr als 10 % der prüfbaren Kennfelder die Achswerte um, warnen
+  XDF-Import und Scan, dass die Definition vermutlich zu einem anderen Softwarestand oder einer anderen Familie
+  gehört. Gemessen an lokalen Paaren: passende Definitionen 0,1–0,8 %, falsche 87–97 %. Leere oder gelöschte
+  Tabellenbereiche sind nur noch ein Hinweis, keine Warnung (sie sind bei unbenutzten Funktionen üblich).
 - **Datentyp nicht erfunden:** Ist das Vorzeichen nicht durch Programmcode belegt und entscheiden die Bytes es, zeigt
   der Inspektor die andere mögliche Lesart.
 - **Identifikation mit Stufe:** eindeutig, wahrscheinlich, mehrdeutig oder unbekannt, jeweils mit Grund.
-- **Prüfliste** (Werkzeuge): erkannte Kennfelder nach Prüfbedarf mit Gründen und gemeinsamen Achsen; Bestätigen und
-  Ablehnen werden im Projekt gespeichert, abgelehnte Tabellen bietet ein neuer Scan nicht wieder an.
-- **Namensübertragung zwischen Softwareständen:** Vorschläge, die die Erkennung im Zielstand an derselben Stelle
-  findet, sind gekennzeichnet (gemessen an MED17: „ähnliche Werte“ 92 → 99 % richtig).
-- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
-  Ein Nachtraining mit den rechtlich nutzbaren Daten war nicht besser; das ausgelieferte Modell bleibt.
-- **Scan:** benannte Stufen in der Statusleiste, durchgehend steigender Fortschritt; schnellere Achsensuche bei
-  identischen Ergebnissen.
-- **Bekannte Grenzen:** Für TriCore-Vollflashes gibt es keine unabhängige vollständige Referenz; die Präzision der
-  Code-Funde ist nicht gemessen. Bosch EDC17 (Tabellenzeiger über `a9` zur Laufzeit), MG1, MD1, Simos, SID bleiben
-  nicht validiert.
+- **Prüfliste** (Werkzeuge): erkannte Kennfelder nach Prüfbedarf, mit Gründen und gemeinsamen Achsen. Bestätigen und
+  Ablehnen werden im Projekt gespeichert und gelten nur für die Originaldatei, auf der sie getroffen wurden. Unter
+  „Entscheidungen …“ lässt sich jede Entscheidung zurücknehmen. Eine abgelehnte Tabelle bietet ein neuer Scan nicht
+  wieder an, außer sie wird jetzt mit stärkerem Beleg gefunden; dann erscheint sie mit Hinweis.
+- **Namensübertragung zwischen Softwareständen:** Vorschläge, die die Erkennung im Zielstand an derselben Stelle mit
+  gleicher Größe, Zellbreite und Byte-Reihenfolge findet, sind gekennzeichnet. Gemessen an MED17 (Entwicklungsdaten):
+  „ähnliche Werte“ 92 → 99 % richtig. Findet die Erkennung dort andere Achsen, gilt das nicht als Bestätigung. Ist
+  eine Achse am Zielort nicht bestätigt, werden ihre Werte nicht mehr mitübertragen; vorher waren bei 296 von 941
+  solcher Achsen die Werte falsch. Vorschläge ersetzen beim Übernehmen eine ungeprüfte, unbenannte Erkennung an
+  derselben Stelle. Bisher wurden gerade die bestätigten Vorschläge übersprungen.
+- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel. Die
+  Rolle *training* verlangt eine ausdrückliche Freigabe der Daten (`training_allowed`). Ein Nachtraining war nicht
+  besser (der Unterschied liegt im Zufallsbereich); das ausgelieferte Modell bleibt.
+- **Scan:** benannte Stufen in der Statusleiste, durchgehend steigender Fortschritt, schnellere Achsensuche bei
+  identischen Ergebnissen. Mit einer großen geladenen XDF fror das Fenster nach dem Scan bisher 35–43 s ein
+  (MED17 mit 3446 Definitionen); die Übernahme der Funde dauert jetzt unter 0,3 s bei gleichem Ergebnis.
+- **Bekannte Grenzen:** Die Präzision der Funde aus Programmcode ist nicht gemessen. Bosch EDC17 setzt Tabellenzeiger
+  zur Laufzeit über `a9`, das ist statisch nicht auflösbar. EDC17, MG1, MD1, Simos und SID bleiben nicht validiert.
+  Die früheren Hersteller-A2L-Messungen (MSD80, MSD85, EDC16, EDC17CP09) lassen sich lokal nicht wiederholen und
+  gelten als historisch.
 
 ## 1.18.2 (01.11.2026)
 

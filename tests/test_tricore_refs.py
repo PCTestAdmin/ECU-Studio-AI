@@ -593,3 +593,11 @@ def test_code_proven_sign_has_no_alternative_and_survives_a_project_round_trip()
     m = called[0]
     m.dtype_alternatives = ['u16']
     assert map_from_record(m.asdict(), set()).dtype_alternatives == ['u16']
+
+
+def test_extended_call_sites_keep_their_own_generic_calls():
+    """Regression 1.19 QA: extending the sites fell back to a list shared by all images."""
+    from ecu_studio.core.tricore_refs import Sites
+    a = Sites([1]); a.generic = [(0, 1, ())]
+    b = a.extended([2])
+    assert list(b) == [1, 2] and b.generic is a.generic and Sites().generic == ()

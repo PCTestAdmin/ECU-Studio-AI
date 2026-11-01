@@ -1,6 +1,7 @@
 """Three recognition layers: definitions stay, code/structure fills gaps, patterns last; conflicts are listed."""
 import numpy as np
-from ecu_studio.core.fusion import fuse, annotate, layer_of, definition_check, disagreement, sign_matters
+from ecu_studio.core.fusion import (fuse, annotate, layer_of, definition_check, definition_hints, definition_mismatch,
+                                   disagreement, sign_matters)
 from ecu_studio.core.model import BinaryImage, MapDefinition
 
 
@@ -59,22 +60,24 @@ def test_structure_fills_gaps_and_beats_patterns():
     assert code in r.maps and free in r.maps and pattern not in r.maps
     (c,) = r.conflicts
     assert (c.kept_layer, c.dropped_layer, c.kind) == (2, 3, 'Start')
-    assert r.counts == {'definition': 1, 'structure': 1, 'pattern': 1, 'confirmed': 0, 'conflicts': 1,
-                        'definition_warnings': 0}
+    assert r.counts == {'definition': 1, 'structure': 1, 'pattern': 1, 'confirmed': 0, 'supported_by_pattern': 0,
+                        'conflicts': 1, 'definition_warnings': 0, 'axis_reversal_share': None}
 
 
 def test_definition_check_flags_other_software_versions():
     img = image()
     assert definition_check(img, defined()) == []
-    assert 'Tabellenbereich gelöscht (nur 0xFF)' in definition_check(img, defined(0x400))
+    assert definition_check(img, defined(0x400)) == []                    # erased: a hint, no warning
+    assert definition_hints(img, defined(0x400)) == ['Tabellenbereich gelöscht (nur 0xFF)']
     assert any('nicht monoton' in w for w in
                definition_check(img, defined(axes_x=[1, 3, 2, 4, 5, 6, 7, 8])))
     assert definition_check(img, defined(axes_x=[1, 1, 1, 3, 4, 5, 6, 7])) == []   # padded breakpoints
     assert definition_check(img, defined(0x3FF0))[0].startswith('passt nicht zur Datei')
     assert definition_check(img, defined(axes_x=[0.] * 8)) == []          # undefined axis, no warning
-    r = fuse(img, [defined(0x400)], [])
+    r = fuse(img, [defined(0x400), defined(axes_x=[1, 3, 2, 4, 5, 6, 7, 8])], [])
     annotate(r)
-    assert 'Definitionsprüfung' in r.maps[0].notes and r.counts['definition_warnings'] == 1
+    assert r.counts['definition_warnings'] == 1 and 'Definitionsprüfung' in r.maps[1].notes
+    assert 'Hinweis: Tabellenbereich gelöscht' in r.maps[0].notes and 'Definitionsprüfung' not in r.maps[0].notes
 
 
 def test_disagreement_order():
@@ -113,3 +116,68 @@ def test_sign_conflict_needs_code_proof_and_differing_values():
     # A record or pattern reading never proves the sign.
     r = fuse(img, [defined(0x500)], [detected(0x500, dtype='s16', layout='candidate:curve-record')])
     assert r.conflicts == [] and len(r.confirmed) == 1
+
+
+def test_a_data_pattern_only_supports_a_definition():
+    """Regression 1.19 QA: a layer 3 match was reported as an independent confirmation."""
+    strong, weak = defined(0x100), defined(0x500)
+    r = fuse(image(), [strong, weak], [detected(0x100), detected(0x500, layout='candidate:row-pitch')])
+    assert r.counts['confirmed'] == 1 and r.counts['supported_by_pattern'] == 1
+    annotate(r)
+    assert 'bestätigt durch Programmcode/Struktur' in strong.notes
+    assert 'gestützt durch Datenmuster' in weak.notes and 'Unabhängig bestätigt' not in weak.notes
+
+
+def test_a_definition_for_another_file_is_flagged_as_a_whole():
+    """Regression 1.19 QA: per-table hints only; a wrong XDF (other version/family) was accepted silently.
+    Measured: right definitions 0.1-0.8 % reversed axes, wrong ones 87-97 %."""
+    img = image()
+    up, mixed = [1, 2, 3, 4, 5, 6, 7, 8], [5, 1, 7, 2, 8, 3, 6, 4]
+    right = [defined(0x100 + 2 * i, axes_x=up) for i in range(30)]
+    assert definition_mismatch(img, right) == (0.0, '')
+    one_off = right[:29] + [defined(axes_x=mixed)]
+    assert definition_mismatch(img, one_off)[1] == ''                       # 3 % stays below the threshold
+    wrong = [defined(0x100 + 2 * i, axes_x=mixed if i % 2 else up) for i in range(30)]
+    share, text = definition_mismatch(img, wrong)
+    assert share == .5 and 'passt vermutlich nicht' in text
+    assert definition_mismatch(img, wrong[:10]) == (None, '')               # too few for a statement
+    assert fuse(img, wrong, []).mismatch == text
+
+
+def test_address_window_finds_exactly_the_pairwise_overlaps():
+    """fuse looks up overlaps in an address window (was pairwise: seconds in the UI thread); same result."""
+    from ecu_studio.core.fusion import _overlap
+    rng = np.random.default_rng(7)
+    layouts = ('candidate:code-call', 'candidate:row-pitch')
+    defs = [defined(int(o), rows=int(r), cols=int(c), dtype='u8')
+            for o, r, c in zip(rng.integers(0, 0x3000, 40), rng.integers(1, 40, 40), rng.integers(1, 9, 40))]
+    cands = [detected(int(o), layout=layouts[i % 2], rows=int(r), cols=int(c), dtype='u8')
+             for i, (o, r, c) in enumerate(zip(rng.integers(0, 0x3000, 300), rng.integers(1, 12, 300),
+                                                 rng.integers(1, 12, 300)))]
+    result = fuse(image(), defs, cands)
+    kept = list(defs)
+    for m in sorted(cands, key=lambda m: (layer_of(m), m.offset)):
+        if not any(layer_of(k) < layer_of(m) and _overlap(m, k) for k in kept):
+            kept.append(m)
+    assert [id(m) for m in result.maps] == [id(m) for m in kept]
+    assert result.conflicts and len(result.maps) < len(defs) + len(cands)
+
+
+def test_scan_merge_overlap_finder_equals_the_pairwise_rule():
+    """The scan merge's 50 % rule against curated maps, via an address index (pairwise froze the GUI)."""
+    from ecu_studio.ui.main_window import Window
+    rng = np.random.default_rng(11)
+
+    def table(offset, rows, cols):
+        return MapDefinition(f'T{offset}', int(offset), int(rows), int(cols), 'u8')
+
+    curated = [table(o, r, c) for o, r, c in zip(rng.integers(0, 4000, 200), rng.integers(0, 30, 200),
+                                                 rng.integers(1, 6, 200))]
+    probes = [table(o, r, c) for o, r, c in zip(rng.integers(0, 4100, 2000), rng.integers(0, 20, 2000),
+                                                rng.integers(1, 6, 2000))]
+    probes += [table(x.offset + x.length, 4, 1) for x in curated[:50]]          # touching ends
+    probes += [table(x.offset, 0, 1) for x in curated[:50]]                     # empty, on a start
+    finder = Window._overlap_finder(curated)
+    expected = [any(Window._overlaps(m, x) for x in curated) for m in probes]
+    assert [finder(m) for m in probes] == expected and 0 < sum(expected) < len(probes)
+    assert not Window._overlap_finder([])(probes[0])

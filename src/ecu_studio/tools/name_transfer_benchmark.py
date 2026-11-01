@@ -30,6 +30,8 @@ def measure(src_bin, src_ref, dst_bin, dst_ref, src_anchor=None, dst_anchor=None
         from ecu_studio.core.scoped_scan import scan_calibration_candidates
         confirm_by_detection(result, [m for m in scan_calibration_candidates(target) if m.source == 'heuristic'])
     by = collections.Counter(); good = collections.Counter()
+    # Beyond place and shape: cell type and axes of correctly placed transfers.
+    detail = collections.Counter()
     for tr in result:
         ref = tmaps[tr.source.name]
         ok = ref.offset == tr.target.offset and {ref.rows, ref.cols} == {tr.target.rows, tr.target.cols}
@@ -37,9 +39,25 @@ def measure(src_bin, src_ref, dst_bin, dst_ref, src_anchor=None, dst_anchor=None
         if detect:
             key = ('erkannt' if tr.detected_in_target else 'nicht erkannt') + ' · ' + tr.evidence
             by[key] += 1; good[key] += ok
+            detail['Achskonflikt mit Erkennung'] += bool(tr.detection_conflict)
+            detail['Achskonflikt mit Erkennung, Lage richtig'] += bool(tr.detection_conflict) and ok
+        if not ok:
+            continue
+        detail['Lage richtig'] += 1
+        detail['Datentyp gleich'] += ref.dtype == tr.target.dtype and (ref.width == 1 or ref.endian == tr.target.endian)
+        for name, mine, theirs in (('X', tr.target.axis_x_offset, ref.axis_x_offset),
+                                   ('Y', tr.target.axis_y_offset, ref.axis_y_offset)):
+            if theirs is None:
+                continue
+            detail[f'{name}-Achse in Referenz'] += 1
+            if mine is None:
+                detail[f'{name}-Achse nicht übernommen'] += 1
+            else:
+                detail[f'{name}-Achse richtig' if mine == theirs else f'{name}-Achse FALSCH'] += 1
     same_place = sum(tmaps[m.name].offset == m.offset for m in shared)
     return {'shared_names': len(shared), 'same_address_already': same_place, 'transferred': len(result),
             'correct': sum(good[e] for e in EVIDENCE), 'seconds': round(seconds, 1),
+            'axes_dropped': sum(bool(tr.axes_dropped) for tr in result), 'detail': dict(detail),
             'by_evidence': {e: {'n': by[e], 'correct': good[e]} for e in by}}
 
 
