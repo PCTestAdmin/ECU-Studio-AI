@@ -1,5 +1,34 @@
 ## Unveröffentlicht
 
+Kennfelderkennung ohne Definition (Entwicklungszweig `feature/1.19-recognition`, noch kein Release, Versionsnummer
+unverändert). Messungen, Daten und Grenzen: [Entwicklungsbericht](docs/ANALYSE_2026-11-01.md).
+
+- **TriCore-Programmcode:** Interpolationsaufrufe, die einen Datensatzkopf übergeben (Anzahl und Stützstellen beider
+  Achsen vor den Daten, auch gemischt 8/16 Bit), werden erkannt; die Zellbreite kommt aus den Ladebefehlen der Routine
+  ohne die Zählerzugriffe. Bedingte Sprünge werden verfolgt, und wo eine Routine ihre Argumente in anderen Registern
+  als `a4`/`a5`/`a6` erwartet, wird die Belegung aus ihrem Aufrufverhalten abgeleitet. MSD80-Vollflash I8A0S
+  (Entwicklungsdaten, Teil-XDF): 73 → 84 von 99 Kennfeldern exakt, Kennlinien 164 → 173. Alle anderen
+  Vergleichspaare unverändert.
+- **Drei Erkennungsebenen:** Definitionen bleiben unverändert; Funde aus Code/Struktur füllen Lücken vor
+  Datenmustern/KI. Findet die Erkennung dieselbe Tabelle wie eine Definition, wird die Definition als unabhängig
+  bestätigt markiert (nicht als geprüft); Widersprüche (Start, Größe, Zellbreite, Byte-Reihenfolge, belegtes
+  Vorzeichen) stehen im Scanbericht. Definitionen werden auf Plausibilität geprüft (Dateigrenzen, Achsrichtung,
+  gelöschter/leerer Bereich).
+- **Datentyp nicht erfunden:** Ist das Vorzeichen nicht durch Programmcode belegt und entscheiden die Bytes es, zeigt
+  der Inspektor die andere mögliche Lesart.
+- **Identifikation mit Stufe:** eindeutig, wahrscheinlich, mehrdeutig oder unbekannt, jeweils mit Grund.
+- **Prüfliste** (Werkzeuge): erkannte Kennfelder nach Prüfbedarf mit Gründen und gemeinsamen Achsen; Bestätigen und
+  Ablehnen werden im Projekt gespeichert, abgelehnte Tabellen bietet ein neuer Scan nicht wieder an.
+- **Namensübertragung zwischen Softwareständen:** Vorschläge, die die Erkennung im Zielstand an derselben Stelle
+  findet, sind gekennzeichnet (gemessen an MED17: „ähnliche Werte“ 92 → 99 % richtig).
+- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
+  Ein Nachtraining mit den rechtlich nutzbaren Daten war nicht besser; das ausgelieferte Modell bleibt.
+- **Scan:** benannte Stufen in der Statusleiste, durchgehend steigender Fortschritt; schnellere Achsensuche bei
+  identischen Ergebnissen.
+- **Bekannte Grenzen:** Für TriCore-Vollflashes gibt es keine unabhängige vollständige Referenz; die Präzision der
+  Code-Funde ist nicht gemessen. Bosch EDC17 (Tabellenzeiger über `a9` zur Laufzeit), MG1, MD1, Simos, SID bleiben
+  nicht validiert.
+
 ## 1.18.2 (01.11.2026)
 
 Sicherheitskorrektur des Firmware-Schutzes und Nacharbeit am Programm-Symbol. Kennfelderkennung, Import,

@@ -67,9 +67,11 @@ def test_definition_check_flags_other_software_versions():
     img = image()
     assert definition_check(img, defined()) == []
     assert 'Tabellenbereich gelöscht (nur 0xFF)' in definition_check(img, defined(0x400))
-    assert any('nicht streng monoton' in w for w in
-               definition_check(img, defined(axes_x=[1, 2, 2, 3, 4, 5, 6, 7])))
+    assert any('nicht monoton' in w for w in
+               definition_check(img, defined(axes_x=[1, 3, 2, 4, 5, 6, 7, 8])))
+    assert definition_check(img, defined(axes_x=[1, 1, 1, 3, 4, 5, 6, 7])) == []   # padded breakpoints
     assert definition_check(img, defined(0x3FF0))[0].startswith('passt nicht zur Datei')
+    assert definition_check(img, defined(axes_x=[0.] * 8)) == []          # undefined axis, no warning
     r = fuse(img, [defined(0x400)], [])
     annotate(r)
     assert 'Definitionsprüfung' in r.maps[0].notes and r.counts['definition_warnings'] == 1

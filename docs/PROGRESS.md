@@ -30,6 +30,7 @@ geschätzt. Für jeden Meilenstein wurde der **damalige Erkennungscode** aus der
 | **M8** | nach 1.17.0 · `cef592a` | TriCore-Interpolationsaufrufe: Kennfeld in `a4`, Achsköpfe in `a5`/`a6`; MSD80 als TriCore erkannt |
 | **M9** | nach 1.17.0 · `0096eeb` | Achszeiger aus Stackslots, getrennte Achsensuche (Prelookup) |
 | **M10** | nach 1.17.0 · `86f6efb` | Zellbreite und Vorzeichen aus den Ladebefehlen der Routine, benannte Nachbarn als Grenze |
+| **M11** | 1.19-Zweig · `0a8414c` | Datensatzköpfe in Interpolationsaufrufen, bedingte Sprünge, gelernte Registerrollen |
 
 ## Auf einen Blick: exakt erkannte Kennfelder, 1.14 → 1.15.0 → 1.16.0 und heute
 
@@ -187,21 +188,25 @@ Kalibrierbereiche ohne Code; dort ändert sich durch M8–M10 nichts.
 ```mermaid
 xychart-beta
     title "MSD80-Vollflash: exakt erkannte Kennfelder (von 99)"
-    x-axis ["1.17.0", "M8", "M9", "M10"]
+    x-axis ["1.17.0", "M8", "M9", "M10", "M11"]
     y-axis "Kennfelder" 0 --> 99
-    bar [39, 61, 71, 73]
+    bar [39, 61, 71, 73, 84]
 ```
 
-| Kennzahl | 1.17.0 | M8 | M9 | M10 |
-|---|---:|---:|---:|---:|
-| 2D exakt (von 99) | 39 | 61 | 71 | **73** |
-| davon Datentyp richtig | 28 | 45 | 53 | **62** |
-| Kennlinien exakt (von 262) | 115 | 160 | 163 | **164** |
-| Gemeinsame Achsen gefunden/richtig | 0/0 | 17/17 | 33/33 | **37/37** |
-| Funde, die der XDF widersprechen (2D) | 18 | 13 | 11 | **11** |
+| Kennzahl | 1.17.0 | M8 | M9 | M10 | M11 |
+|---|---:|---:|---:|---:|---:|
+| 2D exakt (von 99) | 39 | 61 | 71 | 73 | **84** |
+| davon Datentyp richtig | 28 | 45 | 53 | 62 | **83** |
+| Kennlinien exakt (von 262) | 115 | 160 | 163 | 164 | **173** |
+| Gemeinsame Achsen gefunden/richtig | 0/0 | 17/17 | 33/33 | 37/37 | **45/45** |
+| Funde, die der XDF widersprechen (2D) | 18 | 13 | 11 | 11 | 2 ¹ |
+
+¹ Andere Zählweise (nur 2D-Funde, die eine XDF-Tabelle teilweise überdecken, ohne exakten Treffer): 1.18.2 = 6,
+M11 = 2, beide aus Datenmustern; kein Code-Fund widerspricht der XDF.
 
 Kontrollen bei jedem Schritt unverändert: MS42 22/213, MS43 197/379, alle synthetischen Negativdateien,
-Bosch EDC17C69 (0 TriCore-Deskriptoren). Details und Grenzen: [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md).
+Bosch EDC17C69 (0 TriCore-Deskriptoren); M11 zusätzlich ME9, ME9.2.1, MS45, MED17 ×6, MED9, ME7.5 ×2 unverändert.
+Details und Grenzen: [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md), [ANALYSE_2026-11-01.md](ANALYSE_2026-11-01.md).
 
 ## Grenzen dieser Messung
 

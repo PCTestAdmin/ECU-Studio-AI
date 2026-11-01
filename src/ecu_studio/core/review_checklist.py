@@ -7,7 +7,7 @@ plausibility warning for them. Higher score = a human decision matters more:
   contradiction with a definition      5   (detection or definition is wrong)
   definition plausibility warning      4
   sign not proven by code              3   (other reading listed)
-  axes missing / not monotone          2
+  axes missing / changing direction    2
   measured hit rate below 60 %         2   (evidence class "Vermutung")
   hit rate of the evidence not measured 1
   size (up to 1 for 256 cells)         ≤1
@@ -43,8 +43,9 @@ class ReviewItem:
 
 
 def _monotone(axis) -> bool:
+    """No reversal of direction (repeated padding breakpoints are allowed, as in fusion.definition_check)."""
     steps = [b - a for a, b in zip(axis, axis[1:])]
-    return all(d > 0 for d in steps) or all(d < 0 for d in steps)
+    return all(d >= 0 for d in steps) or all(d <= 0 for d in steps)
 
 
 def table_key(m: MapDefinition) -> tuple:
@@ -93,7 +94,7 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
                 reasons.append('Achsen fehlen' if not m.axes_x else 'Y-Achse fehlt')
             elif any(len(a) > 1 and all(map(math.isfinite, a)) and not _monotone(a) for a in (m.axes_x, m.axes_y)):
                 score += 2
-                reasons.append('Achse nicht streng monoton')
+                reasons.append('Achse nicht monoton')
             if m.calibrated_rate is None:
                 score += 1
                 reasons.append('Trefferquote dieser Beweisart nicht gemessen')

@@ -178,6 +178,7 @@
   "Achse liegt (teilweise) außerhalb der BIN-Datei": "Axis lies (partly) outside the BIN file",
   "Achse liegt im Wertebereich von ": "Axis lies inside the values of ",
   "Achse nicht mehr aufsteigend": "Axis no longer ascending",
+  "Achse nicht monoton": "Axis not monotone",
   "Achse nicht streng monoton": "Axis not strictly monotone",
   "Achse von 0x{0}": "Axis of 0x{0}",
   "Achse {0} von 0x{1}": "Axis {0} of 0x{1}",
@@ -193,6 +194,7 @@
   "Achsen und Log-Eingangssignale …": "Axes and log input signals …",
   "Achsen ungültig": "Axes invalid",
   "Achsen-/Header-Kandidat @ 0x{0}": "Axis/header candidate @ 0x{0}",
+  "Achsen-Arrays": "Axis arrays",
   "Achsen-Hypothese aus n,X,W-Kopf; Einheit unbekannt.": "Axis hypothesis from n,X,W header; unit unknown.",
   "Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.": "Axis hypothesis from nx,ny,X,Y,Z header; unit unknown.",
   "Achsen-Umrechnung nicht unterstützt: ": "Axis conversion not supported: ",
@@ -826,6 +828,7 @@
   "KI · Strukturmodell aus realer BIN trainieren …": "AI · Train structure model from a real BIN …",
   "KI-Bericht": "AI report",
   "Kalibrier-Editor": "Calibration editor",
+  "Kalibrierbereich bestimmen": "Determining the calibration area",
   "Kalibrierkennung stimmt im XDF-Titel überein; Adressen dennoch prüfen.": "Calibration identifier matches in the XDF title; check addresses anyway.",
   "Kanalzuordnung und Einheiten prüfen. Unbekannte Kanäle bleiben unberücksichtigt.": "Check channel assignment and units. Unknown channels are ignored.",
   "Kandidat @ 0x{0}": "Candidate @ 0x{0}",
@@ -1269,6 +1272,7 @@
   "Preflight fehlgeschlagen": "Preflight failed",
   "Profil abgewiesen": "Profile rejected",
   "Profil stimmt bereits am Original nicht – Korrektur verweigert": "The profile already does not match the original – correction refused",
+  "Programmcode: Interpolationsaufrufe": "Program code: interpolation calls",
   "Programmdatei (ELF/EXE), keine ECU-Rohdatei.": "Program file (ELF/EXE), not an ECU raw file.",
   "Projekt": "Project",
   "Projekt aus einer neueren Version": "Project from a newer version",
@@ -2065,6 +2069,7 @@
   "{0}-Achse des Datensatzes @ 0x{1} mit Anzahl-Kopf.": "{0} axis of the record @ 0x{1} with count header.",
   "{0}-Achse hat {1} Werte, das Kennfeld {2}": "{0} axis has {1} values, the map {2}",
   "{0}-Achse ist nicht monoton – Adresse oder Datentyp prüfen.": "{0} axis is not monotonic – check address or data type.",
+  "{0}-Achse nicht monoton": "{0} axis not monotone",
   "{0}-Achse nicht streng monoton": "{0} axis not strictly monotone",
   "{0}-Achsenadresse entfernt – die daraus gelesenen Werte ebenfalls.": "{0} axis address removed – together with the values read from it.",
   "{0}-Achsenwerte passen nicht mehr zur neuen Größe und wurden entfernt.": "{0} axis values no longer fit the new size and were removed.",
@@ -2137,9 +2142,6 @@
   "• Quell-BIN und A2L/DAMOS exakt auf denselben Softwarestand prüfen.": "• Check that the source BIN and A2L/DAMOS belong exactly to the same software version.",
   "… weitere {0} Blöcke; CSV exportieren für vollständiges Audit": "… {0} more blocks; export CSV for a complete audit",
   "… weitere {0} Hinweise (alle per Export)": "… {0} more hints (all via export)",
-  "⚪ nicht validiert": "⚪ not validated",
-  "Kalibrierbereich bestimmen": "Determining the calibration area",
-  "Achsen-Arrays": "Axis arrays",
-  "Programmcode: Interpolationsaufrufe": "Program code: interpolation calls"
+  "⚪ nicht validiert": "⚪ not validated"
  }
 }

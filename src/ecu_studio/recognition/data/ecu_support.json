@@ -157,7 +157,7 @@
      "false_positives_2d": 74
     }
    ],
-   "limits": "Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen des Programmcodes, an I8A0S mit Community-XDF (Entwicklungsdaten) 39 → 73 von 99 exakt.",
+   "limits": "Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen und Datensatzköpfen im Programmcode, an I8A0S mit Community-XDF (Entwicklungsdaten, kein unabhängiger Test) 39 → 84 von 99 exakt; Präzision dort nicht messbar.",
    "needed": ""
   },
   {

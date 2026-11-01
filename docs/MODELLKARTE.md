@@ -1,6 +1,6 @@
 # Modellkarte – Konfidenz und Lernmodell
 
-Stand: 31.10.2026 (ECU Studio AI 1.17.0 und nächstes Update). Was die Prozentwerte an den Funden bedeuten, woher sie
+Stand: 01.11.2026 (ECU Studio AI 1.18.2 und Entwicklungszweig `feature/1.19-recognition`). Was die Prozentwerte an den Funden bedeuten, woher sie
 kommen und wo ihre Grenzen liegen.
 
 ## 1. Gemessene Trefferquote je Beweisart
@@ -29,9 +29,11 @@ Eine Klasse mit weniger als 20 gemessenen Funden gilt als **nicht kalibriert** u
 
 **Noch nicht kalibriert** sind die TriCore-Klassen des nächsten Updates: `code:call:2d`/`code:call:1d` (Kennfeld,
 Achsen und Zelltyp aus einem Interpolationsaufruf) und `code:call-pre:2d` (Achsen aus vorangehenden Achsensuchen).
-Sie wurden nur an einem MSD80-Vollflash mit unvollständiger Community-XDF entwickelt: dort 0 Widersprüche zur
-Referenz, aber keine Präzision messbar ([Bericht](ANALYSE_2026-10-30.md)). Eine Quote wird erst mit einer
-vollständigen Referenz eingetragen.
+Sie wurden nur an einem MSD80-Vollflash mit unvollständiger Community-XDF entwickelt (seit 1.19-Zweig zusätzlich
+Datensatzköpfe und bedingte Sprünge: 84 von 99 exakt; bei 2D-Kennfeldern kein Code-Fund im Widerspruch zur XDF,
+eine XDF-Kennlinie 1×6 liegt dort, wo der Code eine 6×6-Tabelle übergibt), Präzision dort nicht
+messbar ([Bericht](ANALYSE_2026-11-01.md)). Eine Quote wird erst mit einer vollständigen Referenz eingetragen; bis
+dahin zeigt die App für diese Klassen keine Prozentzahl.
 
 ## 2. Lernmodell für Datenmuster-Funde (seit 1.16)
 
@@ -58,6 +60,60 @@ achsenbelegte Funde behalten ihre gemessene Klassenquote.
 - **Aussortieren:** Funde unter Score 0,042 werden verworfen. Diese Bereiche trafen *family-out* nur 0,4–0,7 %
   (etwa 2 von 543). Auf MS43/MS42 stieg die Präzision dadurch von 76 auf 80 % bzw. von 67 auf 72 %; die exakten
   Treffer blieben unverändert (197 bzw. 22).
+
+## 2a. Reproduzierbares Training (Entwicklungszweig 1.19)
+
+Das ausgelieferte Modell vom 19.10.2026 ist **nicht reproduzierbar**: Die Trainingsdatei (JSONL) und das Skript,
+das sie erzeugt hat, liegen weder im Repository noch lokal vor; die Quellordner (Hyundai SIM2K, MSS54, TunerPro)
+sind lokal leer oder ohne Herkunftsangabe. Deshalb gibt es jetzt einen festen Ablauf:
+
+1. **Datensatz** – `python -m ecu_studio.tools.build_candidate_dataset MANIFEST.json DATA.jsonl`.
+   Der Scan läuft **ohne mitgelieferte Definitionen** (die MS43-XDF würde sonst die Antworten verraten) und **ohne
+   das ausgelieferte Modell** (sein Schwellwert würde die Kandidaten vorsortieren). Label wie bisher: Kandidat
+   beginnt exakt an einem Referenzobjekt. `DATA.meta.json` hält je Paar SHA-256 von BIN und Referenz, Quelle,
+   Lizenz, Rolle, Zahl der Kandidaten und Treffer sowie den SHA-256 der JSONL fest. Keine Firmwarebytes, keine Namen.
+2. **Training** – `python -m ecu_studio.tools.train_candidate_model DATA.jsonl --log LOG.json [--seed N]`.
+   - Trainiert wird nur auf Rollen aus `--roles` (Standard `training`) und nur mit **vollständiger** Referenz
+     (bei Teil-Referenzen sind die Negativbeispiele unbekannt). Rolle `test` wird **nie** angepasst oder zur
+     Auswahl genutzt, nur am Ende mit dem fertigen Modell gemessen („blind“).
+   - Bewertung *leave-one-family-out*: Softwarestände einer Familie liegen nie auf beiden Seiten. Die Skalierung
+     der Merkmale stammt je Durchgang nur aus den Trainingsfamilien.
+   - Das ausgelieferte Modell wird auf denselben zurückgehaltenen Daten gemessen.
+   - **Ersetzungsregel:** nur mit `--promote` **und** wenn die mittlere AUC um mindestens 0,01 steigt und die
+     Präzision bei 80 % Trefferquote in keiner Familie um mehr als 2 Punkte sinkt. Sonst wird das neue Modell nur
+     als Kandidat neben die Daten geschrieben.
+   - Das Protokoll enthält Seed, Daten-Hash, NumPy-/scikit-learn-Version, alle Messwerte und die Gate-Entscheidung.
+
+## 2b. Nachtraining am 01.11.2026: Modell **nicht** ersetzt
+
+Rechtlich verwendbar und lokal vorhanden waren nur zwei Paare mit vollständiger Referenz, beide Siemens C167:
+MS43 430069 (eigene Datei des Nutzers, Definition ms4x-net, GPL-3.0) und MS42 0110C6 (Definition ms4x-net,
+GPL-3.0). Weitere lokale Paare (ME9, ME9.2.1, MS45, MED17, MED9, ME7) haben **keine dokumentierte Herkunft** und
+wurden deshalb nicht zum Training verwendet, nur zur lokalen Messung (siehe Entwicklungsbericht).
+
+| Ausgelassene Familie | Kandidaten | Treffer | AUC neu | AUC ausgeliefert | Präzision @ 80 % neu | ausgeliefert |
+|---|---:|---:|---:|---:|---:|---:|
+| Siemens MS42 | 167 | 53 | 0,825 | 0,844 | 58,1 % | 53,1 % |
+| Siemens MS43 | 61 | 13 | 0,883 | 0,893 | 40,7 % | 47,8 % |
+
+Daten-SHA-256 `711107c0…`, Seed 0, NumPy 2.5.4, scikit-learn 1.9.1. **Gate nicht bestanden** (mittlere AUC 0,854
+gegenüber 0,869). Der Vergleich begünstigt das ausgelieferte Modell, weil es MS4x-Daten schon gesehen hat; ein neues
+Modell aus nur zwei verwandten Familien ist trotzdem nicht belegbar besser. Das ausgelieferte Modell bleibt.
+Gradient Boosting erreichte auf MS43 AUC 0,962, aber mit 13 Treffern ist das keine belastbare Aussage.
+
+**Recherche neuer Trainingsdaten (Stand 21.10. und 01.11.2026):** Rechtmäßig nutzbare Paare aus Originalfirmware und
+vollständiger Definition für Bosch MD1/MG1/MED17.x/EDC17, Continental Simos/SID oder Delphi gibt es nicht; die
+öffentlichen Uploads Dritter haben keine Lizenz (§ 69c UrhG) und werden nicht verwendet. Offene Quellen mit
+vollständiger Referenz sind Open-Source-Steuergeräte: rusEFI (GPL-3.0, bereits im Kalibrier-Ranker), Speeduino
+(Definition GPL-2.0, Abstimmungen CC BY-NC 4.0 – „nicht kommerziell“, für ein mitgeliefertes Modell rechtlich
+zu klären). Diese Daten beschreiben keine OEM-Steuergeräte; ihr Nutzen für Bosch/Siemens ist unbelegt.
+
+## 2c. Code- und Strukturbelege sind kein Lernmodell
+
+Funde aus Programmcode (TriCore-Interpolationsaufrufe), Kopf-Datensätzen und Achsen-Arrays werden **nicht** vom
+Lernmodell bewertet; sie bilden Ebene 2 der Erkennung (`core/fusion.py`). Das Lernmodell bewertet nur Ebene 3
+(Datenmuster). Ein Datentyp wird nur dann als belegt angezeigt, wenn die Ladebefehle der Interpolationsroutine
+ihn festlegen; sonst stehen die anderen möglichen Lesarten am Fund (`dtype_alternatives`).
 
 ## 3. Grenzen
 

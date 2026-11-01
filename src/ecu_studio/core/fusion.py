@@ -108,7 +108,7 @@ def definition_check(image: BinaryImage, m: MapDefinition) -> list[str]:
     """Plausibility of a definition against this firmware (layer 1 is kept regardless).
 
     Detects definitions for another software version: outside the file, axes
-    not monotone, or table bytes erased (0xFF) / empty (0x00).
+    changing direction, or table bytes erased (0xFF) / empty (0x00).
     """
     warnings = []
     try:
@@ -116,10 +116,12 @@ def definition_check(image: BinaryImage, m: MapDefinition) -> list[str]:
     except (ValueError, IndexError) as exc:
         return [f'passt nicht zur Datei: {exc}']
     for name, axis, n in (('X', m.axes_x, m.cols), ('Y', m.axes_y, m.rows)):
-        if n > 1 and axis and len(axis) == n and all(math.isfinite(v) for v in axis):
+        # A constant axis is an undefined one (XDF "autogen" axes are all zeros), not a wrong version.
+        if n > 1 and axis and len(axis) == n and all(math.isfinite(v) for v in axis) and len(set(axis)) > 1:
+            # Repeated breakpoints (padding of unused points) are common; a reversal is not.
             steps = [b - a for a, b in zip(axis, axis[1:])]
-            if not (all(d > 0 for d in steps) or all(d < 0 for d in steps)):
-                warnings.append(f'{name}-Achse nicht streng monoton')
+            if not (all(d >= 0 for d in steps) or all(d <= 0 for d in steps)):
+                warnings.append(f'{name}-Achse nicht monoton')
     if m.length >= 8 and not (m.major_stride_bits or m.minor_stride_bits):
         raw = image.read(m.offset, m.length)
         if raw.count(0xFF) == len(raw):
