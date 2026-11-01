@@ -61,11 +61,32 @@ aus dem Arbeitsverzeichnis. Findet ein Hook kein lauffähiges Python, blockiert 
 | `private-dir` | Pfade mit Ordnern wie `.qa`, `firmware`, `references`, `private-reports`, `mappacks`, `damos`, `a2l`, `originals`, `dumps` |
 | `size` | Dateien über 1 MiB |
 | `binary` | jede Binärdatei ohne Bild-Endung; erkannte Steuergerätekennungen (EDC17, MED17, MSD80, Bosch-Nummern …) werden mit genannt. Fängt **umbenannte** Firmware ab. |
-| `media` | PNG/GIF/JPG/ICO/WEBP, die strukturell kein Bild sind: PNG mit falscher Prüfsumme, unbekanntem Chunk, mehr als 64 KiB Metadaten oder Pixeldaten, die nicht zur Bildgröße passen; GIF/JPEG mit gebrochener Blockfolge oder über 64 KiB Kommentaren/APP-Daten; ICO mit Daten zwischen oder nach den Einzelbildern; WEBP mit falscher RIFF-Länge; jedes Format mit Daten hinter dem Bildende |
+| `media` | Dateien mit Bild-Endung (PNG/GIF/JPG/ICO/WEBP), bei denen nicht jedes Byte einem Bild zugeordnet werden kann; Einzelheiten unter „Bildprüfung“ |
 | `payload` | in Text eingebettete Bytes: Hex-Folgen, `\x..`-Escapes, `0x..`-Listen und Hexdumps ab 1 KiB (auch über viele Zeilen oder Strings verteilt; 2 KiB in Summe je Datei), Base64-Blöcke ab 768 dekodierten Binärbytes, ab 8 Intel-HEX-/S-Record-Zeilen. Einzelne Hashwerte (32/40/64/128 Hex-Zeichen) zählen nicht. |
 | `local-path` | Text, der den konfigurierten lokalen Datenordner nennt; lokaler Datenordner im Repository |
 
 Meldungen nennen nur Pfad, Regel und Größe, nie Dateiinhalte.
+
+### Bildprüfung (`media`)
+
+Ein gültiger Dateikopf macht noch kein Bild. Verstecken lassen sich Daten vor allem dort, wo ein Bildbetrachter
+nicht hinsieht: hinter einer Endemarke, hinter dem Ende eines komprimierten Datenstroms, in unbekannten Blöcken oder
+in Metadaten. Solche Bilder werden normal angezeigt, bei einer Sichtprüfung fällt also nichts auf. Geprüft wird
+deshalb, ob jedes Byte zum Bild gehört (nur Standardbibliothek, keine Bildbibliothek):
+
+| Format | Prüfung |
+|---|---|
+| PNG | Nur bekannte Chunks, jeder mit korrekter Prüfsumme, in gültiger Reihenfolge und Anzahl (IHDR zuerst, PLTE/Farbangaben vor den Bilddaten, IDAT zusammenhängend, nichts nach IEND); gültige Kombination aus Farbtyp und Bittiefe; Paletten- und Transparenzgrößen. Die Bilddaten werden schrittweise entpackt (je 64 KiB, nie mehr als die Bildgröße verlangt) und müssen **genau** die Größe ergeben, die aus Breite, Höhe, Farbtiefe und ggf. Interlacing folgt. Jede Zeile beginnt mit einem gültigen Filter, und **kein Byte darf nach dem Ende des zlib-Stroms folgen**. Über 64 MiB entpackte Bilddaten werden nicht geprüft, sondern abgelehnt. |
+| GIF | Kopf, Farbtabellen und alle Blöcke bis zum Abschlussbyte, das das letzte Byte sein muss; nur bekannte Erweiterungen. Der LZW-Strom jedes Einzelbilds wird dekodiert (nur die Längen, nicht die Pixel): Er muss genau die Pixelzahl des Bildes ergeben und mit dem Endecode enden, danach kein Byte mehr. |
+| ICO | Einträge lückenlos und ohne Überlappung bis zum Dateiende; PNG-Einträge erhalten die volle PNG-Prüfung und müssen zur Größe im Verzeichnis passen; DIB-Einträge müssen in Kopf und Größe genau zum Verzeichnis passen. |
+| JPEG | Alle Segmente und Scans bis zur Endemarke, die die Datei beenden muss; nur bekannte Marker; Metadaten auch hinter den Scans begrenzt. **Die komprimierten Bilddaten werden nicht dekodiert**: Daten hinter dem letzten Bildblock, aber vor der Endemarke, sehen aus wie Bilddaten und werden trotzdem angezeigt. Darum meldet der Schutz auch ein sauberes JPEG; nach Sichtprüfung wird es per `allow` (Pfad + SHA-256) freigegeben. |
+| WEBP | RIFF-Länge, bekannte Chunks, begrenzte Metadaten. Die VP8/VP8L-Bilddaten werden nicht dekodiert, daher gilt dasselbe wie bei JPEG: Freigabe nur nach Sichtprüfung. |
+
+Für alle Formate gilt: Metadaten (Texte, Kommentare, EXIF, ICC-Profile, Anwendungsblöcke) zusammen höchstens 64 KiB,
+davon höchstens 16 KiB binär (EXIF, ICC, Anwendungsdaten). Textmetadaten müssen Text sein und werden wie jede
+Textdatei auf Hex-, Base64- und Intel-HEX-Inhalte geprüft; komprimierte Texte (zTXt/iTXt) werden dazu begrenzt
+entpackt. ICC-Profile müssen echte Profile sein, EXIF-Blöcke echte EXIF-Daten. Eine Datei mit Bild-Endung, die
+keine Bilddatei ist (auch eine Textdatei), wird abgewiesen.
 
 **Öffentliche Ausnahmen** stehen in `.firmware-guard.json` unter `allow`, jeweils **Pfad + SHA-256 des Inhalts**:
 die synthetischen Beispiele in `examples/` und die mitgelieferten GPL-XDFs der MS4x-Community. Eine Ausnahme gilt
@@ -109,7 +130,12 @@ python src\ecu_studio\tools\firmware_guard.py history                        :: 
 
 Ein Scanner ist keine Garantie. Nicht erkannt werden insbesondere:
 
-- verschlüsselte oder mit eigenen Verfahren kodierte Daten, Daten in Bildpixeln,
+- verschlüsselte oder mit eigenen Verfahren kodierte Daten,
+- Daten **in den Bildpixeln selbst**: Ein PNG oder GIF kann beliebige Bytes als Farbwerte tragen, etwa ein 512 × 512
+  Pixel großes RGBA-Bild rund 1 MiB. Die Strukturprüfung stellt nur sicher, dass es keine Daten *außerhalb* der
+  Pixel gibt. Ein solches Bild sieht allerdings wie Rauschen aus; jedes neue Bild vor dem Push ansehen,
+- Daten in den Füllbits am Ende einer Bildzeile oder eines Datenstroms (wenige Bits je Zeile),
+- Daten in JPEG- und WEBP-Bilddaten. Diese Formate brauchen deshalb immer eine Freigabe nach Sichtprüfung,
 - kleine Fragmente unter den Schwellen (z. B. einzelne Kennfeldwerte als Zahlenlisten in Tests),
 - Kennfeldwerte als Dezimalzahlen in JSON/CSV,
 - private Definitionen, die als Text ohne Firmware-Endung abgelegt sind (z. B. eine XDF als `.txt` mit unauffälligem Inhalt),

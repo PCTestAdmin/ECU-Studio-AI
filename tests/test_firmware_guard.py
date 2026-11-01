@@ -7,6 +7,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -161,6 +162,10 @@ def test_allowlist_is_bound_to_path_and_content(repo):
     assert result.returncode != 0 and 'content changed' in result.stderr
 
 
+def _ids(value):
+    return value if isinstance(value, str) and '.' in value else ''
+
+
 def _chunk(kind, body):
     import zlib
     return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
@@ -178,7 +183,12 @@ def _ico(*images):
     head = struct.pack('<HHH', 0, 1, len(images))
     offset, entries = 6 + 16 * len(images), b''
     for image in images:
-        entries += struct.pack('<BBBBHHII', 4, 4, 0, 0, 1, 32, len(image), offset)
+        if image.startswith(b'\x89PNG'):                              # the directory lists each image's size
+            width, height = struct.unpack('>II', image[16:24])
+        else:
+            width, double_height = struct.unpack('<ii', image[4:12])
+            height = double_height // 2
+        entries += struct.pack('<BBBBHHII', width % 256, height % 256, 0, 0, 1, 32, len(image), offset)
         offset += len(image)
     return head + entries + b''.join(images)
 
@@ -206,7 +216,7 @@ GIF_OK = b'GIF89a\x01\x00\x01\x00\x00\x00\x00' + b'\x2c\x00\x00\x00\x00\x01\x00\
     ('bad-crc.png', _png()[:-4] + b'\x00\x00\x00\x00', 'checksum'),
     ('ends-with-semicolon.gif', GIF_OK[:-1] + synthetic(4096) + b';', 'GIF'),
     ('riff.webp', b'RIFF' + struct.pack('<I', 4) + b'WEBP' + synthetic(4096), 'RIFF length'),
-], ids=lambda value: value if isinstance(value, str) and '.' in value else '')
+], ids=_ids)
 def test_payloads_disguised_as_images_are_blocked(name, data, reason):
     findings = guard.scan_blob(f'docs/{name}', data, guard.Config.load(None))
     assert findings and findings[0].rule == 'media' and reason in findings[0].detail, findings
@@ -344,3 +354,300 @@ def test_payloads_split_over_many_short_lines_are_joined(style):
     else:
         text = '[\n' + '\n'.join('  ' + ', '.join(f'0x{b:02X}' for b in row) + ',' for row in rows) + '\n]\n'
     assert guard.payloads(text.encode()), style
+
+
+# ------------------------------------------------------------------------------- image structure in depth
+# Everything here is synthetic: images built byte by byte or by Qt, payloads from synthetic().
+
+
+def _png_raw(raw, width=4, height=4, depth=8, color=6, interlace=0, before=(), after=(), idat=None, split=1):
+    """PNG around a given filtered pixel stream; chunks before and after the image data; IDAT split in parts."""
+    stream = idat if idat is not None else zlib.compress(raw)
+    step = -(-len(stream) // split)
+    return (b'\x89PNG\r\n\x1a\n' + _chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, depth, color, 0, 0, interlace))
+            + b''.join(before) + b''.join(_chunk(b'IDAT', stream[i:i + step]) for i in range(0, len(stream), step))
+            + b''.join(after) + _chunk(b'IEND', b''))
+
+
+RGBA_4x4 = b''.join(b'\x00' + b'\x10\x80\xff\xff' * 4 for _ in range(4))
+STREAM_4x4 = zlib.compress(RGBA_4x4)
+
+
+def _media(name, data):
+    findings = guard.scan_blob(f'docs/{name}', data, guard.Config.load(None))
+    assert all(f.rule == 'media' for f in findings), findings
+    return findings[0].detail if findings else ''
+
+
+def test_png_bytes_after_the_zlib_stream_are_rejected():
+    """Regression: zlib.decompress() ignored bytes after the end of the stream, so 5000 extra bytes in a correctly
+    CRC'd IDAT chunk passed on 1.18.1 (reproduced before the fix)."""
+    data = _png_raw(None, idat=STREAM_4x4 + synthetic(5000))
+    assert '5000 bytes after the end of the compressed stream' in guard._png_problem(data)
+    assert _media('a.png', data)
+
+
+@pytest.mark.parametrize('name, data', [
+    ('palette.png', _png_raw(b'\x00\x01\x23' * 4, depth=4, color=3, before=[_chunk(b'PLTE', bytes(range(48))),
+                                                                          _chunk(b'tRNS', b'\x00\x80')])),
+    ('gray16.png', _png_raw(b'\x00' + b'\x12\x34' * 4 + b'\x02' + b'\x00\x01' * 4, height=2, depth=16, color=0)),
+    ('gray1.png', _png_raw(b'\x00\xa0' * 4, depth=1, color=0)),
+    ('interlaced.png', _png_raw(bytes(5 + 5 + 9 + 9 * 2 + 17 * 2 + 17 * 4 + 33 * 4), width=8, height=8,
+                                interlace=1)),
+    ('split-idat.png', _png_raw(RGBA_4x4, split=4)),
+    ('stored.png', _png_raw(None, idat=zlib.compress(RGBA_4x4, 0))),
+    ('metadata.png', _png_raw(RGBA_4x4, before=[
+        _chunk(b'gAMA', struct.pack('>I', 45455)), _chunk(b'sRGB', b'\x00'), _chunk(b'pHYs', bytes(9)),
+        _chunk(b'eXIf', b'MM\x00*' + bytes(60))], after=[
+        _chunk(b'tEXt', b'Software\x00ECU Studio AI'), _chunk(b'zTXt', b'Comment\x00\x00' + zlib.compress(b'map view ' * 50)),
+        _chunk(b'iTXt', b'Title\x00\x00\x00de\x00Titel\x00Kennfeld \xc3\xbcbersicht'), _chunk(b'tIME', bytes(7))])),
+], ids=_ids)
+def test_valid_png_variants_pass(name, data):
+    assert _media(name, data) == ''
+
+
+IDAT_SPLIT_BY_TEXT = (_png_raw(RGBA_4x4)[:33] + _chunk(b'IDAT', STREAM_4x4[:6]) + _chunk(b'tEXt', b'k\x00v')
+                      + _chunk(b'IDAT', STREAM_4x4[6:]) + _chunk(b'IEND', b''))
+
+
+@pytest.mark.parametrize('name, data, reason', [
+    ('stream-tail.png', _png_raw(None, idat=STREAM_4x4 + b'\x00' * 7), 'after the end of the compressed'),
+    ('stream-cut.png', _png_raw(None, idat=STREAM_4x4[:-6]), 'before the compressed stream is complete'),
+    ('not-zlib.png', _png_raw(None, idat=synthetic(64)), 'not valid zlib'),
+    ('short-pixels.png', _png_raw(RGBA_4x4[:-17]), 'the header needs 68'),
+    ('bad-filter.png', _png_raw(b'\x07' + RGBA_4x4[1:]), 'row filter'),
+    ('wider.png', _png_raw(RGBA_4x4, width=5), 'the header needs'),
+    ('zero-width.png', _png_raw(RGBA_4x4, width=0), 'header is invalid'),
+    ('huge-height.png', _png_raw(RGBA_4x4, height=0x80000000), 'header is invalid'),
+    ('depth-3.png', _png_raw(RGBA_4x4, depth=3), 'header is invalid'),
+    ('rgb-1bit.png', _png_raw(RGBA_4x4, depth=1, color=2), 'header is invalid'),
+    ('no-palette.png', _png_raw(b'\x00\x00' * 4, width=1, color=3), 'incomplete'),
+    ('idat-split-by-text.png', IDAT_SPLIT_BY_TEXT, 'out of order'),
+    ('plte-after-idat.png', _png_raw(RGBA_4x4, after=[_chunk(b'PLTE', bytes(6))]), 'out of order'),
+    ('gama-after-idat.png', _png_raw(RGBA_4x4, after=[_chunk(b'gAMA', bytes(4))]), 'out of order'),
+    ('two-ihdr.png', _png_raw(RGBA_4x4, before=[_chunk(b'IHDR', struct.pack('>IIBBBBB', 4, 4, 8, 6, 0, 0, 0))]),
+     'out of order'),
+    ('two-time.png', _png_raw(RGBA_4x4, after=[_chunk(b'tIME', bytes(7))] * 2), 'out of order'),
+    ('big-gama.png', _png_raw(RGBA_4x4, before=[_chunk(b'gAMA', synthetic(4000))]), 'wrong size'),
+    ('after-iend.png', _png_raw(RGBA_4x4) + b'\x00', 'appended after the image end'),
+    ('ztxt-binary.png', _png_raw(RGBA_4x4, after=[_chunk(b'zTXt', b'k\x00\x00' + zlib.compress(synthetic(30000)))]),
+     'binary data in a text field'),
+    ('ztxt-tail.png', _png_raw(RGBA_4x4, after=[_chunk(b'zTXt', b'k\x00\x00' + zlib.compress(b'note') + synthetic(900))]),
+     'after the end of the compressed'),
+    ('text-base64.png', _png_raw(RGBA_4x4, after=[_chunk(b'tEXt', b'k\x00' + base64.b64encode(synthetic(3000)))]),
+     'base64 payload'),
+    ('text-hex.png', _png_raw(RGBA_4x4, after=[_chunk(b'iTXt', b'k\x00\x00\x00\x00\x00' + synthetic(2000).hex().encode())]),
+     'hex payload'),
+    ('big-exif.png', _png_raw(RGBA_4x4, after=[_chunk(b'eXIf', b'MM\x00*' + synthetic(20000))]), 'binary PNG metadata'),
+    ('fake-exif.png', _png_raw(RGBA_4x4, after=[_chunk(b'eXIf', synthetic(500))]), 'not EXIF'),
+    ('fake-icc.png', _png_raw(RGBA_4x4, before=[_chunk(b'iCCP', b'icc\x00\x00' + zlib.compress(synthetic(900)))]),
+     'not an ICC color profile'),
+    ('many-texts.png', _png_raw(RGBA_4x4, after=[_chunk(b'tEXt', b'k\x00' + b'note ' * 3000)] * 5), 'PNG metadata'),
+], ids=_ids)
+def test_manipulated_pngs_are_rejected(name, data, reason):
+    assert reason in _media(name, data)
+
+
+def test_png_decompression_bombs_stay_cheap():
+    import time
+    import tracemalloc
+    bomb = zlib.compress(b'\x00' * 200_000_000, 9)              # 200 MB of output from about 200 KB
+    cases = [(_png_raw(None, idat=bomb), 'more than 68 bytes'),
+             (_png_raw(None, idat=bomb, width=4000, height=4000), 'more than 64004000 bytes'),
+             (_png_raw(None, idat=bomb, width=50000, height=50000), 'too large to verify')]
+    for data, reason in cases:
+        tracemalloc.start()
+        started = time.perf_counter()
+        problem = guard._png_problem(data)
+        seconds, peak = time.perf_counter() - started, tracemalloc.get_traced_memory()[1]
+        tracemalloc.stop()
+        assert reason in problem
+        assert peak < 2 * len(data) + 4 * guard.INFLATE_STEP + (1 << 20), peak     # input + a few output steps
+        assert seconds < 10
+
+
+@pytest.mark.parametrize('kind', ['png', 'gif', 'ico', 'jpg', 'webp'])
+def test_truncated_and_mutated_images_never_crash(kind):
+    sample = {'png': _png_raw(RGBA_4x4, after=[_chunk(b'zTXt', b'k\x00\x00' + zlib.compress(b'text'))]),
+              'gif': _gif([(3, 2, [1, 2, 3, 4, 5, 6])], extensions=LOOP), 'ico': _ico(_png()), 'jpg': _jpeg(),
+              'webp': _webp(b'\x2f' + bytes(8))}[kind]
+    for cut in range(len(sample)):
+        assert _media(f'cut.{kind}', sample[:cut])                       # every truncation is reported
+    rng = random.Random(5)
+    for _ in range(400):                                                   # random corruption: a verdict, never a crash
+        data = bytearray(sample)
+        for _ in range(rng.randint(1, 4)):
+            data[rng.randrange(len(data))] = rng.randrange(256)
+        assert isinstance(guard._media_problem(kind, bytes(data)), str)
+
+
+def test_text_file_named_like_an_image_is_rejected():
+    assert 'not a PNG' in _media('notes.png', b'just some text\n' * 100)
+    assert 'not a GIF' in _media('notes.gif', b'just some text\n' * 100)
+
+
+# GIF frames are LZW-encoded here with literal codes only, plus a clear code before the code size would grow.
+def _lzw(pixels, min_size=8):
+    clear, size = 1 << min_size, min_size + 1
+    codes = [clear]
+    for i, pixel in enumerate(pixels):
+        if i and i % ((1 << size) - clear - 3) == 0:
+            codes.append(clear)
+        codes.append(pixel)
+    codes.append(clear + 1)
+    out, acc, bits = bytearray(), 0, 0
+    for code in codes:
+        acc |= code << bits
+        bits += size
+        while bits >= 8:
+            out.append(acc & 0xFF)
+            acc >>= 8
+            bits -= 8
+    return bytes(out) + (bytes([acc]) if bits else b'')
+
+
+def _sub_blocks(data):
+    return b''.join(bytes([len(data[i:i + 255])]) + data[i:i + 255] for i in range(0, len(data), 255)) + b'\x00'
+
+
+def _gif(frames, extensions=b'', lzw_tail=b''):
+    width, height = max(f[0] for f in frames), max(f[1] for f in frames)
+    out = b'GIF89a' + struct.pack('<HHBBB', width, height, 0xF7, 0, 0) + bytes(range(256)) * 3 + extensions
+    for w, h, pixels in frames:
+        out += (b'\x21\xf9\x04\x00\x0a\x00\x00\x00' + b'\x2c' + struct.pack('<HHHHB', 0, 0, w, h, 0) + b'\x08'
+                + _sub_blocks(_lzw(pixels) + lzw_tail))
+    return out + b';'
+
+
+LOOP = b'\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00'
+
+
+def test_valid_gifs_pass():
+    pixels = [i * 7 % 256 for i in range(40 * 30)]
+    assert _media('a.gif', _gif([(40, 30, pixels), (10, 10, pixels[:100])], extensions=LOOP)) == ''
+    assert _media('b.gif', _gif([(2, 2, [0, 1, 2, 3])], extensions=b'\x21\xfe' + _sub_blocks(b'made by a test'))) == ''
+    assert _media('c.gif', GIF_OK) == ''
+
+
+@pytest.mark.parametrize('name, data, reason', [
+    ('after-end-code.gif', _gif([(4, 4, list(range(16)))], lzw_tail=synthetic(5000)), 'after the LZW end code'),
+    ('short-frame.gif', _gif([(4, 4, list(range(15)))]), '15 of 16 pixels'),
+    ('more-pixels.gif', _gif([(4, 4, list(range(40)))]), 'more than the 16 pixels'),
+    ('unknown-extension.gif', _gif([(1, 1, [0])], extensions=b'\x21\x42' + _sub_blocks(synthetic(3000))),
+     'unknown GIF extension'),
+    ('binary-comment.gif', _gif([(1, 1, [0])], extensions=b'\x21\xfe' + _sub_blocks(synthetic(3000))), 'binary data'),
+    ('base64-comment.gif', _gif([(1, 1, [0])], extensions=b'\x21\xfe' + _sub_blocks(base64.b64encode(synthetic(3000)))),
+     'base64 payload'),
+    ('app-data.gif', _gif([(1, 1, [0])], extensions=b'\x21\xff\x0bXMP DataXMP' + _sub_blocks(synthetic(20000))),
+     'binary GIF application data'),
+    ('loop-padding.gif', _gif([(1, 1, [0])], extensions=b'\x21\xff\x0bNETSCAPE2.0' + _sub_blocks(synthetic(900))),
+     'loop block'),
+    ('after-trailer.gif', _gif([(1, 1, [0])]) + b'\x00', 'appended after the image end'),
+], ids=_ids)
+def test_manipulated_gifs_are_rejected(name, data, reason):
+    assert reason in _media(name, data)
+
+
+# JPEG and WEBP are walked structurally, but their pixel streams are not decoded: even a clean file needs review.
+def _jpeg(scan=b'\x12\x34', after_scan=b'', tail=b'', head=b''):
+    sof = b'\xff\xc0' + struct.pack('>HBHHB', 11, 8, 1, 1, 1) + b'\x01\x11\x00'
+    sos = b'\xff\xda' + struct.pack('>HB', 8, 1) + b'\x01\x00\x00\x3f\x00'
+    return b'\xff\xd8' + head + sof + sos + scan + after_scan + b'\xff\xd9' + tail
+
+
+def _webp(payload, extra=b''):
+    body = b'WEBP' + b'VP8L' + struct.pack('<I', len(payload)) + payload + b'\x00' * (len(payload) & 1) + extra
+    return b'RIFF' + struct.pack('<I', len(body)) + body
+
+
+@pytest.mark.parametrize('name, data, reason', [
+    ('clean.jpg', _jpeg(), 'not decoded by the guard'),
+    ('hidden-in-scan.jpg', _jpeg(scan=b'\x12\x34' + synthetic(5000).replace(b'\xff', b'\xff\x00')),
+     'not decoded by the guard'),
+    ('after-eoi.jpg', _jpeg(tail=b'\x00' * 3), 'appended after the image end'),
+    ('app-after-scan.jpg', _jpeg(after_scan=(b'\xff\xe5' + struct.pack('>H', 40002) + synthetic(40000)) * 2),
+     'JPEG metadata'),
+    ('binary-comment.jpg', _jpeg(head=b'\xff\xfe' + struct.pack('>H', 3002) + synthetic(3000)), 'binary data'),
+    ('odd-marker.jpg', _jpeg(head=b'\xff\xf3' + struct.pack('>H', 4) + b'ab'), 'unexpected JPEG marker'),
+    ('overrun.jpg', _jpeg(head=b'\xff\xe1' + struct.pack('>H', 60000) + b'Exif'), 'runs past the end'),
+    ('no-eoi.jpg', _jpeg()[:-2], 'without end marker'),
+    ('clean.webp', _webp(b'\x2f' + bytes(8)), 'not decoded by the guard'),
+    ('vp8l-tail.webp', _webp(b'\x2f' + bytes(8) + synthetic(5000)), 'not decoded by the guard'),
+    ('exif.webp', _webp(b'\x2f' + bytes(8), extra=b'EXIF' + struct.pack('<I', 20000) + synthetic(20000)),
+     'WEBP metadata'),
+    ('private.webp', _webp(b'\x2f' + bytes(8), extra=b'FWDT' + struct.pack('<I', 64) + synthetic(64)),
+     'unknown WEBP chunk'),
+], ids=_ids)
+def test_jpeg_and_webp_need_review(name, data, reason):
+    assert reason in _media(name, data)
+
+
+def test_reviewed_jpeg_and_webp_can_be_allowlisted():
+    for name, data in (('docs/photo.jpg', _jpeg()), ('docs/photo.webp', _webp(b'\x2f' + bytes(8)))):
+        assert guard.scan_blob(name, data, guard.Config.load(None))
+        config = guard.Config.load(json.dumps({'allow': {name: guard.sha256(data)}}))
+        assert guard.scan_blob(name, data, config) == []
+
+
+# ICO: PNG entries get the full PNG check and must match the directory; DIB entries must match their header.
+def _dib(w=4, h=4, bits=32):
+    header = struct.pack('<IiiHHIIiiII', 40, w, 2 * h, 1, bits, 0, 0, 0, 0, 0, 0)
+    return header + bytes(h * (((w * bits + 31) // 32) * 4 + ((w + 31) // 32) * 4))
+
+
+ICO_4x4_ENTRY = b'\x00\x00\x01\x00\x01\x00\x04\x04'       # ICO header and a directory entry that claims 4x4
+
+
+@pytest.mark.parametrize('name, data, reason', [
+    ('dib.ico', _ico(_dib()), ''),
+    ('png-and-dib.ico', _ico(_png(), _dib()), ''),
+    ('png-tail.ico', _ico(_png_raw(None, idat=STREAM_4x4 + synthetic(800))), 'after the end of the compressed'),
+    ('png-size.ico', ICO_4x4_ENTRY + _ico(_png(8, 8))[8:], 'differs from the directory'),
+    ('dib-padded.ico', _ico(_dib() + synthetic(700)), 'DIB of the expected size'),
+    ('dib-height.ico', ICO_4x4_ENTRY + _ico(_dib(4, 40))[8:], 'DIB of the expected size'),
+    ('cursor.ico', b'\x00\x00\x02\x00' + _ico(_png())[4:], 'not a ICO'),
+    ('empty.ico', b'\x00\x00\x01\x00\x00\x00', 'ICO header is invalid'),
+], ids=_ids)
+def test_ico_entries(name, data, reason):
+    problem = _media(name, data)
+    assert (reason in problem) if reason else problem == ''
+
+
+def test_images_written_by_qt_pass_and_doctored_ones_that_still_display_do_not():
+    """Real encoder output passes. Doctored files that a viewer still shows normally, so a reviewer would not notice,
+    are rejected (PNG, GIF) or sent to review (JPEG)."""
+    pytest.importorskip('PySide6')
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QColor, QImage
+
+    def encode(image, fmt):
+        data = QByteArray()
+        buffer = QBuffer(data)
+        buffer.open(QIODevice.WriteOnly)
+        assert image.save(buffer, fmt)
+        buffer.close()
+        return bytes(data)
+
+    base = QImage(37, 23, QImage.Format_ARGB32)
+    base.fill(QColor(20, 120, 200, 180))
+    base.setText('Software', 'ECU Studio AI test')
+    for fmt in (QImage.Format_ARGB32, QImage.Format_RGB888, QImage.Format_Grayscale8, QImage.Format_Grayscale16,
+                QImage.Format_Indexed8, QImage.Format_Mono):
+        assert _media('qt.png', encode(base.convertToFormat(fmt), 'PNG')) == '', fmt
+
+    png = encode(base, 'PNG')
+    start = png.index(b'IDAT') - 4
+    size = struct.unpack('>I', png[start:start + 4])[0]
+    doctored = png[:start] + _chunk(b'IDAT', png[start + 8:start + 8 + size] + synthetic(5000)) + png[start + 12 + size:]
+    assert not QImage.fromData(doctored).isNull()
+    assert 'after the end of the compressed stream' in _media('qt.png', doctored)
+
+    gif = _gif([(4, 4, list(range(16)))], lzw_tail=synthetic(3000))
+    assert not QImage.fromData(gif).isNull()
+    assert 'after the LZW end code' in _media('qt.gif', gif)
+
+    jpeg = encode(base.convertToFormat(QImage.Format_RGB888), 'JPG')
+    hidden = jpeg[:-2] + synthetic(4000).replace(b'\xff', b'\xff\x00') + b'\xff\xd9'
+    assert not QImage.fromData(hidden).isNull()
+    assert 'not decoded by the guard' in _media('qt.jpg', jpeg)
+    assert 'not decoded by the guard' in _media('qt.jpg', hidden)

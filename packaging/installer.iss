@@ -41,9 +41,11 @@ Name: "desktopicon"; Description: "Verknüpfung auf dem Desktop"; GroupDescripti
 Source: "..\dist\ECU-Studio-AI\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; WorkingDir: "{app}"
+; AppUserModelID = APP_USER_MODEL_ID in src/ecu_studio/main.py: links the running window (pythonw.exe) to these
+; shortcuts, so taskbar and Start menu show the program icon and a pin starts ECU-Studio-AI.exe.
+Name: "{group}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; WorkingDir: "{app}"; AppUserModelID: "PCTestAdmin.ECUStudioAI"
 Name: "{group}\ECU Studio AI deinstallieren"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userdesktop}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; WorkingDir: "{app}"; AppUserModelID: "PCTestAdmin.ECUStudioAI"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\ECU-Studio-AI.exe"; Description: "ECU Studio AI starten"; Flags: nowait postinstall skipifsilent
