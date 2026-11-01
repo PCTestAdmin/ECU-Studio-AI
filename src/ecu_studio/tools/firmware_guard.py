@@ -29,6 +29,7 @@ import re
 import struct
 import subprocess
 import sys
+import zlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -95,7 +96,6 @@ class Config:
     max_size: int = MAX_SIZE
     local_roots: tuple[str, ...] = ()
     reviewed: frozenset = frozenset()
-    reviewed: frozenset = frozenset()
 
     @staticmethod
     def load(text: str | None, local_roots=()) -> 'Config':
@@ -128,116 +128,397 @@ def signatures(data: bytes) -> list[str]:
     return sorted({s.decode() for s in ECU_SIGNATURES if s in data})
 
 
-MAX_METADATA = 64 * 1024   # text/comment/EXIF bytes an image may carry besides its pixels
-PNG_CHUNKS = {b'IHDR', b'PLTE', b'IDAT', b'IEND', b'tRNS', b'gAMA', b'cHRM', b'sRGB', b'iCCP', b'sBIT', b'pHYs',
-              b'bKGD', b'tIME', b'tEXt', b'zTXt', b'iTXt', b'hIST', b'sPLT', b'eXIf'}
+# ---------------------------------------------------------------------------------------------------- images
+# An image passes only when every byte is accounted for: structure, bounded metadata and exactly the pixel data a
+# decoder reads. Bytes a decoder skips (after an end marker, after the end of a compressed stream, in unknown
+# chunks) are where a payload would hide. Pixel values themselves can still carry data; see the residual risks in
+# docs/FIRMWARE_PROTECTION.md.
+MAX_METADATA = 64 * 1024          # text, comments, EXIF, ICC and application data of one image together
+MAX_BINARY_METADATA = 16 * 1024   # the binary part of that (EXIF, ICC, application blocks); text is scanned instead
+MAX_PIXEL_BYTES = 64 << 20        # decompressed pixel data the guard verifies at most (decompression bombs)
+INFLATE_STEP = 1 << 16            # output per decompression step, so memory stays bounded
+UNVERIFIED = '{} pixel data is not decoded by the guard, so hidden data cannot be ruled out (view it, then allowlist it)'
+
+PNG_DEPTHS = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}
 PNG_CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+PNG_ADAM7 = ((0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2))
+PNG_BEFORE_PLTE = {b'cHRM', b'gAMA', b'iCCP', b'sBIT', b'sRGB'}
+PNG_AFTER_PLTE = {b'tRNS', b'bKGD', b'hIST'}
+PNG_BEFORE_IDAT = PNG_BEFORE_PLTE | PNG_AFTER_PLTE | {b'pHYs', b'sPLT'}
+PNG_TEXT = {b'tEXt', b'zTXt', b'iTXt'}
+PNG_BINARY = {b'iCCP', b'eXIf', b'sPLT'}
+PNG_CHUNKS = PNG_BEFORE_IDAT | PNG_TEXT | {b'IHDR', b'PLTE', b'IDAT', b'IEND', b'tIME', b'eXIf'}
+PNG_NOT_AFTER_IDAT = PNG_BEFORE_IDAT | {b'PLTE'}
+PNG_ONCE = PNG_CHUNKS - PNG_TEXT - {b'IDAT', b'sPLT'}
+PNG_SIZE = {b'IHDR': 13, b'IEND': 0, b'gAMA': 4, b'cHRM': 32, b'sRGB': 1, b'pHYs': 9, b'tIME': 7}
+
+JPEG_FRAMES = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+JPEG_TABLES = {0xC4, 0xCC, 0xDB, 0xDC, 0xDD}           # DHT, DAC, DQT, DNL, DRI
+GIF_LOOP_APPS = {b'NETSCAPE2.0', b'ANIMEXTS1.0'}
+WEBP_CHUNKS = {b'VP8 ', b'VP8L', b'VP8X', b'ALPH', b'ANIM', b'ANMF', b'ICCP', b'EXIF', b'XMP '}
 
 
-def _png_problem(data: bytes) -> str:
-    """Walk all chunks: CRCs, known types only, bounded metadata, pixel data exactly as large as IHDR says."""
-    import zlib
-    pos, idat, meta, header, ended = 8, [], 0, None, False
-    while pos + 12 <= len(data):
-        size, kind = struct.unpack('>I4s', data[pos:pos + 8])
-        body = data[pos + 8:pos + 8 + size]
-        if len(body) != size or pos + 12 + size > len(data):
-            return 'PNG chunk runs past the end of the file'
-        if zlib.crc32(kind + body) != struct.unpack('>I', data[pos + 8 + size:pos + 12 + size])[0]:
-            return f'PNG chunk {kind!r} has a wrong checksum'
-        if kind not in PNG_CHUNKS:
-            return f'unknown PNG chunk {kind.decode("latin-1")!r} (can carry any data)'
-        if kind == b'IHDR':
-            header = struct.unpack('>IIBBBBB', body[:13])
-        elif kind == b'IDAT':
-            idat.append(body)
-        elif kind != b'PLTE':
-            meta += size
-        pos += 12 + size
-        if kind == b'IEND':
-            ended = True
-            break
-    if not ended or header is None:
-        return 'PNG structure incomplete'
-    if len(data) - pos > 16:
-        return f'{len(data) - pos} bytes appended after the image end'
-    if meta > MAX_METADATA:
-        return f'{meta} bytes of PNG metadata'
-    width, height, depth, color, _, _, interlace = header
+def _inflate(stream: bytes, limit: int, sink=None) -> tuple[int, str]:
+    """Output size of one zlib stream, decompressed in steps and never beyond `limit` bytes.
+
+    zlib.decompress() silently drops anything after the end of the stream; here every input byte must belong to
+    it. `sink(offset, chunk)` sees the output piece by piece and may return a problem."""
+    inflater = zlib.decompressobj()
+    total, pending = 0, stream
     try:
-        pixels = zlib.decompress(b''.join(idat))
+        while not inflater.eof:
+            out = inflater.decompress(pending, INFLATE_STEP)
+            pending = inflater.unconsumed_tail
+            if total + len(out) > limit:
+                return total + len(out), f'decompresses to more than {limit} bytes'
+            problem = sink(total, out) if sink and out else ''
+            if problem:
+                return total, problem
+            total += len(out)
+            if not out and not pending:
+                break
     except zlib.error:
-        return 'PNG pixel data is not valid'
-    if not interlace and color in PNG_CHANNELS:
-        expected = height * (1 + (width * PNG_CHANNELS[color] * depth + 7) // 8)
-        if len(pixels) != expected:
-            return f'PNG pixel data is {len(pixels)} bytes, the header needs {expected}'
+        return total, 'is not valid zlib data'
+    if not inflater.eof:
+        return total, 'ends before the compressed stream is complete'
+    extra = len(inflater.unused_data) + len(inflater.unconsumed_tail)
+    return total, f'has {extra} bytes after the end of the compressed stream' if extra else ''
+
+
+def _text_problem(text: bytes) -> str:
+    """Text metadata must be text, and is scanned for embedded payloads like any text file."""
+    if is_binary(text):
+        return 'binary data in a text field'
+    found = payloads(text)
+    return f'text field holds a {found[0]}' if found else ''
+
+
+def _png_rows(width: int, height: int, bits: int, interlace: int) -> list[tuple[int, int, int]]:
+    """(start, end, row length) of each run of equally long rows in the decompressed pixel stream."""
+    rows, pos = [], 0
+    for x0, y0, dx, dy in (PNG_ADAM7 if interlace else ((0, 0, 1, 1),)):
+        w, h = (width - x0 + dx - 1) // dx, (height - y0 + dy - 1) // dy
+        if w and h:
+            length = 1 + (w * bits + 7) // 8
+            rows.append((pos, pos + h * length, length))
+            pos += h * length
+    return rows
+
+
+def _png_filters(rows):
+    """Sink for _inflate: every row must start with a filter type 0..4."""
+    def check(offset: int, out: bytes) -> str:
+        end = offset + len(out)
+        for start, stop, length in rows:
+            first = start + -(-(max(offset, start) - start) // length) * length
+            last = min(stop, end)
+            if first < last and max(out[first - offset:last - offset:length]) > 4:
+                return 'uses an invalid row filter'
+        return ''
+    return check
+
+
+def _png_text(kind: bytes, body: bytes) -> str:
+    keyword, sep, rest = body.partition(b'\x00')
+    if not sep or not 1 <= len(keyword) <= 79:
+        return 'PNG text chunk without a valid keyword'
+    if kind == b'iTXt':
+        flag, method = rest[:1], rest[1:2]
+        language, sep1, rest = rest[2:].partition(b'\x00')
+        translated, sep2, rest = rest.partition(b'\x00')
+        if not (sep1 and sep2) or flag not in (b'\x00', b'\x01') or method != b'\x00':
+            return 'PNG iTXt chunk is malformed'
+        compressed = flag == b'\x01'
+        rest = translated + b'\n' + rest if not compressed else rest
+    else:
+        compressed = kind == b'zTXt'
+        if compressed:
+            if rest[:1] != b'\x00':
+                return 'PNG zTXt chunk uses an unknown compression'
+            rest = rest[1:]
+    if compressed:
+        parts = []
+        _, problem = _inflate(rest, MAX_METADATA, lambda _, out: parts.append(out) or '')
+        if problem:
+            return f'PNG compressed text {problem}'
+        rest = b''.join(parts)
+    problem = _text_problem(rest)
+    return f'PNG {kind.decode()}: {problem}' if problem else ''
+
+
+def _png_binary(kind: bytes, body: bytes) -> str:
+    if kind == b'eXIf' and body[:4] not in (b'II*\x00', b'MM\x00*'):
+        return 'PNG eXIf chunk is not EXIF data'
+    if kind == b'iCCP':
+        name, sep, rest = body.partition(b'\x00')
+        head = []
+        size, problem = _inflate(rest[1:], 4 << 20, lambda offset, out: '' if offset else head.append(out) or '')
+        profile = b''.join(head)[:128]
+        if not sep or not 1 <= len(name) <= 79 or rest[:1] != b'\x00' or problem:
+            return f'PNG iCCP chunk is malformed{" (" + problem + ")" if problem else ""}'
+        if len(profile) < 40 or profile[36:40] != b'acsp' or struct.unpack('>I', profile[:4])[0] != size:
+            return 'PNG iCCP chunk is not an ICC color profile'
     return ''
 
 
+def _png_problem(data: bytes) -> str:
+    """Chunks known, CRC-checked and in a valid order; metadata bounded and checked; the pixel stream decompresses
+    to exactly the size IHDR implies, with valid row filters and no byte after its end; nothing after IEND."""
+    pos, seen, header, palette, stream, closed = 8, set(), None, 0, [], False
+    meta = binary = 0
+    while True:
+        if pos + 12 > len(data):
+            return 'PNG structure incomplete'
+        size, kind = struct.unpack('>I4s', data[pos:pos + 8])
+        if size > 0x7FFFFFFF or pos + 12 + size > len(data):
+            return 'PNG chunk runs past the end of the file'
+        body = data[pos + 8:pos + 8 + size]
+        if zlib.crc32(kind + body) != struct.unpack('>I', data[pos + 8 + size:pos + 12 + size])[0]:
+            return f'PNG chunk {kind!r} has a wrong checksum'
+        pos += 12 + size
+        name = kind.decode('latin-1')
+        if kind not in PNG_CHUNKS:
+            return f'unknown PNG chunk {name!r} (can carry any data)'
+        if (header is None) != (kind == b'IHDR') or (kind in PNG_ONCE and kind in seen):
+            return f'PNG chunk {name!r} out of order or repeated'
+        if kind in PNG_SIZE and size != PNG_SIZE[kind]:
+            return f'PNG chunk {name!r} has a wrong size'
+        if stream and kind != b'IDAT':
+            closed = True
+        if (kind == b'IDAT' and closed or kind in PNG_NOT_AFTER_IDAT and stream
+                or kind in PNG_BEFORE_PLTE and b'PLTE' in seen):
+            return f'PNG chunk {name!r} out of order or repeated'
+        seen.add(kind)
+        if kind == b'IHDR':
+            header = width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', body)
+            if (not 0 < width <= 0x7FFFFFFF or not 0 < height <= 0x7FFFFFFF or depth not in PNG_DEPTHS.get(color, ())
+                    or compression or filtering or interlace > 1):
+                return 'PNG header is invalid (size, color type or bit depth)'
+        elif kind == b'PLTE':
+            palette = size // 3
+            if color in (0, 4) or size % 3 or not 1 <= palette <= (1 << depth if color == 3 else 256):
+                return 'PNG palette is invalid'
+        elif kind == b'IDAT':
+            stream.append(body)
+        elif kind == b'IEND':
+            break
+        elif kind == b'tRNS' and (color in (4, 6) or size != {0: 2, 2: 6}.get(color, size)
+                                  or color == 3 and not 0 < size <= palette):
+            return 'PNG transparency chunk is invalid'
+        elif kind in PNG_AFTER_PLTE and color == 3 and b'PLTE' not in seen:
+            return f'PNG chunk {name!r} out of order or repeated'
+        if kind not in (b'IHDR', b'PLTE', b'IDAT'):
+            meta += size
+            binary += size if kind in PNG_BINARY else 0
+            if meta > MAX_METADATA:
+                return f'{meta} bytes of PNG metadata'
+            if binary > MAX_BINARY_METADATA:
+                return f'{binary} bytes of binary PNG metadata (EXIF, ICC profile)'
+            problem = _png_text(kind, body) if kind in PNG_TEXT else _png_binary(kind, body)
+            if problem:
+                return problem
+    if pos != len(data):
+        return f'{len(data) - pos} bytes appended after the image end'
+    if not stream or color == 3 and not palette:
+        return 'PNG structure incomplete'
+    rows = _png_rows(width, height, depth * PNG_CHANNELS[color], interlace)
+    expected = rows[-1][1]
+    if expected > MAX_PIXEL_BYTES:
+        return f'PNG pixel data of {expected} bytes is too large to verify'
+    size, problem = _inflate(b''.join(stream), expected, _png_filters(rows))
+    if problem:
+        return f'PNG pixel data {problem} (the header needs {expected})'
+    if size != expected:
+        return f'PNG pixel data is {size} bytes, the header needs {expected}'
+    return ''
+
+
+def _gif_blocks(data: bytes, pos: int):
+    """Data sub-blocks from pos up to the terminator: (list of blocks, position after it), or (None, pos)."""
+    blocks = []
+    while pos < len(data):
+        size = data[pos]
+        if not size:
+            return blocks, pos + 1
+        if pos + 1 + size > len(data):
+            break
+        blocks.append(data[pos + 1:pos + 1 + size])
+        pos += 1 + size
+    return None, pos
+
+
+def _lzw_problem(stream: bytes, min_size: int, pixels: int) -> str:
+    """The frame's LZW codes must produce exactly `pixels` pixels and end with the end code at the end of the data.
+
+    Only code lengths are tracked (not pixel values), which is enough to know where decoding stops."""
+    if not 2 <= min_size <= 8:
+        return f'invalid LZW code size {min_size}'
+    clear, end = 1 << min_size, (1 << min_size) + 1
+    lengths = [1] * clear + [0] * (4096 - clear)
+    size, next_code, prev = min_size + 1, clear + 2, -1
+    acc = bits = pos = produced = 0
+    while True:
+        while bits < size:
+            if pos == len(stream):
+                return '' if produced == pixels else f'LZW data ends after {produced} of {pixels} pixels'
+            acc |= stream[pos] << bits
+            pos += 1
+            bits += 8
+        code = acc & ((1 << size) - 1)
+        acc >>= size
+        bits -= size
+        if code == clear:
+            size, next_code, prev = min_size + 1, clear + 2, -1
+            continue
+        if code == end:
+            break
+        if prev < 0:
+            if code > clear:
+                return 'invalid LZW code'
+            length = 1
+        elif code < next_code:
+            length = lengths[code]
+        elif code == next_code:
+            length = lengths[prev] + 1
+        else:
+            return 'invalid LZW code'
+        if prev >= 0 and next_code < 4096:
+            lengths[next_code] = lengths[prev] + 1
+            next_code += 1
+            if next_code == 1 << size and size < 12:
+                size += 1
+        produced += length
+        prev = code
+        if produced > pixels:
+            return f'LZW data holds more than the {pixels} pixels of the frame'
+    if produced != pixels:
+        return f'LZW data holds {produced} of {pixels} pixels'
+    return f'{len(stream) - pos} bytes after the LZW end code' if pos < len(stream) else ''
+
+
 def _gif_problem(data: bytes) -> str:
-    """Walk header, color tables and blocks up to the trailer, which must be the last byte."""
+    """Header, color tables and every block up to the trailer, which must be the last byte; every frame's LZW data
+    decodes to exactly its pixel count; known extensions only, comments are scanned as text."""
     if len(data) < 13:
         return 'GIF structure incomplete'
     flags = data[10]
-    pos = 13 + (3 * 2 ** ((flags & 7) + 1) if flags & 0x80 else 0)
-    meta = 0
-
-    def blocks(p):
-        total = 0
-        while p < len(data) and data[p]:
-            total += data[p]
-            p += 1 + data[p]
-        return p + 1, total
+    pos = 13 + (3 << ((flags & 7) + 1) if flags & 0x80 else 0)
+    meta = binary = frames = 0
     while pos < len(data):
         tag = data[pos]
         if tag == 0x3B:
-            return '' if pos == len(data) - 1 else f'{len(data) - pos - 1} bytes appended after the image end'
-        if tag == 0x21 and pos + 1 < len(data):
+            if pos != len(data) - 1:
+                return f'{len(data) - pos - 1} bytes appended after the image end'
+            return '' if frames else 'GIF without image'
+        if tag == 0x21 and pos + 2 <= len(data):
             label = data[pos + 1]
-            pos, size = blocks(pos + 2)
-            if label != 0xF9:                       # comment, application and plain-text blocks
-                meta += size
-        elif tag == 0x2C and pos + 10 <= len(data):
-            local = data[pos + 9]
-            pos += 10 + (3 * 2 ** ((local & 7) + 1) if local & 0x80 else 0) + 1    # + LZW minimum code size
-            pos, _ = blocks(pos)
+            blocks, pos = _gif_blocks(data, pos + 2)
+            if blocks is None:
+                return 'GIF block runs past the end of the file'
+            body = b''.join(blocks)
+            if label == 0xF9:
+                if [len(b) for b in blocks] != [4]:
+                    return 'GIF graphic control block is invalid'
+                continue
+            if label not in (0xFE, 0x01, 0xFF):
+                return f'unknown GIF extension 0x{label:02X}'
+            meta += len(body)
+            if label == 0xFF and blocks and blocks[0] in GIF_LOOP_APPS:
+                if any((len(b), b[0]) not in ((3, 1), (5, 2)) for b in blocks[1:]):
+                    return 'GIF loop block is invalid'
+            elif label == 0xFF:
+                binary += len(body)
+            else:
+                text = body if label == 0xFE else b''.join(blocks[1:])
+                problem = _text_problem(text) if text else ''
+                if problem or label == 0x01 and (not blocks or len(blocks[0]) != 12):
+                    return f'GIF text block: {problem or "invalid header"}'
+            if meta > MAX_METADATA:
+                return f'{meta} bytes of GIF comments/extensions'
+            if binary > MAX_BINARY_METADATA:
+                return f'{binary} bytes of binary GIF application data'
+        elif tag == 0x2C and pos + 11 <= len(data):
+            _, _, width, height, local = struct.unpack('<HHHHB', data[pos + 1:pos + 10])
+            pos += 10 + (3 << ((local & 7) + 1) if local & 0x80 else 0)
+            if pos >= len(data):
+                return 'GIF structure incomplete'
+            min_size = data[pos]
+            blocks, pos = _gif_blocks(data, pos + 1)
+            if blocks is None:
+                return 'GIF block runs past the end of the file'
+            problem = _lzw_problem(b''.join(blocks), min_size, width * height)
+            if problem:
+                return f'GIF frame {frames}: {problem}'
+            frames += 1
         else:
             return 'GIF block structure broken'
-        if meta > MAX_METADATA:
-            return f'{meta} bytes of GIF comments/extensions'
     return 'GIF without trailer'
 
 
 def _jpeg_problem(data: bytes) -> str:
-    """Walk segments up to the scan; APPn/COM metadata bounded; EOI must end the file."""
-    pos, meta = 2, 0
-    while pos + 4 <= len(data) and data[pos] == 0xFF:
+    """Every segment and entropy-coded scan up to EOI, which must end the file; metadata bounded everywhere.
+
+    The scans are not decoded, so bytes after the last coded block of a scan look like image data. A JPEG that
+    passes the walk is therefore still reported and needs a reviewed allowlist entry."""
+    pos, meta, frame, scans = 2, 0, False, 0
+    while pos + 2 <= len(data) and data[pos] == 0xFF:
         marker = data[pos + 1]
-        if marker == 0xDA:
-            end = data.rfind(b'\xff\xd9')
-            if end < pos:
-                return 'JPEG without end marker'
-            tail = len(data) - end - 2
-            return f'{tail} bytes appended after the image end' if tail > 16 else ''
+        if marker == 0xFF:                                       # fill byte
+            pos += 1
+            continue
+        if marker == 0xD9:
+            tail = len(data) - pos - 2
+            if tail:
+                return f'{tail} bytes appended after the image end'
+            return UNVERIFIED.format('JPEG') if scans else 'JPEG without image data'
+        if not (marker in JPEG_FRAMES or marker in JPEG_TABLES or 0xE0 <= marker <= 0xEF or marker in (0xDA, 0xFE)):
+            return f'unexpected JPEG marker 0x{marker:02X}'
+        if pos + 4 > len(data):
+            break
         size = struct.unpack('>H', data[pos + 2:pos + 4])[0]
-        if 0xE0 <= marker <= 0xEF or marker == 0xFE:
+        if size < 2 or pos + 2 + size > len(data):
+            return 'JPEG segment runs past the end of the file'
+        body = data[pos + 4:pos + 2 + size]
+        pos += 2 + size
+        if marker in JPEG_FRAMES:
+            if frame:
+                return 'JPEG with two frame headers'
+            frame = True
+        elif marker == 0xFE or marker >= 0xE0:
             meta += size
             if meta > MAX_METADATA:
                 return f'{meta} bytes of JPEG metadata'
-        pos += 2 + size
+            problem = _text_problem(body) if marker == 0xFE and body else ''
+            if problem:
+                return f'JPEG comment: {problem}'
+        elif marker == 0xDA:
+            if not frame:
+                return 'JPEG scan before the frame header'
+            scans += 1
+            while True:                                          # entropy-coded data up to the next real marker
+                pos = data.find(b'\xff', pos)
+                if pos < 0 or pos + 1 >= len(data):
+                    return 'JPEG without end marker'
+                follow = data[pos + 1]
+                if follow and not 0xD0 <= follow <= 0xD7:       # not a stuffed 0xFF00 and not a restart marker
+                    break
+                pos += 2
     return 'JPEG segment structure broken'
 
 
 def _ico_problem(data: bytes) -> str:
-    """Every entry inside the file, entries cover it without gaps; each one a valid PNG or a DIB of exact size."""
-    count = struct.unpack('<H', data[4:6])[0]
+    """Every entry inside the file, entries cover it without gaps; each one a valid PNG of the listed size or a
+    DIB whose header matches the entry and whose size is exactly what that header needs."""
+    reserved, kind, count = struct.unpack('<HHH', data[:6])
+    if reserved or kind != 1 or not count:
+        return 'ICO header is invalid'
     spans = []
     for i in range(count):
         entry = data[6 + 16 * i:22 + 16 * i]
         if len(entry) < 16:
             return 'ICO directory runs past the end of the file'
-        width, height, _, _, _, bits, size, offset = struct.unpack('<BBBBHHII', entry)
+        width, height, _, _, _, _, size, offset = struct.unpack('<BBBBHHII', entry)
+        w, h = width or 256, height or 256
         image = data[offset:offset + size]
         if len(image) != size:
             return 'ICO entry runs past the end of the file'
@@ -245,12 +526,15 @@ def _ico_problem(data: bytes) -> str:
             problem = _png_problem(image)
             if problem:
                 return f'ICO entry {i}: {problem}'
+            if struct.unpack('>II', image[16:24]) != (w, h):
+                return f'ICO entry {i}: PNG size differs from the directory ({w}x{h})'
         else:
-            w, h = width or 256, height or 256
-            header, dib_bits = struct.unpack('<I', image[:4])[0], struct.unpack('<H', image[14:16])[0]
-            colors = 2 ** dib_bits if dib_bits <= 8 else 0
-            expected = header + 4 * colors + h * (((w * dib_bits + 31) // 32) * 4 + ((w + 31) // 32) * 4)
-            if header != 40 or size != expected:
+            header, dw, dh, planes, bits, compression = struct.unpack('<IiiHHI', image[:20])
+            used = struct.unpack('<I', image[32:36])[0]
+            colors = (used or 1 << bits) if bits <= 8 else 0
+            expected = header + 4 * colors + h * (((w * bits + 31) // 32) * 4 + ((w + 31) // 32) * 4)
+            if (header != 40 or (dw, dh) != (w, 2 * h) or planes != 1 or bits not in (1, 4, 8, 24, 32)
+                    or compression or used and (bits > 8 or used > 1 << bits) or size != expected):
                 return f'ICO entry {i} is neither PNG nor a DIB of the expected size'
         spans.append((offset, offset + size))
     pos = 6 + 16 * count
@@ -262,19 +546,23 @@ def _ico_problem(data: bytes) -> str:
 
 
 def _webp_problem(data: bytes) -> str:
+    """RIFF length, known chunks, bounded metadata. The VP8/VP8L bitstreams are not decoded, so a WEBP that passes
+    is still reported and needs a reviewed allowlist entry."""
     if data[8:12] != b'WEBP' or struct.unpack('<I', data[4:8])[0] + 8 != len(data):
         return 'RIFF length does not match the file (renamed or appended data?)'
     pos, meta = 12, 0
     while pos + 8 <= len(data):
         kind, size = data[pos:pos + 4], struct.unpack('<I', data[pos + 4:pos + 8])[0]
-        if kind not in (b'VP8 ', b'VP8L', b'VP8X', b'ALPH', b'ANIM', b'ANMF', b'ICCP', b'EXIF', b'XMP '):
+        if kind not in WEBP_CHUNKS:
             return f'unknown WEBP chunk {kind!r}'
+        if pos == 12 and kind not in (b'VP8 ', b'VP8L', b'VP8X'):
+            return 'WEBP does not start with an image chunk'
         if kind in (b'EXIF', b'XMP ', b'ICCP'):
             meta += size
         pos += 8 + size + (size & 1)
-    if meta > MAX_METADATA:
+    if meta > MAX_BINARY_METADATA:
         return f'{meta} bytes of WEBP metadata'
-    return '' if pos == len(data) else 'WEBP chunk structure broken'
+    return UNVERIFIED.format('WEBP') if pos == len(data) and pos > 12 else 'WEBP chunk structure broken'
 
 
 def _media_problem(ext: str, data: bytes) -> str:
@@ -285,7 +573,7 @@ def _media_problem(ext: str, data: bytes) -> str:
              'ico': _ico_problem, 'webp': _webp_problem}[ext]
     try:
         return check(data)
-    except (struct.error, IndexError, ValueError) as error:
+    except (struct.error, IndexError, ValueError, OverflowError) as error:
         return f'{ext.upper()} structure broken ({error})'
 
 
@@ -372,15 +660,14 @@ def scan_blob(path: str, data: bytes, config: Config) -> list[Finding]:
         findings.append(Finding(path, 'extension', f'.{ext} files hold firmware or definitions{allowed_note}'))
     if len(data) > config.max_size:
         findings.append(Finding(path, 'size', f'{len(data)} bytes > {config.max_size}{allowed_note}'))
-    if is_binary(data):
-        if ext in MEDIA_MAGIC:
-            problem = _media_problem(ext, data)
-            if problem:
-                findings.append(Finding(path, 'media', problem))
-        else:
-            marks = signatures(data)
-            detail = f'binary content ({len(data)} bytes)' + (f', ECU markers {", ".join(marks)}' if marks else '')
-            findings.append(Finding(path, 'binary', detail + allowed_note))
+    if ext in MEDIA_MAGIC:                    # an image name promises an image, text or not
+        problem = _media_problem(ext, data)
+        if problem:
+            findings.append(Finding(path, 'media', problem + allowed_note))
+    elif is_binary(data):
+        marks = signatures(data)
+        detail = f'binary content ({len(data)} bytes)' + (f', ECU markers {", ".join(marks)}' if marks else '')
+        findings.append(Finding(path, 'binary', detail + allowed_note))
     else:
         findings.extend(Finding(path, 'payload', item) for item in payloads(data))
         for root in config.local_roots:

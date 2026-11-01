@@ -1,5 +1,21 @@
 ## Unveröffentlicht
 
+- **Firmware-Schutz: Bildprüfung geschlossen (Sicherheitskorrektur).** In 1.18.1 ignorierte die PNG-Prüfung Bytes
+  hinter dem Ende des komprimierten Bilddatenstroms. Eine PNG mit 5 000 angehängten Bytes in einem IDAT-Chunk
+  mit korrekter Prüfsumme wurde angenommen und normal angezeigt. Jetzt wird schrittweise und speicherbegrenzt
+  entpackt; jedes Byte muss zum Strom gehören, die Pixelmenge muss genau stimmen, die Zeilenfilter müssen gültig
+  sein. Dazu kommen Chunk-Reihenfolge, Farbtiefen und eine Grenze von 64 MiB gegen Dekompressionsbomben. GIF-Bilder
+  werden jetzt LZW-dekodiert (keine Daten mehr hinter dem Endecode), Text-Metadaten in PNG, GIF und JPEG werden auf
+  eingebettete Hex-/Base64-Daten geprüft, binäre Metadaten sind auf 16 KiB begrenzt, ICO-Einträge müssen zum
+  Verzeichnis passen. JPEG und WEBP brauchen eine Freigabe nach Sichtprüfung, weil ihre Bilddaten nicht dekodiert
+  werden. Eine Datei mit Bild-Endung, die gar kein Bild ist, wird abgewiesen. Alle Bilder im Repository bestehen
+  die neue Prüfung.
+- **Programm-Symbol in kleinen Größen und in der Taskleiste:** Bei 16, 20 und 24 Pixeln war das Symbol nur ein
+  blauer Fleck; dort gibt es jetzt eine vereinfachte, pixelgenau gezeichnete Variante (Chip, Anzeige, Kennlinie,
+  ohne Ring). Ab 32 Pixeln bleibt das bisherige Bild unverändert. Startmenü- und Desktop-Verknüpfung tragen jetzt
+  dieselbe Windows-App-ID wie das Programmfenster, und das Fenster nennt `ECU-Studio-AI.exe` als Startbefehl. Das
+  Anheften an die Taskleiste startet also das Programm, nicht `pythonw.exe` mit Python-Symbol.
+
 ## 1.18.1 (31.10.2026)
 
 - **Programm-Symbol:** ECU Studio AI hat ein eigenes Symbol (Chip mit Kennfeld) für die .exe, Explorer,

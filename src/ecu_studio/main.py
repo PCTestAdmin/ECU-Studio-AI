@@ -28,6 +28,7 @@ def main():
     from .ui.main_window import Window
     window = Window()
     window.show()
+    set_relaunch_properties(int(window.winId()))
     return app.exec()
 
 
@@ -52,6 +53,83 @@ def set_app_user_model_id() -> bool:
         return ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID) == 0
     except (AttributeError, OSError):
         return False
+
+
+# System.AppUserModel.* window properties (propkey.h): pid 2 RelaunchCommand, 3 RelaunchIconResource,
+# 4 RelaunchDisplayNameResource, 5 ID.
+APP_USER_MODEL_FMTID = '{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}'
+IID_PROPERTY_STORE = '{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}'
+
+
+def launcher_path():
+    """ECU-Studio-AI.exe of the portable runtime / installation (root/_internal/python/pythonw.exe), else None."""
+    from pathlib import Path
+    parents = Path(sys.executable).resolve().parents
+    launcher = parents[2] / 'ECU-Studio-AI.exe' if len(parents) > 2 else None
+    return launcher if launcher and launcher.is_file() else None
+
+
+def set_relaunch_properties(hwnd: int, launcher=None) -> bool:
+    """Taskbar identity of the main window. The launcher runs pythonw.exe as a child process; without these
+    properties, pinning the running window would pin pythonw.exe (Python icon, starts nothing). With them the pin
+    starts ECU-Studio-AI.exe and shows its icon. Outside the packaged runtime (no launcher) nothing is set."""
+    launcher = launcher or launcher_path()
+    if sys.platform != 'win32' or not launcher or not hwnd:
+        return False
+    values = {5: APP_USER_MODEL_ID, 2: f'"{launcher}"', 3: f'{launcher},0', 4: 'ECU Studio AI'}
+    try:
+        return window_properties(hwnd, values) == values
+    except (OSError, ValueError, TypeError, AttributeError):    # cosmetic: never let it stop the start
+        return False
+
+
+def window_properties(hwnd: int, values=None) -> dict:
+    """Write (if given) and read back the System.AppUserModel string properties of a window (Windows only)."""
+    import ctypes
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [('data1', wintypes.DWORD), ('data2', wintypes.WORD), ('data3', wintypes.WORD),
+                    ('data4', ctypes.c_ubyte * 8)]
+
+    class PROPERTYKEY(ctypes.Structure):
+        _fields_ = [('fmtid', GUID), ('pid', wintypes.DWORD)]
+
+    class PROPVARIANT(ctypes.Structure):
+        _fields_ = [('vt', wintypes.USHORT), ('reserved', wintypes.USHORT * 3), ('value', ctypes.c_void_p),
+                    ('pad', ctypes.c_void_p)]
+
+    def guid(text):
+        value = GUID()
+        if ctypes.oledll.ole32.CLSIDFromString(ctypes.c_wchar_p(text), ctypes.byref(value)):
+            raise OSError('bad GUID')
+        return value
+
+    store = ctypes.c_void_p()
+    ctypes.oledll.shell32.SHGetPropertyStoreForWindow(wintypes.HWND(hwnd), ctypes.byref(guid(IID_PROPERTY_STORE)),
+                                                      ctypes.byref(store))
+    table = ctypes.cast(ctypes.cast(store, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
+    method = lambda index, *args: ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, *args)(table[index])  # noqa
+    get_value = method(5, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(PROPVARIANT))
+    set_value = method(6, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(PROPVARIANT))
+    commit, release = method(7), ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)(table[2])
+    result = {}
+    try:
+        for pid, text in (values or {}).items():
+            buffer = ctypes.create_unicode_buffer(text)
+            value = PROPVARIANT(vt=31, value=ctypes.cast(buffer, ctypes.c_void_p))        # VT_LPWSTR, copied by the store
+            set_value(store, ctypes.byref(PROPERTYKEY(guid(APP_USER_MODEL_FMTID), pid)), ctypes.byref(value))
+        if values:
+            commit(store)
+        for pid in (5, 2, 3, 4):
+            value = PROPVARIANT()
+            get_value(store, ctypes.byref(PROPERTYKEY(guid(APP_USER_MODEL_FMTID), pid)), ctypes.byref(value))
+            if value.vt == 31:
+                result[pid] = ctypes.wstring_at(value.value)
+            ctypes.oledll.ole32.PropVariantClear(ctypes.byref(value))
+    finally:
+        release(store)
+    return result
 
 
 def apply_language(app) -> str:
