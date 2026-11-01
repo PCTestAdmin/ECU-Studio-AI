@@ -154,7 +154,10 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
     # smoothness candidate that starts earlier: smooth tables contain runs that
     # read like a count header with axes (then strength decides, as before).
     inside=_header_inside([z[1] for z in evaluated if z[1].record_layout not in EVIDENCED_LAYOUTS])
-    evaluated.sort(key=lambda z:(not _priority(z[1],inside),-z[0],z[1].offset,z[1].length))
+    # Among evidenced candidates, an interpolation call in the code beats a data
+    # pattern (MSD80: code calls 0 conflicts with the XDF, header records 2).
+    evaluated.sort(key=lambda z:(not _priority(z[1],inside),z[1].record_layout!='candidate:code-call',
+                                 -z[0],z[1].offset,z[1].length))
     selected=[]
     spans=[]
     plain=0

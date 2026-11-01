@@ -130,7 +130,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
         pairs=list(lookup_descriptors(raw,lo,hi).values())+[(c.x_axis,c.y_axis) for c in calls.values()]
         for pair in pairs:
             for ax in pair:
-                if ax and ax.header not in known and not any(ax.header<e and s<ax.end for s,e in spans):
+                # Values decide: a record's second count lies inside the span of its first axis.
+                if ax and ax.header not in known and not any(ax.offset<e and s<ax.end for s,e in spans):
                     axes.append(ax);known.add(ax.header);spans.append((ax.header,ax.end))
         axes.sort(key=lambda ax:ax.header)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,

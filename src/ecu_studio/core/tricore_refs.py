@@ -126,9 +126,36 @@ def _bo_off(w: int) -> int:
 
 SP = 10   # stack pointer a10
 
+# Conditional branches (TriCore 1.3 ISA). 16-bit SBC/SBR/SBRN forms branch forward
+# by disp4 (zero-extended); SB forms by a signed disp8. 32-bit BRC/BRR/BRN forms
+# carry a signed disp15 in bits 30:16. Loops (LOOP, 0xFC/0xFD) only jump back.
+_COND16_DISP4 = {0x1E, 0x3E, 0x5E, 0x7E, 0xCE, 0x4E, 0x8E, 0x0E, 0x76, 0xF6, 0xBC, 0x7C, 0x2E, 0xAE}
+_COND16_DISP8 = {0x6E, 0xEE}
+_COND32 = {0xDF, 0xBF, 0xFF, 0x9F, 0x5F, 0x3F, 0x7F, 0x1F, 0x7D, 0xBD, 0x6F}
 
-def _walk(h: list[int], bases: dict, size: int, slots=None, entries=()):
+
+def cond_target(at: int, length: int, w: int) -> int | None:
+    """Target of a conditional branch at ``at``, or None for other instructions."""
+    op = w & 0xFF
+    if length == 2:
+        if op in _COND16_DISP4:
+            return at + 2 * ((w >> 8) & 0xF)
+        if op in _COND16_DISP8:
+            d = (w >> 8) & 0xFF
+            return at + 2 * (d - 0x100 if d & 0x80 else d)
+        return None
+    if op in _COND32:
+        d = (w >> 16) & 0x7FFF
+        return at + 2 * (d - 0x8000 if d & 0x4000 else d)
+    return None
+
+
+def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True):
     """One linear sweep. Returns (call sites, stack stores, sp events, call targets).
+
+    With ``branches`` the register state also reaches the targets of forward
+    conditional branches (as for unconditional jumps): MSD80 starts table calls
+    after a ``ret`` at targets of such branches (ANALYSE_2026-10-30, 11.3).
 
     ``stack stores`` are (at, slot, value or None) for every store to [sp]k;
     ``sp events`` are addresses where sp is changed or copied, or a slot address
@@ -178,6 +205,13 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=()):
         if not states:
             states = [{}]
         op = w & 0xFF
+        if branches:
+            target = cond_target(at, length, w)
+            if target is not None:
+                # Both ways continue: fall-through here, the taken branch at a nearby forward target.
+                if 0 < target - at <= MAX_JOIN:
+                    pending.setdefault(target, []).extend({**s} for s in states)
+                continue
         jump = None
         if length == 2:
             if w == 0x9000:                         # ret
@@ -344,16 +378,20 @@ def stack_slots(entries: list[int], stores, sp_events) -> dict:
     return out
 
 
+FOLLOW_BRANCHES = True
+FIND_RECORDS = True
+
+
 def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int], list[int]]:
     """(call sites, halfwords, function entries) of one image."""
     h = _halfwords(data)
     bases = global_bases(h)
-    sites, stores, sp_events, targets = _walk(h, bases, len(data))
+    sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES)
     entries = sorted(targets)
     if stack:
         slots = stack_slots(entries, stores, sp_events)
         if slots:
-            sites = _walk(h, bases, len(data), slots, entries)[0]
+            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES)[0]
     return sites, h, entries
 
 
@@ -461,6 +499,7 @@ class CallDescriptor:
     prelookup: bool = False   # axes from earlier prelookup calls, not from a5/a6
     cell_width: int | None = None   # from the routine's table loads (routine_cells)
     cell_signed: bool | None = None
+    record: bool = False      # the call passes a record header (counts + axes) in front of the data
 
 
 MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
@@ -502,6 +541,112 @@ def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[i
     return pre, post
 
 
+RECORD_SHARE = .3   # a4-only calls of a record routine whose target parses as a 2-D record
+# MSD80 (development data): shares of all routines with >= 5 a4-only calls are 0.00 or
+# 0.36 ... 1.00, nothing in between; .3 sits in that gap and needs no reference.
+
+
+def _strict_axis(data: bytes, at: int, n: int, w: int) -> tuple | None:
+    if n < MIN_RECORD_POINTS or at % w or at + n * w > len(data):
+        return None
+    for kind in ('u', 'i'):
+        v = np.frombuffer(data[at:at + n * w], np.dtype(kind + '1') if w == 1 else np.dtype('<' + kind + '2'))
+        v = v.astype(np.int64)
+        if np.all(np.diff(v) > 0):
+            return tuple(int(x) for x in v)
+    return None
+
+
+MIN_RECORD_POINTS = 2
+
+
+def record_at(data: bytes, a: int) -> list[tuple[CountAxis, CountAxis]]:
+    """Readings of a self-describing 2-D record at ``a``: two counts, both axes, then the data.
+
+    Layout ``n1, n2, A1[n1], A2[n2], Z`` with 8- or 16-bit counts and 8- or 16-bit
+    strictly increasing axes (MSD80 mixes them, e.g. u16 Y with u8 X). The first
+    axis is X (columns): Z is stored row-major like the Bosch ``nx, ny`` records.
+    Returns (x_axis, y_axis) pairs; the data starts at ``y_axis.end``.
+    """
+    out = []
+    for cw in (1, 2):
+        if a % cw or a + 2 * cw > len(data):
+            continue
+        n1 = int.from_bytes(data[a:a + cw], 'little')
+        n2 = int.from_bytes(data[a + cw:a + 2 * cw], 'little')
+        if not (MIN_RECORD_POINTS <= n1 <= 32 and MIN_RECORD_POINTS <= n2 <= 32):
+            continue
+        p = a + 2 * cw
+        for w1 in (2, 1):
+            x = _strict_axis(data, p, n1, w1)
+            if x is None:
+                continue
+            q = p + n1 * w1
+            for w2 in (2, 1):
+                y = _strict_axis(data, q, n2, w2)
+                if y is not None:
+                    out.append((CountAxis(a, p, n1, w1, x), CountAxis(a + cw, q, n2, w2, y)))
+    return out
+
+
+def record_roles(data: bytes, sites: list[CallSite]) -> set[int]:
+    """Routines whose a4-only calls pass self-describing 2-D records (see record_at)."""
+    stats: dict[int, list[int]] = {}
+    seen: dict[int, bool] = {}
+    for c in sites:
+        if c.x_header is not None:
+            continue
+        if c.data not in seen:
+            seen[c.data] = bool(record_at(data, c.data))
+        st = stats.setdefault(c.callee, [0, 0])
+        st[0] += 1
+        st[1] += seen[c.data]
+    return {r for r, (n, ok) in stats.items() if n >= MIN_ROLE_CALLS and ok >= RECORD_SHARE * n}
+
+
+def _layout(x: CountAxis, y: CountAxis) -> tuple[int, int, int]:
+    """(count width, X width, Y width) of one record reading."""
+    return y.header - x.header, x.width, y.width
+
+
+def _record_layouts(sites, records, readings) -> dict[int, tuple]:
+    """{routine: layout} from its unambiguous record calls (one routine reads one layout)."""
+    votes: dict[int, Counter] = {}
+    for c in sites:
+        r = readings.get(c.data) if c.callee in records and c.x_header is None else None
+        if r and len(r) == 1:
+            votes.setdefault(c.callee, Counter())[_layout(*next(iter(r)))] += 1
+    return {k: v.most_common(1)[0][0] for k, v in votes.items()}
+
+
+RECORD_MIN_LOADS = 8      # loads besides the two counts before a record routine's cell type counts
+RECORD_DOMINANT = .75     # share of those loads in one (width, sign) class
+# MSD80 record routines: dominant shares 0.80 ... 1.00 (the rest are axis loads); wrappers
+# that only read the counts and call on have no further loads and stay unknown.
+
+
+def record_cells(h: list[int], entries: list[int], routines: dict[int, int]) -> dict[int, tuple]:
+    """{routine: (cell width, signed) or (None, None)} for record routines.
+
+    ``routines`` maps each routine to the width of its records' counts. The two
+    count loads are removed; the cells are the dominant remaining load class
+    (axis loads are fewer: an interpolation reads up to four cells per axis pair).
+    """
+    import bisect
+    out = {}
+    for r, cw in routines.items():
+        k = bisect.bisect_right(entries, r)
+        end = min(entries[k] if k < len(entries) else r + MAX_BODY, r + MAX_BODY)
+        seen = cell_loads(h, r, end)
+        seen[(cw, False)] -= 2
+        seen = Counter({key: n for key, n in seen.items() if n > 0})
+        total = sum(seen.values())
+        best = seen.most_common(1)[0] if seen else None
+        ok = best is not None and total >= RECORD_MIN_LOADS and best[1] >= RECORD_DOMINANT * total
+        out[r] = best[0] if ok else (None, None)
+    return out
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
     in a4 to one of the descriptors' routines, with or without resolved axes."""
@@ -511,7 +656,9 @@ class Descriptors(dict):
 def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
     """{data offset: descriptor} for calls naming table data plus parsable axis headers.
 
-    Axes come from a5/a6 of the call, or for routines working after axis
+    Axes come from a5/a6 of the call; from a record header passed in a4 whose
+    counts and axes precede the data (record routines, see record_roles); or for
+    routines working after axis
     prelookups (see prelookup_roles) from the last two prelookups on the same
     path: the earlier one is X, the later one Y. Such descriptors are marked
     ``prelookup`` and accepted only with an exactly fitting cell width.
@@ -530,9 +677,23 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     # 0.30 ... 0.71 run continuously); a table routine must also read table cells
     # of one width through a4 (code evidence, see routine_cells).
     post = {r for r, (width, _) in routine_cells(h, entries, post).items() if width is not None}
+    records = record_roles(data, sites) if FIND_RECORDS else set()
+    record_readings = {c.data: set(record_at(data, c.data)) for c in sites
+                       if c.x_header is None and c.callee in records and lo <= c.data < hi}
+    layouts = _record_layouts(sites, records, record_readings)
     found: dict[int, list] = {}
     for c in sites:
         if not lo <= c.data < hi:
+            continue
+        if c.x_header is None and c.callee in records:
+            readings = record_readings[c.data]
+            if len(readings) > 1:
+                # Data after the axes may read as a longer axis: the routine's own layout decides.
+                readings = {r for r in readings if _layout(*r) == layouts.get(c.callee)}
+            if len(readings) == 1:
+                x, y = next(iter(readings))
+                if lo <= y.end < hi:
+                    found.setdefault(y.end, []).append((x, y, c.callee, c.site, False, True))
             continue
         x_header, y_header, via = c.x_header, c.y_header, False
         if x_header is None and c.callee in post:
@@ -545,21 +706,30 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         y = axis_at(data, y_header) if y_header is not None else None
         if via and y is None:
             continue
-        found.setdefault(c.data, []).append((x, y, c.callee, c.site, via))
+        found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
     if len({d for d in found}) < MIN_CALLS:
         return {}
-    cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings})
+    cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings if not r[5]})
+    count_width: dict[int, Counter] = {}
+    for readings in found.values():
+        for x, y, callee, *_, rec in readings:
+            if rec:
+                count_width.setdefault(callee, Counter())[y.header - x.header] += 1
+    rec_cells = record_cells(h, entries, {r: c.most_common(1)[0][0] for r, c in count_width.items()})
+    cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
     out.named = frozenset(c.data for c in sites if c.callee in cells and lo <= c.data < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:
             continue
-        x, y, callee, _, via = readings[0]
+        x, y, callee, _, via, rec = readings[0]
         if any(ax.header <= d < ax.end for ax in (x, y) if ax):
             continue
+        # A record routine also reads the counts through a4: those loads are left out (record_cells).
+        cell = rec_cells[callee] if rec else cells[callee]
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
-                                all(r[4] for r in readings), *cells[callee])
+                                all(r[4] for r in readings), *cell, record=rec)
     return out
 
 
