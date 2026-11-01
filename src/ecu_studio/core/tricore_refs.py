@@ -150,6 +150,15 @@ def cond_target(at: int, length: int, w: int) -> int | None:
     return None
 
 
+ARG_REGS = (2, 3, 4, 5, 6, 7)   # address registers that carry call arguments (not preserved)
+
+
+class Sites(list):
+    """Call sites with a resolved a4; ``generic`` lists every call with at least two resolved
+    argument registers as (site, callee, ((register, file offset), ...))."""
+    generic: list = []
+
+
 def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True):
     """One linear sweep. Returns (call sites, stack stores, sp events, call targets).
 
@@ -165,7 +174,8 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
     import bisect
     states: list[dict] = [{}]
     pending: dict[int, list[dict]] = {}
-    out, stores, sp_events, targets = [], [], [], set()
+    out, stores, sp_events, targets = Sites(), [], [], set()
+    generic = out.generic = []
     func_slots: dict = {}
     k_entry = -1
 
@@ -326,6 +336,10 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
                         v = s.get(r)
                         return _file(v[1], size) if v and v[0] == 'full' else None
                     dat, x = val(4), val(5)
+                    if 0 <= callee < size:
+                        regs = tuple((r, v) for r in ARG_REGS if (v := val(r)) is not None)
+                        if len(regs) >= 2:
+                            generic.append((at, callee, regs))
                     if dat is not None and 0 <= callee < size:
                         out.append(CallSite(at, callee, dat, x, val(6), s.get('pre', ())))
                         if x is None:
@@ -380,6 +394,7 @@ def stack_slots(entries: list[int], stores, sp_events) -> dict:
 
 FOLLOW_BRANCHES = True
 FIND_RECORDS = True
+LEARN_ROLES = True
 
 
 def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int], list[int]]:
@@ -415,14 +430,14 @@ MIN_CELL_LOADS = 2
 MAX_BODY = 0x1000
 
 
-def cell_loads(h: list[int], entry: int, end: int) -> Counter:
-    """{(width, signed): n} of loads whose base address register derives from a4.
+def cell_loads(h: list[int], entry: int, end: int, base: int = 4) -> Counter:
+    """{(width, signed): n} of loads whose base address register derives from ``base`` (a4).
 
     Inside a routine a4 is the table pointer; copies and offsets of it
     (mov.aa, addsc.a, lea, add.a) are followed linearly. Any other write to an
     address register ends its derivation.
     """
-    derived = {4}
+    derived = {base}
     seen: Counter = Counter()
     i = entry // 2
     while i * 2 < end and i + 1 < len(h):
@@ -468,7 +483,7 @@ def cell_loads(h: list[int], entry: int, end: int) -> Counter:
     return seen
 
 
-def routine_cells(h: list[int], entries: list[int], routines) -> dict[int, tuple]:
+def routine_cells(h: list[int], entries: list[int], routines, bases: dict | None = None) -> dict[int, tuple]:
     """{routine: (cell width or None, signed or None)} from its table loads.
 
     A width (or sign) counts only when every table load of the routine agrees
@@ -480,7 +495,7 @@ def routine_cells(h: list[int], entries: list[int], routines) -> dict[int, tuple
     for r in routines:
         k = bisect.bisect_right(entries, r)
         end = min(entries[k] if k < len(entries) else r + MAX_BODY, r + MAX_BODY)
-        seen = cell_loads(h, r, end)
+        seen = cell_loads(h, r, end, (bases or {}).get(r, 4))
         enough = sum(seen.values()) >= MIN_CELL_LOADS
         widths = {w for w, _ in seen}
         signs = {sg for _, sg in seen}
@@ -500,6 +515,7 @@ class CallDescriptor:
     cell_width: int | None = None   # from the routine's table loads (routine_cells)
     cell_signed: bool | None = None
     record: bool = False      # the call passes a record header (counts + axes) in front of the data
+    registers: tuple = (4, (5, 6))   # (data register, axis registers) of the calls
 
 
 MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
@@ -647,6 +663,58 @@ def record_cells(h: list[int], entries: list[int], routines: dict[int, int]) -> 
     return out
 
 
+ROLE_SHARE = .6   # calls of a routine whose register names an axis header (or resolved data)
+DEFAULT_ROLES = (4, (5, 6))
+
+
+def register_roles(data: bytes, generic) -> dict[int, tuple[int, tuple[int, ...]]]:
+    """{routine: (data register, (X register, Y register?))} learned from call behaviour.
+
+    MSD80 passes data in a4 and axis headers in a5/a6; other compilers or ECUs
+    may use other registers. For each routine with enough calls, a register is
+    an axis register when nearly all its values parse as count-prefixed axis
+    headers, and the data register when it is resolved in nearly all calls but
+    almost never names an axis. Exactly one data register and one or two axis
+    registers are required; the lower axis register is X (order unverified).
+    The MSD80 convention itself is left to the dedicated path (DEFAULT_ROLES).
+    """
+    stats: dict[int, dict] = {}
+    is_axis: dict[int, bool] = {}
+    for _, callee, regs in generic:
+        st = stats.setdefault(callee, {'n': 0})
+        st['n'] += 1
+        for r, v in regs:
+            if v not in is_axis:
+                is_axis[v] = axis_at(data, v) is not None
+            rs = st.setdefault(r, [0, 0])
+            rs[0] += 1
+            rs[1] += is_axis[v]
+    roles = {}
+    for callee, st in stats.items():
+        n = st.pop('n')
+        if n < MIN_ROLE_CALLS:
+            continue
+        axes = tuple(sorted(r for r, (_, ax) in st.items() if ax >= ROLE_SHARE * n))
+        dat = [r for r, (res, ax) in st.items() if r not in axes and res >= ROLE_SHARE * n and ax <= .1 * res]
+        if 1 <= len(axes) <= 2 and len(dat) == 1 and (dat[0], axes) != DEFAULT_ROLES and (dat[0], axes) != (4, (5,)):
+            roles[callee] = (dat[0], axes)
+    return roles
+
+
+def role_sites(generic, roles) -> list[CallSite]:
+    """Call sites of routines with learned register roles, in the a4/a5/a6 form."""
+    out = []
+    for at, callee, regs in generic:
+        role = roles.get(callee)
+        if role is None:
+            continue
+        v = dict(regs)
+        dat, axes = role
+        if dat in v and axes[0] in v:
+            out.append(CallSite(at, callee, v[dat], v[axes[0]], v.get(axes[1]) if len(axes) > 1 else None))
+    return out
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
     in a4 to one of the descriptors' routines, with or without resolved axes."""
@@ -672,6 +740,15 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     if not looks_like_tricore(data):
         return {}
     sites, h, entries = _analyse(data)
+    roles = register_roles(data, sites.generic) if LEARN_ROLES else {}
+    if roles:
+        # Learned roles only for routines no other path explains, and only with two axis
+        # registers: on MSD80 one-axis roles of a5/a6, prelookup and record routines cost 7 exact tables.
+        known = ({c.callee for c in sites if c.x_header is not None} | prelookup_roles(data, sites)[0]
+                 | record_roles(data, sites))
+        roles = {r: v for r, v in roles.items() if r not in known and len(v[1]) == 2}
+    if roles:
+        sites = Sites(list(sites) + role_sites(sites.generic, roles))
     pre, post = prelookup_roles(data, sites)
     # The share threshold for table routines has no natural gap on MSD80 (shares
     # 0.30 ... 0.71 run continuously); a table routine must also read table cells
@@ -709,7 +786,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
     if len({d for d in found}) < MIN_CALLS:
         return {}
-    cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings if not r[5]})
+    cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings if not r[5]},
+                          {r: v[0] for r, v in roles.items()})
     count_width: dict[int, Counter] = {}
     for readings in found.values():
         for x, y, callee, *_, rec in readings:
@@ -729,7 +807,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         # A record routine also reads the counts through a4: those loads are left out (record_cells).
         cell = rec_cells[callee] if rec else cells[callee]
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
-                                all(r[4] for r in readings), *cell, record=rec)
+                                all(r[4] for r in readings), *cell, record=rec,
+                                registers=roles.get(callee, DEFAULT_ROLES))
     return out
 
 

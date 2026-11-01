@@ -74,6 +74,9 @@ class MapDefinition:
     axis_y_offset: int | None = None
     axis_x_ref: str = ""
     axis_y_ref: str = ""
+    # Other data types the stored bytes allow when the detected one is not proven
+    # (e.g. sign from a smoother reading, not from the code's load instructions).
+    dtype_alternatives: list[str] = field(default_factory=list)
     # Fields introduced by a newer application are kept verbatim while this
     # version is editing the known part of the definition.  This is deliberately
     # an internal dataclass field so ``dataclasses.replace`` carries the data to

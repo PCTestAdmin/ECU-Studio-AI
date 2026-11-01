@@ -538,3 +538,58 @@ def test_record_role_needs_most_calls_to_parse(monkeypatch):
     assert call_descriptors(bytes(damaged)) == {}
     monkeypatch.setattr(tricore_refs, 'FIND_RECORDS', False)
     assert call_descriptors(data) == {}
+
+
+def other_register_code(tables, base):
+    """Another calling convention: data in a2, X header in a3, Y header in a7."""
+    code = bytearray()
+    for t in tables:
+        code += load(2, t) + load(3, 0xC000) + load(7, 0xC010)
+        code += call(base + len(code), 0x7000) + RET
+    return bytes(code)
+
+
+def reader_from(reg, *op2s):
+    return mov_aa(12, reg) + b''.join(bo_load(op2, 2 + i, 12, i) for i, op2 in enumerate(op2s)) + RET
+
+
+def test_register_roles_are_learned_from_call_behaviour(monkeypatch):
+    data, tables = image_with(other_register_code, routines={0x7000: reader_from(2, LD_BU, LD_BU)})
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    d = desc[tables[0]]
+    assert d.registers == (2, (3, 7))
+    assert (d.x_axis.header, d.y_axis.header) == (0xC000, 0xC010)
+    assert (d.cell_width, d.cell_signed) == (1, False)              # loads through a2, not a4
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called and all('Daten in a2, Achsköpfe in a3/a7' in m.label_evidence for m in called)
+    monkeypatch.setattr(tricore_refs, 'LEARN_ROLES', False)
+    assert call_descriptors(data) == {}
+
+
+def test_msd80_convention_is_not_relearned():
+    data, tables = image_with(stack_function)
+    assert {d.registers for d in call_descriptors(data).values()} == {(4, (5, 6))}
+
+
+def test_sign_alternatives_only_where_the_bytes_decide():
+    from ecu_studio.core.structure_scan import sign_alternatives
+    low = np.array([1, 2, 300, 4], '<u2').tobytes()
+    high = np.array([1, 2, 0x8001, 4], '<u2').tobytes()
+    assert sign_alternatives(low, 0, 4, 2, 'u16') == []
+    assert sign_alternatives(high, 0, 4, 2, 'u16') == ['s16']
+    assert sign_alternatives(high, 0, 4, 2, 's16', 'little') == ['u16']
+    assert sign_alternatives(np.array([0x0180], '>u2').tobytes(), 0, 1, 2, 'u16', 'big') == []
+    assert sign_alternatives(bytes([5, 0x90]), 0, 2, 1, 's8') == ['u8']
+
+
+def test_code_proven_sign_has_no_alternative_and_survives_a_project_round_trip():
+    from ecu_studio.core.model import map_from_record
+    data, headers, starts = record_image()
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called and all(m.dtype == 's16' and m.dtype_alternatives == [] for m in called)
+    m = called[0]
+    m.dtype_alternatives = ['u16']
+    assert map_from_record(m.asdict(), set()).dtype_alternatives == ['u16']

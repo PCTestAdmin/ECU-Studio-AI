@@ -39,6 +39,7 @@ from ..core.profiles import identify_profile, xdf_match_status, local_xdf_candid
 from ..core.definition_registry import remember_pair, lookup_pair, search_local_xdfs
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
+from ..core.fusion import fuse, annotate, layer_of
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
 from ..core.impact import measure_catalogue, uncovered_patches, export_impact_csv
@@ -1111,7 +1112,10 @@ class Window(QMainWindow):
         status = ('Schreibgeschützt: nichtlineare XDF-Formel' if m.equation else 'Manuell verifiziert' if m.verified else
                   'UNGEPRÜFTER HINWEIS – fachlich bestätigen')
         alt = ('\nWeitere Möglichkeiten: ' + ', '.join(m.type_alternatives)) if m.type_alternatives else ''
-        strength = (f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
+        if m.dtype_alternatives:
+            alt += ('\nDatentyp NICHT belegt: ' + m.dtype + ' ist die glattere Lesart, ebenfalls möglich: '
+                    + ', '.join(m.dtype_alternatives))
+        strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(
             f"{status} · {m.label_origin or m.source}\n{m.label_evidence or m.notes}{strength}{alt}")
@@ -1764,6 +1768,13 @@ class Window(QMainWindow):
             self.selected=None
             self.map_model.set_map(None,None)
         self.maps=[m for m in self.maps if id(m) not in removed_ids]
+        # Three layers (core/fusion.py): definitions stay; detection confirms or contradicts them.
+        fusion=fuse(self.image,[m for m in self.maps if layer_of(m)==1],
+                    [m for m in candidates if m.source=='heuristic'])
+        annotate(fusion)
+        self.last_scan_report['fusion']={'counts':fusion.counts,'conflicts':[c.text() for c in fusion.conflicts],
+            'definition_warnings':{m.name:fusion.definition_warnings[id(m)] for m in fusion.maps
+                                   if id(m) in fusion.definition_warnings}}
         old={(m.offset,m.rows,m.cols,m.dtype,m.endian,m.name) for m in self.maps}
         preserved=tuple(self.maps)
         incoming_references=[]
@@ -1804,7 +1815,12 @@ class Window(QMainWindow):
            f"{len(candidates)} Kandidaten/Referenzen, davon {added} neu.\n"
            f"Definitionsbasierte Tabellen/Kennlinien: {defined}.\n"
            f"Alte ungeprüfte Strukturvorschläge ersetzt: {len(removed)}.\n"
-           f"Exakte Referenztreffer: {reference_hits} · Formhinweise: {shape_hints}.\n\n"
+           f"Exakte Referenztreffer: {reference_hits} · Formhinweise: {shape_hints}.\n"
+           f"Definitionen durch die Erkennung unabhängig bestätigt: {fusion.counts['confirmed']} · "
+           f"Konflikte zwischen den Erkennungsebenen: {fusion.counts['conflicts']} · "
+           f"Definitionen mit Prüfhinweisen: {fusion.counts['definition_warnings']}"
+           + (" (Details: Erkennungsbericht exportieren)" if fusion.conflicts or fusion.definition_warnings else "")
+           + ".\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"
            "Mitgelieferte MS4X-Standarddefinitionen bleiben ungeprüfte Zuordnungen; "
            "Patchvarianten wie Extended Load benötigen ihre eigene XDF. "
