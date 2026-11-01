@@ -28,7 +28,8 @@ from ..core.preflight import run_preflight
 from ..formats.records import read_memory_file
 from ..formats.sniff import check_raw_image
 from ..formats.importer import convert_to_binary, read_import_segments
-from ..core.model import BinaryImage, MapDefinition, TYPES, FORMATS, save_project, load_project, read_project_snapshots
+from ..core import i18n
+from ..core.model import BinaryImage, MapDefinition, TYPES, FORMATS, save_project, load_project, read_project_snapshots, read_project_reviews
 from ..core.detection import discover_maps
 from ..core.detection_extended import scan_u8
 from ..core.detection_32 import scan_32
@@ -40,6 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of
+from ..core.review_checklist import rejected_keys, is_rejected
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
 from ..core.impact import measure_catalogue, uncovered_patches, export_impact_csv
@@ -94,6 +96,7 @@ class ScanWorker(QThread):
     complete = Signal(list)
     failed = Signal(str)
     progress = Signal(int)
+    step = Signal(str)
     def __init__(self, image, signatures=None, include_u32=False):
         super().__init__()
         # snapshot as no writes should race with scanning
@@ -108,6 +111,7 @@ class ScanWorker(QThread):
         try:
             candidates = scan_calibration_candidates(self.snapshot, cancelled=self.isInterruptionRequested,
                                                        progress=lambda p:self.progress.emit(p),include_u32=self.include_u32,
+                                                       step=lambda text:self.step.emit(text),
                                                        diagnostics=self.report)
             # Adjacent monotonic arrays are displayed as inspectable hints, NEVER as axes.
             for m in candidates[:90]:
@@ -737,6 +741,7 @@ class Window(QMainWindow):
         act(tools,"Erkennung 1/3 · Definitionen indexieren …",self.index_recognition_definitions)
         act(tools,"Erkennung 1/3 · Viele BIN/XDF-Paare importieren …",self.batch_index_definitions)
         act(tools,"Erkennung 1/3 · Ausgewähltes Kennfeld fachlich bestätigen …",self.verify_recognition_map)
+        act(tools,"Prüfliste der erkannten Kennfelder …",self.show_review_checklist)
         act(tools,"Erkennung 2/3 · Firmware-Transfer + Modellvorschläge …",self.run_recognition_pipeline,"Ctrl+Shift+K")
         act(tools,"Erkennung 3/3 · Lokales ML-Modell trainieren …",self.train_recognition_model)
         act(tools,"KI · Strukturmodell aus realer BIN trainieren …",self.train_structure_model_gui)
@@ -994,6 +999,7 @@ class Window(QMainWindow):
 
     def load_state(self,image,maps,bookmarks,notes,project_path):
         self.last_scan_report=None
+        self.last_fusion=None
         QTimer.singleShot(0,self.update_identity_banner)
         for pane in self.map_editors:
             self.tabs.removeTab(self.tabs.indexOf(pane))
@@ -1003,6 +1009,7 @@ class Window(QMainWindow):
         self.maps=maps
         self.bookmarks=bookmarks
         self.snapshots=[]
+        self.reviews=[]
         self.project_path=project_path
         self.selected=None
         self.checksum_profile=None
@@ -1232,13 +1239,23 @@ class Window(QMainWindow):
         if self.selected is None:return
         ans=QMessageBox.question(self,"Definition entfernen","Nur diese Kennfelddefinition entfernen? Die BIN-Daten bleiben erhalten.")
         if ans != QMessageBox.StandardButton.Yes:return
-        self.maps.remove(self.selected)
+        self.drop_map(self.selected)
+
+    def drop_map(self,m):
+        """Remove one definition (bytes unchanged) and close its editor."""
+        self.maps.remove(m)
         for pane in list(self.map_editors):
-            if pane.definition is self.selected:
+            if pane.definition is m:
                 self.close_map_tab(pane)
-        self.selected=None
-        self.map_model.set_map(None,None)
+        if self.selected is m:
+            self.selected=None
+            self.map_model.set_map(None,None)
         self.refresh_map_list();self.update_status()
+
+    def show_review_checklist(self):
+        if not self.require_image():return
+        from .review_dialog import ReviewDialog
+        ReviewDialog(self).exec()
 
     def apply_definition(self):
         if not self.image or not self.selected:return
@@ -1743,6 +1760,7 @@ class Window(QMainWindow):
         self.scanner.complete.connect(self.scan_finished)
         self.scanner.failed.connect(lambda err: self.warning("Scan fehlgeschlagen",err))
         self.scanner.progress.connect(self.scan_progress.setValue)
+        self.scanner.step.connect(lambda text:self.statusBar().showMessage(f'Kennfeldsuche: {i18n.t(text)} …'))
         self.scan_progress.setRange(0,100)
         self.scan_progress.setValue(0)
         self.scan_progress.show()
@@ -1772,6 +1790,11 @@ class Window(QMainWindow):
         fusion=fuse(self.image,[m for m in self.maps if layer_of(m)==1],
                     [m for m in candidates if m.source=='heuristic'])
         annotate(fusion)
+        # Kept (not JSON) for the review checklist: conflicts by offset, warnings by map name.
+        self.last_fusion={'conflicts':{},'definition_warnings':{m.name:fusion.definition_warnings[id(m)]
+                          for m in fusion.maps if id(m) in fusion.definition_warnings}}
+        for c in fusion.conflicts:
+            self.last_fusion['conflicts'].setdefault(c.offset,[]).append(c.text())
         self.last_scan_report['fusion']={'counts':fusion.counts,'conflicts':[c.text() for c in fusion.conflicts],
             'definition_warnings':{m.name:fusion.definition_warnings[id(m)] for m in fusion.maps
                                    if id(m) in fusion.definition_warnings}}
@@ -1781,7 +1804,13 @@ class Window(QMainWindow):
         added=0
         reference_hits=0
         shape_hints=0
+        rejected=rejected_keys(getattr(self,'reviews',[]))
+        skipped_rejected=0
         for m in sorted(candidates,key=lambda m:(m.source=='heuristic',m.source!='exact-reference',m.offset)):
+            # The user rejected this table in the review checklist (stored in the project).
+            if m.source=='heuristic' and is_rejected(m,rejected):
+                skipped_rejected+=1
+                continue
             # Existing curated/CSV maps win over overlapping guesses.
             if any((x.source != 'heuristic' or x.verified or x.label_origin.startswith('Manuelle'))
                    and self._overlaps(m,x) for x in preserved):
@@ -1820,7 +1849,9 @@ class Window(QMainWindow):
            f"Konflikte zwischen den Erkennungsebenen: {fusion.counts['conflicts']} · "
            f"Definitionen mit Prüfhinweisen: {fusion.counts['definition_warnings']}"
            + (" (Details: Erkennungsbericht exportieren)" if fusion.conflicts or fusion.definition_warnings else "")
-           + ".\n\n"
+           + ".\n"
+           + (f"Im Projekt abgelehnt, nicht erneut angeboten: {skipped_rejected}.\n" if skipped_rejected else "")
+           + "Prüfreihenfolge mit Begründung: Werkzeuge → Prüfliste der erkannten Kennfelder.\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"
            "Mitgelieferte MS4X-Standarddefinitionen bleiben ungeprüfte Zuordnungen; "
            "Patchvarianten wie Extended Load benötigen ihre eigene XDF. "
@@ -2487,7 +2518,7 @@ class Window(QMainWindow):
             p,_=self.save_destination(self,"Projekt speichern","ecu_project.ecustudio","ECU Studio (*.ecustudio)")
         if not p:return
         try:
-            save_project(p,self.image,self.maps,self.bookmarks,self.notes.toPlainText(),self.snapshots)
+            save_project(p,self.image,self.maps,self.bookmarks,self.notes.toPlainText(),self.snapshots,reviews=self.reviews)
             self.project_path=p
             self.saved_fingerprint = self.project_state()
             try:
@@ -2511,6 +2542,7 @@ class Window(QMainWindow):
         versions=read_project_snapshots(path,image)
         self.load_state(image,maps,bookmarks,notes,path)
         self.snapshots=versions
+        self.reviews=read_project_reviews(path)
         self.saved_fingerprint=self.project_state()
         self.update_diff()
         if ignored:
@@ -2534,6 +2566,7 @@ class Window(QMainWindow):
             "bookmarks": self.bookmarks,
             "notes": self.notes.toPlainText(),
             "snapshots": self.snapshots,
+            "reviews": getattr(self,'reviews',[]),
             "journal": self.image.journal,
         }, ensure_ascii=False, sort_keys=True)
 
@@ -3167,14 +3200,14 @@ class Window(QMainWindow):
             quality=(f" – gemessen an {len(measured)} {'Softwarestand' if len(measured)==1 else 'Softwareständen'}, z. B. {best['exact_2d']} von {best['reference_2d']} Kennfeldern exakt"
                      + (f", Präzision {best['precision_2d']:.0%}" if best and best.get('precision_2d') is not None else '')
                      if best else '')
-            text=f'<b>{entry.family}</b> erkannt ({ident.family_evidence}). Unterstützung: <b>{entry.status}</b>{quality}.'
+            text=f'<b>{entry.family}</b> erkannt, Identifikation <b>{ident.level}</b> ({ident.level_reason}). Unterstützung: <b>{entry.status}</b>{quality}.'
         elif ident.family:
-            text=(f'<b>{ident.family}</b> erkannt ({ident.family_evidence}). Für diese Familie gibt es <b>keine Messung</b> – '
+            text=(f'<b>{ident.family}</b> erkannt, Identifikation <b>{ident.level}</b> ({ident.level_reason}). Für diese Familie gibt es <b>keine Messung</b> – '
                   'Suchvorschläge sind ungeprüft.')
         elif ident.ambiguous:
-            text='Familie <b>mehrdeutig</b> ('+', '.join(ident.ambiguous)+'). Suchvorschläge sind ungeprüft.'
+            text='Identifikation <b>mehrdeutig</b> ('+ident.level_reason+'). Suchvorschläge sind ungeprüft.'
         else:
-            text=('Steuergerät nicht aus der Datei bestimmbar (z. B. reiner Kalibrierbereich). '
+            text=('Identifikation <b>unbekannt</b>: Steuergerät nicht aus der Datei bestimmbar (z. B. reiner Kalibrierbereich). '
                   'Eine passende A2L mit EPK-Prüfung belegt den Softwarestand.')
         self.identity_banner_text.setText(text)
         self.identity_banner.show()
@@ -3277,7 +3310,7 @@ class Window(QMainWindow):
         path=(Path(self.project_path).with_name(Path(self.project_path).stem+'.recovery.ecustudio')
               if self.project_path else Path.home()/'.ecu_studio_ai'/'recovery'/f'{self.image.digest}.ecustudio')
         try:
-            save_project(str(path),self.image,self.maps,self.bookmarks,self.notes.toPlainText(),self.snapshots)
+            save_project(str(path),self.image,self.maps,self.bookmarks,self.notes.toPlainText(),self.snapshots,reviews=self.reviews)
             self.statusBar().showMessage('Automatisches Wiederherstellungsprojekt gespeichert',4000)
         except Exception as exc:
             self.statusBar().showMessage(f'Automatische Sicherung fehlgeschlagen: {exc}',8000)
@@ -3326,7 +3359,8 @@ class Window(QMainWindow):
     def transfer_sister_names(self):
         """Names and layouts from a sister software version with a definition (proposals only)."""
         if not self.require_image():return
-        from ..core.name_transfer import transfer_names, definition_maps, EVIDENCE, MEASURED
+        from ..core.name_transfer import (transfer_names, definition_maps, confirm_by_detection, EVIDENCE, MEASURED,
+                                          MEASURED_DETECTED)
         src_bin,_=QFileDialog.getOpenFileName(self,'Schwesterstand: BIN mit Definition',str(Path.home()),
                                               'Firmware (*.bin *.ori);;Alle Dateien (*)')
         if not src_bin:return
@@ -3342,8 +3376,18 @@ class Window(QMainWindow):
             QApplication.restoreOverrideCursor()
             self.warning('Namensübertragung',exc);return
         QApplication.restoreOverrideCursor()
+        # Second, independent argument for the place: this file's own scan found the same table there.
+        detected=[m for m in self.maps if m.source=='heuristic']
+        if detected:confirm_by_detection(result,detected)
         counts={e:sum(t.evidence==e for t in result) for e in EVIDENCE}
-        lines='\n'.join(f'  {e}: {n} (gemessen richtig: {MEASURED[e]})' for e,n in counts.items() if n)
+        def rate(e):
+            if e not in MEASURED_DETECTED or not detected:
+                return f'gemessen richtig: {MEASURED[e]}'
+            hit=sum(t.evidence==e and t.detected_in_target for t in result)
+            return (f'davon {hit} durch die Erkennung bestätigt – gemessen richtig: bestätigt {MEASURED_DETECTED[e][0]}, '
+                    f'sonst {MEASURED_DETECTED[e][1]}')
+        lines='\n'.join(f'  {e}: {n} ({rate(e)})' for e,n in counts.items() if n)
+        lines+=('' if detected else '\n  (Ohne vorherigen Kennfeldscan dieser Datei keine Bestätigung durch die Erkennung.)')
         answer=QMessageBox.question(self,'Namen aus Schwesterstand',
             f'{len(result)} von {len(maps)} Kennfeldern des Schwesterstands lassen sich in dieser Datei belegen:\n'
             f'{lines or "  keine"}\n\nVerschoben wird nach Ankern, die in beiden Dateien genau einmal vorkommen. '

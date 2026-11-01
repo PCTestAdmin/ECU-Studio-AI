@@ -12,6 +12,11 @@ confirms it:
 - ``gleiche Umgebung``: a flat block (zeros, one value) equal at the shifted
   place; only the neighbouring anchors place it - weakest.
 
+Independently of the source, ``confirm_by_detection`` marks a proposal whose
+target place holds a table the target's own scan found (same start, size and
+cell width, from code or structure evidence). That is a second, independent
+argument for the location, not for the name or function.
+
 Proposals stay unverified ("transfer-proposed"); nothing is written into the
 firmware. Measured against the sister's own definition in tools/name_transfer_benchmark.
 """
@@ -35,6 +40,7 @@ class Transfer:
     target: MapDefinition
     evidence: str
     shift: int
+    detected_in_target: bool = False
 
 
 def _informative(w: bytes) -> bool:
@@ -144,6 +150,29 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
 # MED17.1.62 404A/H/L in five directions and MSD80 sister versions, 21.10.2026).
 MEASURED = {'identisch': '98–100 %', 'gleicher Kopf': 'nicht gemessen', 'ähnliche Werte': '87–100 %',
             'gleiche Umgebung': '66–100 %'}
+# Same, split by confirmation through the target's own detection (MED17.1.62, five
+# directions, development data, 01.11.2026): helps the weak classes, not 'identisch'.
+MEASURED_DETECTED = {'identisch': ('98,2 % (1551/1580)', '99,3 % (4429/4462)'),
+                     'ähnliche Werte': ('99,4 % (315/317)', '92,1 % (2055/2232)'),
+                     'gleiche Umgebung': ('95,6 % (370/387)', '88,2 % (1306/1481)')}
+
+
+def confirm_by_detection(transfers: list[Transfer], detected: list[MapDefinition]) -> int:
+    """Flag transfers that land on a table the target's own detection found; returns their number."""
+    tables = {(m.offset, tuple(sorted((m.rows, m.cols))), m.width): m for m in detected}
+    count = 0
+    for tr in transfers:
+        t = tr.target
+        hit = tables.get((t.offset, tuple(sorted((t.rows, t.cols))), t.width))
+        if hit is None:
+            continue
+        tr.detected_in_target = True
+        count += 1
+        note = f'Lage unabhängig bestätigt: die Erkennung im Zielstand findet hier dieselbe Tabelle ({hit.label_origin or hit.record_layout}).'
+        if note not in t.notes:
+            t.notes = (t.notes + ' ' + note).strip()
+            t.label_evidence = (t.label_evidence + ' ' + note).strip()
+    return count
 
 
 def definition_maps(path: str, image: BinaryImage) -> list[MapDefinition]:

@@ -457,7 +457,8 @@ def map_from_record(record: dict, ignored: set[str] | None = None) -> MapDefinit
         raise ValueError(f'Ungültige Kennfelddefinition im Projekt: {exc}') from None
 
 
-def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookmarks: list[dict], notes: str, snapshots: list[dict] | None = None, *, overwrite=True) -> None:
+def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookmarks: list[dict], notes: str, snapshots: list[dict] | None = None, *, overwrite=True,
+                 reviews: list[dict] | None = None) -> None:
     from .storage import atomic_write, canonical_digest
     for m in maps:
         m.validate(image.size)
@@ -477,6 +478,9 @@ def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookm
     if snapshots is not None:
         from .versioning import validate_snapshot_set
         payload["snapshots"] = validate_snapshot_set(image, snapshots)
+    if reviews:
+        from .review_checklist import validate_log
+        payload["reviews"] = validate_log(reviews)
     payload['integrity_sha256'] = canonical_digest(payload)
     encoded=json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False).encode('utf-8')
     if len(encoded)>256*1024**2:
@@ -517,6 +521,12 @@ def load_project(path: str, *, ignored_fields: set[str] | None = None
     for m in maps:
         m.validate(image.size)
     return image, maps, payload.get("bookmarks", []), str(payload.get("notes", ""))
+
+
+def read_project_reviews(path: str) -> list[dict]:
+    """Review decisions (confirmed/rejected maps) of a project; older projects have none."""
+    from .review_checklist import validate_log
+    return validate_log(json.loads(Path(path).read_text(encoding="utf-8")).get("reviews", []))
 
 
 def read_project_snapshots(path: str, image: BinaryImage) -> list[dict]:

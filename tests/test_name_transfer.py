@@ -42,3 +42,16 @@ def test_unrelated_image_gets_no_names():
     source, _, maps = _sisters()
     other = BinaryImage(np.random.default_rng(99).integers(0, 256, 0x8000, dtype=np.uint8).tobytes())
     assert transfer_names(source, other, maps) == []
+
+
+def test_detection_in_the_target_confirms_the_place():
+    from ecu_studio.core.name_transfer import confirm_by_detection
+    source, target, maps = _sisters()
+    result = transfer_names(source, target, maps)
+    found = [MapDefinition('Strukturkandidat', 0x5200, 8, 8, 'u8', source='heuristic', label_origin='TriCore-Aufruf'),
+             MapDefinition('anders', 0x6200, 4, 8, 'u8', source='heuristic')]       # other size: no confirmation
+    assert confirm_by_detection(result, found) == 1
+    by = {t.source.name: t for t in result}
+    assert by['B_changed'].detected_in_target and 'unabhängig bestätigt' in by['B_changed'].target.notes
+    assert not by['C_flat'].detected_in_target and not by['A_unchanged'].detected_in_target
+    assert not by['B_changed'].target.verified

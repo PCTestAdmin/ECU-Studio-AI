@@ -13,6 +13,14 @@ Sources (measured on local reference images, see docs/ECU_SUPPORT.md):
   These patterns are not yet measured on real Continental files (none available).
 Calibration-only dumps (MSD80/MSD85, ME9.2.1) often hold none of these; their
 identity comes from a matching A2L (EPK check in a2l.py).
+
+Every result carries a level with its reason:
+- eindeutig:      a self-describing identifier (Bosch EPK, Siemens profile with
+                  software version) and no other family named in the file.
+- wahrscheinlich: one family, but only from a plain-text name or a profile without
+                  version, or the EPK names a family variant the plain text refines.
+- mehrdeutig:     the file names several families (also EPK vs. plain text).
+- unbekannt:      no family marker at all.
 """
 from __future__ import annotations
 import collections
@@ -30,6 +38,8 @@ FAMILY_TEXT = re.compile(rb'(?<![A-Z0-9])(EDC1[567](?:_?C[P]?[0-9]{2})?|MEV?D?1[
                          # Continental / Siemens VDO plain-text family names
                          rb'|SIMOS ?[0-9]{1,2}(?:\.[0-9]{1,2})?|SID ?[0-9]{3}(?:EVO)?|MSV ?[78]0|MSD ?8[0157])(?![A-Z0-9])')
 PLACEHOLDER = re.compile(r'X000|_{4,}|999/')
+GENERIC = ('EDC16', 'EDC17', 'MED17', 'EDC15')
+LEVELS = ('eindeutig', 'wahrscheinlich', 'mehrdeutig', 'unbekannt')
 
 
 def _family_name(raw: str) -> str:
@@ -58,9 +68,11 @@ class Identity:
     part_numbers: list[str] = field(default_factory=list)
     epk: str | None = None
     markers: list[Marker] = field(default_factory=list)
+    level: str = 'unbekannt'
+    level_reason: str = 'keine Familienkennung in der Datei'
 
     def summary(self) -> str:
-        parts = []
+        parts = [f'Identifikation {self.level} ({self.level_reason})']
         if self.family:
             parts.append(f'Familie {self.family} ({self.family_evidence})')
         elif self.ambiguous:
@@ -88,6 +100,33 @@ def _first(pattern, data: bytes, kind: str, limit: int = 3) -> list[Marker]:
     return out
 
 
+def _related(a: str, b: str) -> bool:
+    """Same family at different detail (MED17 / MED17.1.62, MSD80 / MSD 80)."""
+    a, b = a.upper().replace('.', ''), b.upper().replace('.', '')
+    return a.startswith(b) or b.startswith(a)
+
+
+def _grade(ident: Identity, texts: list[str], profile_version: bool) -> None:
+    """Set level and reason from the evidence collected by identify()."""
+    if ident.ambiguous:
+        ident.level, ident.level_reason = 'mehrdeutig', 'mehrere Familien genannt: ' + ', '.join(ident.ambiguous)
+        return
+    if ident.family is None:
+        return
+    others = sorted({t for t in texts if t not in GENERIC and not _related(t, ident.family)})
+    if others:
+        ident.ambiguous = [ident.family] + others
+        ident.level = 'mehrdeutig'
+        ident.level_reason = f'{ident.family_evidence} nennt {ident.family}, Klartext nennt ' + ', '.join(others)
+        ident.family = None
+    elif ident.epk or profile_version:
+        ident.level = 'eindeutig'
+        ident.level_reason = ident.family_evidence + (', SW ' + ', '.join(ident.software) if ident.software else '')
+    else:
+        ident.level = 'wahrscheinlich'
+        ident.level_reason = ident.family_evidence + ' – keine Kennung mit Softwarestand'
+
+
 def identify(image: BinaryImage) -> Identity:
     data = image.read(0, image.size)
     ident = Identity()
@@ -103,10 +142,11 @@ def identify(image: BinaryImage) -> Identity:
             ident.family_evidence = f'Bosch-EPK @ 0x{off:X}'
         else:
             ident.ambiguous = list(families)
+    texts = collections.Counter(_family_name(x.group(1).decode('latin-1')) for x in FAMILY_TEXT.finditer(data))
+    profile_version = False
     if ident.family is None and not ident.ambiguous:
-        texts = collections.Counter(_family_name(x.group(1).decode('latin-1')) for x in FAMILY_TEXT.finditer(data))
         # Only a single, specific name counts (EDC16 dumps name C31 and C35 alike).
-        specific = [t for t in texts if t not in ('EDC16', 'EDC17', 'MED17', 'EDC15')]
+        specific = [t for t in texts if t not in GENERIC]
         if len(specific) == 1:
             ident.family = specific[0]
             off = next(x.start() for x in FAMILY_TEXT.finditer(data) if _family_name(x.group(1).decode('latin-1')) == specific[0])
@@ -122,9 +162,11 @@ def identify(image: BinaryImage) -> Identity:
             ident.family = profile.family.split(' ', 1)[-1]
             version = f' {profile.software_version}' if profile.software_version else ''
             ident.family_evidence = (profile.evidence[0] if profile.evidence else 'Kennung im Abbild') + version
+            profile_version = bool(profile.software_version)
     for kind, pattern, target in (('Bosch-HW', BOSCH_HW, ident.hardware), ('Siemens-HW', SIEMENS_HW, ident.hardware),
                                   ('Bosch-SW', BOSCH_SW, ident.software), ('VAG-Teilenummer', VAG_PN, ident.part_numbers)):
         for marker in _first(pattern, data, kind):
             target.append(marker.value)
             ident.markers.append(marker)
+    _grade(ident, list(texts), profile_version)
     return ident

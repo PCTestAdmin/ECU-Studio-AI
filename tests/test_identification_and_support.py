@@ -108,3 +108,22 @@ def test_matrix_takes_new_family_measurements_by_family_name():
     assert mg1['status'] == 'validiert' and mg1['software'][0]['exact_2d'] == 60
     md1 = next(e for name, e in entries.items() if name.startswith('Bosch MD1'))
     assert md1['status'] == 'nicht validiert' and not md1['software']
+
+
+def test_identification_levels_and_reasons():
+    epk = identify(_image(b'33/1/EDC17_CP09/11/P_574//V8KB///', b'EDC17'))
+    assert epk.level == 'eindeutig' and 'Bosch-EPK' in epk.level_reason
+    text = identify(_image(b'SIMOS 18.1'))
+    assert text.family == 'SIMOS18.1' and text.level == 'wahrscheinlich'
+    assert 'keine Kennung mit Softwarestand' in text.level_reason
+    two = identify(_image(b'99/1/EDC16C31/999/X000/X/0X0000_000/______', b'EDC16C35', b'EDC16C31'))
+    assert two.level == 'mehrdeutig'
+    assert identify(BinaryImage(bytes(range(256)) * 64)).level == 'unbekannt'
+
+
+def test_epk_contradicted_by_plain_text_is_ambiguous():
+    ident = identify(_image(b'55/1/MED91/5/4420.01//D915A/', b'EDC17C46'))
+    assert ident.family is None and ident.level == 'mehrdeutig'
+    assert ident.ambiguous == ['MED9.1', 'EDC17C46'] and 'Klartext nennt EDC17C46' in ident.level_reason
+    # A refinement of the same family is no contradiction.
+    assert identify(_image(b'40/1/ME7.5/3/4019.20//24B/', b'ME7')).level == 'eindeutig'
