@@ -1,5 +1,10 @@
 ## Unveröffentlicht
 
+## 1.18.2 (01.11.2026)
+
+Sicherheitskorrektur des Firmware-Schutzes und Nacharbeit am Programm-Symbol. Kennfelderkennung, Import,
+Bearbeitung, Prüfsummen, Vergleich, Projekte und Update-System sind unverändert.
+
 - **Firmware-Schutz: Bildprüfung geschlossen (Sicherheitskorrektur).** In 1.18.1 ignorierte die PNG-Prüfung Bytes
   hinter dem Ende des komprimierten Bilddatenstroms. Eine PNG mit 5 000 angehängten Bytes in einem IDAT-Chunk
   mit korrekter Prüfsumme wurde angenommen und normal angezeigt. Jetzt wird schrittweise und speicherbegrenzt
@@ -14,7 +19,12 @@
   blauer Fleck; dort gibt es jetzt eine vereinfachte, pixelgenau gezeichnete Variante (Chip, Anzeige, Kennlinie,
   ohne Ring). Ab 32 Pixeln bleibt das bisherige Bild unverändert. Startmenü- und Desktop-Verknüpfung tragen jetzt
   dieselbe Windows-App-ID wie das Programmfenster, und das Fenster nennt `ECU-Studio-AI.exe` als Startbefehl. Das
-  Anheften an die Taskleiste startet also das Programm, nicht `pythonw.exe` mit Python-Symbol.
+  Anheften an die Taskleiste startet also das Programm, nicht `pythonw.exe` mit Python-Symbol. Die Verknüpfungen
+  bekommen die App-ID bei der Installation mit dem Installer von 1.18.2; eine schon angeheftete Schaltfläche
+  einmal lösen und neu anheften.
+- **Bekannte Grenzen:** Daten in den Bildpixeln selbst erkennt keine Strukturprüfung (neue Bilder vor dem Push
+  ansehen); JPEG und WEBP brauchen eine Freigabe. Startmenü, Desktop-Verknüpfung und Anheften nach echter
+  Installation wurden nicht in einer isolierten Umgebung getestet.
 
 ## 1.18.1 (31.10.2026)
 
