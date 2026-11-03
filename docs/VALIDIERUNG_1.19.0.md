@@ -298,3 +298,198 @@ Kennfeld (Adresse 0x76503, 6 × 6, u8) und Anzahl (857) sind in 1.18.2 und 1.19 
 3. **Trainingsfreigabe der MS43-Daten** (betrifft `ms43_430069_structure_model`).
 4. Einordnung der **Konfidenzkalibrierung** (Messung an Referenzen, kein Training).
 5. Release-Freigabe 1.19.0 – nicht ausgeführt.
+
+Antworten vom 03.11.2026: Fragen 2–4 sind durch die Entfernung erledigt (§ 13). Frage 1 bleibt offen; ein Entwurf für
+einen Hinweis steht in § 13.6. Frage 5 bleibt offen.
+
+## 13. Nachtrag 03.11.2026: finale Release-Vorbereitung
+
+Prüfstand: Commit 73f4d5e (Programmcode und Tests) auf `feature/1.19-recognition`, gleicher Rechner. Die
+Dokumentation folgt in einem eigenen Commit; sie liegt nicht im Windows-Paket.
+
+### 13.1 Änderungen
+
+- **Entfernt** (`git rm`, Historie unverändert):
+  - `candidate_model.json` (Lernmodell für Datenmuster-Funde);
+  - `ms43_430069_structure_model.json` (MS43-Formhinweise);
+  - `confidence_calibration.json` (Trefferquoten je Beweisart).
+
+  Prüfsummen, Herkunft und Release-Übersicht: [Modellkarte § 2e](MODELLKARTE.md).
+- **Sperre:** `tools/withdrawn.py` hinterlegt jede veröffentlichte Fassung per SHA-256 und sperrt die Dateinamen. Eine
+  `candidate_model.json` ohne `training_data_cleared` gilt als Fund. Geprüft werden Programmordner, ZIP und
+  Installer-Manifest (`OutputManifestFile`); ein Fund bricht `build_release.ps1` ab.
+- **Anzeige:** Belegstufe statt Prozentzahl (§ 13.3).
+- **Prüfliste:** eigene, eingeklappte Gruppe für reine Datenmuster-Vermutungen (§ 13.4).
+- **Namensübertragung und Versionsvergleich:** Die an MED17/MSD80-Entwicklungsdaten gemessenen Quoten werden in
+  der App nicht mehr angezeigt. Die Werte bleiben in § 7 dokumentiert.
+- **Neue Tests** (`tests/test_withdrawn_models.py` sowie Erweiterungen der Prüfliste, des Filters, des Trainings und
+  von TriCore):
+  - Repository und `git ls-files` sind frei von den entfernten Dateien.
+  - Die Hashes sind die veröffentlichten Blobs.
+  - Positivkontrollen für umbenannte Kopie, Modell ohne Freigabe, ZIP und Installer-Manifest.
+  - Der Build ruft die Prüfung auf.
+  - App-Start und regelbasierte Erkennung laufen ohne Modell.
+  - Katalog ohne „%“.
+  - Gespeicherte Quoten älterer Projekte werden beim Laden entfernt.
+  - Ein Modell wird nur mit Freigabe angewendet.
+  - Die Vermutungsgruppe ist eingeklappt, aber vollständig im Projekt.
+- **Korrektur während der Prüfung:** Das Muster, das alte Quoten aus Notizen entfernt, erkannte Klassennamen mit
+  Doppelpunkt (`code:2d:axes2`) nicht. Ein Test fand das, das Muster ist korrigiert.
+
+### 13.2 Ist das alte Modell aus den neuen Paketen entfernt?
+
+| Artefakt | Ergebnis `tools/withdrawn.py` |
+|---|---|
+| Quellarchiv (`git archive` von 73f4d5e, entspricht dem GitHub-Quellarchiv) | sauber |
+| Programmordner `dist/ECU-Studio-AI` (Build aus 73f4d5e) | sauber |
+| ZIP `…-windows-x64.zip` (1306 Dateien) | sauber |
+| Installer (Manifest mit SHA-256 aller 1306 eingepackten Dateien) | sauber |
+| Positivkontrolle: Quellarchiv fce24c4, veröffentlichte ZIP 1.15.0 und 1.18.2 | je 3 Funde (alle drei Dateien) |
+
+- Im Paket liegen an gelernten Daten nur noch `structure_rejector_v110.json` (synthetisch) und
+  `calibration_ranker_v113.json` (rusEFI, GPL-3.0).
+- **Firmware:** Das Paket enthält keine `.bin`/`.hex`/`.s19`/`.ols` und keine Datei mit typischer Flash-Größe. Die
+  16 `.xdf` sind die mitgelieferten ms4x-net-Definitionen (GPL-3.0), wie in allen früheren Releases.
+- `firmware_guard tree HEAD`: ohne Befund.
+- Die Versionsnummer im Paket ist unverändert 1.18.2: Die Versionsänderung braucht die Freigabe.
+
+### 13.3 Anzeige der Erkennungsqualität
+
+- Jeder automatische Fund zeigt **Code-Beleg**, **Strukturbeleg** oder **Datenmuster-Vermutung** (Status, Farbe,
+  Filter). TriCore-Codebelege sind zusätzlich als „experimentell“ markiert.
+- Tooltip und Notiz: „Art des Belegs, keine Wahrscheinlichkeit; nicht unabhängig validiert.“
+- Definitionen zeigen „Aus einer Definition (Lage laut Definition)“, geprüfte Kennfelder „Von dir geprüft“.
+- Es wird keine Prozentzahl mehr angezeigt. Ein Projekt aus 1.18.2 mit gespeicherten Quoten zeigt nach dem Laden
+  keine mehr; eigene Notizen bleiben (Test).
+- Die historischen Quoten stehen mit Herkunft in der Modellkarte § 1.
+
+### 13.4 Falsche Funde: Datenmuster-Vermutungen in der Prüfliste
+
+- **Was in die Gruppe kommt:** Funde, die nur auf einem Datenmuster beruhen und keinen Widerspruch und keine Warnung
+  tragen. Sie stehen in einer eigenen Gruppe, die standardmäßig eingeklappt ist (Kontrollkästchen
+  „Datenmuster-Vermutungen anzeigen (N …)“, Zähler „N Vermutungen eingeklappt“).
+- **Was oben bleibt:** Funde mit Code- oder Strukturbeleg, alle Widersprüche und alle experimentellen Belege.
+- **Was erhalten bleibt:** Projekt, Katalog, Filter, Scan und gespeicherte Entscheidungen sind unverändert; geprüfte
+  Kennfelder stehen nie in der Prüfliste.
+
+Gemessen mit dem Scan des Benchmarks (ohne mitgelieferte Definitionen; „exakt“ wie in § 5):
+
+| Paar | Prüfliste | oben (davon exakt) | eingeklappt (davon exakt) |
+|---|---:|---|---|
+| MS43 430069 | 336 | 275 (191) | 61 (6) |
+| MS42 0110C6 | 172 | 5 (0) | 167 (22) |
+| ME9 770115XE | 328 | 119 (96) | 209 (2) |
+| ME9.2.1 725D601B | 400 | 197 (155) | 203 (15) |
+| MS45 4520D30S | 241 | 17 (9) | 224 (21) |
+
+**Bewertung:**
+
+- Die eingeklappte Gruppe enthält überwiegend Fehlfunde: 1–13 % exakt, gegenüber 53–81 % oben, wo es Code- oder
+  Strukturbelege gibt.
+- Sie enthält aber auch **echte Kennfelder**. Bei MS42 (keine Code-/Strukturbelege) stehen alle 22 exakten Funde in
+  der eingeklappten Gruppe, bei MS45 21 von 30.
+- Verloren geht nichts: Die Funde sind ein Klick entfernt und bleiben im Katalog. Die Erkennung selbst ist
+  unverändert.
+
+Ob die Gruppe standardmäßig eingeklappt bleiben soll, entscheidet der Nutzer. Die Alternative ist eine eigene, aber
+aufgeklappte Gruppe; sie wäre eine Ein-Zeilen-Änderung.
+
+### 13.5 Erkennung: Vergleich mit 1.18.2 und mit dem vorigen Stand
+
+`benchmark_suite` mit 15 realen und 14 synthetischen Paaren, gleicher Rechner:
+
+- **Gegen den vorigen Stand ohne Modell (§ 12.1):** alle Erkennungsfelder **identisch** auf allen 29 Zeilen
+  (gefundene und exakte Kennfelder, Datentypen, Achsen, Achsadressen, exakte 1D, Gruppenpaare, Präzision). Die
+  Entfernung der Dateien und die neue Anzeige ändern die Erkennung nicht.
+- **Gegen 1.18.2:**
+  - Exakte Kennfelder (Lage und Größe), Datentypen, Achsen, Achsadressen, exakte 1D und Gruppenpaare sind auf
+    14 von 15 realen Paaren gleich.
+  - Mehr ungeprüfte Datenmuster-Funde (§ 12.1). Präzision mit Modell (1.18.2) → ohne: MS43 79 → 75 %,
+    MS42 72 → 66 %, ME9 62 → 42 %, ME9.2.1 72 → 64 %, MS45 66 → 38 %.
+  - **MSD80 I8A0S** (Teil-XDF, Entwicklungsdatei): exakt 73 → 84 (13 neu, 2 nicht mehr exakt), Typ 62 → 83,
+    Achsen richtig 61 → 74, Achsadressen 117 → 141, Kennlinien 164 → 173.
+  - Die zwei nicht mehr exakten Tabellen (0x4FB18 6×7 und 0x5604C 6×8, u16) waren in 1.18.2 Datenmuster-Funde.
+    In 1.19 liegen dort überlappende Zeilenabstands-Funde bzw. direkt davor ein 6×8-Fund aus einem
+    Interpolationsaufruf.
+  - Das gilt unverändert seit dem Stand vor dieser Prüfung. Es ist hier erstmals einzeln aufgeführt und eine
+    Aufgabe für 1.19.1.
+- **Synthetisch:** wie § 12.1 (Negativkontrollen ohne exakten Fehlfund; „negative-ramps“ 1 → 10 ungeprüfte Funde).
+
+### 13.6 Ältere Releases 1.15.0–1.18.2
+
+Übersicht über Versionen, Dateien, Herkunftsprobleme und mögliche Maßnahmen: [Modellkarte § 2e](MODELLKARTE.md). Es
+wurde nichts geändert: keine Release-Beschreibung, keine Datei, kein Tag.
+
+**Entwurf eines Hinweises** für die Release-Seiten 1.15.0–1.18.2. Er ist nicht veröffentlicht und braucht die
+Freigabe des Nutzers.
+
+> **Hinweis (Stand: TT.MM.2026):** Diese Version enthält gelernte Daten (`candidate_model.json`,
+> `ms43_430069_structure_model.json`, `confidence_calibration.json`), deren Trainings- bzw. Messdaten teilweise
+> keine dokumentierte Herkunft oder Freigabe haben. Ab 1.19.0 sind diese Dateien entfernt, und die App zeigt statt
+> gemessener Prozentwerte die Art des Belegs. Wir empfehlen, auf die aktuelle Version zu aktualisieren. Details:
+> docs/MODELLKARTE.md, Abschnitt 2e.
+>
+> **Notice (as of DD.MM.2026):** This version contains learned data (`candidate_model.json`,
+> `ms43_430069_structure_model.json`, `confidence_calibration.json`) whose training or measurement data partly has
+> no documented provenance or clearance. From 1.19.0 on, these files are removed, and the app shows the kind of
+> evidence instead of measured percentages. We recommend updating to the current version. Details:
+> docs/MODELLKARTE.md, section 2e (German).
+
+Ob darüber hinaus etwas nötig ist, ist rechtlich **klärungsbedürftig**. Gemeint sind etwa das Zurückziehen von
+Downloads oder Pflichten aus der bisherigen Weitergabe. Dieser Bericht zieht keine rechtlichen Schlüsse.
+
+### 13.7 MS43
+
+- MS43 gilt als **nicht für neues Training freigegeben**. Das MS43-Strukturmodell ist entfernt (Prüfung:
+  Modellkarte § 2e).
+- Es wirkte nie im Scan. Auf der eigenen Trainingsdatei gab es 19 Formhinweise, alle auf Kennfeldern der
+  mitgelieferten Definition, davon 4 mit richtigem Namen; auf MSD80 keinen.
+- Die Abschaltung kostet keine Erkennungsqualität: MS43 im Benchmark ist identisch zu § 12.1, und der EXE-Prüflauf
+  findet dieselben 856 Kennfelder wie die Builds b17a4fb und ed70a45 sowie die Regressionstabelle 0x76503
+  (6 × 6, u8). § 12.2 und § 12.3 nennen 857; die gespeicherten EXE-Berichte jener Builds zeigen ebenfalls 856.
+- Eine Freigabe wurde **nicht** eingetragen, weil sie nicht nachweisbar ist.
+
+### 13.8 Tests, Build und Belastung am Endstand
+
+| Prüfung | Ergebnis |
+|---|---|
+| Testsuite (`pytest`, offscreen) | **863 bestanden, 10 übersprungen** (opt-in mit privaten Dateien oder `ECU_STUDIO_GUI_TESTS`); kein Test deaktiviert oder abgeschwächt |
+| `i18n_extract --check` | 2058 Texte, 0 ohne Übersetzung |
+| `firmware_guard tree HEAD` | ohne Befund |
+| `build_release.ps1` (Build aus 73f4d5e, kurzer Pfad) | EXE-Prüflauf im Build-Ordner und im entpackten ZIP ohne Python im PATH bestanden (10/10 Prüfungen, MS43-Regression eingeschlossen), Installer gebaut, Prüfung auf zurückgezogene Daten sauber |
+| EXE wiederholt | 30 × `--smoke-test` mit echtem MS43-Scan + `--self-check`: **30/30 bestanden**, 11,3–11,7 s, Spitzenspeicher 177–180 MB ohne Anstieg |
+| GUI-Neustartzyklen (Quellcode 73f4d5e, sichtbares Fenster; MSD80, MS43, ME9.2.1 im Wechsel; Ablauf wie § 12.2) | **60/60 Exitcode 0**, keine Fehlerdatei, keine Qt-Meldung, Originaldateien byte-gleich, Projekt bei jedem der 57 Neustarts gespeichert und wieder geladen; Spitzenspeicher MSD80 322–351 MB, MS43 216–219 MB, ME9.2.1 212–220 MB |
+
+Auffälligkeiten, alle wie im Lauf aus § 12.2:
+
+- Im ersten MS43-Zyklus (frische BIN) kam der Abbruch erst nach Scan-Ende an; die Funde wurden übernommen. Das ist
+  die bekannte Abbruchverzögerung, keine neue Abweichung.
+- Die MS43-Prüfliste ist leer, weil alle 856 Kennfelder aus der mitgelieferten Definition stammen.
+- MSD80 und ME9.2.1 wachsen um einen Fund je Zyklus, weil Entscheidungen im Projekt bleiben.
+- Die Prüfliste ist jetzt kürzer (MSD80 3662–3700 statt 3896–3962 Zeilen), weil die Vermutungen eingeklappt sind.
+
+Die Ursache der einmaligen Zugriffsverletzung vom 01.11. bleibt **unbekannt**. Seither gab es in 3000 Scans,
+160 Neustartzyklen und 100 EXE-Läufen keinen Absturz.
+
+### 13.9 Verbleibende Risiken
+
+1. **Ursache des einmaligen Absturzes unbekannt** (§ 12.2); ohne Absturzabbild nicht eingrenzbar.
+2. **Mehr ungeprüfte Datenmuster-Funde** ohne Lernmodell (Präzision bis 66 → 38 % bei MS45). Sie sind als Vermutung
+   gekennzeichnet und in der Prüfliste eingeklappt. Bei MS42 und MS45 liegt dort aber auch der Großteil der echten
+   Funde (§ 13.4).
+3. **TriCore-Codeerkennung experimentell.** Auf MSD80 sind 2 frühere exakte Datenmuster-Funde nicht mehr exakt
+   (§ 13.5).
+4. **Die Belegstufen sind nicht unabhängig validiert.** Familien ohne Referenz (EDC17, MG1, MD1, Simos, SID u. a.)
+   bleiben nicht validiert.
+5. **Lange Installationspfade** (über rund 200 Zeichen) und eine **Abbruchverzögerung bei MS43** von 3–5 s (beide wie
+   1.18.2, § 12.4).
+6. **Alte Releases 1.15.0–1.18.2** enthalten die entfernten Dateien weiterhin. Der Umgang damit und die rechtliche
+   Einordnung sind offen (§ 13.6).
+
+### 13.10 Stand
+
+- Technisch ist der Zweig aus Sicht dieser Prüfung releasefähig: Tests, Build, Pakete, Belastung und Regression sind
+  ohne Befund.
+- Ausstehend sind die Freigaben des Nutzers: Merge von PR #14, Versionsnummer 1.19.0, Tag, GitHub-Release, Umgang
+  mit 1.15.0–1.18.2 und die Entscheidung über die eingeklappte Vermutungsgruppe (§ 13.4).
+- Nichts davon wurde ausgeführt.

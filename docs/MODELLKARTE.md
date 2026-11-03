@@ -1,13 +1,42 @@
 # Modellkarte – Konfidenz und Lernmodell
 
-Stand: 03.11.2026 (ECU Studio AI 1.18.2 und Entwicklungszweig `feature/1.19-recognition`). Was die Prozentwerte an den Funden bedeuten, woher sie
-kommen und wo ihre Grenzen liegen.
+Stand: 03.11.2026 (ECU Studio AI 1.18.2 und Entwicklungszweig `feature/1.19-recognition`). Wie die Belege an den
+Funden angezeigt werden, welche gelernten Daten bis 1.18.2 ausgeliefert wurden und warum sie zurückgezogen sind.
 
-> **03.11.2026 – Lernmodell für Datenmuster im 1.19-Zweig deaktiviert.** Die Nutzungsberechtigung seiner
-> Trainingsdaten ist nicht nachweisbar (§ 2d). Die Datei bleibt zur Nachvollziehbarkeit unverändert im Repository,
-> wird aber im Scan nicht mehr angewendet. Abschnitte 2–2b′ beschreiben das Modell, wie es bis 1.18.2 lief.
+> **1.19.0 liefert kein Lernmodell und keine gemessenen Trefferquoten mehr aus** (§ 2e). Die Dateien
+> `candidate_model.json`, `ms43_430069_structure_model.json` und `confidence_calibration.json` sind aus dem
+> aktuellen Stand entfernt (Git-Historie unverändert). Jeder Fund zeigt stattdessen die **Art seines Belegs**
+> (Code-Beleg, Strukturbeleg, Datenmuster-Vermutung), ohne Prozentzahl. Abschnitte 1–2b′ beschreiben den Stand bis
+> 1.18.2 und bleiben als Historie mit Herkunft erhalten.
 
-## 1. Gemessene Trefferquote je Beweisart
+## 0. Anzeige ab 1.19.0: Art des Belegs statt Prozentzahl
+
+| Stufe | Beweisklassen (`core/confidence.py`) | Bedeutung |
+|---|---|---|
+| **Code-Beleg** | `code:*`, `pointer:descriptor` | Programmcode adressiert die Tabelle |
+| **Strukturbeleg** | `header:nxny*`, `axis:record`, `curve:record`, `axis:count` | gespeicherte Datensatzstruktur (Kopf, Achsenanzahl) |
+| **Datenmuster-Vermutung** | `pitch`, `raster` | nur die Werte sehen wie eine Tabelle aus |
+
+- Die Stufe ist **keine Wahrscheinlichkeit** und **nicht unabhängig validiert**; das steht in Tooltip und Notiz
+  jedes Fundes.
+- TriCore-Codeklassen (`code:call:*`, `code:call-pre:*`, `code:generic`) sind zusätzlich als **experimentell**
+  markiert.
+- Definitionen und vom Nutzer geprüfte Kennfelder tragen keine Stufe („aus Definition“ bzw. „von dir geprüft“).
+- Projekte aus 1.15.0–1.18.2 enthalten gespeicherte Quoten in den Notizen. Beim Laden werden genau diese Sätze
+  entfernt; eigene Notizen bleiben.
+- In der Prüfliste stehen reine Datenmuster-Vermutungen ohne Widerspruch in einer eigenen Gruppe, die standardmäßig
+  eingeklappt ist. Sie bleiben im Projekt, im Kennfeldkatalog und im Filter „Datenmuster-Vermutung“.
+- Neue Quoten werden nicht aus Daten ohne Freigabe kalibriert. `tools/calibrate_confidence.py` schreibt nur noch in
+  eine ausdrücklich angegebene Datei, die die App nicht liest.
+
+## 1. Gemessene Trefferquote je Beweisart (Historie: angezeigt in 1.15.0–1.18.2)
+
+> **Historisch.** Diese Werte wurden bis 1.18.2 an den Funden angezeigt (`confidence_calibration.json`,
+> SHA-256 in § 2e). Gemessen an der eigenen MS43-Datei des Nutzers, MS42 0110C6 (Vermerk: nur Regression),
+> drei A2L-Paaren (ME9 770115XE, ME9.2.1 725D601B, MS45 4520D30S), EDC17 6P8KB574 (A2L) sowie SIM2K- und
+> MSS54-Paaren ohne dokumentierte Herkunft. Die Messung ist kein Training. Die Quoten gelten aber nur für diese
+> Dateien, nicht für andere Familien, und mehrere Quellen haben keine geklärte Herkunft. Deshalb zeigt 1.19.0 sie
+> nicht mehr an.
 
 Jeder automatische Fund gehört zu einer **Evidenzklasse**, zum Beispiel Code-Verweis mit Achsen, Kopf-Datensatz,
 Achsen-Array oder Datenmuster (`core/confidence.py`). Für jede Klasse wurde gemessen, welcher Anteil der Funde exakt
@@ -162,11 +191,11 @@ Repository-Metadaten; nichts heruntergeladen):
 
 | Artefakt | Wirkung im Scan | Trainings-/Messdaten | Nachweis | Status 1.19 |
 |---|---|---|---|---|
-| `candidate_model.json` (19.10.2026) | verwirft Datenmuster-Funde unter Score 0,042, ersetzt deren Quote | MS43 430069; MS42 0110C6; Hyundai SIM2K ×4; BMW MSS54 ×12; TunerPro Porsche/Peugeot/Renault ×6 | **nicht nachweisbar** (siehe unten) | **deaktiviert** |
+| `candidate_model.json` (19.10.2026) | verwirft Datenmuster-Funde unter Score 0,042, ersetzt deren Quote | MS43 430069; MS42 0110C6; Hyundai SIM2K ×4; BMW MSS54 ×12; TunerPro Porsche/Peugeot/Renault ×6 | **nicht nachweisbar** (siehe unten) | **entfernt** (§ 2e) |
 | `structure_rejector_v110.json` | Strukturprüfung | nur synthetisch erzeugte Flächen | erzeugt im Projekt | aktiv |
 | `calibration_ranker_v113.json` | Reihung von Strukturvorschlägen | rusEFI, Commit `cf2988a6`, 12 Quelldateien, mitgeliefert in `training/sources` | GPL-3.0, Quellen und Lizenz beiliegend | aktiv |
-| `ms43_430069_structure_model.json` | Formähnlichkeit nur für genau diesen Softwarestand, kein Funktionsnachweis, enthält sich bei Unsicherheit | vom Nutzer bereitgestellter MS43-430069-Fullread + XDF (GPL-3.0) | Bereitstellung durch den Nutzer dokumentiert, **ausdrückliche Trainingsfreigabe nicht** | aktiv – Bestätigung offen |
-| `confidence_calibration.json` (21.10.2026) | angezeigte Quote je Evidenzklasse | **Messung**, kein Training: MS43, MS42, ME9, ME9.2.1, MS45, EDC17CP09 (A2L), SIM2K, MSS54 | Messwerte (Zählungen); MS42-Vermerk erlaubt Regression | aktiv – Bewertung offen |
+| `ms43_430069_structure_model.json` | Formähnlichkeit nur für genau diesen Softwarestand, kein Funktionsnachweis, enthält sich bei Unsicherheit | vom Nutzer bereitgestellter MS43-430069-Fullread + XDF (GPL-3.0) | Bereitstellung durch den Nutzer dokumentiert, **ausdrückliche Trainingsfreigabe nicht** | **entfernt** (§ 2e) |
+| `confidence_calibration.json` (21.10.2026) | angezeigte Quote je Evidenzklasse | **Messung**, kein Training: MS43, MS42, ME9, ME9.2.1, MS45, EDC17CP09 (A2L), SIM2K, MSS54 | Messwerte (Zählungen); MS42-Vermerk erlaubt Regression | **entfernt** (§ 2e) |
 | `ms41_ms42_samples.tsv`, `ms43_430069_3d_sample.tsv` | Beispiel-Metadaten | aus ms4x-net-XDF (GPL-3.0), keine Firmwarewerte | GPL-3.0 | aktiv |
 
 **Quellen des Lernmodells im Einzelnen:**
@@ -215,8 +244,8 @@ diesen Daten.
 (1.15.0–1.17.0 Datei-Stand `c86891f`, 1.18.0–1.18.2 `62eb523`, nur die Quellenangaben unterscheiden sich), jeweils
 im Quellcode und im Windows-Paket. Nachgeprüft an den veröffentlichten ZIP-Dateien 1.15.0 (`c86891f`) und 1.18.2
 (`62eb523`); der Installer wird aus demselben Programmordner gebaut (`packaging/*.iss`), wurde aber nicht entpackt.
-Offene Fragen (nicht eigenmächtig entschieden, ältere Releases
-unverändert):
+Offene Fragen vom 03.11.2026 (Antworten des Nutzers in § 2e: Fragen 2–4 durch Entfernung erledigt, Frage 1
+weiter offen, ältere Releases unverändert):
 
 1. Dürfen die Releases 1.15.0–1.18.2 mit diesem Modell weiter zum Download stehen, oder braucht es einen Hinweis bzw.
    eine korrigierte Fassung?
@@ -227,6 +256,108 @@ unverändert):
 4. Dürfen die Quoten in `confidence_calibration.json` (Messung, kein Training, aber an Dateien ohne geklärte
    Herkunft) weiter angezeigt werden?
 
+## 2e. Entfernung aus der Auslieferung (1.19.0, 03.11.2026)
+
+Entscheidung des Nutzers vom 03.11.2026: Das Lernmodell wird nicht nur deaktiviert, sondern aus jeder Auslieferung
+entfernt. Dasselbe gilt für das MS43-Strukturmodell (keine nachweisbare Trainingsfreigabe) und die Quotentabelle
+(Messung an Dateien ohne geklärte Herkunft). Die Absätze in § 2d, die vom Verbleib der Dateien im Repository
+sprechen, beschreiben den Zwischenstand vor dieser Entscheidung.
+
+**Entfernt** aus dem aktuellen Stand (`git rm`, Historie nicht umgeschrieben). Sie fehlen damit auch im
+Programmordner, im ZIP, im Installer und in den automatisch erzeugten Quellarchiven des Releases:
+
+| Datei | Git-Blob | SHA-256 | Größe | enthalten in |
+|---|---|---|---:|---|
+| `candidate_model.json` | `c86891f` | `85ad55e56958ee784567a301ea5d6d0ac9f77d611953a0aa5d1a6e6b356bd1b8` | 3428 B | 1.15.0–1.17.0 |
+| `candidate_model.json` | `62eb523` | `582c7da303c56a34b0712da4b036775e83cf41ab89c7b93f79928461f573294b` | 3363 B | 1.18.0–1.18.2 |
+| `ms43_430069_structure_model.json` | `bc713e5` | `e183e7f2e1147b407673c59edcee5ec5a2b8f9f00902edda2af9f52e5f33583b` | 56836 B | 1.15.0–1.18.2 |
+| `confidence_calibration.json` | `880ca62` | `50f3dbd51901457b47211db120c57afd62ad1d78f021ef9845fc5e093c6c040a` | 5427 B | 1.15.0 |
+| `confidence_calibration.json` | `9bd64af` | `5dd9f1f57d47ce0ff92ae96e1460075520e628c5b441df5d64e9c61b4df026b7` | 5997 B | 1.16.0–1.18.2 |
+
+**Sperre gegen Wiederkehr** (`tools/withdrawn.py`):
+
+- Jede dieser Fassungen ist per SHA-256 hinterlegt, sodass auch eine umbenannte Kopie auffällt.
+- Die beiden zurückgezogenen Dateinamen sind gesperrt.
+- Eine `candidate_model.json` ohne `training_data_cleared: true` gilt als Fund.
+- Geprüft werden der Programmordner und das ZIP (`build_portable_runtime.py`) sowie das Installer-Manifest mit dem
+  SHA-256 jeder eingepackten Datei (`OutputManifestFile` in `packaging/installer.iss`, geprüft in
+  `build_release.ps1`). Ein Fund bricht den Build ab.
+- Regressionstests (`tests/test_withdrawn_models.py`):
+  - Repository-Baum und `git ls-files` sind sauber.
+  - Die hinterlegten Hashes sind die veröffentlichten Blobs.
+  - Positivkontrollen für Ordner, ZIP und Manifest.
+  - Die App startet und erkennt ohne Modell, und der Katalog zeigt keine Prozentzahl.
+
+**Neue Modelle** werden nur mit dokumentierter Freigabe aktiviert:
+
+- Erforderlich sind ein Datensatz aus Paaren mit `training_allowed: true` (`build_candidate_dataset`), Training und
+  Gate nach § 2a und eine Herkunftsangabe in dieser Modellkarte.
+- Erst danach darf eine Datei `candidate_model.json` mit `training_data_cleared: true` beiliegen.
+- Bis auf Weiteres wird kein Ersatzmodell mit MS42-, MS43-, SIM2K-, MSS54- oder TunerPro-Daten trainiert.
+
+### MS43-Strukturmodell (`ms43_430069_structure_model.json`) – Prüfung
+
+- **Daten:** 67 Rohwertoberflächen. Namen und Offsets stammen aus der ms4x-net-XDF (GPL-3.0), die Merkmalscodes aus
+  dem MS43-430069-Fullread des Nutzers (SHA-256 `76010474…`).
+- **Eigener Trainingsbericht:** `source_verified: false`, `heldout_firmware_evaluation: false`.
+- **Erlaubnis:** Die Bereitstellung der Datei durch den Nutzer ist dokumentiert, eine ausdrückliche
+  Trainingsfreigabe nicht. Ab jetzt gilt MS43 als nicht für neues Training freigegeben.
+- **Verwendung bis 1.18.2:** nur Formhinweise nach dem Scan (`RecognitionWorker`), Export der Prüfwarteschlange
+  und Lernstatus-Anzeige. Nie in der Kennfelderkennung selbst.
+- **Gemessene Wirkung auf die eigene Trainingsdatei:** 19 Hinweise, alle auf Kennfeldern, die die mitgelieferte
+  Definition ohnehin enthält; nur 4 davon mit dem richtigen Namen. Auf MSD80 I8A0S: 0 Hinweise.
+- **Folge der Entfernung:** keine Verschlechterung der Kennfelderkennung (Scan unverändert, siehe Benchmark in
+  [Validierung § 13](VALIDIERUNG_1.19.0.md)).
+  - Formhinweise erscheinen nur noch, wenn der Nutzer lokal selbst ein Modell trainiert
+    (`~/.ecu_studio_ai/trained-shape-model.json`, bleibt auf dem Rechner).
+  - Die Beispiel-Metadaten `ms41_ms42_samples.tsv` und `ms43_430069_3d_sample.tsv` (nur XDF-Angaben, GPL-3.0, keine
+    Firmwarewerte) bleiben.
+
+### Weiter aktive gelernte Daten in 1.19.0
+
+| Datei | Daten | Wirkung |
+|---|---|---|
+| `structure_rejector_v110.json` | nur synthetisch erzeugte Flächen | Strukturprüfung, entfernt keine plausiblen Kennfelder |
+| `calibration_ranker_v113.json` | rusEFI (GPL-3.0), Quellen und Lizenz in `training/sources` | Reihung von Strukturvorschlägen |
+
+Die Quoten der Namensübertragung zwischen Softwareständen wurden nur an MED17/MSD80-Entwicklungsdaten gemessen. Sie
+werden nicht mehr angezeigt; die Werte stehen in [Validierung § 7](VALIDIERUNG_1.19.0.md).
+
+### Bereits veröffentlichte Releases 1.15.0–1.18.2
+
+| Release | Datum | `candidate_model` | MS43-Strukturmodell | Quotentabelle | Downloads |
+|---|---|---|---|---|---|
+| 1.15.0 | 21.10.2026 | `c86891f` | `bc713e5` | `880ca62` | ZIP, Installer, Quellarchive |
+| 1.16.0, 1.16.1, 1.16.2, 1.16.3 | 22.10.2026 | `c86891f` | `bc713e5` | `9bd64af` | ZIP, Installer, Quellarchive |
+| 1.16.4 | 23.10.2026 | `c86891f` | `bc713e5` | `9bd64af` | ZIP, Installer, Quellarchive |
+| 1.17.0 | 24.10.2026 | `c86891f` | `bc713e5` | `9bd64af` | ZIP, Installer, Quellarchive |
+| 1.18.0, 1.18.1 | 31.10.2026 | `62eb523` | `bc713e5` | `9bd64af` | ZIP, Installer, Quellarchive |
+| 1.18.2 | 01.11.2026 | `62eb523` | `bc713e5` | `9bd64af` | ZIP, Installer, Quellarchive |
+
+- **Ermittlung:** Die Datei-Stände stammen aus den Git-Tags. In den veröffentlichten ZIP-Dateien 1.15.0 und 1.18.2
+  wurden alle drei Dateien per SHA-256 nachgewiesen. Die Installer wurden nicht entpackt; sie werden aus demselben
+  Programmordner gebaut.
+- **Provenienzproblem:**
+  - Das Lernmodell wurde mit MS42 0110C6 trainiert, dessen Vermerk Training ausschließt.
+  - Weitere Trainingsquellen haben keine Lizenz oder keine Herkunftsangabe (SIM2K, MSS54, TunerPro, § 2d).
+  - Für das MS43-Strukturmodell fehlt eine Trainingsfreigabe.
+  - Die Quotentabelle wurde an Dateien ohne geklärte Herkunft gemessen.
+  - Keine der Dateien enthält Firmwarebytes. Sie enthalten Gewichte und Statistiken; das MS43-Strukturmodell
+    zusätzlich XDF-Namen, Offsets und aus Firmwarewerten abgeleitete Merkmalscodes.
+- **Mögliche Maßnahmen.** Keine davon ist umgesetzt; jede braucht eine Entscheidung des Nutzers:
+  1. Hinweis in den Release-Beschreibungen 1.15.0–1.18.2 mit Empfehlung auf 1.19.0 (Entwurf in
+     [Validierung § 13.6](VALIDIERUNG_1.19.0.md)).
+  2. Alte Releases als „nicht empfohlen“ kennzeichnen oder Downloads zurückziehen. Ein stilles Ersetzen
+     veröffentlichter Dateien und ein Umschreiben von Tags kommen nicht in Frage.
+  3. Die Dateien bleiben in der Git-Historie. Sie dort zu entfernen hieße, die Historie umzuschreiben; das ist
+     nicht vorgesehen.
+- **Rechtliche Fragen:**
+  - Welche Pflichten ergeben sich aus der bisherigen Weitergabe?
+  - Reicht ein Hinweis aus?
+  - Wie sind abgeleitete Gewichte und Merkmalscodes zu bewerten?
+
+  Diese Fragen sind **klärungsbedürftig**. Diese Modellkarte zieht daraus keine rechtlichen Schlüsse.
+
 ## 2c. Code- und Strukturbelege sind kein Lernmodell
 
 Funde aus Programmcode (TriCore-Interpolationsaufrufe), Kopf-Datensätzen und Achsen-Arrays werden **nicht** vom
@@ -236,12 +367,13 @@ ihn festlegen; sonst stehen die anderen möglichen Lesarten am Fund (`dtype_alte
 
 ## 3. Grenzen
 
-- Die Klassenquoten stammen überwiegend aus Siemens-C167-Images (MS42/MS43) und unbekannten Images. Für andere
-  Familien sind sie ein Richtwert.
-- Weder Klassenquoten noch Lernmodell erkennen **Funktionen**: Namen, Einheiten und Bedeutung kommen nur aus
+- Die Belegstufen sagen, **welche Art** Beleg einen Fund trägt, nicht wie oft solche Funde stimmen. Für keine Stufe
+  gibt es eine unabhängige Messung auf Familien außerhalb der Entwicklungsdaten.
+- Weder Belegstufen noch Lernmodelle erkennen **Funktionen**: Namen, Einheiten und Bedeutung kommen nur aus
   Definitionen oder eigener Prüfung.
-- Neue Familien brauchen eigene, rechtmäßig nutzbare Referenzpaare. Dann lassen sich die Quoten neu kalibrieren
-  (`tools/calibrate_confidence.py`) und das Modell nachtrainieren (`tools/train_candidate_model.py`).
+- Neue Familien brauchen eigene, rechtmäßig nutzbare und für Training bzw. Messung freigegebene Referenzpaare. Erst
+  dann lassen sich Quoten messen und ein Modell trainieren; beides wird nur mit dokumentierter Freigabe ausgeliefert
+  (§ 2e).
 
 ---
 

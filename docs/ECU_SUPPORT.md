@@ -4,6 +4,19 @@ Diese Seite und das Fenster **Hilfe → Unterstützte Steuergeräte …** in der
 (`src/ecu_studio/recognition/data/ecu_support.json`, erzeugt mit `python -m ecu_studio.tools.support_matrix`
 aus Ergebnissen von `benchmark_suite`). Die Messwerte der Tabelle stammen aus diesen Läufen.
 
+**Ergänzt am 03.11.2026 (1.19.0):**
+
+- Das Lernmodell für Datenmuster-Funde, das MS43-Strukturmodell und die Tabelle der Trefferquoten je Beweisart sind
+  entfernt ([Modellkarte § 2e](MODELLKARTE.md)). Die Präzisionswerte der Matrix wurden mit Modell gemessen
+  (21.10.2026). Ohne Modell sinkt die Präzision gemessen an den lokalen Paaren mit vollständiger Referenz:
+  - MS43 79 → 75 %, MS42 72 → 66 %, ME9 62 → 42 %, ME9.2.1 72 → 64 %, MS45 66 → 38 %.
+  - Exakte Funde, Datentypen und Achsen bleiben unverändert.
+  - Siehe [Validierung § 12.1 und § 13](VALIDIERUNG_1.19.0.md).
+- Hinweise „zur Konfidenz-Kalibrierung verwendet“ und die Rolle *training* („Lernmodell/Konfidenz daran
+  kalibriert“) beschreiben den Stand bis 1.18.2.
+- Die App zeigt seit 1.19.0 keine gemessenen Quoten mehr an den Funden, sondern die Art des Belegs.
+- Die TriCore-Codeerkennung bleibt **experimentell**. Alle als „nicht validiert“ geführten Familien bleiben es.
+
 **Ergänzt am 01.11.2026:** MSD80-Vollflash 73 → 84 von 99 (Entwicklungsdaten), Identifikationsstufen, Hinweis zur Herkunft lokaler Messdaten.
 **Ergänzt am 30./31.10.2026:** MSD80 ist nachweislich TriCore (vorher als PowerPC geführt), MSD85 ist ungeprüft,
 und Delphi/Delco Multec S ist als „nicht validiert“ aufgenommen. Das MSD80-Vollflash-Ergebnis (39 → 73 von 99) ist

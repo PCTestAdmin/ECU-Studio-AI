@@ -31,16 +31,29 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   wieder an, außer sie wird jetzt mit stärkerem Beleg gefunden; dann erscheint sie mit Hinweis.
 - **Namensübertragung zwischen Softwareständen:** Vorschläge, die die Erkennung im Zielstand an derselben Stelle mit
   gleicher Größe, Zellbreite und Byte-Reihenfolge findet, sind gekennzeichnet. Gemessen an MED17 (Entwicklungsdaten):
-  „ähnliche Werte“ 92 → 99 % richtig. Findet die Erkennung dort andere Achsen, gilt das nicht als Bestätigung. Ist
+  „ähnliche Werte“ 92 → 99 % richtig (nicht unabhängig validiert; die App zeigt diese Quoten nicht an). Findet die Erkennung dort andere Achsen, gilt das nicht als Bestätigung. Ist
   eine Achse am Zielort nicht bestätigt, werden ihre Werte nicht mehr mitübertragen; vorher waren bei 296 von 941
   solcher Achsen die Werte falsch. Vorschläge ersetzen beim Übernehmen eine ungeprüfte, unbenannte Erkennung an
   derselben Stelle. Bisher wurden gerade die bestätigten Vorschläge übersprungen.
-- **KI-Bewertung der Datenmuster-Funde deaktiviert:** Das seit 1.15.0 mitgelieferte Lernmodell wurde unter anderem
-  mit einer Datei trainiert, deren Herkunftsvermerk Training ausschließt, und mit Daten ohne dokumentierte Freigabe.
-  Es wird nicht mehr angewendet; Scanbericht und Scanmeldung sagen das. Exakte Kennfelder, Datentypen, Achsen und
-  Achsadressen bleiben auf allen 15 Vergleichspaaren gleich, es erscheinen aber mehr ungeprüfte Datenmuster-Funde
-  (z. B. ME9: Präzision 62 → 42 %); sie tragen die gemessene Quote ihrer Evidenzklasse (Stufe „Vermutung“).
-  Details und offene Fragen zu den Releases 1.15.0–1.18.2: [Modellkarte § 2d](docs/MODELLKARTE.md).
+- **Lernmodelle ohne nachweisbare Freigabe entfernt:** Das seit 1.15.0 mitgelieferte Lernmodell für Datenmuster-Funde
+  wurde unter anderem mit einer Datei trainiert, deren Herkunftsvermerk Training ausschließt, und mit Daten ohne
+  dokumentierte Freigabe. Es ist aus Programm, ZIP, Installer und Quellcode entfernt, ebenso das
+  MS43-Strukturmodell (keine Trainingsfreigabe) und die Tabelle der gemessenen Trefferquoten (gemessen an Dateien
+  ohne geklärte Herkunft). Die Git-Historie bleibt unverändert, Prüfsummen und Herkunft stehen in der
+  [Modellkarte § 2e](docs/MODELLKARTE.md). Der Build bricht ab, wenn eine dieser Dateien (auch umbenannt) wieder in
+  ein Paket gerät. Ein neues Modell wird nur mit dokumentierter Freigabe seiner Trainingsdaten angewendet.
+- **Folgen für die Erkennung:** Exakte Kennfelder, Datentypen, Achsen und Achsadressen bleiben auf allen 15
+  Vergleichspaaren gleich. Ohne Modell erscheinen aber mehr ungeprüfte Datenmuster-Funde (z. B. ME9: Präzision
+  62 → 42 %, MS45: 66 → 38 %). Formhinweise des MS43-Modells gibt es nicht mehr; sie betrafen nur Kennfelder, die die
+  mitgelieferte MS43-Definition ohnehin enthält.
+- **Art des Belegs statt Prozentzahl:** Jeder automatische Fund zeigt *Code-Beleg*, *Strukturbeleg* oder
+  *Datenmuster-Vermutung*. Das ist keine Wahrscheinlichkeit und nicht unabhängig validiert; der Tooltip sagt das.
+  TriCore-Codebelege sind als experimentell markiert. Der Katalogfilter nutzt dieselben Stufen. Quoten, die
+  1.15.0–1.18.2 in Projekten gespeichert haben, werden beim Laden entfernt; eigene Notizen bleiben. Die historischen
+  Werte mit ihrer Herkunft stehen in der Modellkarte.
+- **Prüfliste:** Reine Datenmuster-Vermutungen ohne Widerspruch stehen in einer eigenen Gruppe, die standardmäßig
+  eingeklappt ist („Datenmuster-Vermutungen anzeigen“). Sie bleiben im Projekt, im Katalog und im Filter; Funde mit
+  Code- oder Strukturbeleg und alle Widersprüche bleiben oben.
 - **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
   Trainiert wird nur mit Daten, deren Freigabe festgehalten ist (`training_allowed`), und nur ein so trainiertes
   Modell wird im Scan angewendet. Ein freigegebener Datensatz mit vollständiger Referenz liegt derzeit nicht vor.
@@ -50,10 +63,16 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   Musste das Fenster während eines Scans neu zeichnen (erste Anzeige einer Datei, Schließen der Prüfliste), stand es
   bis zum Scan-Ende still (MS43: 4,7–5,1 s, auch in 1.18.2); jetzt längste Pause 0,11 s bei gleicher Scandauer.
   Beendete Hintergrundaufgaben werden vor dem Freigeben und beim Schließen abgewartet.
-- **Bekannte Grenzen:** Die Präzision der Funde aus Programmcode ist nicht gemessen. Bosch EDC17 setzt Tabellenzeiger
-  zur Laufzeit über `a9`, das ist statisch nicht auflösbar. EDC17, MG1, MD1, Simos und SID bleiben nicht validiert.
-  Die früheren Hersteller-A2L-Messungen (MSD80, MSD85, EDC16, EDC17CP09) lassen sich lokal nicht wiederholen und
-  gelten als historisch.
+- **Bekannte Grenzen:**
+  - Die Präzision der Funde aus Programmcode ist nicht gemessen. Die TriCore-Codeerkennung bleibt experimentell.
+  - Bosch EDC17 setzt Tabellenzeiger zur Laufzeit über `a9`, das ist statisch nicht auflösbar.
+  - EDC17, MG1, MD1, Simos und SID bleiben nicht validiert. Die früheren Hersteller-A2L-Messungen (MSD80, MSD85,
+    EDC16, EDC17CP09) lassen sich lokal nicht wiederholen und gelten als historisch.
+  - Ein einmaliger Absturz (Zugriffsverletzung) vom 01.11.2026 trat in den späteren Belastungsläufen nicht wieder
+    auf. Seine Ursache ist unbekannt.
+  - Liegt der Programmordner tiefer als rund 200 Zeichen, startet das Programm nicht (Windows-Pfadlänge).
+  - Ein Abbruch wirkt bei MS43 erst nach 3–5 s, weil das Einlesen der mitgelieferten Definition nicht unterbrechbar
+    ist. Funde eines abgebrochenen Scans werden nicht übernommen.
 
 ## 1.18.2 (01.11.2026)
 
