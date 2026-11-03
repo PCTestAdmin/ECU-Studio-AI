@@ -104,7 +104,8 @@ def test_dialog_confirm_and_reject(tmp_path, monkeypatch):
     d.close(); w.close()
 
 
-def test_dialog_collapses_data_pattern_guesses_without_losing_them(tmp_path, monkeypatch):
+def test_dialog_shows_data_pattern_guesses_marked_and_can_collapse_them(tmp_path, monkeypatch):
+    """1.19.0: the guess group starts expanded (on MS42/MS45 it holds most exact finds), marked as unchecked guesses."""
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
     monkeypatch.setattr(Path, 'home', classmethod(lambda cls: tmp_path))
     from PySide6.QtCore import QSettings
@@ -119,12 +120,18 @@ def test_dialog_collapses_data_pattern_guesses_without_losing_them(tmp_path, mon
             cand('Glatt 2', 0x70, 'candidate:row-pitch'), cand('Geprüft', 0xA0, 'candidate:row-pitch', verified=True)]
     w.load_state(BinaryImage(bytes(256)), maps, [], '', None)
     d = ReviewDialog(w)
-    assert not d.show_guesses.isChecked() and [i.map.name for i in d.items] == ['Code']
-    assert '(2,' in d.show_guesses.text() and '2 Vermutungen eingeklappt' in d.count.text()
-    d.show_guesses.setChecked(True)
+    assert d.show_guesses.isChecked()                                  # expanded on first opening
     assert [i.map.name for i in d.items] == ['Code', 'Glatt 1', 'Glatt 2'] and d.table.rowCount() == 3
-    assert 'Vermutung' in d.table.item(1, 0).text() and 'eingeklappt' not in d.count.text()
+    assert 'Vermutung' not in d.table.item(0, 0).text()
+    assert all('Vermutung' in d.table.item(r, 0).text() for r in (1, 2))   # still marked as unchecked guesses
+    assert '(2,' in d.show_guesses.text() and 'eingeklappt' not in d.count.text()
+    d.show_guesses.setChecked(False)                                   # the user can still collapse the group
+    assert [i.map.name for i in d.items] == ['Code'] and d.table.rowCount() == 1
+    assert '2 Vermutungen eingeklappt' in d.count.text()
+    d.show_guesses.setChecked(True)
+    assert d.table.rowCount() == 3
     assert len(w.maps) == 4 and maps[3].verified                       # nothing removed, confirmed map untouched
+    assert w.catalog_model.rowCount() == 4                             # all maps stay in the catalogue
     w.saved_fingerprint = w.project_state()
     d.close(); w.close()
 

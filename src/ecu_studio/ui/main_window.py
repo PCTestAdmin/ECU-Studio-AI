@@ -1873,7 +1873,7 @@ class Window(QMainWindow):
            + (f"Im Projekt abgelehnt, nicht erneut angeboten: {skipped_rejected}.\n" if skipped_rejected else "")
            + (f"Früher abgelehnt, jetzt mit stärkerem Beleg erneut angeboten: {reoffered}.\n" if reoffered else "")
            + ("Datenmuster-Funde ohne KI-Bewertung (kein Lernmodell mit freigegebenen Trainingsdaten): sie bleiben "
-              "Vermutungen ohne Prozentangabe und stehen in der Prüfliste in einer eigenen, eingeklappten Gruppe.\n"
+              "Vermutungen ohne Prozentangabe und stehen in der Prüfliste als eigene Gruppe ungeprüfter Vorschläge (einklappbar).\n"
               if not str(self.last_scan_report.get('candidate_model','')).startswith('aktiv') else "")
            + "Prüfreihenfolge mit Begründung: Werkzeuge → Prüfliste der erkannten Kennfelder.\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"

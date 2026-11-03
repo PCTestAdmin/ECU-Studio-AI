@@ -26,9 +26,10 @@ class ReviewDialog(QDialog):
                       'mit dem Projekt gespeichert, nicht hochgeladen und nicht automatisch zum Training verwendet.')
         info.setWordWrap(True)
         layout.addWidget(info)
-        # Data-pattern guesses (no code or structure evidence, no contradiction) are collapsed by default: they
-        # stay in the project and the catalogue, only this list starts with the evidenced finds.
+        # Data-pattern guesses (no code or structure evidence, no contradiction) form their own group after the
+        # evidenced finds. Shown by default: on MS42/MS45 most exact finds are in this group. It can be collapsed.
         self.show_guesses = QCheckBox()
+        self.show_guesses.setChecked(True)
         self.show_guesses.setToolTip('Funde, die nur auf einem Datenmuster beruhen (weder Programmcode noch '
                                      'gespeicherte Struktur). Sie bleiben im Projekt und im Kennfeldkatalog.')
         self.show_guesses.toggled.connect(self.reload)

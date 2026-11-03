@@ -17,8 +17,10 @@ on independent references, *experimental* = present but not independently checke
   instructions, without the count reads. Conditional branches are followed. Where a routine expects its arguments
   in other registers than `a4`/`a5`/`a6`, the assignment is derived from its call behaviour. Measured only on the
   MSD80 full flash I8A0S, which was also used during development (partial XDF): 73 → 84 of 99 maps exact, curves
-  164 → 173. There is no independent reference for other TriCore versions. All other comparison pairs give the
-  same results as 1.18.2.
+  164 → 173. Net 11 more: 13 maps are newly exact, **2 maps that were exact in 1.18.2 no longer are** (0x4FB18
+  6 × 7 u16, 0x5604C 6 × 8 u16; known regression, task for 1.19.1). There is no independent reference for other
+  TriCore versions. On all other comparison pairs, exact maps, data types, axes and axis addresses are the same as
+  in 1.18.2.
 - **Three recognition layers:** definitions stay unchanged. Findings from code and structure fill gaps before data
   patterns and AI do. If code/structure detection finds the same table as a definition, the definition is marked
   "independently confirmed" (not "checked"). A data-pattern match only supports the position and is counted
@@ -56,9 +58,10 @@ on independent references, *experimental* = present but not independently checke
   code evidence is marked experimental. The catalogue filter uses the same levels. Rates saved in projects by
   1.15.0–1.18.2 are removed on loading; your own notes stay. The historical values and their provenance are in the
   model card.
-- **Review checklist:** pure data-pattern guesses without contradictions are a separate group, collapsed by default
-  ("Show data-pattern guesses"). They stay in the project, the catalogue and the filter; finds with code or
-  structure evidence and all contradictions stay on top.
+- **Review checklist:** pure data-pattern guesses without contradictions form a separate group after the finds with
+  code or structure evidence, each row marked as a guess. The group is expanded when the checklist opens, because
+  it also holds real maps (MS42: all 22 exact finds, MS45: 21 of 30), and can be collapsed ("Show data-pattern
+  guesses"). All finds stay in the project, the catalogue and the filter.
 - **Reproducible training:** data set with provenance, family hold-out, seed, log and replacement gate. Only data
   with a recorded clearance (`training_allowed`) is trained on, and only such a model is applied in scans. No
   cleared data set with a complete reference is available at the moment.
@@ -78,6 +81,7 @@ on independent references, *experimental* = present but not independently checke
     length).
   - On MS43, cancelling takes effect only after 3–5 s, because reading the bundled definition cannot be
     interrupted. Finds of a cancelled scan are not taken over.
+  - Planned work for 1.19.1: docs/AUFGABEN_1.19.1.md (German).
 
 **No flash approval:** ECU Studio AI does not release modified files for flashing. Checksums, signatures, emissions
 and safety functions remain the user's responsibility.

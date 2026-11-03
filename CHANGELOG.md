@@ -10,8 +10,10 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   Ladebefehlen der Routine ohne die Zählerzugriffe. Bedingte Sprünge werden verfolgt. Erwartet eine Routine ihre
   Argumente in anderen Registern als `a4`/`a5`/`a6`, wird die Belegung aus ihrem Aufrufverhalten abgeleitet.
   Gemessen nur am MSD80-Vollflash I8A0S, an dem auch entwickelt wurde (Teil-XDF): 73 → 84 von 99 Kennfeldern exakt,
-  Kennlinien 164 → 173. Für andere TriCore-Stände gibt es keine unabhängige Referenz. Alle anderen
-  Vergleichspaare liefern dieselben Ergebnisse wie 1.18.2.
+  Kennlinien 164 → 173. Netto 11 mehr: 13 Kennfelder sind neu exakt, **2 in 1.18.2 exakte Kennfelder sind es nicht
+  mehr** (0x4FB18 6 × 7 u16, 0x5604C 6 × 8 u16; bekannte Regression, Aufgabe für 1.19.1). Für andere TriCore-Stände
+  gibt es keine unabhängige Referenz. Auf allen anderen Vergleichspaaren sind exakte Kennfelder, Datentypen, Achsen
+  und Achsadressen gleich wie in 1.18.2.
 - **Drei Erkennungsebenen:** Definitionen bleiben unverändert. Funde aus Code und Struktur füllen Lücken, bevor
   Datenmuster und KI zum Zug kommen. Findet die Erkennung über Programmcode oder Struktur dieselbe Tabelle wie eine
   Definition, gilt die Definition als „unabhängig bestätigt“ (nicht als geprüft). Ein Fund allein über Datenmuster
@@ -51,9 +53,10 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   TriCore-Codebelege sind als experimentell markiert. Der Katalogfilter nutzt dieselben Stufen. Quoten, die
   1.15.0–1.18.2 in Projekten gespeichert haben, werden beim Laden entfernt; eigene Notizen bleiben. Die historischen
   Werte mit ihrer Herkunft stehen in der Modellkarte.
-- **Prüfliste:** Reine Datenmuster-Vermutungen ohne Widerspruch stehen in einer eigenen Gruppe, die standardmäßig
-  eingeklappt ist („Datenmuster-Vermutungen anzeigen“). Sie bleiben im Projekt, im Katalog und im Filter; Funde mit
-  Code- oder Strukturbeleg und alle Widersprüche bleiben oben.
+- **Prüfliste:** Reine Datenmuster-Vermutungen ohne Widerspruch stehen als eigene Gruppe nach den Funden mit Code-
+  oder Strukturbeleg, jede Zeile als „Vermutung“ gekennzeichnet. Die Gruppe ist beim Öffnen aufgeklappt, weil sie
+  auch echte Kennfelder enthält (MS42: alle 22 exakten Funde, MS45: 21 von 30), und lässt sich einklappen
+  („Datenmuster-Vermutungen anzeigen“). Alle Funde bleiben im Projekt, im Katalog und im Filter.
 - **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
   Trainiert wird nur mit Daten, deren Freigabe festgehalten ist (`training_allowed`), und nur ein so trainiertes
   Modell wird im Scan angewendet. Ein freigegebener Datensatz mit vollständiger Referenz liegt derzeit nicht vor.
@@ -73,6 +76,7 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   - Liegt der Programmordner tiefer als rund 200 Zeichen, startet das Programm nicht (Windows-Pfadlänge).
   - Ein Abbruch wirkt bei MS43 erst nach 3–5 s, weil das Einlesen der mitgelieferten Definition nicht unterbrechbar
     ist. Funde eines abgebrochenen Scans werden nicht übernommen.
+  - Geplante Arbeiten für 1.19.1: [Aufgaben](docs/AUFGABEN_1.19.1.md).
 
 ## 1.18.2 (01.11.2026)
 

@@ -147,7 +147,7 @@ Die App zeigt die **Art des Belegs**, keine Prozentzahl:
 |---|---|---|
 | 🟢 **Code-Beleg** | Code-Verweis mit oder ohne Achsen | Der Programmcode adressiert die Tabelle (TriCore-Aufrufe: experimentell) |
 | 🟡 **Strukturbeleg** | Kopf-Datensatz, Achse aus Datensatz, Achsen-Array | `nx, ny, X-Achse, Y-Achse, Werte` bzw. Anzahl + steigende Stützstellen |
-| 🔴 **Datenmuster-Vermutung** | nur Zeilenabstand bzw. Raster | glatte Fläche ohne weiteren Beleg – in der Prüfliste standardmäßig eingeklappt |
+| 🔴 **Datenmuster-Vermutung** | nur Zeilenabstand bzw. Raster | glatte Fläche ohne weiteren Beleg – in der Prüfliste als eigene, einklappbare Gruppe |
 
 <sub>Die Stufe ist keine Wahrscheinlichkeit und nicht unabhängig validiert. Bis 1.18.2 standen an jeder Beweisart
 gemessene Trefferquoten; sie stammen von wenigen Familien und zum Teil aus Dateien ohne geklärte Herkunft und werden

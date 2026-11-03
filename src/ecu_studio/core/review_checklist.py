@@ -14,9 +14,10 @@ plausibility warning for them. Higher score = a human decision matters more:
   shares an axis with other maps       .5  (one check informs the linked maps)
 
 Data-pattern guesses without a contradiction form their own group
-(``ReviewItem.group``); the dialog shows it collapsed, so the many weak
-proposals do not bury the ones with code or structure evidence. Nothing is
-removed by that: the maps stay in the project and the catalogue.
+(``ReviewItem.group``) after the evidenced finds; the dialog shows it
+expanded and marked as guesses (on MS42/MS45 most exact finds are there) and
+lets the user collapse it. Nothing is removed: the maps stay in the project
+and the catalogue.
 
 Decisions are explicit: confirming marks a map as checked by the user
 (``verified``); rejecting removes it and records the rejection in the project's

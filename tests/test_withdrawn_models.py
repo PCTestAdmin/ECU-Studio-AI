@@ -73,6 +73,8 @@ def test_every_package_is_checked_before_release():
     assert 'OutputManifestFile=' in (ROOT / 'packaging/installer.iss').read_text(encoding='utf-8')
     script = (ROOT / 'build_release.ps1').read_text(encoding='utf-8')
     assert '-m ecu_studio.tools.withdrawn' in script and 'setup-manifest.txt' in script
+    release = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')   # the published installer
+    assert '-m ecu_studio.tools.withdrawn' in release and 'setup-manifest.txt' in release
 
 
 def test_the_application_starts_and_detects_without_any_learned_model(tmp_path, monkeypatch):

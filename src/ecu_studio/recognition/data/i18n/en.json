@@ -403,7 +403,7 @@
   "Datenbankabdeckung": "Database coverage",
   "Datenbankabdeckung · Quellen sind keine Trainingsdaten": "Database coverage · sources are not training data",
   "Datenbereich: {0} Bytes | {1}×{2}": "Data area: {0} bytes | {1}×{2}",
-  "Datenmuster-Funde ohne KI-Bewertung (kein Lernmodell mit freigegebenen Trainingsdaten): sie bleiben Vermutungen ohne Prozentangabe und stehen in der Prüfliste in einer eigenen, eingeklappten Gruppe.\n": "Data-pattern finds without AI rating (no learned model with cleared training data): they stay guesses without a percentage and are a separate, collapsed group in the review checklist.\n",
+  "Datenmuster-Funde ohne KI-Bewertung (kein Lernmodell mit freigegebenen Trainingsdaten): sie bleiben Vermutungen ohne Prozentangabe und stehen in der Prüfliste als eigene Gruppe ungeprüfter Vorschläge (einklappbar).\n": "Data-pattern finds without AI rating (no learned model with cleared training data): they stay guesses without a percentage and form their own group of unchecked proposals in the review checklist (can be collapsed).\n",
   "Datenmuster-Vermutung": "Data-pattern guess",
   "Datenmuster-Vermutung: weder Programmcode noch gespeicherte Struktur belegt die Tabelle": "Data-pattern guess: neither program code nor a stored structure backs the table",
   "Datenmuster-Vermutungen": "Data-pattern guesses",

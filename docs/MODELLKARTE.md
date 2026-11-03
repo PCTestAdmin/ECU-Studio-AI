@@ -24,8 +24,9 @@ Funden angezeigt werden, welche gelernten Daten bis 1.18.2 ausgeliefert wurden u
 - Definitionen und vom Nutzer geprüfte Kennfelder tragen keine Stufe („aus Definition“ bzw. „von dir geprüft“).
 - Projekte aus 1.15.0–1.18.2 enthalten gespeicherte Quoten in den Notizen. Beim Laden werden genau diese Sätze
   entfernt; eigene Notizen bleiben.
-- In der Prüfliste stehen reine Datenmuster-Vermutungen ohne Widerspruch in einer eigenen Gruppe, die standardmäßig
-  eingeklappt ist. Sie bleiben im Projekt, im Kennfeldkatalog und im Filter „Datenmuster-Vermutung“.
+- In der Prüfliste stehen reine Datenmuster-Vermutungen ohne Widerspruch in einer eigenen, als Vermutung
+  gekennzeichneten Gruppe nach den belegten Funden. Sie ist beim Öffnen aufgeklappt und lässt sich einklappen; die
+  Funde bleiben im Projekt, im Kennfeldkatalog und im Filter „Datenmuster-Vermutung“.
 - Neue Quoten werden nicht aus Daten ohne Freigabe kalibriert. `tools/calibrate_confidence.py` schreibt nur noch in
   eine ausdrücklich angegebene Datei, die die App nicht liest.
 

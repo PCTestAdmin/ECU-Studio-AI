@@ -391,8 +391,9 @@ Gemessen mit dem Scan des Benchmarks (ohne mitgelieferte Definitionen; „exakt�
 - Verloren geht nichts: Die Funde sind ein Klick entfernt und bleiben im Katalog. Die Erkennung selbst ist
   unverändert.
 
-Ob die Gruppe standardmäßig eingeklappt bleiben soll, entscheidet der Nutzer. Die Alternative ist eine eigene, aber
-aufgeklappte Gruppe; sie wäre eine Ein-Zeilen-Änderung.
+**Entscheidung des Nutzers (03.11.2026, § 14):** Die Gruppe startet **aufgeklappt**, weil sie auch echte
+Kennfelder enthält. Sie bleibt als Vermutung gekennzeichnet und lässt sich einklappen. Die Zahlen oben beschreiben
+die Zusammensetzung der Gruppe und gelten unverändert.
 
 ### 13.5 Erkennung: Vergleich mit 1.18.2 und mit dem vorigen Stand
 
@@ -493,3 +494,39 @@ Die Ursache der einmaligen Zugriffsverletzung vom 01.11. bleibt **unbekannt**. S
 - Ausstehend sind die Freigaben des Nutzers: Merge von PR #14, Versionsnummer 1.19.0, Tag, GitHub-Release, Umgang
   mit 1.15.0–1.18.2 und die Entscheidung über die eingeklappte Vermutungsgruppe (§ 13.4).
 - Nichts davon wurde ausgeführt.
+
+## 14. Freigabe und Veröffentlichung 1.19.0 (03.11.2026)
+
+Der Nutzer hat am 03.11.2026 Merge, Versionsänderung, Tag, Release und die Hinweise auf den alten Releases
+freigegeben, nach einer letzten Änderung an der Prüfliste.
+
+### 14.1 Vermutungsgruppe standardmäßig aufgeklappt
+
+Grund: Die Gruppe enthält auch echte Kennfelder (MS42 alle 22 exakten Funde, MS45 21 von 30, § 13.4).
+
+- **Beim Öffnen:** Die Prüfliste startet mit aufgeklappter Gruppe. Sie steht nach den Funden mit Code- oder
+  Strukturbeleg.
+- **Kennzeichnung:** Jede Zeile trägt „· Vermutung“ in der Spalte „Priorität“. Der Schalter
+  „Datenmuster-Vermutungen anzeigen (N, nur Datenmuster, kein Code- oder Strukturbeleg)“ klappt die Gruppe ein; der
+  Zähler meldet dann „N Vermutungen eingeklappt“.
+- **Einstellung:** Ein Aufklappzustand wurde bisher nicht gespeichert; es gibt deshalb keine frühere Nutzerauswahl
+  zu übernehmen.
+- **Erkennung und Projekt:** unverändert. Die Scanmeldung nennt die Gruppe jetzt „eigene Gruppe ungeprüfter
+  Vorschläge (einklappbar)“.
+- **Test:** Die Gruppe ist beim Öffnen sichtbar, jede Vermutung ist gekennzeichnet, Einklappen und Aufklappen
+  funktionieren, die Projektkennfelder bleiben vollständig, und alle Funde stehen im Katalog. Das bestätigte
+  Kennfeld bleibt bestätigt und erscheint nicht in der Prüfliste.
+
+**Release-Workflow:** Der Installer wird im Workflow in einem eigenen Schritt gebaut. Dieser Schritt prüft jetzt ebenfalls
+das Installer-Manifest auf zurückgezogene Daten (vorher nur `build_release.ps1`); ein Test sichert das ab.
+
+### 14.2 Prüfungen vor dem Merge
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig | 863 bestanden, 10 übersprungen; danach die geänderten Testdateien erneut: 23 bestanden |
+| `i18n_extract --check` | 2058 Texte, 0 ohne Übersetzung |
+| Benchmark gegen 1.18.2 (15 reale, 14 synthetische Paare) | alle Erkennungsfelder identisch zu § 13.5 |
+| MSD80 I8A0S | 73 → 84 exakt; 13 neu, **2 verloren** (`0x4FB18` 6 × 7 u16, `0x5604C` 6 × 8 u16) – bekannte Regression, Aufgabe 1 in [AUFGABEN_1.19.1.md](AUFGABEN_1.19.1.md) |
+
+Die Release-Ergebnisse (Version, Builds, Release, Hinweise) folgen in § 14.3.
