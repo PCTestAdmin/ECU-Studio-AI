@@ -5,6 +5,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,6 +33,9 @@ def _repaint_while_busy(view) -> float:
         worker.join()
 
 
+@pytest.mark.skipif(os.environ.get('ECU_STUDIO_GUI_TESTS') != '1',
+                    reason='timing measurement, ECU_STUDIO_GUI_TESTS=1: on shared CI runners the hold-up itself is not '
+                           'reproducible (0.12 vs 0.13 s), locally 0.29 vs 0.02 s')
 def test_repaint_during_a_python_scan_thread_is_not_held_up():
     from PySide6.QtCore import QAbstractTableModel, Qt
     from PySide6.QtWidgets import QApplication, QTableView
@@ -59,6 +64,12 @@ def test_repaint_during_a_python_scan_thread_is_not_held_up():
 
 
 def test_application_and_exe_checks_start_with_the_short_hand_over():
+    from ecu_studio import main
+    previous = sys.getswitchinterval()
+    try:
+        assert main.keep_gui_responsive() == main.GUI_SWITCH_INTERVAL <= .001
+    finally:
+        sys.setswitchinterval(previous)
     source = (ROOT / 'src' / 'ecu_studio' / 'main.py').read_text(encoding='utf-8')
     body = source[source.index('def main():'):source.index("if len(sys.argv)==3 and sys.argv[1]=='--smoke-test'")]
     assert 'keep_gui_responsive()' in body

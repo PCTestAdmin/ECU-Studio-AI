@@ -247,8 +247,9 @@ auf; bei jedem Wechsel behielt der Scan-Thread die globale Python-Sperre (GIL) f
 Abhängigkeit vom Intervall: 5 ms und 1 ms → 4,7–5,2 s Stillstand, 0,5 ms und 0,2 ms → längste Pause 0,10–0,12 s; Scandauer
 gleich (MS43 4,9–5,1 s, MSD80 31,7–35,6 s auf belastetem Rechner). Isoliert nachgestellt (Tabelle neu zeichnen bei
 rechnendem Python-Thread): 0,293 s → 0,024 s. **Behebung:** Die Anwendung setzt beim Start das Intervall auf 0,5 ms
-(`keep_gui_responsive`, gilt auch für den EXE-Prüflauf); Regressionstest misst das Neuzeichnen unter Last und schlägt
-ohne die Änderung fehl. Eine Zugriffsverletzung erklärt dieser Befund nicht.
+(`keep_gui_responsive`, gilt auch für den EXE-Prüflauf); Regressionstests: Einstellung beim Programmstart (immer) und Messung des Neuzeichnens unter Last (mit
+`ECU_STUDIO_GUI_TESTS=1`; auf den geteilten CI-Rechnern ist der Stillstand selbst nicht nachstellbar: 0,12 gegen 0,13 s);
+beide schlagen ohne die Änderung fehl. Eine Zugriffsverletzung erklärt dieser Befund nicht.
 
 Nebenbefund des Prüfskripts: Im ersten MS43-Zyklus kam der zufällige Abbruch erst nach Scan-Ende an (das Fenster stand
 still), deshalb wurden die Funde übernommen; das Programm verhielt sich richtig. Ein Abbruch wirkt bei MS43 erst nach
@@ -268,7 +269,7 @@ Zusätzlich der Endstand ed70a45 gebaut (`build_release.ps1` vollständig) und 2
 
 ### 12.3 Regression und Tests
 
-Testsuite **857 bestanden, 9 übersprungen** (neu: Neuzeichnen unter rechnendem Scan-Thread, angewendetes Modell nur mit Freigabe, Scan ohne Modell behält
+Testsuite **856 bestanden, 10 übersprungen** (mit `ECU_STUDIO_GUI_TESTS=1` zusätzlich die Zeitmessung bestanden) (neu: Neuzeichnen unter rechnendem Scan-Thread, angewendetes Modell nur mit Freigabe, Scan ohne Modell behält
 Datenmuster-Funde und nennt den Grund, Training nur mit freigegebenen Zeilen, Worker-Freigabe). `i18n_extract
 --check`: 2064 Texte, 0 offen. Firmware-Prüfung (`firmware_guard tree HEAD`): ohne Befund. Der lokale MS43-Schritt des
 GUI-Prüflaufs erwartete den ungerundeten Zellwert `91.919216`; die Anzeige rundet aber auf einen Rohwertschritt
