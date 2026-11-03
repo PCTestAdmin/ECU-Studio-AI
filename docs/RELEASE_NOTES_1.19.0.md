@@ -41,12 +41,21 @@ on independent references, *experimental* = present but not independently checke
   carried over when the axis is not confirmed at the target place; before, 296 of 941 such axes showed wrong values.
   When adopted, a proposal replaces an unchecked, unnamed detection at the same place. Until now exactly the
   confirmed proposals were skipped.
-- **Reproducible training:** data set with provenance, family hold-out, seed, log and replacement gate. Role
-  *training* requires an explicit clearance of the data (`training_allowed`). Retraining was not better (the
-  difference is within chance); the shipped model stays.
+- **AI rating of data-pattern finds disabled:** the learned model shipped since 1.15.0 was trained, among others,
+  on a file whose provenance note excludes training and on data without documented clearance. It is no longer
+  applied; the scan report and summary say so. Exact maps, data types, axes and axis addresses stay the same on all
+  15 comparison pairs, but more unconfirmed data-pattern finds appear (e.g. ME9: precision 62 -> 42 %); they carry
+  the measured rate of their evidence class (tier "guess"). Details and open questions about releases
+  1.15.0-1.18.2: model card section 2d (German).
+- **Reproducible training:** data set with provenance, family hold-out, seed, log and replacement gate. Only data
+  with a recorded clearance (`training_allowed`) is trained on, and only such a model is applied in scans. No
+  cleared data set with a complete reference is available at the moment.
 - **Scan:** named stages in the status bar, steadily rising progress, faster axis search with identical results.
   With a large XDF loaded, the window used to freeze for 35–43 s after a scan (MED17 with 3446 definitions); taking
-  over the findings now takes less than 0.3 s with the same result.
+  over the findings now takes less than 0.3 s with the same result. If the window had to repaint during a scan
+  (first display of a file, closing the checklist), it stood still until the scan ended (MS43: 4.7-5.1 s, also in
+  1.18.2); now the longest pause is 0.11 s with the same scan time. Finished background tasks are waited for
+  before they are released and when the window closes.
 - **Known limits:** the precision of program-code findings is not measured. Bosch EDC17 sets table pointers at run
   time through `a9`, which cannot be resolved statically. EDC17, MG1, MD1, Simos and SID remain not validated. The
   earlier manufacturer-A2L measurements (MSD80, MSD85, EDC16, EDC17CP09) cannot be repeated locally and are marked

@@ -33,7 +33,7 @@ experimentell**, weil es keine unabhängige TriCore-Referenz gibt; gemessen ist 
 | Identifikation mit Stufe | Experimentell | 32 lokale Dateien, keine unabhängige Stichprobe |
 | Prüfliste, Entscheidungen, Rücknahme | Validiert (Verhalten) | Tests und echter GUI-Lauf mit Neustart |
 | Namensübertragung zwischen Ständen | Experimentell | nur MED17 (Entwicklungsdaten) |
-| Reproduzierbares Training | Validiert (Verfahren) | Modell nicht ersetzt; Herkunftssperre ergänzt |
+| Reproduzierbares Training | Validiert (Verfahren) | nur freigegebene Daten; ausgeliefertes Modell abgeschaltet (§ 12) |
 | MG1, MD1, Simos, SID, EDC17 | Nicht validiert | keine Firmware mit Referenz |
 
 ## 3. Code-Prüfung und behobene Fehler
@@ -122,7 +122,7 @@ Bootstrap (2000 Ziehungen) mit Familien-Auslassung, 228 Zeilen, 66 positiv, kein
 | MS42 | [−0,069; +0,027] | 0,148 | 0,157 |
 | MS43 | [−0,092; +0,070] | 0,170 | 0,125 |
 
-Kein belegbarer Vorteil → **das ausgelieferte Modell bleibt**. MS42 und MS43 sind Schwesterfamilien; eine echte
+Kein belegbarer Vorteil → das ausgelieferte Modell wurde zunächst behalten; **seit 03.11. ist es abgeschaltet** (§ 12). MS42 und MS43 sind Schwesterfamilien; eine echte
 Prüfung an unbekannten Familien ist damit nicht möglich. Herkunftsproblem: Das ausgelieferte Modell vom 19.10. nennt
 MS42 (Vermerk „not training or redistribution“) sowie SIM2K-, MSS54- und TunerPro-Daten ohne dokumentierte Herkunft
 als Trainingsdaten; die Originaldaten fehlen. Das Kandidatenmodell vom 01.11. (mit MS42) wurde gelöscht.
@@ -153,7 +153,7 @@ Echter GUI-Lauf mit sichtbarem Fenster am MSD80 I8A0S (2 MiB), Einstellungen in 
 | Rücknahme der Ablehnung | nächster Scan bietet die Tabelle wieder an |
 | Originaldatei | Byte-gleich |
 
-**Offener Befund – einmaliger Absturz:** Von 13 Neustartläufen (Projekt öffnen, zwei Scans, Prüfliste, Rücknahme)
+**Befund – einmaliger Absturz (Nachuntersuchung in § 12.2):** Von 13 Neustartläufen (Projekt öffnen, zwei Scans, Prüfliste, Rücknahme)
 endete einer mit einer Zugriffsverletzung des Prozesses, ohne Python-Fehler und ohne Stack (Fehlerdiagnose war in
 diesem Lauf noch nicht eingeschaltet). In 12 Wiederholungen, 6 davon mit eingeschalteter Diagnose und eine nach den Korrekturen F14/F15, trat er nicht
 wieder auf. Ursache unbekannt; denkbar ist ein Qt-Objekt, das beim zweiten Scan freigegeben wird, während Signale
@@ -171,9 +171,129 @@ falsche Definition als Ganzes, Aufruflisten behalten generische Aufrufe, Trainin
 ## 11. Offene Entscheidungen für den Nutzer
 
 1. **Freigabe 1.19.0** (Versionsnummer, Tag, Release) – nicht ausgeführt.
-2. **Ausgeliefertes Modell:** weiter ausliefern trotz MS42-Vermerk und undokumentierter Trainingsdaten, oder durch ein
-   Modell nur aus freigegebenen Daten ersetzen (dann ohne belegbaren Qualitätsvorteil).
+2. **Ausgeliefertes Modell:** am 03.11. abgeschaltet (§ 12.1); offen sind nur noch die Fragen in § 12.5.
 3. **Referenzen für einen unabhängigen TriCore-Test** bereitstellen (anderer Vollflash mit passender Definition und
    Herkunft) oder die I8A0S-„V 3.0+“-Dateien ausdrücklich freigeben (nur halb-blind).
 4. **Hersteller-A2L** der historischen Messungen erneut bereitstellen, falls sie wiederholt werden sollen.
 5. **Herkunft der lokalen Referenzpaare** ohne Quellangabe klären (ME9, ME9.2.1, MS45, MED17, MED9, ME7).
+
+## 12. Nachtrag 03.11.2026: letzte Release-Blocker
+
+Prüfstand: Commits 41ea49d (Modell abgeschaltet, Worker-Freigabe), b17a4fb (EXE-Prüflauf) und ed70a45 (Fenster
+während des Scans), gleicher Rechner. Die GUI-Zyklen liefen mit dem Programmcode von 41ea49d (das Prüfskript startet
+das Fenster direkt, ohne den Programmstart aus ed70a45).
+
+### 12.1 Herkunft des Lernmodells und Abschaltung
+
+Die Herkunft aller gelernten Daten wurde einzeln geprüft (Tabelle und Quellen: [Modellkarte § 2d](MODELLKARTE.md)).
+Für das Datenmuster-Modell (`candidate_model.json`) ist eine Trainingsfreigabe **nicht nachweisbar**: MS42 trägt den
+Vermerk „not training or redistribution“, für SIM2K-Firmware, MSS54 (Repository ohne Lizenz) und TunerPro-Daten gibt
+es keine belegte Freigabe, MS43 ist ohne dokumentierte Trainingsfreigabe. Das Modell ist seit 1.15.0 in jedem Release
+enthalten und aktiv (Quellcode und Windows-Build; im Build geprüft: `recognition/data/candidate_model.json`).
+
+Entscheidung: Ein Modell wird nur noch angewendet, wenn es den Vermerk `training_data_cleared` trägt; das Training
+setzt ihn nur bei ausschließlich freigegebenen Daten (`training_allowed`). Das ausgelieferte Modell trägt ihn nicht und
+wird **nicht mehr angewendet**; der Scanbericht und die Scanmeldung sagen das. Die Datei bleibt zur Nachvollziehbarkeit
+im Repository (Entscheidung über das Ausliefern: § 12.5). Ein Ersatzmodell wurde **nicht** trainiert: Es gibt keinen
+freigegebenen Datensatz mit vollständiger Referenz (rusEFI-Firmware ohne Kennfeld-Referenz, Speeduino CC BY-NC,
+MS43 nicht freigegeben). Definitionen, Code-/Strukturerkennung und die regelbasierte Datenmuster-Erkennung bleiben
+unverändert.
+
+Gemessene Wirkung (15 reale Paare, gleiches Verfahren wie § 5; „mit Modell“ = be9331f):
+
+| Paar (vollständige Referenz) | exakt 2D / Typ / Achsen | gefunden 2D | Präzision 2D | Fehlfunde |
+|---|---|---|---|---|
+| MS43 430069 | unverändert (197 / 184 / 175) | 315 → 336 | 79 → 75 % | 65 → 83 |
+| MS42 0110C6 | unverändert (22 / 22 / 0) | 143 → 172 | 72 → 66 % | 40 → 58 |
+| ME9 770115XE | unverändert (98 / 90 / 96) | 212 → 328 | 62 → 42 % | 81 → 190 |
+| ME9.2.1 725D601B | unverändert (170 / 139 / 155) | 340 → 400 | 72 → 64 % | 94 → 145 |
+| MS45 4520D30S | unverändert (30 / 29 / 9) | 124 → 241 | 66 → 38 % | 42 → 150 |
+
+Gegen 1.18.2 (selber Rechner): exakte Kennfelder, Datentypen, Achsen, Achsadressen, exakte 1D und Gruppenpaare auf
+14 Paaren **gleich**, auf MSD80 besser (§ 5). Teil-Referenzen (MSD80, MED17 ×6, MED9, ME7.5 ×2): nur mehr
+Kandidaten (z. B. MSD80 1116 → 1246), keine Präzision angebbar. Synthetisch: Negativkontrollen ohne exakten
+Fehlfund; „negative-ramps“ 1 → 10 und „synthetic-pointer-u16“ 0 → 1 ungeprüfte Funde, übrige unverändert.
+Laufzeiten gleich oder etwas kürzer. Die zusätzlichen Funde tragen die Evidenzklasse „nur Datenmuster“ (gemessene
+Trefferquote 23 %) und stehen als Vermutung in der Prüfliste.
+
+### 12.2 Zugriffsverletzung beim erneuten Öffnen und Scannen
+
+**Diagnose:** Windows-Fehlerberichte sind auf diesem Rechner maschinenweit abgeschaltet
+(`HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Disabled = 1`); Absturzabbilder (`LocalDumps`) lassen sich
+ohne Administratorrechte nicht einschalten. Ein eigener Debugger-Wächter (`MiniDumpWriteDump`) erhielt auf diesem
+Rechner keine Ausnahme-Ereignisse und lieferte daher keine Abbilder. Eingesetzt wurden stattdessen `faulthandler`
+(alle Threads), ein Qt-Meldungshandler, Exitcodes und Speicherwerte je Schritt. Für eine Wiederholung mit Abbildern
+(als Administrator):
+
+```
+reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\python.exe" /v DumpType /t REG_DWORD /d 2
+reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\ECU-Studio-AI.exe" /v DumpType /t REG_DWORD /d 2
+```
+
+**Code-Prüfung** (Signale, Worker-Threads, Lebensdauer, Freigabe): Gefunden wurde ein echtes Zeitfenster in Qt 6.12:
+Während `QThread` endet, meldet `isRunning()` schon `False`, der Thread läuft aber noch, bis `wait()` zurückkehrt.
+Die Oberfläche gab den alten Scan-, Erkennungs- und Definitions-Worker in diesem Fenster frei, sobald ein neuer
+gestartet oder das Fenster geschlossen wurde. In 2000 gezielten Versuchen führte das Freigeben in diesem Fenster
+zu **keinem** Absturz (Qt wartet im Destruktor selbst); als Ursache ist es daher **nicht belegt**. Härtung ohne
+Ausnahmeunterdrückung: beendete Worker werden vor der Freigabe und beim Schließen abgewartet (`_release_worker`,
+Regressionstest `test_finished_workers_are_waited_for_before_release`).
+
+**Neuer Befund aus den GUI-Zyklen – Fenster steht während des Scans:** Ein 20-ms-Zeitgeber im Oberflächen-Thread
+feuerte bei MS43 während des ersten Scans nach dem Öffnen und während des Scans nach dem Schließen der Prüfliste
+**kein einziges Mal** (4,6–5,1 s = ganze Scandauer); ein zweiter Scan lief flüssig (längste Pause 0,05 s). 1.18.2
+zeigt dasselbe beim ersten Scan (4,66 s); der Fall „nach der Prüfliste“ ist neu, weil es die Prüfliste nur in 1.19
+gibt. Ursache (nachgewiesen): Muss das Fenster während eines Scans neu zeichnen, ruft Qt die Python-Modelle tausendfach
+auf; bei jedem Wechsel behielt der Scan-Thread die globale Python-Sperre (GIL) für das volle Umschaltintervall von 5 ms.
+Abhängigkeit vom Intervall: 5 ms und 1 ms → 4,7–5,2 s Stillstand, 0,5 ms und 0,2 ms → längste Pause 0,10–0,12 s; Scandauer
+gleich (MS43 4,9–5,1 s, MSD80 31,7–35,6 s auf belastetem Rechner). Isoliert nachgestellt (Tabelle neu zeichnen bei
+rechnendem Python-Thread): 0,293 s → 0,024 s. **Behebung:** Die Anwendung setzt beim Start das Intervall auf 0,5 ms
+(`keep_gui_responsive`, gilt auch für den EXE-Prüflauf); Regressionstest misst das Neuzeichnen unter Last und schlägt
+ohne die Änderung fehl. Eine Zugriffsverletzung erklärt dieser Befund nicht.
+
+Nebenbefund des Prüfskripts: Im ersten MS43-Zyklus kam der zufällige Abbruch erst nach Scan-Ende an (das Fenster stand
+still), deshalb wurden die Funde übernommen; das Programm verhielt sich richtig. Ein Abbruch wirkt bei MS43 erst nach
+3,2–4,6 s, weil das Einlesen der mitgelieferten Definition nicht unterbrechbar ist – gleich in 1.18.2.
+
+**Belastung:**
+
+| Lauf | Umfang | Ergebnis |
+|---|---|---|
+| Scans hintereinander (ein Prozess) | 3000 Scans, jeder vierte abgebrochen, 737 s | 0 Abstürze, 0 Qt-Meldungen, kein Stack |
+| GUI-Zyklen (je Zyklus neuer Prozess = Neustart; MSD80, MS43, ME9.2.1 im Wechsel) | 100 × Öffnen (99 × gespeichertes Projekt), Scan mit zufälligem Abbruch, Scan, Prüfliste bestätigen/ablehnen, Neuscan, Speichern, Schließen; 62 min | **100/100 Exitcode 0**, 0 Stacks, 1 Qt-Warnung (§ 12.4), Originaldateien byte-gleich, gespeicherte Kennfelder und Entscheidungen bei jedem der 99 Neustarts exakt wieder geladen; Spitzenspeicher MSD80 326 → 356 MB, MS43 218–221 MB, ME9.2.1 217–224 MB (wächst nur mit dem Projekt: 2 → 68 Entscheidungen) |
+| Windows-Build (EXE, b17a4fb, `build_release.ps1` vollständig: EXE-Prüflauf, ZIP ohne Python, Installer) | 50 × `--smoke-test` mit echtem MS43-Scan (je zwei Scans, 857 Kennfelder) + 50 × `--self-check` | 50/50 bestanden, Exitcode 0, 12,9–16,8 s, Spitzenspeicher 178–181 MB ohne Anstieg |
+
+Zusätzlich der Endstand ed70a45 gebaut (`build_release.ps1` vollständig) und 20 × geprüft: 20/20 bestanden, 11,6–14,0 s, 178–181 MB.
+
+**Ergebnis:** In 3000 Scans, 100 Neustartzyklen und 70 EXE-Läufen trat **keine** Zugriffsverletzung auf. Die Ursache des einmaligen Absturzes vom 01.11. ist damit **nicht gefunden**; die Worker-Freigabe ist gehärtet, das Stillstehen des Fensters während des Scans behoben. Ohne Absturzabbild bleibt ein Restrisiko (§ 12.4).
+
+### 12.3 Regression und Tests
+
+Testsuite **857 bestanden, 9 übersprungen** (neu: Neuzeichnen unter rechnendem Scan-Thread, angewendetes Modell nur mit Freigabe, Scan ohne Modell behält
+Datenmuster-Funde und nennt den Grund, Training nur mit freigegebenen Zeilen, Worker-Freigabe). `i18n_extract
+--check`: 2064 Texte, 0 offen. Firmware-Prüfung (`firmware_guard tree HEAD`): ohne Befund. Der lokale MS43-Schritt des
+GUI-Prüflaufs erwartete den ungerundeten Zellwert `91.919216`; die Anzeige rundet aber auf einen Rohwertschritt
+(`91.9`) – auch in 1.18.2. Der Schritt prüft jetzt den vollen Wert (Bearbeitungswert) und die Anzeige getrennt;
+Kennfeld (Adresse 0x76503, 6 × 6, u8) und Anzahl (857) sind in 1.18.2 und 1.19 gleich.
+
+### 12.4 Verbleibende Risiken
+
+1. **Mehr ungeprüfte Datenmuster-Funde** ohne Modell (Präzision bis 66 → 38 % bei MS45); die exakten Ergebnisse
+   sind unverändert, die zusätzlichen Funde sind als Vermutung gekennzeichnet.
+2. **Ursache der einmaligen Zugriffsverletzung unbekannt**; ohne Absturzabbild nicht weiter eingrenzbar.
+3. **TriCore-Codeerkennung experimentell** (§ 4), Schwellen aus MSD80.
+4. **Lange Installationspfade:** Liegt der Programmordner tiefer als rund 200 Zeichen, scheitert das Laden der
+   Qt-Bibliothek („Dateiname zu lang“); einzelne mitgelieferte Dateien liegen bis 125 Zeichen tief. Unverändert
+   gegenüber 1.18.2; im Prüflauf aufgetreten, weil der Build in einem sehr tiefen Ordner lag.
+5. Weitere gelernte bzw. kalibrierte Daten mit offener Freigabe (MS43-Strukturmodell, Konfidenzkalibrierung).
+6. **Abbruch bei MS43 träge** (3,2–4,6 s bis zur Wirkung, wie 1.18.2); es werden keine Funde eines abgebrochenen
+   Scans übernommen.
+7. Eine Qt-Warnung „QFont::setPointSize: Point size <= 0“ in einem von 100 Zyklen (Qt-intern, ohne Folgen; der
+   Programmcode setzt keine Schriftgrößen ≤ 0).
+
+### 12.5 Offene Fragen für den Nutzer
+
+1. Umgang mit **1.15.0 bis 1.18.2**, die das Modell enthalten (nicht verändert).
+2. `candidate_model.json` in 1.19 **weiter mitliefern** (abgeschaltet) oder aus dem Paket entfernen.
+3. **Trainingsfreigabe der MS43-Daten** (betrifft `ms43_430069_structure_model`).
+4. Einordnung der **Konfidenzkalibrierung** (Messung an Referenzen, kein Training).
+5. Release-Freigabe 1.19.0 – nicht ausgeführt.

@@ -150,7 +150,7 @@ Die Trefferquote jeder Beweisart wurde an Herstellerdefinitionen gemessen:
 | 🟢 **Kopf-Datensatz mit Achsen** | `nx, ny, X-Achse, Y-Achse, Werte` direkt hintereinander | **82–98 %** <sub>(945)</sub> |
 | 🟢 **Achse aus Kopf-Datensatz** | Stützstellen eines solchen Datensatzes | **91 %** <sub>(2461)</sub> |
 | 🟡 **Achsen-Array** | Anzahl + steigende Stützstellen | **57 %** <sub>(2538)</sub> |
-| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg – ein Lernmodell ordnet nach | **23 %** <sub>(1135)</sub> |
+| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg (Lernmodell abgeschaltet, Modellkarte § 2d) | **23 %** <sub>(1135)</sub> |
 
 <sub>Anzahl der gemessenen Funde in Klammern. Gemessen auf MS43, MS42, MS45, MSS54, Hyundai ×2 und den Hersteller-A2L
 von ME9, ME9.2.1 und EDC17CP09; die MSD80/85-Teststände bleiben außen vor. Klassen, Lernmodell und Grenzen:

@@ -35,12 +35,21 @@ nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
   eine Achse am Zielort nicht bestätigt, werden ihre Werte nicht mehr mitübertragen; vorher waren bei 296 von 941
   solcher Achsen die Werte falsch. Vorschläge ersetzen beim Übernehmen eine ungeprüfte, unbenannte Erkennung an
   derselben Stelle. Bisher wurden gerade die bestätigten Vorschläge übersprungen.
-- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel. Die
-  Rolle *training* verlangt eine ausdrückliche Freigabe der Daten (`training_allowed`). Ein Nachtraining war nicht
-  besser (der Unterschied liegt im Zufallsbereich); das ausgelieferte Modell bleibt.
+- **KI-Bewertung der Datenmuster-Funde deaktiviert:** Das seit 1.15.0 mitgelieferte Lernmodell wurde unter anderem
+  mit einer Datei trainiert, deren Herkunftsvermerk Training ausschließt, und mit Daten ohne dokumentierte Freigabe.
+  Es wird nicht mehr angewendet; Scanbericht und Scanmeldung sagen das. Exakte Kennfelder, Datentypen, Achsen und
+  Achsadressen bleiben auf allen 15 Vergleichspaaren gleich, es erscheinen aber mehr ungeprüfte Datenmuster-Funde
+  (z. B. ME9: Präzision 62 → 42 %); sie tragen die gemessene Quote ihrer Evidenzklasse (Stufe „Vermutung“).
+  Details und offene Fragen zu den Releases 1.15.0–1.18.2: [Modellkarte § 2d](docs/MODELLKARTE.md).
+- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
+  Trainiert wird nur mit Daten, deren Freigabe festgehalten ist (`training_allowed`), und nur ein so trainiertes
+  Modell wird im Scan angewendet. Ein freigegebener Datensatz mit vollständiger Referenz liegt derzeit nicht vor.
 - **Scan:** benannte Stufen in der Statusleiste, durchgehend steigender Fortschritt, schnellere Achsensuche bei
   identischen Ergebnissen. Mit einer großen geladenen XDF fror das Fenster nach dem Scan bisher 35–43 s ein
   (MED17 mit 3446 Definitionen); die Übernahme der Funde dauert jetzt unter 0,3 s bei gleichem Ergebnis.
+  Musste das Fenster während eines Scans neu zeichnen (erste Anzeige einer Datei, Schließen der Prüfliste), stand es
+  bis zum Scan-Ende still (MS43: 4,7–5,1 s, auch in 1.18.2); jetzt längste Pause 0,11 s bei gleicher Scandauer.
+  Beendete Hintergrundaufgaben werden vor dem Freigeben und beim Schließen abgewartet.
 - **Bekannte Grenzen:** Die Präzision der Funde aus Programmcode ist nicht gemessen. Bosch EDC17 setzt Tabellenzeiger
   zur Laufzeit über `a9`, das ist statisch nicht auflösbar. EDC17, MG1, MD1, Simos und SID bleiben nicht validiert.
   Die früheren Hersteller-A2L-Messungen (MSD80, MSD85, EDC16, EDC17CP09) lassen sich lokal nicht wiederholen und
