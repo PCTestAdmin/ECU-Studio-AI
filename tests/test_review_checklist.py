@@ -192,7 +192,8 @@ def test_rescan_honours_fusion_rejections_and_reload(tmp_path, monkeypatch):
     partial = cand('teilweise', 0x130, rows=8, cols=8)          # 16 of 64 bytes inside the definition
     stronger = cand('stärker', 0x400)                           # code evidence for the rejected pattern table
     other_file = cand('andere Datei', 0x600)                    # rejected on another firmware only
-    w.scanner = SimpleNamespace(source_digest=hashlib.sha256(w.image.materialize()).digest(), isRunning=lambda: False)
+    w.scanner = SimpleNamespace(source_digest=hashlib.sha256(w.image.materialize()).digest(), isRunning=lambda: False,
+                                wait=lambda: True)
     w.scan_finished([partial, stronger, other_file])
     names = [m.name for m in w.maps]
     assert 'teilweise' not in names and 'stärker' in names and 'andere Datei' in names
@@ -200,3 +201,32 @@ def test_rescan_honours_fusion_rejections_and_reload(tmp_path, monkeypatch):
     assert w.last_scan_report['fusion']['counts']['conflicts'] == 1
     w.saved_fingerprint = w.project_state()
     w.close()
+
+
+def test_finished_workers_are_waited_for_before_release(tmp_path, monkeypatch):
+    """Qt 6 reports isRunning() False while a thread still runs its finish; release waits for the real end."""
+    import time
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    monkeypatch.setattr(Path, 'home', classmethod(lambda cls: tmp_path))
+    from PySide6.QtCore import QThread, Qt, QSettings
+    from PySide6.QtWidgets import QApplication
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+    from ecu_studio.ui.main_window import Window
+    app = QApplication.instance() or QApplication([])
+    seen = {}
+
+    class Worker(QThread):
+        def run(self):
+            pass
+
+    worker = Worker()
+    worker.finished.connect(lambda: (seen.setdefault('in', 1), time.sleep(.3), seen.setdefault('out', 1)),
+                            Qt.ConnectionType.DirectConnection)
+    worker.start()
+    while 'in' not in seen:
+        time.sleep(.001)
+    assert not worker.isRunning() and 'out' not in seen          # "not running", yet still finishing
+    Window._release_worker(worker)
+    assert 'out' in seen                                          # released only after the thread ended
+    Window._release_worker(None)

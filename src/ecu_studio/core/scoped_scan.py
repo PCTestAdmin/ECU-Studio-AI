@@ -18,7 +18,7 @@ from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence, tier_for
-from .candidate_model import load_model, score_candidates
+from .candidate_model import load_model, model_status, score_candidates
 from .map_groups import mark_twins
 from . import parallel
 
@@ -198,7 +198,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: learned scorer (family-out validated) replaces the
     # coarse class rate with the held-out hit rate of the candidate's score.
+    # Only applied with cleared training data (core/candidate_model.py).
     model=load_model()
+    if diagnostics is not None:diagnostics['candidate_model']=model_status()
     if model is not None:
         stage('Lernmodell für Datenmuster-Funde', 97)
         full_mask=mask if mask is not None else data_mask(raw)

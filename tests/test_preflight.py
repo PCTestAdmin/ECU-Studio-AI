@@ -86,9 +86,9 @@ def test_family_specific_rates_take_precedence_over_pooled():
 
 def test_bundled_candidate_model_scores_smooth_table_above_noise():
     import numpy as np
-    from ecu_studio.core.candidate_model import load_model, score
+    from ecu_studio.core.candidate_model import read_model, score
     from ecu_studio.core.candidate_features import candidate_features
-    model=load_model()
+    model=read_model()          # the stored model (not applied in scans: training data not cleared)
     assert model is not None and model['drop_below']<.5
     rng=np.random.default_rng(3)
     data=bytearray(rng.integers(0,256,4096,dtype=np.uint8).tobytes())

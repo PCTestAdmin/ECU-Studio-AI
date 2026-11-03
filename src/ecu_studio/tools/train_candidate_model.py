@@ -8,9 +8,12 @@ score->hit-rate table come from those held-out predictions. Software versions
 of one family therefore never sit on both sides of a split.
 
 - Training rows: roles given by --roles (default "training"), complete
-  references only (partial references have unknown negatives). Rows with role
-  "test" are NEVER fitted or used to pick anything; they are only reported
-  with the final model ("blind").
+  references only (partial references have unknown negatives), and only rows of
+  pairs with a recorded training clearance ("training_allowed", whatever the
+  role). Rows with role "test" are NEVER fitted or used to pick anything; they
+  are only reported with the final model ("blind"). A model trained this way
+  carries "training_data_cleared": true - the scan applies no other model
+  (core/candidate_model.py).
 - The shipped model is scored on the same held-out rows. It was trained on
   other data (some of it overlaps, e.g. MS4x), so this comparison favours it:
   a new model must beat it clearly to replace it.
@@ -31,7 +34,8 @@ import json
 from pathlib import Path
 import numpy as np
 from ecu_studio.core.candidate_features import FEATURES
-from ecu_studio.core.candidate_model import DATA as MODEL_PATH, DATA_ONLY_CLASSES, score as model_score
+from ecu_studio.core.candidate_model import (DATA as MODEL_PATH, DATA_ONLY_CLASSES, CLEARANCE, read_model,
+                                             score as model_score)
 
 GATE_AUC = .01
 GATE_DROP = .02
@@ -42,7 +46,7 @@ def load(path, roles=('training',), complete_only=True):
     rows = [r for r in rows if r['cls'] in DATA_ONLY_CLASSES]
     test = [r for r in rows if r.get('role') == 'test']
     rows = [r for r in rows if r.get('role', 'training') in roles and r.get('role') != 'test'
-            and (r.get('complete', True) or not complete_only)]
+            and (r.get('complete', True) or not complete_only) and r.get('training_allowed') is True]
 
     def arrays(rs):
         return (np.array([r['x'] for r in rs], float).reshape(len(rs), len(FEATURES)),
@@ -97,12 +101,9 @@ def main(argv=None):
         parser.error('Rolle "test" wird nie zum Trainieren verwendet')
     (X, y, fam), (Xt, yt, famt) = load(args.data, roles)
     if not len(y) or y.sum() < 10:
-        parser.error(f'zu wenige Trainingsdaten ({len(y)} Zeilen, {int(y.sum())} Treffer)')
-    try:
-        shipped = json.loads(MODEL_PATH.read_text(encoding='utf-8'))
-        shipped = shipped if shipped.get('features') == list(FEATURES) else None
-    except (OSError, ValueError):
-        shipped = None
+        parser.error(f'zu wenige freigegebene Trainingsdaten ({len(y)} Zeilen, {int(y.sum())} Treffer; nur Paare '
+                     'mit "training_allowed": true zählen)')
+    shipped = read_model()     # compared even when not applied (no cleared training data)
     mu, sd = X.mean(0), X.std(0) + 1e-9
     Z = (X - mu) / sd
     held = {'lr': np.full(len(y), np.nan), 'gb': np.full(len(y), np.nan)}
@@ -142,6 +143,7 @@ def main(argv=None):
              'coef': final.coef_[0].round(6).tolist(), 'intercept': round(float(final.intercept_[0]), 6),
              'heldout_rate_table': table, 'families': report, 'samples': int(len(y)), 'positives': int(y.sum()),
              'roles': list(roles), 'seed': args.seed, 'data_sha256': data_sha, 'firmware_bytes_included': False,
+             CLEARANCE: True,
              'note': 'Family-out evaluation; rates are held-out hit rates of data-only candidates, not guarantees.'}
     if shipped and 'drop_below' in shipped:
         model['drop_below_note'] = 'drop_below des ausgelieferten Modells nicht übernommen: neu bestimmen.'

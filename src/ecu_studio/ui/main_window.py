@@ -41,6 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
+from ..core.candidate_model import NOT_CLEARED as CANDIDATE_MODEL_NOT_CLEARED
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -1389,6 +1390,7 @@ class Window(QMainWindow):
                     'JSON-Paarlisten (*.json)')
         if not path:return
         if self.batch_worker and self.batch_worker.isRunning():return
+        self._release_worker(self.batch_worker)
         self.batch_worker=BatchDefinitionWorker(path,str(self.recognition_db.path))
         self.batch_worker.complete.connect(self.batch_index_finished)
         self.batch_worker.failed.connect(lambda msg:self.warning('Batchindex nicht möglich',msg))
@@ -1661,6 +1663,7 @@ class Window(QMainWindow):
         if self.image.dirty_bytes:
             self.warning('Original erforderlich','Erkennung bitte mit unveränderter Originaldatei durchführen.')
             return
+        self._release_worker(self.recognition_worker)
         self.recognition_worker=RecognitionWorker(self.image,self.recognition_db.path,self.trained_model_path,self.shape_model_path)
         self.recognition_worker.complete.connect(self.recognition_pipeline_finished)
         self.recognition_worker.failed.connect(lambda msg:self.warning('Erkennung fehlgeschlagen',msg))
@@ -1756,6 +1759,7 @@ class Window(QMainWindow):
         if self.scanner and self.scanner.isRunning():return
         self.last_scan_report=None
         self.statusBar().showMessage("Scanne BIN: Definitionsachsen, Datentypen und Strukturen …")
+        self._release_worker(self.scanner)
         self.scanner=ScanWorker(self.image, self.library.signatures,include_u32=self.scan32_action.isChecked())
         self.scanner.complete.connect(self.scan_finished)
         self.scanner.failed.connect(lambda err: self.warning("Scan fehlgeschlagen",err))
@@ -1867,6 +1871,9 @@ class Window(QMainWindow):
            + (f"\nACHTUNG: {fusion.mismatch}\n\n" if fusion.mismatch else "")
            + (f"Im Projekt abgelehnt, nicht erneut angeboten: {skipped_rejected}.\n" if skipped_rejected else "")
            + (f"Früher abgelehnt, jetzt mit stärkerem Beleg erneut angeboten: {reoffered}.\n" if reoffered else "")
+           + ("KI-Bewertung der Datenmuster-Funde: deaktiviert (Herkunft der Trainingsdaten des Lernmodells nicht "
+              "nachgewiesen); Datenmuster-Funde tragen die gemessene Trefferquote ihrer Evidenzklasse.\n"
+              if self.last_scan_report.get('candidate_model')==CANDIDATE_MODEL_NOT_CLEARED else "")
            + "Prüfreihenfolge mit Begründung: Werkzeuge → Prüfliste der erkannten Kennfelder.\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"
            "Mitgelieferte MS4X-Standarddefinitionen bleiben ungeprüfte Zuordnungen; "
@@ -3311,9 +3318,23 @@ class Window(QMainWindow):
                 event.ignore();return
         self.settings.setValue("ui/geometry",self.saveGeometry())
         self.settings.setValue("ui/state_v06",self.saveState(1))
+        for worker in (self.scanner,self.recognition_worker,self.batch_worker):
+            self._release_worker(worker)
         event.accept()
         # A confirmed update starts only after closing was accepted (no unsaved work lost).
         if getattr(self,'updates',None):self.updates.launch_pending()
+
+    @staticmethod
+    def _release_worker(worker):
+        """Before the last reference to a finished worker goes: let its thread end completely.
+
+        Qt 6 reports isRunning() False while the thread still runs QThread's finish
+        (emitting finished, freeing thread data); PySide deletes the C++ object with the
+        last Python reference. Waiting first avoids destroying a thread that is still
+        exiting. Only called for workers that are no longer running, so it returns at once.
+        """
+        if worker is not None and not worker.isRunning():
+            worker.wait()
 
     def cancel_analysis(self):
         for worker in (self.scanner,self.recognition_worker,self.batch_worker):

@@ -8,7 +8,7 @@ role) plus optional "group", "source" and "license". Role "training" also needs
 reference may be used for training (licence/provenance checked). Without it the
 pair is refused, so data that is only cleared for regression or development
 cannot slip into a training set. Writes OUT.jsonl (one row
-per candidate: family, group, pair, role, complete, cls, y, x) and
+per candidate: family, group, pair, role, complete, training_allowed, cls, y, x) and
 OUT.meta.json (tool and app version, feature list, per pair: SHA-256 of BIN and
 reference, source, licence, role, counts; SHA-256 of the JSONL). No firmware
 bytes and no names from the definitions are written - only features and labels.
@@ -66,6 +66,7 @@ def pair_rows(pair: dict) -> list[dict]:
             continue
         rows.append({'family': pair['family'], 'group': pair.get('group') or pair['name'], 'pair': pair['name'],
                      'role': pair.get('role', 'development'), 'complete': bool(pair.get('complete')),
+                     'training_allowed': pair.get('training_allowed') is True,
                      'cls': cls, 'y': int(m.offset in starts), 'x': [round(float(v), 6) for v in x]})
     return rows
 
