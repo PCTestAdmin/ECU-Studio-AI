@@ -2,9 +2,9 @@
 from __future__ import annotations
 import datetime
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
-from ..core.review_checklist import checklist, decision, latest, entry_key, table_key
+from ..core.review_checklist import GUESSES, checklist, decision, latest, entry_key, table_key
 
 COLUMNS = ('Priorität', 'Kennfeld', 'Adresse', 'Größe / Typ', 'Gründe', 'Verknüpfungen')
 
@@ -19,13 +19,20 @@ class ReviewDialog(QDialog):
         self.resize(1250, 640)
         layout = QVBoxLayout(self)
         info = QLabel('Reihenfolge nach Prüfbedarf: Widersprüche zu Definitionen, unbelegter Datentyp, fehlende '
-                      'Achsen und ungemessene Beweisarten zuerst. <b>Bestätigen</b> markiert das Kennfeld als von '
+                      'Achsen und experimentelle Belege zuerst. <b>Bestätigen</b> markiert das Kennfeld als von '
                       'dir geprüft (danach als lokale Referenz nutzbar), <b>Ablehnen</b> entfernt es und ein neuer '
                       'Scan bietet dieselbe Tabelle nicht erneut an (außer mit stärkerem Beleg). Entscheidungen '
                       'gelten nur für diese Datei, lassen sich unter <b>Entscheidungen …</b> zurücknehmen und werden '
                       'mit dem Projekt gespeichert, nicht hochgeladen und nicht automatisch zum Training verwendet.')
         info.setWordWrap(True)
         layout.addWidget(info)
+        # Data-pattern guesses (no code or structure evidence, no contradiction) are collapsed by default: they
+        # stay in the project and the catalogue, only this list starts with the evidenced finds.
+        self.show_guesses = QCheckBox()
+        self.show_guesses.setToolTip('Funde, die nur auf einem Datenmuster beruhen (weder Programmcode noch '
+                                     'gespeicherte Struktur). Sie bleiben im Projekt und im Kennfeldkatalog.')
+        self.show_guesses.toggled.connect(self.reload)
+        layout.addWidget(self.show_guesses)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -50,8 +57,11 @@ class ReviewDialog(QDialog):
 
     def reload(self):
         fusion = getattr(self.window, 'last_fusion', None) or {}
-        self.items = checklist(self.window.maps, conflicts=fusion.get('conflicts'),
-                               definition_warnings=fusion.get('definition_warnings'))
+        every = checklist(self.window.maps, conflicts=fusion.get('conflicts'),
+                          definition_warnings=fusion.get('definition_warnings'))
+        guesses = [i for i in every if i.group == GUESSES]
+        self.items = [i for i in every if i.group != GUESSES] + (guesses if self.show_guesses.isChecked() else [])
+        self.show_guesses.setText(f'{GUESSES} anzeigen ({len(guesses)}, nur Datenmuster, kein Code- oder Strukturbeleg)')
         # Columns are measured once after filling. A header left in ResizeToContents mode re-measures the
         # whole column on every setItem: quadratic, minutes for a few thousand detected maps.
         header = self.table.horizontalHeader()
@@ -60,7 +70,7 @@ class ReviewDialog(QDialog):
         self.table.setRowCount(len(self.items))
         for row, item in enumerate(self.items):
             m = item.map
-            values = (f'{item.priority} ({item.score:g})', m.name, f'0x{m.offset:X}',
+            values = (f'{item.priority} ({item.score:g})' + (' · Vermutung' if item.group == GUESSES else ''), m.name, f'0x{m.offset:X}',
                       f'{m.rows}×{m.cols} {m.dtype} {m.endian}', '\n'.join(item.reasons), '\n'.join(item.links) or '–')
             for col, value in enumerate(values):
                 cell = QTableWidgetItem(value)
@@ -71,7 +81,9 @@ class ReviewDialog(QDialog):
         self.table.resizeRowsToContents()
         self.table.setUpdatesEnabled(True)
         decided = len(self.open_decisions())
-        self.count.setText(f'{len(self.items)} offen · {decided} Entscheidungen im Projekt')
+        hidden = 0 if self.show_guesses.isChecked() else len(guesses)
+        self.count.setText(f'{len(every)} offen' + (f' ({hidden} Vermutungen eingeklappt)' if hidden else '')
+                           + f' · {decided} Entscheidungen im Projekt')
 
     def current(self):
         row = self.table.currentRow()

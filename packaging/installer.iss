@@ -30,6 +30,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\ECU-Studio-AI.exe
 SetupIconFile=..\src\ecu_studio\ui\assets\app.ico
 WizardStyle=modern
+; List of every file compressed into the installer with its SHA-256 (release check, tools/withdrawn.py).
+OutputManifestFile=ECU-Studio-AI-{#AppVersion}-setup-manifest.txt
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"

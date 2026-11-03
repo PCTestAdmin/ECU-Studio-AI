@@ -518,8 +518,12 @@ def load_project(path: str, *, ignored_fields: set[str] | None = None
         raise ValueError('Ungültiges Änderungsprotokoll im Projekt')
     image.journal = journal
     maps = [map_from_record(x, ignored_fields) for x in payload.get("maps", [])]
+    from .confidence import apply_confidence, strip_historic_rates
     for m in maps:
         m.validate(image.size)
+        # Projects of 1.15.0-1.18.2 carry measured rates of evidence classes; they are no longer shown.
+        m.notes, m.calibrated_rate = strip_historic_rates(m.notes), None
+    apply_confidence([m for m in maps if not m.verified])
     return image, maps, payload.get("bookmarks", []), str(payload.get("notes", ""))
 
 

@@ -14,7 +14,7 @@ source map gets one class:
 
 Adoption copies definitions only (the BIN is never written). Exact and structural
 matches can be adopted; probable ones only with explicit confirmation; ambiguous
-and unmatched ones never. Measured rates of the evidence classes: name_transfer.MEASURED.
+and unmatched ones never. Evidence classes are not independently validated (name_transfer.NOT_VALIDATED).
 """
 from __future__ import annotations
 import bisect

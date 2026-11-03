@@ -42,12 +42,12 @@ def test_gate_needs_a_clear_gain_in_every_family():
     assert not gate({'A': fam(.9, .8)})[0]                                     # one family is no comparison
 
 
-def test_training_run_is_logged_and_never_replaces_the_shipped_model_by_itself(tmp_path):
+def test_training_run_is_logged_and_never_installs_a_model_by_itself(tmp_path):
     pytest.importorskip('sklearn')
-    shipped = MODEL_PATH.read_bytes()
+    assert not MODEL_PATH.exists()                # 1.19.0 ships no learned model
     data = _rows(tmp_path)
     main([str(data), '--out', str(tmp_path / 'm.json'), '--log', str(tmp_path / 'log.json'), '--seed', '7'])
-    assert MODEL_PATH.read_bytes() == shipped
+    assert not MODEL_PATH.exists()
     log = json.loads((tmp_path / 'log.json').read_text(encoding='utf-8'))
     assert log['seed'] == 7 and set(log['families_out']) == {'A', 'B', 'C'} and set(log['blind_test']) == {'T'}
     assert log['promoted'] is False and len(log['data_sha256']) == 64
@@ -70,25 +70,33 @@ def test_training_pairs_need_an_explicit_clearance():
 
 
 def test_only_a_model_with_cleared_training_data_is_applied(tmp_path, monkeypatch):
-    """1.19: the model shipped since 1.15.0 (MS42 "not training", undocumented sources) is kept but not applied."""
+    """1.19: the model shipped since 1.15.0 (MS42 "not training", undocumented sources) is withdrawn; any model
+    placed later is applied only with documented clearance of its training data."""
+    pytest.importorskip('sklearn')
     from ecu_studio.core import candidate_model
-    shipped = candidate_model.read_model()
-    assert shipped is not None and shipped.get('training_data_cleared') is not True
-    candidate_model.load_model.cache_clear()
-    assert candidate_model.load_model() is None
-    assert candidate_model.model_status() == candidate_model.NOT_CLEARED
-    cleared = tmp_path / 'cleared.json'
-    cleared.write_text(json.dumps(dict(shipped, training_data_cleared=True, trained_on='2026-11-03')), encoding='utf-8')
-    monkeypatch.setattr(candidate_model, 'DATA', cleared)
     candidate_model.load_model.cache_clear()
     try:
+        assert candidate_model.read_model() is None and candidate_model.load_model() is None
+        assert candidate_model.model_status() == candidate_model.NO_MODEL
+        main([str(_rows(tmp_path)), '--out', str(tmp_path / 'm.json'), '--log', str(tmp_path / 'log.json')])
+        model = json.loads((tmp_path / 'm.json').read_text(encoding='utf-8'))
+        uncleared = tmp_path / 'uncleared.json'
+        uncleared.write_text(json.dumps(dict(model, training_data_cleared=False)), encoding='utf-8')
+        monkeypatch.setattr(candidate_model, 'DATA', uncleared)
+        candidate_model.load_model.cache_clear()
+        assert candidate_model.load_model() is None
+        assert candidate_model.model_status() == candidate_model.NOT_CLEARED
+        cleared = tmp_path / 'cleared.json'
+        cleared.write_text(json.dumps(dict(model, training_data_cleared=True, trained_on='2026-11-03')), encoding='utf-8')
+        monkeypatch.setattr(candidate_model, 'DATA', cleared)
+        candidate_model.load_model.cache_clear()
         assert candidate_model.load_model() is not None and 'aktiv' in candidate_model.model_status()
     finally:
         candidate_model.load_model.cache_clear()
 
 
 def test_scan_without_cleared_model_keeps_data_pattern_finds_and_reports_why():
-    from ecu_studio.core.candidate_model import NOT_CLEARED
+    from ecu_studio.core.candidate_model import NO_MODEL as NOT_CLEARED
     from ecu_studio.core.model import BinaryImage
     from ecu_studio.core.scoped_scan import scan_calibration_candidates
     rng = np.random.default_rng(5)

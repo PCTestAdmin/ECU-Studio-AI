@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFileDia
                                QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QVBoxLayout, QWidget)
 from ..core.model import BinaryImage, MapDefinition, load_project
-from ..core.name_transfer import MEASURED, definition_maps
+from ..core.name_transfer import NOT_VALIDATED, definition_maps
 from ..core.version_compare import CLASSES, FILTERS, adopt_definitions, compare_versions, filter_pairs, transfer_links
 from ..core.versioning import make_snapshot
 from .next_dialogs import AsyncDialog
@@ -145,10 +145,9 @@ class VersionCompareDialog(AsyncDialog):
     def compared(self, result):
         self.result = result
         counts = result['counts']
-        rates = ', '.join(f'{e} {r}' for e, r in MEASURED.items())
         self.summary.setText(' · '.join(f'{c}: {counts[c]}' for c in CLASSES) +
                              f" · nur in Stand B: {len(result['target_only'])}\n"
-                             f'Gemessene Trefferquoten der Belegarten (Schwesterstände): {rates}.')
+                             + NOT_VALIDATED)
         self.show_pairs()
         self.only_b.setRowCount(len(result['target_only']))
         for row, j in enumerate(result['target_only']):

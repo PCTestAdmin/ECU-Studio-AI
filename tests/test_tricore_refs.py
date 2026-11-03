@@ -7,7 +7,7 @@ import hashlib
 import os
 import numpy as np
 import pytest
-from ecu_studio.core.confidence import evidence_class
+from ecu_studio.core.confidence import evidence_class, is_experimental
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
 from ecu_studio.core.structure_scan import scan_structures, CALL_LAYOUT, PRELOOKUP_ORIGIN, RECORD_ORIGIN
@@ -156,14 +156,14 @@ def test_too_few_calls_are_not_evidence():
     assert looks_like_tricore(data) and call_descriptors(data) == {}
 
 
-def test_scan_reports_exact_call_tables_as_own_uncalibrated_class():
+def test_scan_reports_exact_call_tables_as_own_experimental_class():
     data, tables, *_ = build()
     maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
     called = {(m.offset, m.rows, m.cols, m.width): m for m in maps if m.record_layout == CALL_LAYOUT}
     assert set(called) == {(t, 5, 6, w) for t, w in tables}
     m = called[(tables[0][0], 5, 6, 1)]
     assert m.endian == 'little' and m.axis_x_offset == 0xC001 and m.axes_y == [500, 1000, 2000, 3000, 4000]
-    assert evidence_class(m) == 'code:call:2d' and m.evidence_tier == 'nicht kalibriert'
+    assert evidence_class(m) == 'code:call:2d' and m.evidence_tier == 'Code-Beleg' and is_experimental(m)
     assert 'TriCore' in m.label_evidence and not m.verified
 
 
@@ -299,7 +299,7 @@ def test_split_interpolation_takes_axes_from_the_two_prelookups_on_the_path():
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert {(m.offset, m.rows, m.cols) for m in called} == {(t, 5, 6) for t in tables[:-1]}
     assert all(m.label_origin.startswith(PRELOOKUP_ORIGIN) and evidence_class(m) == 'code:call-pre:2d'
-               and m.evidence_tier == 'nicht kalibriert' for m in called)
+               and m.evidence_tier == 'Code-Beleg' and is_experimental(m) for m in called)
 
 
 def test_one_prelookup_is_not_enough_for_a_table():

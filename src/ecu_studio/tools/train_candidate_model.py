@@ -14,10 +14,12 @@ of one family therefore never sit on both sides of a split.
   are only reported with the final model ("blind"). A model trained this way
   carries "training_data_cleared": true - the scan applies no other model
   (core/candidate_model.py).
-- The shipped model is scored on the same held-out rows. It was trained on
-  other data (some of it overlaps, e.g. MS4x), so this comparison favours it:
-  a new model must beat it clearly to replace it.
-- The shipped model (recognition/data/candidate_model.json) is only replaced
+- An installed model (recognition/data/candidate_model.json) is scored on the
+  same held-out rows; a new model must beat it clearly to replace it. Without an
+  installed model (1.19.0: the old one was withdrawn, docs/MODELLKARTE.md) the
+  comparison is "no model": AUC 0.5 and the precision of keeping every
+  candidate (the family's base rate).
+- The installed model is only replaced (or a first one installed)
   with --promote AND when the gate passes: mean held-out AUC higher by
   >= GATE_AUC and precision at 80 % recall not worse than GATE_DROP in any
   family. Otherwise the new model is written next to the data as a candidate.
@@ -103,7 +105,7 @@ def main(argv=None):
     if not len(y) or y.sum() < 10:
         parser.error(f'zu wenige freigegebene Trainingsdaten ({len(y)} Zeilen, {int(y.sum())} Treffer; nur Paare '
                      'mit "training_allowed": true zählen)')
-    shipped = read_model()     # compared even when not applied (no cleared training data)
+    shipped = read_model()     # compared even when not applied; None: compared with "no model"
     mu, sd = X.mean(0), X.std(0) + 1e-9
     Z = (X - mu) / sd
     held = {'lr': np.full(len(y), np.nan), 'gb': np.full(len(y), np.nan)}
@@ -122,7 +124,8 @@ def main(argv=None):
         row = {'n': int(te.sum()), 'positives': int(y[te].sum()), 'base_rate': round(float(y[te].mean()), 3),
                'new': _metrics(y[te], held['lr'][te]), 'gb': _metrics(y[te], held['gb'][te])}
         row['shipped'] = (_metrics(y[te], np.array([model_score(x, shipped) for x in X[te]]))
-                          if shipped else {'auc': None, 'precision_at_recall_80': None})
+                          if shipped else {'auc': .5 if 0 < y[te].sum() < te.sum() else None,
+                                           'precision_at_recall_80': row['base_rate'], 'model': 'ohne Modell'})
         report[f] = row
         print(f"{f:22s} n={row['n']:5d} Basisrate {row['base_rate']:.0%} | neu {row['new']} | "
               f"ausgeliefert {row['shipped']} | GB {row['gb']}")

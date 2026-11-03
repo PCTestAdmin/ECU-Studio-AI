@@ -14,21 +14,36 @@ def cand(name, offset, layout='candidate:code-call', **kw):
 
 
 def test_order_and_reasons():
-    clean = cand('sauber', 0x100, axes_x=[1, 2, 3, 4], axes_y=[1, 2, 3, 4], calibrated_rate=.97)
-    sign = cand('vorzeichen', 0x200, dtype='u16', dtype_alternatives=['s16'], axes_x=[1, 2, 3, 4],
-                axes_y=[1, 2, 3, 4], calibrated_rate=.97)
+    from ecu_studio.core.review_checklist import GUESSES
+    code = 'candidate:code-reference'
+    clean = cand('sauber', 0x100, code, axes_x=[1, 2, 3, 4], axes_y=[1, 2, 3, 4], calibrated_rate=.97)
+    sign = cand('vorzeichen', 0x200, code, dtype='u16', dtype_alternatives=['s16'], axes_x=[1, 2, 3, 4],
+                axes_y=[1, 2, 3, 4])
     bare = cand('ohne achsen', 0x300, layout='candidate:row-pitch', calibrated_rate=.23)
+    tricore = cand('tricore', 0x380, axes_x=[1, 2, 3, 4], axes_y=[1, 2, 3, 4])
     defined = MapDefinition('Definition', 0x400, 4, 4, 'u8', source='xdf')
     contradicted = MapDefinition('Widerspruch', 0x500, 4, 4, 'u8', source='xdf')
     done = cand('geprüft', 0x600, verified=True)
-    items = checklist([clean, sign, bare, defined, contradicted, done],
+    items = checklist([clean, sign, bare, tricore, defined, contradicted, done],
                       conflicts={0x500: ['0x500: Größe – …']})
     names = [i.map.name for i in items]
-    assert names == ['Widerspruch', 'ohne achsen', 'vorzeichen', 'sauber']   # definition and checked map left out
+    # definition and checked map left out
+    assert names == ['Widerspruch', 'ohne achsen', 'vorzeichen', 'tricore', 'sauber']
     assert items[0].priority == 'hoch' and 'Widerspruch' in items[0].reasons[0]
     assert any('ebenfalls möglich: s16' in r for r in items[2].reasons)
-    assert 'Achsen fehlen' in items[1].reasons and any('23%' in r for r in items[1].reasons)
+    assert 'Achsen fehlen' in items[1].reasons and any(r.startswith('Datenmuster-Vermutung') for r in items[1].reasons)
+    assert any('experimentell' in r for r in items[3].reasons)
     assert items[-1].reasons == ['Automatisch erkannt, noch nicht geprüft'] and items[-1].priority == 'niedrig'
+    assert not any('%' in r for i in items for r in i.reasons)          # no measured rates any more
+    assert [i.group for i in items] == ['', GUESSES, '', '', '']
+
+
+def test_data_pattern_guess_with_a_contradiction_stays_in_the_main_group():
+    from ecu_studio.core.review_checklist import GUESSES
+    guess = cand('glatt', 0x300, layout='candidate:row-pitch')
+    disputed = cand('strittig', 0x500, layout='candidate:row-pitch')
+    items = {i.map.name: i for i in checklist([guess, disputed], conflicts={0x500: ['0x500: Start – …']})}
+    assert items['glatt'].group == GUESSES and items['strittig'].group == ''
 
 
 def test_shared_axes_are_linked():
@@ -85,6 +100,31 @@ def test_dialog_confirm_and_reject(tmp_path, monkeypatch):
     assert second not in w.maps and w.reviews[-1]['reason'] == 'keine Tabelle'
     # A rescan does not offer the rejected table again.
     assert is_rejected(cand('neu', second.offset), rejected_keys(w.reviews))
+    w.saved_fingerprint = w.project_state()
+    d.close(); w.close()
+
+
+def test_dialog_collapses_data_pattern_guesses_without_losing_them(tmp_path, monkeypatch):
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    monkeypatch.setattr(Path, 'home', classmethod(lambda cls: tmp_path))
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+    from ecu_studio.ui.main_window import Window
+    from ecu_studio.ui.review_dialog import ReviewDialog
+    app = QApplication.instance() or QApplication([])
+    w = Window()
+    maps = [cand('Code', 0x10, 'candidate:code-reference'), cand('Glatt 1', 0x40, 'candidate:row-pitch'),
+            cand('Glatt 2', 0x70, 'candidate:row-pitch'), cand('Geprüft', 0xA0, 'candidate:row-pitch', verified=True)]
+    w.load_state(BinaryImage(bytes(256)), maps, [], '', None)
+    d = ReviewDialog(w)
+    assert not d.show_guesses.isChecked() and [i.map.name for i in d.items] == ['Code']
+    assert '(2,' in d.show_guesses.text() and '2 Vermutungen eingeklappt' in d.count.text()
+    d.show_guesses.setChecked(True)
+    assert [i.map.name for i in d.items] == ['Code', 'Glatt 1', 'Glatt 2'] and d.table.rowCount() == 3
+    assert 'Vermutung' in d.table.item(1, 0).text() and 'eingeklappt' not in d.count.text()
+    assert len(w.maps) == 4 and maps[3].verified                       # nothing removed, confirmed map untouched
     w.saved_fingerprint = w.project_state()
     d.close(); w.close()
 

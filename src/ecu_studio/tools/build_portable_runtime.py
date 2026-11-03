@@ -95,6 +95,9 @@ def build():
         if path.name.lower().startswith(('numpy-','defusedxml-','shiboken6-','pyside6-','pyside6_essentials-','pyside6_addons-')):
             copytree(path,packages/path.name)
     copytree(root/'src'/'ecu_studio',app/'ecu_studio')
+    # Withdrawn learned data (tools/withdrawn.py) must not reach a package, not even from a stale local copy.
+    from ecu_studio.tools.withdrawn import require_clean
+    require_clean(app/'ecu_studio')
     shutil.copy2(root/'packaging'/'launcher.py',app/'launch.py')
     shutil.copy2(root/'packaging'/'windows_launcher.cs',output/'windows_launcher.cs')
     # Separate updater: the app copies it out of the install folder and runs it after closing.
@@ -140,6 +143,8 @@ def package_release(root: Path | None = None) -> dict:
         for path in sorted(folder.rglob('*')):
             if path.is_file():
                 z.write(path,(Path(APP_NAME)/path.relative_to(folder)).as_posix())
+    from ecu_studio.tools.withdrawn import require_clean
+    require_clean(archive)
     digest=hashlib.sha256(archive.read_bytes()).hexdigest()
     (archive.parent/(archive.name+'.sha256')).write_text(f'{digest}  {archive.name}\n',encoding='ascii')
     print(str(archive));print(digest)

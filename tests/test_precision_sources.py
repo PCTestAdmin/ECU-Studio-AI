@@ -55,10 +55,17 @@ def test_model_legacy_family_scope_rejected_without_surface_access():
     assert model.predict(np.ones((8,8)),family='Siemens MS43')['status']=='abstain'
 
 
-def test_existing_ms43_shape_model_abstains_on_synthetic_planes():
-    from pathlib import Path
-    from ecu_studio.recognition.structure_model import ShapeModel
-    model=ShapeModel.load(Path(__file__).parents[1]/'src/ecu_studio/recognition/data/ms43_430069_structure_model.json')
+def test_a_local_shape_model_abstains_on_synthetic_planes(tmp_path):
+    # The MS43 430069 model shipped until 1.18.2 is withdrawn; the same guard is checked on a locally trained one.
+    from ecu_studio.recognition.structure_model import train_shape_model
+    from ecu_studio.core.profiles import ECUProfile
+    import ecu_studio.recognition.structure_model as mod
+    from test_structure_model import make_realistic_db
+    db,image=make_realistic_db(tmp_path)
+    original=mod.identify_profile
+    mod.identify_profile=lambda _:ECUProfile(family='Siemens MS43',software_version='430069')
+    try:model=train_shape_model(db,image)
+    finally:mod.identify_profile=original
     yy,xx=np.mgrid[:16,:16]
     for fake in (xx*100+yy*20, np.ones((16,16))*1000):
         result=model.similar(fake,family='Siemens MS43',software='430069')

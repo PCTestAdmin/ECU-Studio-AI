@@ -21,20 +21,24 @@ def _window(tmp_path, monkeypatch):
 def test_confidence_filter(tmp_path, monkeypatch):
     from ecu_studio.ui.main_window import TIER_FILTERS
     app, w = _window(tmp_path, monkeypatch)
-    maps = [MapDefinition('sicher', 0, 2, 2, 'u8', source='heuristic', evidence_tier='gesichert'),
-            MapDefinition('vermutet', 8, 2, 2, 'u8', source='heuristic', evidence_tier='Vermutung'),
+    assert TIER_FILTERS[1:4] == ('Code-Beleg', 'Strukturbeleg', 'Datenmuster-Vermutung')
+    maps = [MapDefinition('code', 0, 2, 2, 'u8', source='heuristic', record_layout='candidate:code-reference'),
+            MapDefinition('kopf', 8, 2, 2, 'u8', source='heuristic', record_layout='candidate:nx,ny,x,y,z'),
+            MapDefinition('vermutet', 24, 2, 2, 'u8', source='heuristic', record_layout='candidate:row-pitch'),
             MapDefinition('definiert', 16, 2, 2, 'u8', source='xdf')]
     w.load_state(BinaryImage(bytes(64)), maps, [], '', None)
     shown = {}
     for i, choice in enumerate(TIER_FILTERS):
         w.tier_filter.setCurrentIndex(i)
         shown[choice] = w.catalog_model.rowCount()
-    assert shown[TIER_FILTERS[0]] == 3
-    assert shown[TIER_FILTERS[1]] == 1 and shown[TIER_FILTERS[3]] == 1 and shown[TIER_FILTERS[4]] == 1
-    assert shown[TIER_FILTERS[5]] == 3                       # nothing confirmed by the user yet
+    assert shown[TIER_FILTERS[0]] == 4
+    assert [shown[c] for c in TIER_FILTERS[1:5]] == [1, 1, 1, 1]
+    assert shown[TIER_FILTERS[5]] == 4                       # nothing confirmed by the user yet
     w.maps[2].verified = True
     w.tier_filter.setCurrentIndex(0); w.tier_filter.setCurrentIndex(5)
-    assert w.catalog_model.rowCount() == 2
+    assert w.catalog_model.rowCount() == 3
+    w.tier_filter.setCurrentIndex(3)                         # a confirmed guess is no longer a guess
+    assert w.catalog_model.rowCount() == 0
     w.saved_fingerprint = w.project_state()            # test edit: no "unsaved changes" question
     w.close()
 

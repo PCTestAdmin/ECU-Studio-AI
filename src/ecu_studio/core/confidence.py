@@ -1,23 +1,37 @@
-"""Calibrated confidence: measured hit rates per evidence class, not guesses.
+"""Evidence levels: what kind of evidence produced a candidate, not a probability.
 
 Each automatic candidate belongs to an evidence class (code reference with
-axes, code reference only, count-prefixed axis, smoothness only, ...). For
-every class the share of candidates that start exactly at a real calibration
-object was measured on firmware with complete reference definitions
-(tools/calibrate_confidence.py). That rate is shown as a percentage together
-with its sample size. A rate describes the class on the measured families; for
-other ECU families it is a guide, not a guarantee.
+axes, code reference only, count-prefixed axis, smoothness only, ...) and,
+through it, to one of three levels:
+
+  Code-Beleg              the program code addresses the table (code/pointer layouts)
+  Strukturbeleg           a stored record structure (header, axis record, count axis)
+  Datenmuster-Vermutung   only the values look like a table (smoothness, row pitch)
+
+The same layers decide the fusion with definitions (core/fusion.layer_of).
+Definitions and maps confirmed by the user are not candidates and carry no
+level here.
+
+Until 1.18.2 each class showed a hit rate measured on reference firmware
+(confidence_calibration.json). Several of those files have no documented
+provenance or clearance, and the rates do not carry over to other ECU families,
+so no percentage is shown any more; the historical table is kept in
+docs/MODELLKARTE.md. No level is independently validated; program-code
+evidence on TriCore (code calls) is experimental.
 """
 from __future__ import annotations
-import json
-from functools import lru_cache
+import re
 from pathlib import Path
 from .model import MapDefinition
 
+# Where tools/calibrate_confidence.py used to write; the application no longer reads it.
 DATA = Path(__file__).resolve().parents[1] / 'recognition' / 'data' / 'confidence_calibration.json'
-MIN_SAMPLES = 20
 
-TIERS = (('gesichert', .90), ('wahrscheinlich', .60), ('Vermutung', 0.))
+CODE, STRUCTURE, DATA_PATTERN = 'Code-Beleg', 'Strukturbeleg', 'Datenmuster-Vermutung'
+LEVELS = (CODE, STRUCTURE, DATA_PATTERN)
+EXPERIMENTAL_CLASSES = ('code:call:', 'code:call-pre:', 'code:generic')
+NOT_VALIDATED = 'Art des Belegs, keine Wahrscheinlichkeit; nicht unabhängig validiert.'
+EXPERIMENTAL = 'TriCore-Codeerkennung experimentell.'
 
 
 def evidence_class(m: MapDefinition) -> str:
@@ -51,44 +65,51 @@ def evidence_class(m: MapDefinition) -> str:
     return 'raster'
 
 
-@lru_cache(maxsize=1)
-def calibration() -> dict:
-    try:
-        return json.loads(DATA.read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return {'classes': {}}
+def evidence_level(m: MapDefinition) -> str:
+    """Level of an automatic candidate ('' for definitions, proposals and user-confirmed maps)."""
+    if m.source != 'heuristic' or m.verified:
+        return ''
+    cls = evidence_class(m)
+    if cls.startswith(('code:', 'pointer:')):
+        return CODE
+    if cls in ('pitch', 'raster'):
+        return DATA_PATTERN
+    return STRUCTURE
 
 
-def tier_for(rate: float) -> str:
-    return next(name for name, low in TIERS if rate >= low)
+def is_experimental(m: MapDefinition) -> bool:
+    return m.source == 'heuristic' and evidence_class(m).startswith(EXPERIMENTAL_CLASSES)
+
+
+def describe(m: MapDefinition) -> str:
+    """One line for tooltips and notes, never a percentage."""
+    level = evidence_level(m)
+    if not level:
+        return ''
+    return (f'{level} (Beweisart {evidence_class(m)}): {NOT_VALIDATED}'
+            + (' ' + EXPERIMENTAL if is_experimental(m) else ''))
+
+
+# Notes written by 1.15.0-1.18.2 into candidates and saved with projects.
+HISTORIC_RATE_NOTES = re.compile(
+    r'\s*(Evidenzklasse \S+?: \d+% Treffer \(n=\d+, gemessen: [^)]*\) – [^.]+\.'
+    r'|Lernmodell \(familienübergreifend geprüft\): Score [0-9.]+, gemessene Trefferquote dieses Score-Bereichs \d+%\.)')
+
+
+def strip_historic_rates(text: str) -> str:
+    return HISTORIC_RATE_NOTES.sub('', text or '').strip()
 
 
 def apply_confidence(maps: list[MapDefinition], table: dict | None = None,
                      family: str | None = None) -> list[MapDefinition]:
-    """Annotate heuristic candidates with measured rate and tier (in place).
-
-    Rates of the image's ECU family are used when measured often enough; images
-    without a known profile use the rates measured on such images ('Unbekannt').
-    The pooled rate is only the last fallback.
-    """
-    table = table or calibration()
-    classes = table.get('classes', {})
-    family_rows = table.get('families', {}).get(family or 'Unbekannt', {})
+    """Annotate automatic candidates with their evidence level (in place). ``table`` and ``family`` are accepted
+    for compatibility with 1.18 callers and ignored: no measured rate is attached any more."""
     for m in maps:
         if m.source != 'heuristic':
             continue
-        cls = evidence_class(m)
-        row, scope = family_rows.get(cls), (family or 'Unbekannt')
-        if not row or row.get('n', 0) < MIN_SAMPLES:
-            row = classes.get(cls)
-            scope = 'alle Familien: ' + ', '.join(row.get('families', [])) if row else ''
-        if not row or row.get('n', 0) < MIN_SAMPLES:
-            m.evidence_tier, m.calibrated_rate = 'nicht kalibriert', None
-            continue
-        m.calibrated_rate = round(float(row['rate']), 3)
-        m.evidence_tier = tier_for(m.calibrated_rate)
-        note = (f"Evidenzklasse {cls}: {m.calibrated_rate:.0%} Treffer "
-                f"(n={row['n']}, gemessen: {scope}) – {m.evidence_tier}.")
-        if note not in m.notes:
+        m.evidence_tier, m.calibrated_rate = evidence_level(m), None
+        note = describe(m)
+        m.notes = strip_historic_rates(m.notes)
+        if note and note not in m.notes:
             m.notes = (m.notes + ' ' + note).strip()
     return maps

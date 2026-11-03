@@ -56,48 +56,51 @@ def test_change_outside_calibration_window_is_red():
     assert any(f.code=='code' and f.level=='rot' for f in report.findings)
 
 
-def test_confidence_uses_measured_rates_and_marks_small_samples():
-    table={'classes':{'pitch':{'n':210,'rate':.30,'families':['X']},
-                      'code:2d:axes2':{'n':227,'rate':1.0,'families':['X']},
-                      'code:2d:axis1':{'n':12,'rate':1.0,'families':['X']}}}
+def test_confidence_shows_the_kind_of_evidence_never_a_rate():
+    from ecu_studio.core.confidence import CODE, DATA_PATTERN, STRUCTURE, describe, is_experimental
+    from ecu_studio.core.structure_scan import PRELOOKUP_ORIGIN
+    table={'classes':{'pitch':{'n':210,'rate':.30,'families':['X']},     # a 1.18 rate table is ignored
+                      'code:2d:axes2':{'n':227,'rate':1.0,'families':['X']}}}
     a=MapDefinition('a',0,4,4,source='heuristic',record_layout='candidate:row-pitch')
     b=MapDefinition('b',0,4,4,source='heuristic',record_layout='candidate:code-reference',axes_x=[1,2,3,4],axes_y=[1,2,3,4])
-    c=MapDefinition('c',0,4,4,source='heuristic',record_layout='candidate:code-reference',axes_x=[1,2,3,4])
-    apply_confidence([a,b,c],table)
-    assert (a.evidence_tier,a.calibrated_rate)==('Vermutung',.3)
-    assert (b.evidence_tier,b.calibrated_rate)==('gesichert',1.0)
-    assert evidence_class(c)=='code:2d:axis1' and c.evidence_tier=='nicht kalibriert' and c.calibrated_rate is None
-
-
-def test_family_specific_rates_take_precedence_over_pooled():
-    table={'classes':{'axis:count':{'n':2263,'rate':.44,'families':['A','B']}},
-           'families':{'Siemens MS43':{'axis:count':{'n':601,'rate':.98}},
-                       'Unbekannt':{'axis:count':{'n':1263,'rate':.18}}}}
-    a=MapDefinition('a',0,1,6,source='heuristic',record_layout='candidate:count-axis')
-    b=MapDefinition('b',0,1,6,source='heuristic',record_layout='candidate:count-axis')
     c=MapDefinition('c',0,1,6,source='heuristic',record_layout='candidate:count-axis')
-    apply_confidence([a],table,family='Siemens MS43')
-    apply_confidence([b],table,family=None)
-    apply_confidence([c],table,family='Bosch ME7')          # unmeasured family -> pooled
-    assert (a.calibrated_rate,a.evidence_tier)==(.98,'gesichert')
-    assert (b.calibrated_rate,b.evidence_tier)==(.18,'Vermutung')
-    assert c.calibrated_rate==.44
+    d=MapDefinition('d',0,4,4,source='heuristic',record_layout='candidate:code-call',label_origin=PRELOOKUP_ORIGIN)
+    e=MapDefinition('e',0,4,4,source='heuristic')                         # plain smoothness
+    defined=MapDefinition('f',0,4,4,source='xdf')
+    apply_confidence([a,b,c,d,e,defined],table,family='X')
+    assert [m.evidence_tier for m in (a,b,c,d,e)]==[DATA_PATTERN,CODE,STRUCTURE,CODE,DATA_PATTERN]
+    assert all(m.calibrated_rate is None for m in (a,b,c,d,e,defined)) and defined.evidence_tier==''
+    assert is_experimental(d) and not any(is_experimental(m) for m in (a,b,c,e))
+    assert 'experimentell' in describe(d) and 'experimentell' not in describe(b)
+    for m in (a,b,c,d,e):
+        assert '%' not in m.notes and 'keine Wahrscheinlichkeit' in m.notes and 'nicht unabhängig validiert' in m.notes
 
 
-def test_bundled_candidate_model_scores_smooth_table_above_noise():
-    import numpy as np
-    from ecu_studio.core.candidate_model import read_model, score
-    from ecu_studio.core.candidate_features import candidate_features
-    model=read_model()          # the stored model (not applied in scans: training data not cleared)
-    assert model is not None and model['drop_below']<.5
-    rng=np.random.default_rng(3)
-    data=bytearray(rng.integers(0,256,4096,dtype=np.uint8).tobytes())
-    t=np.array([[30+6*r+4*c for c in range(10)] for r in range(8)],np.uint8)
-    data[0x400:0x400+t.size]=t.tobytes()
-    image=BinaryImage(bytes(data))
-    smooth=score(candidate_features(image,MapDefinition('t',0x400,8,10,dtype='u8')),model)
-    noise=score(candidate_features(image,MapDefinition('n',0x800,8,10,dtype='u8')),model)
-    assert smooth>noise
+def test_rates_saved_by_older_versions_are_not_shown_after_loading(tmp_path):
+    from ecu_studio.core.model import load_project, save_project
+    from ecu_studio.core.confidence import DATA_PATTERN
+    f=tmp_path/'fw.bin'
+    f.write_bytes(bytes(range(256))*4)
+    image=BinaryImage.from_file(str(f))
+    old=MapDefinition('alt',0x40,4,4,source='heuristic',record_layout='candidate:row-pitch',evidence_tier='Vermutung',
+                      calibrated_rate=.23,notes='Glatte Fläche. Evidenzklasse pitch: 23% Treffer (n=1135, gemessen: '
+                      'alle Familien: Siemens MS43, Bosch ME9) – Vermutung. Lernmodell (familienübergreifend geprüft): '
+                      'Score 0.41, gemessene Trefferquote dieses Score-Bereichs 31%. Eigene Notiz.')
+    checked=MapDefinition('geprüft',0x80,4,4,source='heuristic',verified=True,calibrated_rate=.97,
+                          notes='Evidenzklasse code:2d:axes2: 97% Treffer (n=227, gemessen: Siemens MS43) – gesichert.')
+    save_project(str(tmp_path/'p.ecustudio'),image,[old,checked],[],'')
+    _,maps,_,_=load_project(str(tmp_path/'p.ecustudio'))
+    loaded,confirmed=maps
+    assert loaded.calibrated_rate is None and loaded.evidence_tier==DATA_PATTERN
+    assert '%' not in loaded.notes and 'Glatte Fläche.' in loaded.notes and 'Eigene Notiz.' in loaded.notes
+    assert confirmed.verified and confirmed.calibrated_rate is None and '%' not in confirmed.notes
+
+
+def test_no_learned_model_is_shipped_and_the_scorer_needs_cleared_data():
+    from ecu_studio.core import candidate_model
+    candidate_model.load_model.cache_clear()
+    assert not candidate_model.DATA.exists() and candidate_model.read_model() is None
+    assert candidate_model.load_model() is None and candidate_model.model_status()==candidate_model.NO_MODEL
 
 
 def _code_image():

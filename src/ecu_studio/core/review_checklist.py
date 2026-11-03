@@ -8,10 +8,15 @@ plausibility warning for them. Higher score = a human decision matters more:
   definition plausibility warning      4
   sign not proven by code              3   (other reading listed)
   axes missing / changing direction    2
-  measured hit rate below 60 %         2   (evidence class "Vermutung")
-  hit rate of the evidence not measured 1
+  data pattern only, no code/structure 2   (evidence level "Datenmuster-Vermutung")
+  experimental evidence (TriCore code) 1
   size (up to 1 for 256 cells)         ≤1
   shares an axis with other maps       .5  (one check informs the linked maps)
+
+Data-pattern guesses without a contradiction form their own group
+(``ReviewItem.group``); the dialog shows it collapsed, so the many weak
+proposals do not bury the ones with code or structure evidence. Nothing is
+removed by that: the maps stay in the project and the catalogue.
 
 Decisions are explicit: confirming marks a map as checked by the user
 (``verified``); rejecting removes it and records the rejection in the project's
@@ -29,10 +34,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import datetime
 import math
+from .confidence import DATA_PATTERN, evidence_level, is_experimental
 from .fusion import layer_of
 from .model import MapDefinition
 
 DECISIONS = ('bestätigt', 'abgelehnt', 'zurückgenommen')
+GUESSES = 'Datenmuster-Vermutungen'
 LEVELS = ((5., 'hoch'), (2., 'mittel'), (0., 'niedrig'))
 
 
@@ -42,6 +49,7 @@ class ReviewItem:
     score: float
     reasons: list[str] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
+    group: str = ''                  # GUESSES: data pattern only, shown collapsed
 
     @property
     def priority(self) -> str:
@@ -101,12 +109,12 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
             elif any(len(a) > 1 and all(map(math.isfinite, a)) and not _monotone(a) for a in (m.axes_x, m.axes_y)):
                 score += 2
                 reasons.append('Achse nicht monoton')
-            if m.calibrated_rate is None:
-                score += 1
-                reasons.append('Trefferquote dieser Beweisart nicht gemessen')
-            elif m.calibrated_rate < .6:
+            if evidence_level(m) == DATA_PATTERN:
                 score += 2
-                reasons.append(f'Vermutung: gemessene Trefferquote {m.calibrated_rate:.0%}')
+                reasons.append('Datenmuster-Vermutung: weder Programmcode noch gespeicherte Struktur belegt die Tabelle')
+            elif is_experimental(m):
+                score += 1
+                reasons.append('Beleg aus TriCore-Programmcode: experimentell, nicht unabhängig validiert')
             if not reasons:
                 reasons.append('Automatisch erkannt, noch nicht geprüft')
         score += min(1., m.rows * m.cols / 256)
@@ -117,7 +125,8 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
                 score += .5
                 links.append(f'{name}-Achse @ 0x{off:X} gemeinsam mit {len(others)} weiteren: '
                              + ', '.join(o.name for o in others[:3]) + (' …' if len(others) > 3 else ''))
-        items.append(ReviewItem(m, round(score, 2), reasons, links))
+        guess = evidence_level(m) == DATA_PATTERN and not hits and not warnings
+        items.append(ReviewItem(m, round(score, 2), reasons, links, GUESSES if guess else ''))
     items.sort(key=lambda i: (-i.score, i.map.offset))
     return items
 

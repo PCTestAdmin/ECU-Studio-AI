@@ -161,15 +161,11 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
     return out
 
 
-# Measured share of correct transfers per evidence class (tools/name_transfer_benchmark,
-# MED17.1.62 404A/H/L in five directions and MSD80 sister versions, 21.10.2026).
-MEASURED = {'identisch': '98–100 %', 'gleicher Kopf': 'nicht gemessen', 'ähnliche Werte': '87–100 %',
-            'gleiche Umgebung': '66–100 %'}
-# Same, split by confirmation through the target's own detection (MED17.1.62, five
-# directions, development data, 01.11.2026): helps the weak classes, not 'identisch'.
-MEASURED_DETECTED = {'identisch': ('98,2 % (1551/1580)', '99,3 % (4429/4462)'),
-                     'ähnliche Werte': ('99,4 % (315/317)', '92,1 % (2055/2232)'),
-                     'gleiche Umgebung': ('95,6 % (370/387)', '88,2 % (1306/1481)')}
+# The share of correct transfers per evidence class was measured only on development data of unclear provenance
+# (MED17.1.62, MSD80 sister versions); the numbers stay in docs/VALIDIERUNG_1.19.0.md § 7 as history and are not
+# shown as a rate for other files. Evidence classes are listed from strongest to weakest (EVIDENCE).
+NOT_VALIDATED = ('Belegarten von stark nach schwach: identisch, gleicher Kopf, ähnliche Werte, gleiche Umgebung. '
+                 'Trefferquoten nur an Entwicklungsdaten gemessen, nicht unabhängig validiert.')
 
 
 def _axes_differ(t: MapDefinition, hit: MapDefinition) -> list[str]:

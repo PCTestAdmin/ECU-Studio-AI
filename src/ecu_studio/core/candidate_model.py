@@ -1,17 +1,17 @@
 """Learned scorer for data-only candidates (portable JSON logistic regression).
 
 Applies only to candidates whose evidence is value smoothness (row pitch or
-legacy grid); code- and axis-backed candidates keep their measured class rates.
-The calibrated rate is the held-out (family-out) hit rate of the candidate's
-score bin, see tools/train_candidate_model.py.
+legacy grid); it may drop weak ones and notes its score, never a probability
+(core/confidence.py shows evidence levels, no percentages).
 
 Only a model whose training data carried a recorded clearance is used
-(``training_data_cleared``, set by the trainer). The model shipped since 1.15.0
-(trained 19.10.2026) lacks it: its sources include the MS42 BIN marked "not
-training" and data without documented provenance (docs/MODELLKARTE.md). It is
-kept unchanged for traceability but not applied; data-pattern finds then carry
-the measured rate of their evidence class (core/confidence.py) and are not
-filtered by a model score.
+(``training_data_cleared``, set by tools/train_candidate_model.py, which fits
+only rows with ``training_allowed``). The model shipped in 1.15.0-1.18.2
+(trained 19.10.2026) lacked it: its sources include the MS42 BIN marked "not
+training" and data without documented provenance. It was not applied in 1.19
+and is no longer part of the repository or the packages; its checksums and
+provenance are in docs/MODELLKARTE.md. 1.19.0 ships no model: without the file
+the scan runs unchanged, data-pattern finds stay unscored guesses.
 """
 from __future__ import annotations
 import json
@@ -26,7 +26,8 @@ DATA = Path(__file__).resolve().parents[1] / 'recognition' / 'data' / 'candidate
 DATA_ONLY_CLASSES = ('pitch', 'raster')
 CLEARANCE = 'training_data_cleared'
 NOT_CLEARED = ('KI-Bewertung der Datenmuster-Funde deaktiviert: Herkunft bzw. Freigabe der Trainingsdaten des '
-               'mitgelieferten Lernmodells nicht nachgewiesen.')
+               'Lernmodells nicht nachgewiesen.')
+NO_MODEL = 'kein Lernmodell installiert (nur Modelle mit freigegebenen Trainingsdaten werden angewendet)'
 
 
 def read_model(path: Path | None = None) -> dict | None:
@@ -49,7 +50,7 @@ def model_status() -> str:
     """Short status for scan reports: active with its training date, or why it is not applied."""
     if load_model() is not None:
         return f"aktiv (trainiert {load_model().get('trained_on', '?')}, Trainingsdaten freigegeben)"
-    return NOT_CLEARED if read_model() is not None else 'kein Lernmodell vorhanden'
+    return NOT_CLEARED if read_model() is not None else NO_MODEL
 
 
 def score(features: list[float], model: dict) -> float:

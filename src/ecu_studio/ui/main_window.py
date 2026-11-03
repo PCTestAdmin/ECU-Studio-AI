@@ -41,7 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
-from ..core.candidate_model import NOT_CLEARED as CANDIDATE_MODEL_NOT_CLEARED
+from ..core.confidence import LEVELS as EVIDENCE_LEVELS, evidence_level
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -81,16 +81,15 @@ from ..core.project_store import ProjectStore
 from .catalogue import CatalogueModel
 
 
-TIER_FILTERS=('Alle Konfidenzen','Gesichert (≥ 90 %)','Wahrscheinlich (60–90 %)','Vermutung (< 60 %)',
-              'Geprüft / aus Definition','Noch nicht manuell geprüft')
+TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft')
 
 
 def tier_matches(m,choice:str)->bool:
-    """Catalogue filter by measured evidence tier (core/confidence.py)."""
+    """Catalogue filter by kind of evidence (core/confidence.py), never by a percentage."""
     if choice==TIER_FILTERS[0]:return True
     if choice==TIER_FILTERS[4]:return m.verified or m.source not in ('heuristic','reference-shape','transfer-proposed','ml-proposed')
     if choice==TIER_FILTERS[5]:return not m.verified      # review queue: everything the user has not confirmed
-    return (m.evidence_tier or '').casefold()==choice.split(' (')[0].casefold()
+    return evidence_level(m)==choice
 
 
 class ScanWorker(QThread):
@@ -241,9 +240,10 @@ class Window(QMainWindow):
         self.batch_worker: BatchDefinitionWorker | None = None
         self.recognition_db = DefinitionCatalog()
         self.trained_model_path = Path.home()/'.ecu_studio_ai'/'trained-map-model.json'
-        personal_shape=Path.home()/'.ecu_studio_ai'/'trained-shape-model.json'
-        packaged_shape=Path(__file__).resolve().parents[1]/'recognition'/'data'/'ms43_430069_structure_model.json'
-        self.shape_model_path = personal_shape if personal_shape.exists() else packaged_shape
+        # Only a structure model the user trained locally. The MS43 430069 model shipped until 1.18.2 is withdrawn:
+        # training clearance of its firmware not documented, and on its own file 15 of 19 hints named another map
+        # (docs/MODELLKARTE.md § 2d).
+        self.shape_model_path = Path.home()/'.ecu_studio_ai'/'trained-shape-model.json'
         self.library = MapLibrary()
         self.saved_fingerprint = None
         self.checksum_profile = None
@@ -389,7 +389,8 @@ class Window(QMainWindow):
         filters.addWidget(self.kind_filter,2)
         self.tier_filter=QComboBox()
         self.tier_filter.addItems(TIER_FILTERS)
-        self.tier_filter.setToolTip('Nach gemessener Konfidenz der Beweisart filtern (Trefferquote auf Referenzdaten)')
+        self.tier_filter.setToolTip('Nach Art des Belegs filtern: Code, gespeicherte Struktur oder nur Datenmuster '
+                                    '(keine Wahrscheinlichkeit, nicht unabhängig validiert)')
         self.tier_filter.currentIndexChanged.connect(self.refresh_map_list)
         filters.addWidget(self.tier_filter,2)
         self.map_sort=QComboBox()
@@ -1871,9 +1872,9 @@ class Window(QMainWindow):
            + (f"\nACHTUNG: {fusion.mismatch}\n\n" if fusion.mismatch else "")
            + (f"Im Projekt abgelehnt, nicht erneut angeboten: {skipped_rejected}.\n" if skipped_rejected else "")
            + (f"Früher abgelehnt, jetzt mit stärkerem Beleg erneut angeboten: {reoffered}.\n" if reoffered else "")
-           + ("KI-Bewertung der Datenmuster-Funde: deaktiviert (Herkunft der Trainingsdaten des Lernmodells nicht "
-              "nachgewiesen); Datenmuster-Funde tragen die gemessene Trefferquote ihrer Evidenzklasse.\n"
-              if self.last_scan_report.get('candidate_model')==CANDIDATE_MODEL_NOT_CLEARED else "")
+           + ("Datenmuster-Funde ohne KI-Bewertung (kein Lernmodell mit freigegebenen Trainingsdaten): sie bleiben "
+              "Vermutungen ohne Prozentangabe und stehen in der Prüfliste in einer eigenen, eingeklappten Gruppe.\n"
+              if not str(self.last_scan_report.get('candidate_model','')).startswith('aktiv') else "")
            + "Prüfreihenfolge mit Begründung: Werkzeuge → Prüfliste der erkannten Kennfelder.\n\n"
            "Typ und Nachweis stehen direkt im Kennfeldkatalog und rechts im Inspektor.\n"
            "Mitgelieferte MS4X-Standarddefinitionen bleiben ungeprüfte Zuordnungen; "
@@ -3414,8 +3415,7 @@ class Window(QMainWindow):
     def transfer_sister_names(self):
         """Names and layouts from a sister software version with a definition (proposals only)."""
         if not self.require_image():return
-        from ..core.name_transfer import (transfer_names, definition_maps, confirm_by_detection, EVIDENCE, MEASURED,
-                                          MEASURED_DETECTED)
+        from ..core.name_transfer import transfer_names, definition_maps, confirm_by_detection, EVIDENCE, NOT_VALIDATED
         src_bin,_=QFileDialog.getOpenFileName(self,'Schwesterstand: BIN mit Definition',str(Path.home()),
                                               'Firmware (*.bin *.ori);;Alle Dateien (*)')
         if not src_bin:return
@@ -3435,14 +3435,13 @@ class Window(QMainWindow):
         detected=[m for m in self.maps if m.source=='heuristic']
         if detected:confirm_by_detection(result,detected)
         counts={e:sum(t.evidence==e for t in result) for e in EVIDENCE}
-        def rate(e):
-            if e not in MEASURED_DETECTED or not detected:
-                return f'gemessen richtig: {MEASURED[e]}'
-            hit=sum(t.evidence==e and t.detected_in_target for t in result)
-            return (f'davon {hit} durch die Erkennung bestätigt – gemessen richtig: bestätigt {MEASURED_DETECTED[e][0]}, '
-                    f'sonst {MEASURED_DETECTED[e][1]}')
-        lines='\n'.join(f'  {e}: {n} ({rate(e)})' for e,n in counts.items() if n)
+        def confirmed(e):
+            if not detected:
+                return ''
+            return f" (davon {sum(t.evidence==e and t.detected_in_target for t in result)} durch die Erkennung bestätigt)"
+        lines='\n'.join(f'  {e}: {n}{confirmed(e)}' for e,n in counts.items() if n)
         lines+=('' if detected else '\n  (Ohne vorherigen Kennfeldscan dieser Datei keine Bestätigung durch die Erkennung.)')
+        lines+='\n  '+NOT_VALIDATED
         axes_dropped=sum(bool(t.axes_dropped) for t in result)
         axes_conflict=sum(bool(t.detection_conflict) for t in result)
         if axes_dropped:

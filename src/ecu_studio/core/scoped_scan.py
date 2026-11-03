@@ -17,7 +17,7 @@ from .structure_scan import scan_structures, lookup_descriptors
 from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
-from .confidence import apply_confidence, tier_for
+from .confidence import apply_confidence
 from .candidate_model import load_model, model_status, score_candidates
 from .map_groups import mark_twins
 from . import parallel
@@ -196,9 +196,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
             seen.add(key);extra.append(c)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
-    # Data-only candidates: learned scorer (family-out validated) replaces the
-    # coarse class rate with the held-out hit rate of the candidate's score.
-    # Only applied with cleared training data (core/candidate_model.py).
+    # Data-only candidates: a learned scorer may drop weak ones; it is applied only
+    # with cleared training data (core/candidate_model.py). None ships with 1.19.
+    # Its score is noted, not shown as a probability.
     model=load_model()
     if diagnostics is not None:diagnostics['candidate_model']=model_status()
     if model is not None:
@@ -209,13 +209,10 @@ def scan_calibration_candidates(image: BinaryImage, *,
         keep=[]
         for i,m in enumerate(result):
             if i in scores:
-                p,rate=scores[i]
+                p,_=scores[i]
                 if drop_below is not None and p<drop_below:
                     continue
-                m.calibrated_rate=round(rate,3)
-                m.evidence_tier=tier_for(rate)
-                m.notes=(m.notes+f' Lernmodell (familienübergreifend geprüft): Score {p:.2f}, '
-                         f'gemessene Trefferquote dieses Score-Bereichs {rate:.0%}.').strip()
+                m.notes=(m.notes+f' Lernmodell (freigegebene Trainingsdaten): Score {p:.2f}, keine Wahrscheinlichkeit.').strip()
             keep.append(m)
         if diagnostics is not None:diagnostics['model_dropped']=len(result)-len(keep)
         result=keep
