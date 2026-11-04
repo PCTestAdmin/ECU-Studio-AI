@@ -1,9 +1,8 @@
-# ECU Studio AI 1.19.0 – Release Notes (Entwurf / draft)
+# ECU Studio AI 1.19.0 – Release Notes
 
-**Noch nicht veröffentlicht. Not released yet.** Die deutsche Fassung ist der Abschnitt „Unveröffentlicht“ in
-[CHANGELOG.md](../CHANGELOG.md); der Release-Workflow übernimmt ihn, sobald er im freigegebenen Release-Schritt zu
-`## 1.19.0 (Datum)` wird. Die englische Fassung unten kann dann angehängt werden. Messungen und Grenzen:
-[Validierungsbericht](VALIDIERUNG_1.19.0.md).
+**Veröffentlicht am 04.11.2026. Released on 4 Nov 2026.** Die deutsche Fassung ist der Abschnitt
+`## 1.19.0 (04.11.2026)` in [CHANGELOG.md](../CHANGELOG.md); sie steht zusammen mit der englischen Fassung unten
+im GitHub-Release. Messungen und Grenzen: [Validierungsbericht](VALIDIERUNG_1.19.0.md).
 
 ---
 
