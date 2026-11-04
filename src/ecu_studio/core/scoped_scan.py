@@ -17,8 +17,8 @@ from .structure_scan import scan_structures, lookup_descriptors
 from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
-from .confidence import apply_confidence, tier_for
-from .candidate_model import load_model, score_candidates
+from .confidence import apply_confidence
+from .candidate_model import load_model, model_status, score_candidates
 from .map_groups import mark_twins
 from . import parallel
 
@@ -70,20 +70,25 @@ def scan_calibration_candidates(image: BinaryImage, *,
                                 cancelled=None, progress=None,
                                 use_definitions: bool = True,
                                 include_u32: bool = False, diagnostics=None,
-                                structure_limit: int = 400) -> list[MapDefinition]:
+                                structure_limit: int = 400, step=None) -> list[MapDefinition]:
     # Raw 32-bit geometry is severely width-ambiguous. Keep it an explicit
     # exploratory option; definition-backed 32-bit maps always remain supported.
     if diagnostics is not None:
         diagnostics.update({'format':1,'sha256':image.digest,'size':image.size,
             'include_unbound_u32':bool(include_u32),'independent_verification':False})
+    def stage(text, percent=None):
+        # ``step`` names the running stage for the user; ``progress`` stays a plain percentage.
+        if step: step(text)
+        if progress and percent is not None: progress(percent)
     if use_definitions:
         from ecu_studio.recognition.bundled_definitions import definition_candidates
-        if progress: progress(2)
+        stage('Mitgelieferte Definitionen prüfen', 2)
         defined = definition_candidates(image, cancelled=cancelled)
         if defined:
             if diagnostics is not None:diagnostics.update({'method':'bundled-definition','accepted_count':len(defined)})
             if progress: progress(100)
             return defined
+    stage('Kalibrierbereich bestimmen')
     profile=identify_profile(image)
     start=profile.cal_start
     end=profile.cal_end
@@ -99,13 +104,14 @@ def scan_calibration_candidates(image: BinaryImage, *,
                for i,name in enumerate(SCANNERS) if name!='u32' or include_u32]
         candidates=[]
     else:
+        stage('Datensatzköpfe und Raster', 5)
         candidates=scan_axis_records(target,max_results=RECORD_LIMIT,cancelled=cancelled,include_u32=include_u32)
         for i,scanner in enumerate((discover_maps,scan_u8,scan_32,scan_s16)):
             if scanner is scan_32 and not include_u32:continue
             if cancelled and cancelled():
                 return []
             if progress:
-                progress(i*23)
+                progress(5+i*23)
             candidates.extend(scanner(target,max_results=limits[i],cancelled=cancelled))
     if cancelled and cancelled():
         return []
@@ -113,8 +119,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
         _shift_to_window(candidates,start,profile)
     # Grid-free geometry runs on the full image: code references live outside
     # the calibration window. Offsets are already absolute.
-    if progress:
-        progress(75)
+    stage('Achsen-Arrays', 75)
     lo,hi=start or 0,end if end is not None else image.size
     raw=image.read(0,image.size)
     mask=data_mask(raw) if start is None else None
@@ -122,6 +127,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # and code bytes cannot produce smoothness-only candidates).
     regions=data_regions(mask,gap=block_size(len(raw))) if mask is not None else None
     axes=scan_count_axes(raw,lo,hi) if structure_limit>0 else []
+    if cancelled and cancelled():
+        return []
+    stage('Programmcode: Interpolationsaufrufe', 78)
     calls=call_descriptors(raw,lo,hi) if structure_limit>0 else {}
     if structure_limit>0:
         # Axes named by lookup calls are code-confirmed even without a chain.
@@ -130,14 +138,17 @@ def scan_calibration_candidates(image: BinaryImage, *,
         pairs=list(lookup_descriptors(raw,lo,hi).values())+[(c.x_axis,c.y_axis) for c in calls.values()]
         for pair in pairs:
             for ax in pair:
-                if ax and ax.header not in known and not any(ax.header<e and s<ax.end for s,e in spans):
+                # Values decide: a record's second count lies inside the span of its first axis.
+                if ax and ax.header not in known and not any(ax.offset<e and s<ax.end for s,e in spans):
                     axes.append(ax);known.add(ax.header);spans.append((ax.header,ax.end))
         axes.sort(key=lambda ax:ax.header)
+    stage('Strukturen und Zeilenabstände', 82)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,
                                axes=axes,regions=regions,calls=calls) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
     if jobs is not None:
+        stage('Datensatzköpfe und Raster (parallel)', 88)
         for job in jobs:
             part=job.result(cancelled)
             if part is None:
@@ -161,6 +172,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
         if diagnostics is not None:diagnostics['outside_data_blocks']=dropped
     if diagnostics is not None:diagnostics.update({'method':'heuristic','scope':[start or 0,end or image.size],
         'input_candidates':len(candidates),'structure_candidates':len(structures),'axis_candidates':len(axes)})
+    stage(f'{len(candidates)} Kandidaten bewerten', 92)
     ranked=rank_candidates(image,candidates,max_results=sum(limits)+structure_limit,diagnostics=diagnostics)
     spans=[(m.candidate_region_start if m.candidate_region_start is not None else m.offset,m.offset+m.length) for m in lines]
     # Legacy grid windows must not swallow a detected axis or referenced curve.
@@ -184,23 +196,23 @@ def scan_calibration_candidates(image: BinaryImage, *,
             seen.add(key);extra.append(c)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
-    # Data-only candidates: learned scorer (family-out validated) replaces the
-    # coarse class rate with the held-out hit rate of the candidate's score.
+    # Data-only candidates: a learned scorer may drop weak ones; it is applied only
+    # with cleared training data (core/candidate_model.py). None ships with 1.19.
+    # Its score is noted, not shown as a probability.
     model=load_model()
+    if diagnostics is not None:diagnostics['candidate_model']=model_status()
     if model is not None:
+        stage('Lernmodell für Datenmuster-Funde', 97)
         full_mask=mask if mask is not None else data_mask(raw)
         scores=score_candidates(image,result,full_mask)
         drop_below=model.get('drop_below')
         keep=[]
         for i,m in enumerate(result):
             if i in scores:
-                p,rate=scores[i]
+                p,_=scores[i]
                 if drop_below is not None and p<drop_below:
                     continue
-                m.calibrated_rate=round(rate,3)
-                m.evidence_tier=tier_for(rate)
-                m.notes=(m.notes+f' Lernmodell (familienübergreifend geprüft): Score {p:.2f}, '
-                         f'gemessene Trefferquote dieses Score-Bereichs {rate:.0%}.').strip()
+                m.notes=(m.notes+f' Lernmodell (freigegebene Trainingsdaten): Score {p:.2f}, keine Wahrscheinlichkeit.').strip()
             keep.append(m)
         if diagnostics is not None:diagnostics['model_dropped']=len(result)-len(keep)
         result=keep

@@ -4,8 +4,10 @@ A candidate counts as a hit when it starts exactly at an object of the
 reference definition (table, curve or axis of any size). Use only definitions
 that cover a family completely; partial XDFs understate the rates.
 
-Usage: python -m ecu_studio.tools.calibrate_confidence --pair BIN XDF|A2L[@ANCHOR] [--pair ...] [--out FILE]
-Writes counts and hashes only, no firmware bytes.
+Usage: python -m ecu_studio.tools.calibrate_confidence --pair BIN XDF|A2L[@ANCHOR] [--pair ...] --out FILE
+Writes counts and hashes only, no firmware bytes. A measurement for the documentation: the application shows
+no rates any more (core/confidence.py), and only pairs with documented provenance belong in it. The output never
+goes into the package (--out is required).
 """
 from __future__ import annotations
 import argparse
@@ -13,7 +15,7 @@ import collections
 import datetime
 import json
 from pathlib import Path
-from ecu_studio.core.confidence import DATA, evidence_class
+from ecu_studio.core.confidence import evidence_class
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.profiles import identify_profile
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
@@ -61,7 +63,7 @@ def measure(pairs) -> dict:
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pair', nargs=2, action='append', required=True, metavar=('BIN', 'REF'))
-    parser.add_argument('--out', type=Path, default=DATA)
+    parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args(argv)
     result = measure(args.pair)
     args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding='utf-8')

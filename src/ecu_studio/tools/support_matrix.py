@@ -26,7 +26,7 @@ FAMILIES = [
      'Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; '
      'TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea).', ''),
     ('Siemens MSD80', ['MSD80'], 'Infineon TriCore', ['MSD80'],
-     'Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen des Programmcodes, an I8A0S mit Community-XDF (Entwicklungsdaten) 39 → 73 von 99 exakt.', ''),
+     'Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen und Datensatzköpfen im Programmcode, an I8A0S mit Community-XDF (Entwicklungsdaten, kein unabhängiger Test) 39 → 84 von 99 exakt; Präzision dort nicht messbar.', ''),
     ('Siemens MSD85', ['MSD85'], 'ungeprüft (MSD80: TriCore)', ['MSD85'], 'Ein Softwarestand; Identität nur über A2L-EPK.', ''),
     ('Bosch EDC16C35', ['EDC16C35'], 'PowerPC (MPC5xx)', ['EDC16C35'],
      'Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig.', ''),

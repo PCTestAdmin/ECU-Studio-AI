@@ -7,12 +7,13 @@ import hashlib
 import os
 import numpy as np
 import pytest
-from ecu_studio.core.confidence import evidence_class
+from ecu_studio.core.confidence import evidence_class, is_experimental
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
-from ecu_studio.core.structure_scan import scan_structures, CALL_LAYOUT, PRELOOKUP_ORIGIN
+from ecu_studio.core.structure_scan import scan_structures, CALL_LAYOUT, PRELOOKUP_ORIGIN, RECORD_ORIGIN
+from ecu_studio.core import tricore_refs
 from ecu_studio.core.tricore_refs import (looks_like_tricore, call_sites, call_descriptors, cell_widths,
-                                          MIN_CALLS)
+                                          MIN_CALLS, cond_target, record_at)
 
 SEG = 0xA0000000
 RET = (0x9000).to_bytes(2, 'little')
@@ -155,14 +156,14 @@ def test_too_few_calls_are_not_evidence():
     assert looks_like_tricore(data) and call_descriptors(data) == {}
 
 
-def test_scan_reports_exact_call_tables_as_own_uncalibrated_class():
+def test_scan_reports_exact_call_tables_as_own_experimental_class():
     data, tables, *_ = build()
     maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
     called = {(m.offset, m.rows, m.cols, m.width): m for m in maps if m.record_layout == CALL_LAYOUT}
     assert set(called) == {(t, 5, 6, w) for t, w in tables}
     m = called[(tables[0][0], 5, 6, 1)]
     assert m.endian == 'little' and m.axis_x_offset == 0xC001 and m.axes_y == [500, 1000, 2000, 3000, 4000]
-    assert evidence_class(m) == 'code:call:2d' and m.evidence_tier == 'nicht kalibriert'
+    assert evidence_class(m) == 'code:call:2d' and m.evidence_tier == 'Code-Beleg' and is_experimental(m)
     assert 'TriCore' in m.label_evidence and not m.verified
 
 
@@ -298,7 +299,7 @@ def test_split_interpolation_takes_axes_from_the_two_prelookups_on_the_path():
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert {(m.offset, m.rows, m.cols) for m in called} == {(t, 5, 6) for t in tables[:-1]}
     assert all(m.label_origin.startswith(PRELOOKUP_ORIGIN) and evidence_class(m) == 'code:call-pre:2d'
-               and m.evidence_tier == 'nicht kalibriert' for m in called)
+               and m.evidence_tier == 'Code-Beleg' and is_experimental(m) for m in called)
 
 
 def test_one_prelookup_is_not_enough_for_a_table():
@@ -391,11 +392,212 @@ def test_real_msd80_calls_find_reference_tables_without_conflicts(msd80):
     maps = scan_calibration_candidates(image)
     exact = {(r.offset, r.width) for r in ref if min(r.rows, r.cols) >= 4 and any(
         m.offset == r.offset and m.width == r.width and {m.rows, m.cols} == {r.rows, r.cols} for m in maps)}
-    assert len(exact) >= 73      # 39 before TriCore calls, 61 with a5/a6, 71 with stack + prelookup, 73 with named neighbours
+    # 39 before TriCore calls, 61 with a5/a6, 71 with stack + prelookup, 73 with named neighbours,
+    # 74 with conditional branches, 84 with record headers (1.19 development)
+    assert len(exact) >= 84
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert len(called) > 700
-    for m in called:              # no call table contradicts the reference
+    scalars = set()
+    for m in called:              # no call table contradicts a reference table or curve
         hit = [r for r in ref if r.offset < m.offset + m.length and m.offset < r.offset + r.length]
         # The XDF lists some data twice (a table and one of its rows): one exact reading suffices.
-        assert not hit or any((r.offset, r.width) == (m.offset, m.width) and {r.rows, r.cols} == {m.rows, m.cols}
-                              for r in hit)
+        if not hit or any((r.offset, r.width) == (m.offset, m.width) and {r.rows, r.cols} == {m.rows, m.cols}
+                          for r in hit):
+            continue
+        assert all(r.rows == r.cols == 1 for r in hit), (hex(m.offset), [r.name for r in hit])
+        scalars |= {r.offset for r in hit}
+    # One known case: the XDF puts a scalar inside a 6 x 9 s8 record (counts, axes, exactly
+    # bounded by the next record header) that routine 0x1E5870 reads; not resolvable without an A2L.
+    assert scalars <= {0x63F30}
+
+
+def jz16(at, target):                                               # jz d15,disp8 (SB)
+    return (0x6E | (((target - at) // 2) & 0xFF) << 8).to_bytes(2, 'little')
+
+
+def test_conditional_branch_targets():
+    assert cond_target(0x100, 2, 0x6E | 0x05 << 8) == 0x10A          # jz d15,+5 halfwords
+    assert cond_target(0x100, 2, 0x6E | 0xFE << 8) == 0xFC           # backward
+    assert cond_target(0x100, 2, 0x76 | 0x3 << 8 | 0xF << 12) == 0x106   # jz d15? no: jz d[b],disp4
+    w = 0xDF | (0x10 << 16)                                          # jeq d,const4,+16 halfwords
+    assert cond_target(0x200, 4, w) == 0x220
+    assert cond_target(0x200, 4, 0x6D) is None and cond_target(0x200, 2, 0x9000) is None
+
+
+def branch_code(tables, base):
+    """Per table: a4 = table, conditional jump over a ret to the shared axis loads and the call."""
+    code = bytearray()
+    for t in tables:
+        code += load(4, t)
+        at = base + len(code)
+        code += jz16(at, at + 4) + RET
+        code += load(5, 0xC000) + load(6, 0xC010) + call(base + len(code) + 16, 0x7000) + RET
+    return bytes(code)
+
+
+def test_register_state_reaches_conditional_branch_targets(monkeypatch):
+    data, tables = image_with(branch_code)
+    assert set(call_descriptors(data)) == set(tables)
+    monkeypatch.setattr(tricore_refs, 'FOLLOW_BRANCHES', False)
+    assert call_descriptors(data) == {}         # after the ret only the branch carries a4
+
+
+def u16(*v):
+    return np.array(v, '<u2').tobytes()
+
+
+def record(z, x, y, *, xw=2, yw=1, cw=1, dtype='<i2'):
+    """Self-describing record: counts (cw bytes each), X (xw bytes), Y (yw bytes), then Z row-major."""
+    counts = (len(x).to_bytes(cw, 'little') + len(y).to_bytes(cw, 'little'))
+    ax = (u16(*x) if xw == 2 else bytes(x)) + (u16(*y) if yw == 2 else bytes(y))
+    return counts + ax + np.asarray(z, dtype).tobytes()
+
+
+def test_record_header_reading_with_mixed_axis_widths():
+    z = 900 - np.arange(48).reshape(6, 8) * 3           # falling: cannot extend the Y axis
+    raw = bytes(2) + record(z, [100, 200, 300, 400, 500, 600, 700, 800], [1, 2, 3, 4, 5, 6])
+    (x, y), = record_at(raw, 2)
+    assert (x.header, x.offset, x.count, x.width) == (2, 4, 8, 2)
+    assert (y.header, y.offset, y.count, y.width) == (3, 20, 6, 1)
+    assert y.end == 26 and x.values[0] == 100
+    flat = bytes(2) + bytes([4, 4]) + u16(5, 5, 5, 5) + bytes([1, 2, 3, 4]) + bytes(32)
+    assert record_at(flat, 2) == []                                # non-increasing axis
+    assert record_at(bytes([40, 2, 1, 2]), 0) == []                # count beyond 32
+    assert record_at(bytes([4]), 0) == []                             # truncated
+    rising = bytes(2) + record(np.arange(48).reshape(6, 8) * 50 - 2000, [100, 200, 300, 400, 500, 600, 700, 800],
+                               [1, 2, 3, 4, 5, 6])
+    assert len(record_at(rising, 2)) == 2                          # u8 Y + data also reads as a u16 Y
+
+
+def record_image(n=24, loads=(LD_BU, LD_BU) + (LD_H,) * 10, dtype='<i2'):
+    """Records from 0x8000; one routine at 0x7000 receives a4 = record header."""
+    img = bytearray(0x10000)
+    y, x = np.mgrid[:6, :8]
+    headers, starts, pos = [], [], 0x8000
+    for i in range(n):
+        z = (3 * y + 2 * x + i) * 50 - 300 if dtype == '<i2' else (3 * y + 2 * x + i) * 50
+        raw = record(z, [100, 200, 300, 400, 500, 600, 700, 800], [1, 2, 3, 4, 5, 6], dtype=dtype)
+        img[pos:pos + len(raw)] = raw
+        headers.append(pos)
+        starts.append(pos + 2 + 16 + 6)
+        pos += len(raw)
+    body = reader(*loads)
+    img[0x7000:0x7000 + len(body)] = body
+    code = bytearray()
+    for h in headers:
+        code += load(4, h) + call(0x100 + len(code) + 8, 0x7000) + RET
+    while len(code) < 0x6000:
+        code += movh_a(12, 0xD000) + RET + RET
+    img[0x100:0x100 + len(code)] = code[:0x6F00]
+    return bytes(img), headers, starts
+
+
+def test_record_routine_names_data_after_counts_and_axes():
+    data, headers, starts = record_image()
+    assert len(record_at(data, headers[0])) == 2                   # ambiguous on its own ...
+    desc = call_descriptors(data)
+    assert set(desc) == set(starts)                                # ... the routine's layout decides
+    d = desc[starts[0]]
+    assert d.record and (d.x_axis.count, d.x_axis.width, d.y_axis.count, d.y_axis.width) == (8, 2, 6, 1)
+    # Two count loads are left out; the ten signed halfword loads give the cell type.
+    assert (d.cell_width, d.cell_signed) == (2, True)
+    assert set(desc.named) >= set(headers)                         # headers bound the tables before them
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = {m.offset: m for m in maps if m.record_layout == CALL_LAYOUT}
+    assert set(called) == set(starts)
+    m = called[starts[3]]
+    assert (m.rows, m.cols, m.dtype, m.endian) == (6, 8, 's16', 'little')
+    assert m.label_origin.startswith(RECORD_ORIGIN) and 'Datensatzkopf' in m.label_evidence
+    assert m.axes_x == [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0]
+    assert (m.axis_x_offset, m.axis_y_offset) == (headers[3] + 2, headers[3] + 18)
+
+
+def test_record_routine_without_cell_loads_leaves_the_type_open():
+    data, headers, starts = record_image(loads=(LD_BU, LD_BU), dtype='<u2')
+    desc = call_descriptors(data)
+    assert set(desc) == set(starts)
+    assert {(d.cell_width, d.cell_signed) for d in desc.values()} == {(None, None)}
+    # Width from the gap to the next header (exact), sign unchecked.
+    widths = cell_widths(desc, list(desc) + list(desc.named))
+    assert all(widths[s] == 2 for s in starts[:-1])
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called and all('Vorzeichen aus der glatteren Lesart (ungeprüft)' in m.label_evidence for m in called)
+
+
+def test_mixed_loads_give_no_record_cell_type():
+    data, _, starts = record_image(loads=(LD_BU, LD_BU) + (LD_H,) * 5 + (LD_HU,) * 5)
+    assert {(d.cell_width, d.cell_signed) for d in call_descriptors(data).values()} == {(None, None)}
+
+
+def test_record_role_needs_most_calls_to_parse(monkeypatch):
+    data, headers, starts = record_image()
+    damaged = bytearray(data)
+    for h in headers[:20]:                                          # 20 of 24 headers no longer parse
+        damaged[h:h + 2] = bytes([0xFF, 0xFF])
+    assert call_descriptors(bytes(damaged)) == {}
+    monkeypatch.setattr(tricore_refs, 'FIND_RECORDS', False)
+    assert call_descriptors(data) == {}
+
+
+def other_register_code(tables, base):
+    """Another calling convention: data in a2, X header in a3, Y header in a7."""
+    code = bytearray()
+    for t in tables:
+        code += load(2, t) + load(3, 0xC000) + load(7, 0xC010)
+        code += call(base + len(code), 0x7000) + RET
+    return bytes(code)
+
+
+def reader_from(reg, *op2s):
+    return mov_aa(12, reg) + b''.join(bo_load(op2, 2 + i, 12, i) for i, op2 in enumerate(op2s)) + RET
+
+
+def test_register_roles_are_learned_from_call_behaviour(monkeypatch):
+    data, tables = image_with(other_register_code, routines={0x7000: reader_from(2, LD_BU, LD_BU)})
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    d = desc[tables[0]]
+    assert d.registers == (2, (3, 7))
+    assert (d.x_axis.header, d.y_axis.header) == (0xC000, 0xC010)
+    assert (d.cell_width, d.cell_signed) == (1, False)              # loads through a2, not a4
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called and all('Daten in a2, Achsköpfe in a3/a7' in m.label_evidence for m in called)
+    monkeypatch.setattr(tricore_refs, 'LEARN_ROLES', False)
+    assert call_descriptors(data) == {}
+
+
+def test_msd80_convention_is_not_relearned():
+    data, tables = image_with(stack_function)
+    assert {d.registers for d in call_descriptors(data).values()} == {(4, (5, 6))}
+
+
+def test_sign_alternatives_only_where_the_bytes_decide():
+    from ecu_studio.core.structure_scan import sign_alternatives
+    low = np.array([1, 2, 300, 4], '<u2').tobytes()
+    high = np.array([1, 2, 0x8001, 4], '<u2').tobytes()
+    assert sign_alternatives(low, 0, 4, 2, 'u16') == []
+    assert sign_alternatives(high, 0, 4, 2, 'u16') == ['s16']
+    assert sign_alternatives(high, 0, 4, 2, 's16', 'little') == ['u16']
+    assert sign_alternatives(np.array([0x0180], '>u2').tobytes(), 0, 1, 2, 'u16', 'big') == []
+    assert sign_alternatives(bytes([5, 0x90]), 0, 2, 1, 's8') == ['u8']
+
+
+def test_code_proven_sign_has_no_alternative_and_survives_a_project_round_trip():
+    from ecu_studio.core.model import map_from_record
+    data, headers, starts = record_image()
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called and all(m.dtype == 's16' and m.dtype_alternatives == [] for m in called)
+    m = called[0]
+    m.dtype_alternatives = ['u16']
+    assert map_from_record(m.asdict(), set()).dtype_alternatives == ['u16']
+
+
+def test_extended_call_sites_keep_their_own_generic_calls():
+    """Regression 1.19 QA: extending the sites fell back to a list shared by all images."""
+    from ecu_studio.core.tricore_refs import Sites
+    a = Sites([1]); a.generic = [(0, 1, ())]
+    b = a.extended([2])
+    assert list(b) == [1, 2] and b.generic is a.generic and Sites().generic == ()

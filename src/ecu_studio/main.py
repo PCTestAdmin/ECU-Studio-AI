@@ -3,9 +3,21 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 
+GUI_SWITCH_INTERVAL = 0.0005
+
+
+def keep_gui_responsive() -> float:
+    """Shorter GIL hand-over while a scan thread runs pure Python. PySide releases the GIL around Qt calls, and with
+    the default 5 ms the scan thread kept it each time: a repaint during a scan (first display of a file, closing the
+    checklist) then took as long as the scan itself (MS43: window still for 4.7-5.1 s; with 0.5 ms: 0.11 s)."""
+    sys.setswitchinterval(GUI_SWITCH_INTERVAL)
+    return sys.getswitchinterval()
+
+
 def main():
     from ecu_studio.core import parallel
     parallel.enable()   # guarded entry point: scans may use several CPU cores
+    keep_gui_responsive()
     if len(sys.argv)==3 and sys.argv[1]=='--smoke-test':
         try:
             from .tools.gui_smoke import run

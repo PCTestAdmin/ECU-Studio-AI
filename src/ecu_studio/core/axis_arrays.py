@@ -6,6 +6,7 @@ packed back to back. Requiring a neighbouring array in such a chain removes
 almost all chance matches. Geometry only: units and meaning stay unknown.
 """
 from __future__ import annotations
+import bisect
 from dataclasses import dataclass
 import numpy as np
 from .model import MapDefinition
@@ -106,11 +107,15 @@ def scan_count_axes(data: bytes, lo: int = 0, hi: int | None = None) -> list[Cou
             continue
         chained.append(ax)
     chained.sort(key=lambda a: (-a.count * a.width, a.header))
-    taken, chosen = [], []
+    # Taken spans never overlap, so sorted by start their ends rise too: only the
+    # span starting last before ax.end can reach into ax (binary search, not a scan).
+    starts_taken, ends_taken, chosen = [], [], []
     for ax in chained:
-        if any(ax.header < e and s < ax.end for s, e in taken):
+        k = bisect.bisect_left(starts_taken, ax.end)
+        if k and ends_taken[k - 1] > ax.header:
             continue
-        taken.append((ax.header, ax.end))
+        starts_taken.insert(k, ax.header)
+        ends_taken.insert(k, ax.end)
         chosen.append(ax)
     chosen.sort(key=lambda a: a.header)
     # Keep only runs of MIN_CHAIN or more directly adjacent arrays: real axis

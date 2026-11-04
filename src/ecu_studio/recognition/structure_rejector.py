@@ -26,14 +26,16 @@ def structural_features(values) -> np.ndarray:
     z = np.clip((a-np.median(a))/scale, -6., 6.)
     dx,dy = np.diff(z,axis=1), np.diff(z,axis=0)
     ax,ay = np.abs(dx),np.abs(dy)
-    def pct(x,p):return float(np.percentile(x,p)) if x.size else 0.
+    # One percentile call per array (same values as separate calls, a third of the cost).
+    def pct(x,ps):return [float(v) for v in np.percentile(x,ps)] if x.size else [0.]*len(ps)
     ddx=np.diff(z,n=2,axis=1) if z.shape[1]>3 else np.array([0.])
     ddy=np.diff(z,n=2,axis=0) if z.shape[0]>3 else np.array([0.])
     flat=z.ravel()
+    (x50,x90,x99),(y50,y90,y99)=pct(ax,[50,90,99]),pct(ay,[50,90,99])
     return np.array([
         float(np.log1p(a.shape[0])),float(np.log1p(a.shape[1])),
-        float(np.std(z)),pct(ax,50),pct(ay,50),pct(ax,90),pct(ay,90),
-        pct(ax,99),pct(ay,99),pct(np.abs(ddx),75),pct(np.abs(ddy),75),
+        float(np.std(z)),x50,y50,x90,y90,
+        x99,y99,pct(np.abs(ddx),[75])[0],pct(np.abs(ddy),[75])[0],
         float(np.std(z.mean(axis=0))),float(np.std(z.mean(axis=1))),
         float(np.mean(ax < .004)),float(np.mean(ay < .004)),
         float(np.mean(dx>0)),float(np.mean(dy>0)),

@@ -78,8 +78,9 @@ def _validate_map(record, size):
         raise ValueError('Invalid symbolic ECU address')
     if m.calibrated_rate is not None and (type(m.calibrated_rate) not in (int, float) or not 0 <= m.calibrated_rate <= 1):
         raise ValueError('Invalid calibrated rate')
-    if not isinstance(m.type_alternatives, list) or any(not isinstance(s, str) for s in m.type_alternatives):
-        raise ValueError('Invalid map alternatives')
+    for alts in (m.type_alternatives, m.dtype_alternatives):
+        if not isinstance(alts, list) or any(not isinstance(s, str) for s in alts):
+            raise ValueError('Invalid map alternatives')
     defaults = MapDefinition('', 0)
     for k in MAP_FIELDS:
         v, default = getattr(m, k), getattr(defaults, k)

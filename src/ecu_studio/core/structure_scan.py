@@ -49,6 +49,7 @@ PITCH_LAYOUT = 'candidate:row-pitch'
 POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
+RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -527,6 +528,19 @@ def anchored_fit(data: bytes, a: int, b: int):
     return best
 
 
+def sign_alternatives(data: bytes, off: int, cells: int, width: int, dtype: str,
+                      endian: str = 'little') -> list[str]:
+    """The other sign reading when the bytes decide it (some cell has its top bit set).
+
+    Without such a cell both readings give the same values and nothing is uncertain.
+    """
+    raw = np.frombuffer(data[off:off + cells * width], np.uint8)
+    top = raw if width == 1 else raw[1::2] if endian == 'little' else raw[0::2]   # high byte of each cell
+    if dtype[1:] not in ('8', '16') or not (top & 0x80).any():
+        return []
+    return [('u' if dtype[0] == 's' else 's') + dtype[1:]]
+
+
 def _cell_type_note(call, dtype: str) -> str:
     """Where the sign of a TriCore call table comes from."""
     if call.cell_signed is None:
@@ -725,6 +739,16 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                         f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
             evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
+        elif called and calls[off].record:
+            n = len(calls[off].sites)
+            evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt einen '
+                        f'Datensatzkopf @ 0x{pair[0].header:X}: Anzahl und Stützstellen beider Achsen stehen vor den '
+                        f'Daten (X {pair[0].count} Punkte à {pair[0].width} Byte, Y {pair[1].count} Punkte à '
+                        f'{pair[1].width} Byte); X/Y-Zuordnung nach Datensatzreihenfolge (ungeprüft)'
+                        + (f'; Zellbreite {w} Byte aus den Ladebefehlen der Interpolationsroutine.'
+                           if calls[off].cell_width else f'; Zellbreite {w} Byte aus dem nächsten benannten Objekt.'))
+            evidence += _cell_type_note(calls[off], dtype)
+            origin = RECORD_ORIGIN
         elif called:
             n = len(calls[off].sites)
             evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) '
@@ -733,6 +757,10 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                         + (f'; Zellbreite {w} Byte aus den Ladebefehlen der Interpolationsroutine.'
                            if calls[off].cell_width else f'; Zellbreite {w} Byte aus dem nächsten benannten Objekt.'))
             evidence += _cell_type_note(calls[off], dtype)
+            data_reg, axis_regs = getattr(calls[off], 'registers', (4, (5, 6)))
+            if (data_reg, axis_regs) != (4, (5, 6)):
+                evidence += (f' Registerbelegung aus dem Aufrufverhalten der Routine abgeleitet: Daten in a{data_reg}, '
+                             'Achsköpfe in ' + '/'.join(f'a{r}' for r in axis_regs) + ' (X/Y-Reihenfolge ungeprüft).')
             origin = 'TriCore-Aufruf + Achsen (ungeprüft)'
         elif off in pointed:
             evidence = ('Beschreibungsblock mit Zeigern auf Achsen und Daten (Anzahl X/Y, Datentyp) '
@@ -775,6 +803,9 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             label_origin=origin,
             label_evidence=evidence + ' Geometrie-Hypothese, KEIN identifiziertes Kennfeld.',
             notes=evidence)
+        sign_proven = called and calls[off].cell_signed is not None
+        if not sign_proven:
+            m.dtype_alternatives = sign_alternatives(data, off, rows * c, w, dtype, endian)
         if pair:
             m.axes_x = [float(v) for v in pair[0].values]
             m.axes_y = [float(v) for v in pair[1].values] if pair[1] else []

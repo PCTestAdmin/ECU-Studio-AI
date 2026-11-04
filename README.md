@@ -41,7 +41,8 @@ Sie liest den Programmcode des Steuergeräts, findet Kennfelder samt Achsen und 
 **ECU Studio AI** is an open-source calibration workbench for engine and transmission control units (Windows, GPL-3.0).
 
 - **Finds calibration maps without a definition** – from code references (C16x, TriCore, 68k, SH-2, HC11, 8051),
-  record headers with axes, and structure analysis. Every candidate carries a *measured* confidence, not a guess.
+  record headers with axes, and structure analysis. Every candidate names its kind of evidence (code, record structure or data pattern only), never an
+  invented percentage.
 - **Works with the definitions you have:** TunerPro XDF, ASAM A2L / DAMOS (with EPK software-ID check), RomRaider XML, CSV.
 - **Edit safely:** hex, table, heatmap, 3D and curve views, ORI/MOD comparison, checksum verification and correction
   (only where the algorithm is proven on the original), flash preflight. The original file is never changed.
@@ -73,8 +74,8 @@ und aus der Struktur der Daten.
 
 ### 🔬 Belegt
 **Jeder Fund nennt seinen Beweis**<br>
-und eine Trefferquote, die an Herstellerdefinitionen gemessen wurde – *gesichert*, *wahrscheinlich* oder
-*Vermutung*. Kein Fund gibt sich als mehr aus, als er ist.
+– *Code-Beleg*, *Strukturbeleg* oder *Datenmuster-Vermutung*, ohne erfundene Prozentzahl. Kein Fund gibt sich
+als mehr aus, als er ist.
 
 </td>
 <td width="33%" valign="top" align="center">
@@ -140,21 +141,17 @@ Checksummen und Undo.
 
 Die meisten Werkzeuge suchen nach „glatten Flächen“. ECU Studio AI fragt zuerst: **Wo greift der Programmcode
 auf Daten zu – und mit welchen Achsen?** Jeder Fund wird nach seiner stärksten Beweisart eingestuft.
-Die Trefferquote jeder Beweisart wurde an Herstellerdefinitionen gemessen:
+Die App zeigt die **Art des Belegs**, keine Prozentzahl:
 
-| Beweisart | Was gefunden wird | Trefferquote |
-|---|---|---:|
-| 🟢 **Code-Verweis + zwei Achsen** | Der Code lädt Kennfeld und beide Achsen gemeinsam | **100 %** <sub>(227)</sub> |
-| 🟢 **Code-Verweis + eine Achse** | Kennlinie, vom Code mit ihrer Achse geladen | **99 %** <sub>(159)</sub> |
-| 🟢 **Code-Verweis** | Startadresse direkt aus dem Programmcode | **97 %** <sub>(35)</sub> |
-| 🟢 **Kopf-Datensatz mit Achsen** | `nx, ny, X-Achse, Y-Achse, Werte` direkt hintereinander | **82–98 %** <sub>(945)</sub> |
-| 🟢 **Achse aus Kopf-Datensatz** | Stützstellen eines solchen Datensatzes | **91 %** <sub>(2461)</sub> |
-| 🟡 **Achsen-Array** | Anzahl + steigende Stützstellen | **57 %** <sub>(2538)</sub> |
-| 🔴 **nur Datenmuster** | glatte Fläche ohne weiteren Beleg – ein Lernmodell ordnet nach | **23 %** <sub>(1135)</sub> |
+| Belegstufe | Beweisart | Was gefunden wird |
+|---|---|---|
+| 🟢 **Code-Beleg** | Code-Verweis mit oder ohne Achsen | Der Programmcode adressiert die Tabelle (TriCore-Aufrufe: experimentell) |
+| 🟡 **Strukturbeleg** | Kopf-Datensatz, Achse aus Datensatz, Achsen-Array | `nx, ny, X-Achse, Y-Achse, Werte` bzw. Anzahl + steigende Stützstellen |
+| 🔴 **Datenmuster-Vermutung** | nur Zeilenabstand bzw. Raster | glatte Fläche ohne weiteren Beleg – in der Prüfliste als eigene, einklappbare Gruppe |
 
-<sub>Anzahl der gemessenen Funde in Klammern. Gemessen auf MS43, MS42, MS45, MSS54, Hyundai ×2 und den Hersteller-A2L
-von ME9, ME9.2.1 und EDC17CP09; die MSD80/85-Teststände bleiben außen vor. Klassen, Lernmodell und Grenzen:
-<a href="docs/MODELLKARTE.md">docs/MODELLKARTE.md</a>.</sub>
+<sub>Die Stufe ist keine Wahrscheinlichkeit und nicht unabhängig validiert. Bis 1.18.2 standen an jeder Beweisart
+gemessene Trefferquoten; sie stammen von wenigen Familien und zum Teil aus Dateien ohne geklärte Herkunft und werden
+seit 1.19.0 nicht mehr angezeigt (Historie und Herkunft: <a href="docs/MODELLKARTE.md">docs/MODELLKARTE.md</a>).</sub>
 
 ```mermaid
 flowchart LR
@@ -170,7 +167,7 @@ flowchart LR
         D[Datenmuster]
     end
     E --> R[Lesarten<br/>abwägen]
-    R --> K[Konfidenz aus<br/>gemessenen Quoten]
+    R --> K[Belegstufe:<br/>Code · Struktur · Datenmuster]
     K --> UI[Katalog · Graph<br/>Signal-Tracing]
 ```
 
@@ -270,7 +267,7 @@ Alle Softwarestände und Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.
 ### 🔍 Erkennen
 - **Kennfelder ohne Definition** über Programmcode-Verweise, Datensätze mit Achsen und Datenmuster
 - **Achsen** erkannt, zugeordnet und als **gemeinsame Achsgruppen** dargestellt
-- **Gemessene Konfidenz** je Fund
+- **Belegstufe** je Fund (Code, Struktur, Datenmuster)
 - **Dubletten** und Überwachungskopien markiert
 - **Softwarestand-Vergleich** mit Namensübertragung
 - Funktionsgraph und Signal-Tracing
@@ -358,7 +355,7 @@ Weg automatisch auf Windows Server 2022 und 2025 durchgespielt.
 | ✅ Was ECU Studio AI tut | 🚫 Was es bewusst **nicht** tut |
 |---|---|
 | Original unverändert lassen – Änderungen als nachvollziehbare Ebene | Automatisches „Stage 1“-Tuning |
-| Funde mit Beweis und gemessener Konfidenz zeigen | Abgas- oder Schutzfunktionen abschalten |
+| Funde mit Art des Belegs zeigen | Abgas- oder Schutzfunktionen abschalten |
 | Checksummen nur mit geprüftem Profil korrigieren | Flashfreigaben erteilen |
 | Firmware lokal halten – sie wird nie hochgeladen | Kennfeldnamen erfinden |
 

@@ -277,7 +277,10 @@ def run(output):
                 current=next(m for m in window.maps if m.name=='ip_cur_igc_sp__n__maf')
                 assert (current.offset,current.rows,current.cols,current.dtype)==(0x76503,6,6,'u8')
                 window.select_map(current)
-                assert window.map_model.data(window.map_model.index(0,0))=='91.919216'
+                # Display rounds to one raw step (display_decimals); the edit value keeps every digit.
+                first_cell=window.map_model.index(0,0)
+                assert abs(float(window.map_model.data(first_cell,Qt.ItemDataRole.EditRole))-91.919216)<1e-6
+                assert window.map_model.data(first_cell)=='91.9'
                 assert window.map_model.columnCount()==6 and window.map_model.rowCount()==6
                 assert window.map_model.headerData(0,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole)=='mg/stk'
                 first_count=len(window.maps)

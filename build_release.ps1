@@ -89,8 +89,13 @@ if ($iscc) {
     & $iscc /Qp "/O$isccOut" "/DAppVersion=$version" (Join-Path $PSScriptRoot 'packaging\installer.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer konnte nicht erstellt werden.' }
     $setup = "ECU-Studio-AI-$version-setup.exe"
+    $manifest = "ECU-Studio-AI-$version-setup-manifest.txt"
     Copy-Item -LiteralPath (Join-Path $isccOut $setup) -Destination (Join-Path $PSScriptRoot "dist\$setup") -Force
+    Copy-Item -LiteralPath (Join-Path $isccOut $manifest) -Destination (Join-Path $PSScriptRoot "dist\$manifest") -Force
     Remove-Item -LiteralPath $isccOut -Recurse -Force
+    # Every file in the installer by SHA-256: no withdrawn learned data (the folder and the ZIP were checked before).
+    & $python -m ecu_studio.tools.withdrawn (Join-Path $PSScriptRoot "dist\$manifest")
+    if ($LASTEXITCODE -ne 0) { throw 'Installer enthält zurückgezogene Lerndaten.' }
     $setupHash = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot "dist\$setup") -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $PSScriptRoot "dist\$setup.sha256") -Value "$setupHash  $setup" -Encoding ascii
     Write-Host "Installer: dist\$setup"

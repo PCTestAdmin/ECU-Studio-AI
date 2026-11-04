@@ -74,6 +74,9 @@ class MapDefinition:
     axis_y_offset: int | None = None
     axis_x_ref: str = ""
     axis_y_ref: str = ""
+    # Other data types the stored bytes allow when the detected one is not proven
+    # (e.g. sign from a smoother reading, not from the code's load instructions).
+    dtype_alternatives: list[str] = field(default_factory=list)
     # Fields introduced by a newer application are kept verbatim while this
     # version is editing the known part of the definition.  This is deliberately
     # an internal dataclass field so ``dataclasses.replace`` carries the data to
@@ -454,7 +457,8 @@ def map_from_record(record: dict, ignored: set[str] | None = None) -> MapDefinit
         raise ValueError(f'Ungültige Kennfelddefinition im Projekt: {exc}') from None
 
 
-def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookmarks: list[dict], notes: str, snapshots: list[dict] | None = None, *, overwrite=True) -> None:
+def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookmarks: list[dict], notes: str, snapshots: list[dict] | None = None, *, overwrite=True,
+                 reviews: list[dict] | None = None) -> None:
     from .storage import atomic_write, canonical_digest
     for m in maps:
         m.validate(image.size)
@@ -474,6 +478,9 @@ def save_project(path: str, image: BinaryImage, maps: list[MapDefinition], bookm
     if snapshots is not None:
         from .versioning import validate_snapshot_set
         payload["snapshots"] = validate_snapshot_set(image, snapshots)
+    if reviews:
+        from .review_checklist import validate_log
+        payload["reviews"] = validate_log(reviews)
     payload['integrity_sha256'] = canonical_digest(payload)
     encoded=json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False).encode('utf-8')
     if len(encoded)>256*1024**2:
@@ -511,9 +518,19 @@ def load_project(path: str, *, ignored_fields: set[str] | None = None
         raise ValueError('Ungültiges Änderungsprotokoll im Projekt')
     image.journal = journal
     maps = [map_from_record(x, ignored_fields) for x in payload.get("maps", [])]
+    from .confidence import apply_confidence, strip_historic_rates
     for m in maps:
         m.validate(image.size)
+        # Projects of 1.15.0-1.18.2 carry measured rates of evidence classes; they are no longer shown.
+        m.notes, m.calibrated_rate = strip_historic_rates(m.notes), None
+    apply_confidence([m for m in maps if not m.verified])
     return image, maps, payload.get("bookmarks", []), str(payload.get("notes", ""))
+
+
+def read_project_reviews(path: str) -> list[dict]:
+    """Review decisions (confirmed/rejected maps) of a project; older projects have none."""
+    from .review_checklist import validate_log
+    return validate_log(json.loads(Path(path).read_text(encoding="utf-8")).get("reviews", []))
 
 
 def read_project_snapshots(path: str, image: BinaryImage) -> list[dict]:

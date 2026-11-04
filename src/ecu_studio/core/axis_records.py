@@ -44,7 +44,7 @@ def _strict(values) -> bool:
     return _monotone(_steps(values))
 
 
-def _axis_pair(x, y, wide: bool = True) -> bool:
+def _axis_pair(x, y, wide: bool = True, check=None) -> bool:
     """Both axes plausible; with 16-bit counts and axes one may be relaxed.
 
     The count header already fixes both lengths, so one axis may carry an
@@ -53,9 +53,10 @@ def _axis_pair(x, y, wide: bool = True) -> bool:
     (``wide``): a byte count of 4..32 occurs by chance every ninth byte, and the
     relaxed rule produced a header in random data (negative control, 2 MB).
     """
+    check = check or _record_axis
     if not wide:
-        return _record_axis(x) and _record_axis(y)
-    return _strict(x) and _strict(y) and (_record_axis(x) or _record_axis(y))
+        return check(x) and check(y)
+    return _strict(x) and _strict(y) and (check(x) or check(y))
 
 
 CHAIN_GAP=4   # alignment padding between consecutive records
@@ -156,6 +157,15 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
         ev = surface_evidence(sample.matrix(view), min_unique=4)
         alias = ev['valid'] and narrower_storage_alias(sample, view, ev)
         return ev, alias
+
+    # Same axis values recur at many header hypotheses (ramps: 140 distinct in
+    # 35 649 checks); also bound to this scan.
+    @lru_cache(maxsize=4096)
+    def axis_ok(values):
+        return _record_axis(list(values))
+
+    def record_axis(values):
+        return axis_ok(tuple(values))
     buf=image.read(0,min(image.size,2*1024*1024))
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
@@ -184,7 +194,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                 axes=np.frombuffer(buf[axis_start:end],dtype=('>' if order=='big' else '<')+kind+str(axis_width))
                                 x,y=axes[:cols].tolist(),axes[cols:].tolist()
                                 if kind=='i' and min(x+y)>=0:continue      # same reading as unsigned
-                                if _axis_pair(x,y,count_width==2 and axis_width==2):break
+                                if _axis_pair(x,y,count_width==2 and axis_width==2,record_axis):break
                             else:
                                 continue
                             for dtype in ('u8','u16','s16','u32'):
@@ -207,7 +217,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         found.append((ev['score'],m))
                                     elif ev['reason']==FLAT_REASON and _flat_record(m,axis_width,kind,image):
                                         found.append((FLAT_SCORE,m))
-                                    elif (ev['reason']==ROUGH_REASON and _record_axis(x) and _record_axis(y)
+                                    elif (ev['reason']==ROUGH_REASON and record_axis(x) and record_axis(y)
                                           and _flat_record(m,axis_width,kind,image)):
                                         rough.append(m)
                     if len(found)>max_results*30:

@@ -12,6 +12,17 @@ confirms it:
 - ``gleiche Umgebung``: a flat block (zeros, one value) equal at the shifted
   place; only the neighbouring anchors place it - weakest.
 
+Independently of the source, ``confirm_by_detection`` marks a proposal whose
+target place holds a table the target's own scan found (same start, size, cell
+width and byte order; any detection layer, the measured rates in
+MEASURED_DETECTED cover all of them). That is a second, independent argument
+for the location, not for the name, function, data type or scaling. A detected
+table whose axes lie elsewhere than the moved axes does not confirm.
+
+Axes move only where the target bytes confirm them (relocated_axis); otherwise
+the source's axis values are not carried over (they would label the target
+table with values it may not have) and the proposal says so.
+
 Proposals stay unverified ("transfer-proposed"); nothing is written into the
 firmware. Measured against the sister's own definition in tools/name_transfer_benchmark.
 """
@@ -35,6 +46,9 @@ class Transfer:
     target: MapDefinition
     evidence: str
     shift: int
+    detected_in_target: bool = False
+    axes_dropped: tuple = ()          # 'X'/'Y': source axis not found at the moved place, values not carried over
+    detection_conflict: str = ''      # target detection: same table, other axes
 
 
 def _informative(w: bytes) -> bool:
@@ -130,20 +144,62 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                 'Ungeprüft: Funktion und Skalierung am Zielstand bestätigen.')
         # Axes and a stored header move with the map only where the target confirms them.
         region = m.candidate_region_start
+        ax = relocated_axis(source, target, m.axis_x_offset, m.cols, shift)
+        ay = relocated_axis(source, target, m.axis_y_offset, m.rows, shift)
+        dropped = tuple(name for name, old, new in (('X', m.axis_x_offset, ax), ('Y', m.axis_y_offset, ay))
+                        if old is not None and new is None)
+        if dropped:
+            note += (' ' + '/'.join(dropped) + '-Achse am Zielort nicht bestätigt (Bytes abweichend): '
+                     'Achswerte des Schwesterstands nicht übernommen.')
         moved = replace(m, offset=m.offset + shift, source='transfer-proposed', verified=False,
                         candidate_region_start=region + shift if region is not None and region + shift >= 0 else None,
-                        axis_x_offset=relocated_axis(source, target, m.axis_x_offset, m.cols, shift),
-                        axis_y_offset=relocated_axis(source, target, m.axis_y_offset, m.rows, shift),
+                        axis_x_offset=ax, axis_y_offset=ay,
+                        axes_x=[] if 'X' in dropped else m.axes_x, axes_y=[] if 'Y' in dropped else m.axes_y,
                         label_origin=f'Namensübertragung · {evidence}', label_evidence=note,
                         notes=(m.notes + ' ' + note).strip())
-        out.append(Transfer(m, moved, evidence, shift))
+        out.append(Transfer(m, moved, evidence, shift, axes_dropped=dropped))
     return out
 
 
-# Measured share of correct transfers per evidence class (tools/name_transfer_benchmark,
-# MED17.1.62 404A/H/L in five directions and MSD80 sister versions, 21.10.2026).
-MEASURED = {'identisch': '98–100 %', 'gleicher Kopf': 'nicht gemessen', 'ähnliche Werte': '87–100 %',
-            'gleiche Umgebung': '66–100 %'}
+# The share of correct transfers per evidence class was measured only on development data of unclear provenance
+# (MED17.1.62, MSD80 sister versions); the numbers stay in docs/VALIDIERUNG_1.19.0.md § 7 as history and are not
+# shown as a rate for other files. Evidence classes are listed from strongest to weakest (EVIDENCE).
+NOT_VALIDATED = ('Belegarten von stark nach schwach: identisch, gleicher Kopf, ähnliche Werte, gleiche Umgebung. '
+                 'Trefferquoten nur an Entwicklungsdaten gemessen, nicht unabhängig validiert.')
+
+
+def _axes_differ(t: MapDefinition, hit: MapDefinition) -> list[str]:
+    """Axes both readings place, at different addresses (orientation-independent)."""
+    mine = {o for o in (t.axis_x_offset, t.axis_y_offset) if o is not None}
+    theirs = {o for o in (hit.axis_x_offset, hit.axis_y_offset) if o is not None}
+    if not mine or not theirs or mine & theirs == mine or mine & theirs == theirs:
+        return []
+    return [f'0x{o:X}' for o in sorted(theirs - mine)]
+
+
+def confirm_by_detection(transfers: list[Transfer], detected: list[MapDefinition]) -> int:
+    """Flag transfers that land on a table the target's own detection found; returns their number."""
+    tables = {(m.offset, tuple(sorted((m.rows, m.cols))), m.width): m for m in detected}
+    count = 0
+    for tr in transfers:
+        t = tr.target
+        hit = tables.get((t.offset, tuple(sorted((t.rows, t.cols))), t.width))
+        if hit is None or (t.width > 1 and hit.endian != t.endian):
+            continue
+        other = _axes_differ(t, hit)
+        if other:
+            tr.detection_conflict = 'Erkennung im Zielstand: dieselbe Tabelle, Achsen aber bei ' + ', '.join(other)
+            note = tr.detection_conflict + ' – Achsen prüfen.'
+            if note not in t.notes:
+                t.notes = (t.notes + ' ' + note).strip()
+            continue
+        tr.detected_in_target = True
+        count += 1
+        note = f'Lage unabhängig bestätigt: die Erkennung im Zielstand findet hier dieselbe Tabelle ({hit.label_origin or hit.record_layout}).'
+        if note not in t.notes:
+            t.notes = (t.notes + ' ' + note).strip()
+            t.label_evidence = (t.label_evidence + ' ' + note).strip()
+    return count
 
 
 def definition_maps(path: str, image: BinaryImage) -> list[MapDefinition]:

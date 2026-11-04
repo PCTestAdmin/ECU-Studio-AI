@@ -1,5 +1,83 @@
 ## Unveröffentlicht
 
+Kennfelderkennung ohne Definition, abgesichert durch eine abschließende Prüfung (Branch `feature/1.19-recognition`,
+noch kein Release, Versionsnummer unverändert). Messungen, Daten und Grenzen: [Entwicklungsbericht](docs/ANALYSE_2026-11-01.md)
+und [Validierungsbericht](docs/VALIDIERUNG_1.19.0.md). Status je Funktion: *validiert* = an unabhängigen Referenzen
+nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
+
+- **TriCore-Programmcode (experimentell):** Interpolationsaufrufe, die einen Datensatzkopf übergeben (Anzahl und
+  Stützstellen beider Achsen vor den Daten, auch gemischt 8/16 Bit), werden erkannt. Die Zellbreite kommt aus den
+  Ladebefehlen der Routine ohne die Zählerzugriffe. Bedingte Sprünge werden verfolgt. Erwartet eine Routine ihre
+  Argumente in anderen Registern als `a4`/`a5`/`a6`, wird die Belegung aus ihrem Aufrufverhalten abgeleitet.
+  Gemessen nur am MSD80-Vollflash I8A0S, an dem auch entwickelt wurde (Teil-XDF): 73 → 84 von 99 Kennfeldern exakt,
+  Kennlinien 164 → 173. Netto 11 mehr: 13 Kennfelder sind neu exakt, **2 in 1.18.2 exakte Kennfelder sind es nicht
+  mehr** (0x4FB18 6 × 7 u16, 0x5604C 6 × 8 u16; bekannte Regression, Aufgabe für 1.19.1). Für andere TriCore-Stände
+  gibt es keine unabhängige Referenz. Auf allen anderen Vergleichspaaren sind exakte Kennfelder, Datentypen, Achsen
+  und Achsadressen gleich wie in 1.18.2.
+- **Drei Erkennungsebenen:** Definitionen bleiben unverändert. Funde aus Code und Struktur füllen Lücken, bevor
+  Datenmuster und KI zum Zug kommen. Findet die Erkennung über Programmcode oder Struktur dieselbe Tabelle wie eine
+  Definition, gilt die Definition als „unabhängig bestätigt“ (nicht als geprüft). Ein Fund allein über Datenmuster
+  stützt nur die Lage und wird getrennt gezählt. Widersprüche (Start, Größe, Zellbreite, Byte-Reihenfolge, belegtes
+  Vorzeichen) stehen im Scanbericht. Ein Fund, der eine Definition teilweise überlappt, wird nicht mehr zusätzlich in
+  die Liste übernommen.
+- **Falsche Definition erkannt:** Kehren sich bei mehr als 10 % der prüfbaren Kennfelder die Achswerte um, warnen
+  XDF-Import und Scan, dass die Definition vermutlich zu einem anderen Softwarestand oder einer anderen Familie
+  gehört. Gemessen an lokalen Paaren: passende Definitionen 0,1–0,8 %, falsche 87–97 %. Leere oder gelöschte
+  Tabellenbereiche sind nur noch ein Hinweis, keine Warnung (sie sind bei unbenutzten Funktionen üblich).
+- **Datentyp nicht erfunden:** Ist das Vorzeichen nicht durch Programmcode belegt und entscheiden die Bytes es, zeigt
+  der Inspektor die andere mögliche Lesart.
+- **Identifikation mit Stufe:** eindeutig, wahrscheinlich, mehrdeutig oder unbekannt, jeweils mit Grund.
+- **Prüfliste** (Werkzeuge): erkannte Kennfelder nach Prüfbedarf, mit Gründen und gemeinsamen Achsen. Bestätigen und
+  Ablehnen werden im Projekt gespeichert und gelten nur für die Originaldatei, auf der sie getroffen wurden. Unter
+  „Entscheidungen …“ lässt sich jede Entscheidung zurücknehmen. Eine abgelehnte Tabelle bietet ein neuer Scan nicht
+  wieder an, außer sie wird jetzt mit stärkerem Beleg gefunden; dann erscheint sie mit Hinweis.
+- **Namensübertragung zwischen Softwareständen:** Vorschläge, die die Erkennung im Zielstand an derselben Stelle mit
+  gleicher Größe, Zellbreite und Byte-Reihenfolge findet, sind gekennzeichnet. Gemessen an MED17 (Entwicklungsdaten):
+  „ähnliche Werte“ 92 → 99 % richtig (nicht unabhängig validiert; die App zeigt diese Quoten nicht an). Findet die Erkennung dort andere Achsen, gilt das nicht als Bestätigung. Ist
+  eine Achse am Zielort nicht bestätigt, werden ihre Werte nicht mehr mitübertragen; vorher waren bei 296 von 941
+  solcher Achsen die Werte falsch. Vorschläge ersetzen beim Übernehmen eine ungeprüfte, unbenannte Erkennung an
+  derselben Stelle. Bisher wurden gerade die bestätigten Vorschläge übersprungen.
+- **Lernmodelle ohne nachweisbare Freigabe entfernt:** Das seit 1.15.0 mitgelieferte Lernmodell für Datenmuster-Funde
+  wurde unter anderem mit einer Datei trainiert, deren Herkunftsvermerk Training ausschließt, und mit Daten ohne
+  dokumentierte Freigabe. Es ist aus Programm, ZIP, Installer und Quellcode entfernt, ebenso das
+  MS43-Strukturmodell (keine Trainingsfreigabe) und die Tabelle der gemessenen Trefferquoten (gemessen an Dateien
+  ohne geklärte Herkunft). Die Git-Historie bleibt unverändert, Prüfsummen und Herkunft stehen in der
+  [Modellkarte § 2e](docs/MODELLKARTE.md). Der Build bricht ab, wenn eine dieser Dateien (auch umbenannt) wieder in
+  ein Paket gerät. Ein neues Modell wird nur mit dokumentierter Freigabe seiner Trainingsdaten angewendet.
+- **Folgen für die Erkennung:** Exakte Kennfelder, Datentypen, Achsen und Achsadressen bleiben auf allen 15
+  Vergleichspaaren gleich. Ohne Modell erscheinen aber mehr ungeprüfte Datenmuster-Funde (z. B. ME9: Präzision
+  62 → 42 %, MS45: 66 → 38 %). Formhinweise des MS43-Modells gibt es nicht mehr; sie betrafen nur Kennfelder, die die
+  mitgelieferte MS43-Definition ohnehin enthält.
+- **Art des Belegs statt Prozentzahl:** Jeder automatische Fund zeigt *Code-Beleg*, *Strukturbeleg* oder
+  *Datenmuster-Vermutung*. Das ist keine Wahrscheinlichkeit und nicht unabhängig validiert; der Tooltip sagt das.
+  TriCore-Codebelege sind als experimentell markiert. Der Katalogfilter nutzt dieselben Stufen. Quoten, die
+  1.15.0–1.18.2 in Projekten gespeichert haben, werden beim Laden entfernt; eigene Notizen bleiben. Die historischen
+  Werte mit ihrer Herkunft stehen in der Modellkarte.
+- **Prüfliste:** Reine Datenmuster-Vermutungen ohne Widerspruch stehen als eigene Gruppe nach den Funden mit Code-
+  oder Strukturbeleg, jede Zeile als „Vermutung“ gekennzeichnet. Die Gruppe ist beim Öffnen aufgeklappt, weil sie
+  auch echte Kennfelder enthält (MS42: alle 22 exakten Funde, MS45: 21 von 30), und lässt sich einklappen
+  („Datenmuster-Vermutungen anzeigen“). Alle Funde bleiben im Projekt, im Katalog und im Filter.
+- **Training reproduzierbar:** Datensatz mit Herkunft, Familien-Auslassung, Seed, Protokoll und Ersetzungsregel.
+  Trainiert wird nur mit Daten, deren Freigabe festgehalten ist (`training_allowed`), und nur ein so trainiertes
+  Modell wird im Scan angewendet. Ein freigegebener Datensatz mit vollständiger Referenz liegt derzeit nicht vor.
+- **Scan:** benannte Stufen in der Statusleiste, durchgehend steigender Fortschritt, schnellere Achsensuche bei
+  identischen Ergebnissen. Mit einer großen geladenen XDF fror das Fenster nach dem Scan bisher 35–43 s ein
+  (MED17 mit 3446 Definitionen); die Übernahme der Funde dauert jetzt unter 0,3 s bei gleichem Ergebnis.
+  Musste das Fenster während eines Scans neu zeichnen (erste Anzeige einer Datei, Schließen der Prüfliste), stand es
+  bis zum Scan-Ende still (MS43: 4,7–5,1 s, auch in 1.18.2); jetzt längste Pause 0,11 s bei gleicher Scandauer.
+  Beendete Hintergrundaufgaben werden vor dem Freigeben und beim Schließen abgewartet.
+- **Bekannte Grenzen:**
+  - Die Präzision der Funde aus Programmcode ist nicht gemessen. Die TriCore-Codeerkennung bleibt experimentell.
+  - Bosch EDC17 setzt Tabellenzeiger zur Laufzeit über `a9`, das ist statisch nicht auflösbar.
+  - EDC17, MG1, MD1, Simos und SID bleiben nicht validiert. Die früheren Hersteller-A2L-Messungen (MSD80, MSD85,
+    EDC16, EDC17CP09) lassen sich lokal nicht wiederholen und gelten als historisch.
+  - Ein einmaliger Absturz (Zugriffsverletzung) vom 01.11.2026 trat in den späteren Belastungsläufen nicht wieder
+    auf. Seine Ursache ist unbekannt.
+  - Liegt der Programmordner tiefer als rund 200 Zeichen, startet das Programm nicht (Windows-Pfadlänge).
+  - Ein Abbruch wirkt bei MS43 erst nach 3–5 s, weil das Einlesen der mitgelieferten Definition nicht unterbrechbar
+    ist. Funde eines abgebrochenen Scans werden nicht übernommen.
+  - Geplante Arbeiten für 1.19.1: [Aufgaben](docs/AUFGABEN_1.19.1.md).
+
 ## 1.18.2 (01.11.2026)
 
 Sicherheitskorrektur des Firmware-Schutzes und Nacharbeit am Programm-Symbol. Kennfelderkennung, Import,

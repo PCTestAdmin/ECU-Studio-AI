@@ -4,6 +4,20 @@ Diese Seite und das Fenster **Hilfe → Unterstützte Steuergeräte …** in der
 (`src/ecu_studio/recognition/data/ecu_support.json`, erzeugt mit `python -m ecu_studio.tools.support_matrix`
 aus Ergebnissen von `benchmark_suite`). Die Messwerte der Tabelle stammen aus diesen Läufen.
 
+**Ergänzt am 03.11.2026 (1.19.0):**
+
+- Das Lernmodell für Datenmuster-Funde, das MS43-Strukturmodell und die Tabelle der Trefferquoten je Beweisart sind
+  entfernt ([Modellkarte § 2e](MODELLKARTE.md)). Die Präzisionswerte der Matrix wurden mit Modell gemessen
+  (21.10.2026). Ohne Modell sinkt die Präzision gemessen an den lokalen Paaren mit vollständiger Referenz:
+  - MS43 79 → 75 %, MS42 72 → 66 %, ME9 62 → 42 %, ME9.2.1 72 → 64 %, MS45 66 → 38 %.
+  - Exakte Funde, Datentypen und Achsen bleiben unverändert.
+  - Siehe [Validierung § 12.1 und § 13](VALIDIERUNG_1.19.0.md).
+- Hinweise „zur Konfidenz-Kalibrierung verwendet“ und die Rolle *training* („Lernmodell/Konfidenz daran
+  kalibriert“) beschreiben den Stand bis 1.18.2.
+- Die App zeigt seit 1.19.0 keine gemessenen Quoten mehr an den Funden, sondern die Art des Belegs.
+- Die TriCore-Codeerkennung bleibt **experimentell**. Alle als „nicht validiert“ geführten Familien bleiben es.
+
+**Ergänzt am 01.11.2026:** MSD80-Vollflash 73 → 84 von 99 (Entwicklungsdaten), Identifikationsstufen, Hinweis zur Herkunft lokaler Messdaten.
 **Ergänzt am 30./31.10.2026:** MSD80 ist nachweislich TriCore (vorher als PowerPC geführt), MSD85 ist ungeprüft,
 und Delphi/Delco Multec S ist als „nicht validiert“ aufgenommen. Das MSD80-Vollflash-Ergebnis (39 → 73 von 99) ist
 eine Entwicklungsmessung mit Community-XDF aus [ANALYSE_2026-10-30.md](ANALYSE_2026-10-30.md), kein
@@ -30,12 +44,12 @@ Lernmodell/Konfidenz daran kalibriert. Die Referenzdateien und die Firmware lieg
 
 | Steuergerät | Prozessor | Status | Softwarestände | exakt 2D (Spanne der Stände) | Präzision 2D | Grenzen / benötigt |
 |---|---|---|---:|---|---|---|
-| Bosch EDC17CP09 | Infineon TriCore | ✅ validiert | 1 | 463/703 | 85% | Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea). |
-| Siemens MSD80 | Infineon TriCore (am Vollflash I8A0S nachgewiesen; früher als PowerPC geführt) | ✅ validiert | 6 | 217–224 von 864 | 81% / 82% | Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: zusätzlich Kennfelder aus TriCore-Interpolationsaufrufen (Register, Stackslots, getrennte Achsensuche; Zelltyp aus den Ladebefehlen der Routine), an I8A0S (Community-XDF, *development*) 39 → 73 von 99 exakt, Typ bei 62 davon richtig, siehe [Analyse 30.10.](ANALYSE_2026-10-30.md). |
+| Bosch EDC17CP09 | Infineon TriCore | ✅ validiert | 1 | 463/703 | 85% | Historische Messung vom 21.10.2026 mit Hersteller-A2L, die lokal nicht mehr vorliegt: am 01.11.2026 nicht wiederholbar. Ein Softwarestand (BMW). Gruppenkennfelder mit gemeinsamen Achsen (MapG) werden kaum erkannt; TriCore-Code-Verweise auf Kennfelder ließen sich nicht nutzen (Zugriff nicht über movh.a/lea). |
+| Siemens MSD80 | Infineon TriCore (am Vollflash I8A0S nachgewiesen; früher als PowerPC geführt) | ✅ validiert | 6 | 217–224 von 864 | 81% / 82% | Historische Messung vom 21.10.2026 mit Hersteller-A2L, die lokal nicht mehr vorliegt: am 01.11.2026 nicht wiederholbar. Kalibrierbereich aus S19; Identität nur über A2L-EPK. Vollflash: Infineon TriCore (an I8A0S nachgewiesen); Kennfelder zusätzlich aus Interpolationsaufrufen und Datensatzköpfen im Programmcode – **experimentell**: an I8A0S mit Community-XDF (Entwicklungsdaten, kein unabhängiger Test) 39 → 84 von 99 exakt; Präzision dort nicht messbar, kein zweiter Vollflash mit Referenz. |
 | Delphi/Delco Multec S („D98…“-Kalibrierungen) | Motorola HC12 (laut openremap-core, ungeprüft) | ⚪ nicht validiert | 0 | offen | offen | Kein rechtmäßig nutzbares Abbild gefunden, kein Multec-S-Profil. **Benötigt:** unverändertes 128-KiB-Original mit Kennungsblock + passende Definition zur selben D-Nummer, besser zwei Stände. Siehe [DELCO_D98_RESEARCH.md](DELCO_D98_RESEARCH.md). |
-| Siemens MSD85 | ungeprüft (MSD80: TriCore) | ✅ validiert | 1 | 279/1026 | 81% | Ein Softwarestand; Identität nur über A2L-EPK. |
-| Bosch EDC16C35 | PowerPC (MPC5xx) | ✅ validiert | 1 | 283/387 | 81% | Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
-| Bosch EDC16C31 | PowerPC (MPC5xx) | ✅ validiert | 1 | 272/364 | 82% | Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
+| Siemens MSD85 | ungeprüft (MSD80: TriCore) | ✅ validiert | 1 | 279/1026 | 81% | Historische Messung vom 21.10.2026 mit Hersteller-A2L, die lokal nicht mehr vorliegt: am 01.11.2026 nicht wiederholbar. Ein Softwarestand; Identität nur über A2L-EPK. |
+| Bosch EDC16C35 | PowerPC (MPC5xx) | ✅ validiert | 1 | 283/387 | 81% | Historische Messung vom 21.10.2026 mit Hersteller-A2L, die lokal nicht mehr vorliegt: am 01.11.2026 nicht wiederholbar. Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
+| Bosch EDC16C31 | PowerPC (MPC5xx) | ✅ validiert | 1 | 272/364 | 82% | Historische Messung vom 21.10.2026 mit Hersteller-A2L, die lokal nicht mehr vorliegt: am 01.11.2026 nicht wiederholbar. Ein Softwarestand. Datei nennt C31 und C35 – Familie per Kennung mehrdeutig. |
 | BMW ME9 | PowerPC | ✅ validiert | 1 | 98/233 | 62% | Ein Softwarestand. |
 | BMW ME9.2.1 | PowerPC | ✅ validiert | 1 | 170/460 | 72% | Ein Softwarestand; keine Kennung in der Datei. |
 | Siemens MS45 | C167 | 🟡 teilweise | 1 | 30/472 | 66% | Niedrige Abdeckung (Datensatzformat ohne Kopf). Gemessen, Erkennung unzureichend (bestenfalls 30 von 472 exakt, Präzision höchstens 66%). |
@@ -219,12 +233,47 @@ Rechtlich sauber und genutzt: **Speeduino** (Open-Source-Steuergerät) – Defin
 (CC BY-NC 4.0, github.com/speeduino/Tunes). `tools/tunerstudio_image.py` erzeugt daraus das Kalibrierabbild und eine
 vollständige Referenz. Nur Zählwerte stehen hier; die Dateien liegen nicht im Repository.
 
+## Herkunft der lokalen Referenzdaten (Stand 01.11.2026)
+
+Geprüft wurden nur vorhandene Herkunftsangaben (Dateien, Git-Metadaten, frühere Berichte und Vermerke). Keine Datei
+wurde verändert, gelöscht, heruntergeladen oder weitergegeben. **Unbekannte Herkunft heißt: nicht für Training,
+nicht zur Veröffentlichung.** Lokale Regressionsmessungen (nur Zählwerte) bleiben möglich.
+
+| ECU-Familie | Dateien | Dokumentierte Herkunft | Lizenz | Bisher verwendet als | Test | Training | Veröffentlichung |
+|---|---|---|---|---|---|---|---|
+| Siemens MSD80 I8A0S | Vollflash-BIN, Community-XDF (Legacy) | GitHub Corbanistan/BMW-N54-Tuning-Resources, Commit 428b8c5; Nutzerfreigabe 30.10.2026 (lokal, nur lesend) | keine Lizenzdatei | Entwicklung | nur Entwicklung, kein unabhängiger Test | nein | nein (nur Hashes und Zählwerte) |
+| Siemens MSD80 I8A0S (V 3.0+) | XDF „I8A0S Custom“, MapSwitchBase-BIN | dasselbe Repository | keine Lizenzdatei | **nicht verwendet** (nicht freigegeben) | nur nach Freigabe; selber Softwarestand, daher höchstens halb-blind | nein | nein |
+| Siemens MS43 430069 | BIN, XDF | BIN: eigene Datei des Nutzers; XDF: ms4x-net 1.14 | XDF GPL-3.0 | Training, Regression | ja (aber Training) | ja | XDF ja (mitgeliefert), BIN nein |
+| Siemens MS42 0110C6 | BIN, XDF | BIN: GitHub ms4x-net/ms42 @ 4b3f591; XDF ms4x-net 1.3 | XDF GPL-3.0; Vermerk zur BIN: „read-only compatibility regression, not training or redistribution“ | Regression; **fälschlich Training** (19.10. ausgeliefertes Modell, 01.11. Kandidat) | Regression | **nein** | XDF ja, BIN nein |
+| BMW ME9 770115XE | BIN, A2L | keine | keine | Entwicklung/Regression | nur lokal | nein | nein |
+| BMW ME9.2.1 725D601B | BIN, HEX, A2L | keine | keine | Entwicklung/Regression | nur lokal | nein | nein |
+| Siemens MS45 4520D30S | BIN, A2L, XDF | keine | keine | Entwicklung/Regression | nur lokal | nein | nein |
+| BMW ME7.2 (M62TU) | BIN ×2, XDF, A2L ×2, HEX | keine | keine | nicht in den Benchmarks | nur lokal | nein | nein |
+| Bosch MED17.1.62 404A/E/G/H/J/L | Kalibrier-BIN ×6, XDF ×6 | keine | keine | Entwicklung/Regression, Transfer-Messung | nur lokal | nein | nein |
+| Bosch MED9.1 1K090711S | BIN, Teil-XDF | keine | keine | Rolle „test“ | nur lokal | nein | nein |
+| Bosch ME7.5 06A906018CG, 8E0909518AK | BIN ×2, XDF ×2 | keine | keine | Rolle „test“ bzw. Entwicklung | nur lokal | nein | nein |
+| Bosch EDC16C31/C35, EDC17CP09, Siemens MSD85, MSD80 37IIAFAA–37IIANAA | Kalibrier-BIN ×10 (aus S19) | keine; zugehörige Hersteller-A2L lokal nicht mehr vorhanden | keine | historische Messung 21.10.2026 | nicht wiederholbar ohne A2L | nein | nein |
+| BMW MSS54 (hw1501) | XDF, Git-Pack ohne Konfiguration | Ursprungs-URL nicht rekonstruierbar | unbekannt | Regression; das Modell vom 19.10. nennt MSS54-Teilabbilder als Trainingsdaten (Zusammenhang nicht belegt) | nur lokal | nein | nein |
+| Hyundai/Kia SIM2K, Denso 5EAT | Git-Packs ohne Konfiguration | Ursprungs-URL nicht rekonstruierbar | unbekannt | Regression; das Modell vom 19.10. nennt SIM2K-Daten als Trainingsdaten (Zusammenhang nicht belegt) | nur lokal | nein | nein |
+| rusEFI (Simulator-Abstimmungen) | BIN ×5 | rusEFI-Projekt | GPL-3.0 | Kalibrier-Ranker | ja | ja (GPL-Pflichten beachten) | nur mit Quellenangabe |
+| Speeduino | Abbilder ×14 aus Definition und Abstimmungen | github.com/speeduino/speeduino, speeduino/Tunes | GPL-2.0 / CC BY-NC 4.0 | Regression | ja | nur nicht kommerziell (zu klären) | nur Zählwerte |
+
+Für eine Wiederholung der historischen Messungen fehlen: die Hersteller-A2L zu EDC17CP09 `6P8KB574`, EDC16C35
+`4M702389`, EDC16C31 `6m661411`, MSD85 `791I200S` und MSD80 `37IIAFAA` bis `37IIANAA`. Für einen unabhängigen
+TriCore-Codetest fehlt mindestens ein **weiterer Vollflash mit Programmcode** (MSD80/MSD81 anderer Stand, MED17 oder
+EDC17) mit **passender, möglichst vollständiger Definition** und dokumentierter Herkunft.
+
 ## Definitionen und Identität
 
 - **A2L/ASAP2:** RECORD_LAYOUT (STD/COM/FIX_AXIS, Ausrichtung), Speicherbasis aus der Firmware, **EPK-Prüfung**
   (`MOD_PAR EPK` an `ADDR_EPK`, aufgelöst über Anker **oder** Segmenttabelle): passt die EPK nicht, wird nichts
   verknüpft; liegt `ADDR_EPK` nicht in der Abbildung, gibt es eine Warnung. Ältere A2L ohne EPK (ME9, MS45, ME7.2)
   werden nur über die Achsprüfung gekoppelt – das belegt die Adresslage, nicht den Softwarestand.
+- **Identifikationsstufe:** Jede Erkennung nennt eine Stufe mit Grund – *eindeutig* (Bosch-EPK oder
+  Siemens-Profil mit Softwarestand, keine andere Familie im Klartext), *wahrscheinlich* (nur Klartextname oder
+  Profil ohne Stand), *mehrdeutig* (mehrere Familien, auch EPK gegen Klartext) oder *unbekannt*. An 32 lokalen
+  Dateien gab es keine falsche Stufe *eindeutig*; reine Kalibrierbereiche (MSD80, MSD85, ME9, MED17-Teil) bleiben
+  *unbekannt* – dort belegt erst eine passende A2L mit EPK den Stand.
 - **Abgewiesen statt vorgetäuscht:** WinOLS-Projekte (`.ols`), WinOLS-Mappacks (`.kp`), ZIP, ELF/EXE, sowie HEX/S19
   beim Öffnen als Rohdatei (dafür gibt es „Intel HEX / Motorola S-Record importieren …“ bzw. den ZIP-Import).
 - **`.ols` geprüft, nicht importiert:** In 7 echten Projekten (Formatversionen 113–290) findet sich die in tune-editor
