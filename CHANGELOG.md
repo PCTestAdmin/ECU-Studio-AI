@@ -1,8 +1,10 @@
 ## Unveröffentlicht
 
-Kennfelderkennung ohne Definition, abgesichert durch eine abschließende Prüfung (Branch `feature/1.19-recognition`,
-noch kein Release, Versionsnummer unverändert). Messungen, Daten und Grenzen: [Entwicklungsbericht](docs/ANALYSE_2026-11-01.md)
-und [Validierungsbericht](docs/VALIDIERUNG_1.19.0.md). Status je Funktion: *validiert* = an unabhängigen Referenzen
+## 1.19.0 (04.11.2026)
+
+Kennfelderkennung ohne Definition, abgesichert durch eine abschließende Prüfung; Lerndaten ohne nachweisbare Freigabe
+sind entfernt, die App zeigt die Art des Belegs statt Prozentwerten. Messungen, Daten und Grenzen:
+[Entwicklungsbericht](docs/ANALYSE_2026-11-01.md) und [Validierungsbericht](docs/VALIDIERUNG_1.19.0.md). Status je Funktion: *validiert* = an unabhängigen Referenzen
 nachgewiesen, *experimentell* = vorhanden, aber nicht unabhängig geprüft.
 
 - **TriCore-Programmcode (experimentell):** Interpolationsaufrufe, die einen Datensatzkopf übergeben (Anzahl und
