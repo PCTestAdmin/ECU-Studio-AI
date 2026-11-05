@@ -72,8 +72,27 @@ def test_code_loaded_axes_fix_table_shape_and_values():
     assert not any(0x74000<=o<0x74018 for o in found)
 
 
+def _as_c16x_program(image):
+    """Add C16x code density (rets, mov Rw,#0xFFFF) away from the lookup code and calibration page.
+
+    Since 1.19.1 the application scan applies the C16x decoders only to images
+    established as C16x (core/architecture); a few moves in zeros are no
+    program. The moves load page 0xFFFF, outside the image: no extra references.
+    """
+    data=bytearray(image.read(0,image.size))
+    for k in range(400):
+        data[0x1000+k*0x100:0x1002+k*0x100]=bytes([0xDB,0x00])                     # rets
+        for j in range(4):
+            at=0x1010+k*0x100+j*0x20
+            data[at:at+4]=bytes([0xE6,0xF0|j,0xFF,0xFF])                               # mov Rj,#0xFFFF
+    return BinaryImage(bytes(data))
+
+
 def test_scoped_scan_reports_axes_as_one_line_candidates():
-    out=scan_calibration_candidates(_image_with_lookup(8),use_definitions=False)
+    from ecu_studio.core.architecture import detect_architecture,C16X
+    image=_as_c16x_program(_image_with_lookup(8))
+    assert detect_architecture(image.read(0,image.size)).name==C16X
+    out=scan_calibration_candidates(image,use_definitions=False)
     axes=[m for m in out if m.record_layout==AXIS_LAYOUT]
     assert {(m.offset,m.rows,m.cols) for m in axes}>={(0x74001,1,8),(0x7400A,1,6)}
     assert any(m.offset==0x75000 and (m.rows,m.cols)==(8,6) for m in out)
