@@ -1,6 +1,6 @@
 # Aufgaben für 1.19.1
 
-Stand: 03.11.2026, nach der Veröffentlichung von 1.19.0. Messungen und Hintergrund:
+Stand: 05.11.2026 (erstellt 03.11.2026, nach der Veröffentlichung von 1.19.0). Messungen und Hintergrund:
 [Validierungsbericht § 13–14](VALIDIERUNG_1.19.0.md), [Modellkarte § 2e](MODELLKARTE.md).
 
 Jede Änderung an der Erkennung wird mit `benchmark_suite` gegen 1.19.0 gemessen. Die Aufgaben sind erst erledigt,
@@ -41,6 +41,17 @@ MS42 72 → 66 %, ME9 62 → 42 %, ME9.2.1 72 → 64 %, MS45 66 → 38 %. In der
   Training mit MS42-, MS43-, SIM2K-, MSS54- oder TunerPro-Daten ohne Freigabe.
 - Messung je Familie: Präzision und exakte Funde. Abnahme: kein exakter Fund verloren.
 
+**Stand 05.11.2026 (Branch `feature/1.19.1-false-positive-reduction`, [Entwicklungsbericht](ENTWICKLUNG_1.19.1.md)):**
+
+- Erledigt: Code-Decoder nur auf belegter Architektur (`core/architecture.py`); Funde auf Text und auf
+  ARM-Zeigertabellen/Vektortabelle werden unterdrückt (`core/region_classes.py`). Negativ-Benchmark über sieben
+  offene Firmwarestände (`tools/negative_benchmark.py`): 921 nachweisliche Fehlfunde → 0, Strukturbelege auf
+  Programm-Images 294 → 36. Auf den 15 realen Paaren kein exakter Fund verloren; synthetisch ein exakter Fund mehr.
+- Nebenbefund behoben: falscher C16x-Code-Beleg auf MED17 404A/404E/404G (0x12600).
+- Offen: Die Präzision auf den Paaren mit vollständiger Referenz ist unverändert (die realen Paare enthalten kaum
+  Text- und Zeigerbereiche im gescannten Bereich). Weitere Regeln für Datenmuster-Fehlfunde in Kalibrierbereichen
+  (Wiederholungen, Überlappung) stehen noch aus; siehe auch Aufgaben 8–10.
+
 ### 3. Zuordnung von X- und Y-Achsen verbessern
 
 - Fälle sammeln, in denen Achsen vertauscht, falsch oder nicht zugeordnet sind (`axes_correct`, `with_axes` und
@@ -77,3 +88,24 @@ wieder auf; die Ursache ist unbekannt.
 
 - Auf einem Rechner mit Administratorrechten Absturzabbilder einschalten (Befehle in Validierung § 12.2).
 - Belastungsläufe bei jeder Änderung an Workern oder Signalen wiederholen.
+
+### 8. Referenz für Konstanten-Tabellen in offener Firmware
+
+Die 875 verbleibenden Funde auf den Programm-Images (Negativ-Benchmark) sind „unklar“: ohne Symbole nicht von echten
+Konstanten-Tabellen zu unterscheiden.
+
+- Speeduino oder rusEFI aus dem Quellcode bauen (avr-gcc bzw. arm-none-eabi); Konstanten-Tabellen aus ELF/Map als
+  Referenz für Lage, Größe und Typ.
+- XCPlite: A2L+ELF-Paar für den A2L-Import.
+- Erst danach Precision/Recall auf diesen Images angeben.
+
+### 9. Datenmuster-Funde in Programmcode (ARM-Thumb, AVR)
+
+Die Zeilenabstands-Suche findet weiterhin Muster in Thumb- und AVR-Code (rusEFI rund 250 Vermutungen je Image).
+Ein Filter ist nur mit Belegen zulässig, z. B. Disassemblierung mit Kontrollfluss ab der Vektortabelle; keine
+Byte-Statistik als alleiniger Grund.
+
+### 10. Unterdrückte Funde anzeigen
+
+Die Zahl der wegen Text oder Zeigertabellen unterdrückten Funde steht in den Scan-Diagnosedaten
+(`diagnostics['suppressed']`), nicht im Scan-Bericht der Oberfläche. Anzeige mit Übersetzung ergänzen.
