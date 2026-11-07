@@ -1998,6 +1998,8 @@
   "strukturell": "structural",
   "strukturell, ungeprüft": "structural, unverified",
   "unbekannt": "unknown",
+  "unbekannt (keine ausreichenden Belege)": "unknown (insufficient evidence)",
+  "unbekannt (widersprüchliche Belege: ": "unknown (conflicting evidence: ",
   "ungeprüfter Vorschlag": "unverified proposal",
   "ungültige COEFFS": "invalid COEFFS",
   "ungültige COEFFS_LINEAR": "invalid COEFFS_LINEAR",

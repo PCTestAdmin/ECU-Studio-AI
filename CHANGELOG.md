@@ -1,5 +1,31 @@
 ## Unveröffentlicht
 
+Weniger Fehlfunde aus Programmcode, Text und Zeigertabellen (Branch `feature/1.19.1-false-positive-reduction`, noch kein
+Release, Versionsnummer unverändert). Messungen und Grenzen: [Entwicklungsbericht 1.19.1](docs/ENTWICKLUNG_1.19.1.md).
+
+- **Prozessorarchitektur:** TriCore, C16x, ARM (Cortex-M) und AVR werden nur erkannt, wenn zwei unabhängige Merkmale
+  übereinstimmen (z. B. Vektortabelle und Befehlsdichte); sonst gilt „unbekannt“. Code-Belege entstehen nur noch auf
+  der belegten Architektur. Bisher las die C16x-Suche zufällige Bytes anderer Prozessoren als Ladebefehle: auf einer
+  rusEFI-ARM-Firmware ergab das einen Code-Beleg auf einer Zeichenkettenliste, auf drei MED17-Dateien (TriCore) einen
+  falschen Code-Beleg bei 0x12600. Die C16x-Erkennung auf C16x-Steuergeräten bleibt unverändert.
+- **Text und Zeigertabellen:** Funde, die nahezu vollständig auf Zeichenkettenlisten oder (bei ARM) auf Zeigertabellen
+  und der Vektortabelle liegen, werden nicht mehr als Kennfeld angeboten; ebenso Datensätze, deren „Achsen“ Adressen
+  sind. Kalibrierwerte, die zufällig wie Text oder Adressen aussehen, bleiben erhalten (eigene Tests).
+- **Gemessen** auf sieben offenen Firmwareständen ohne Abstimmungsdaten (FOME, rusEFI, Speeduino; lokal, nicht im
+  Repository): 1795 → 875 Funde, nachweislich falsche 921 → 0, Strukturbelege 294 → 36. Die übrigen Funde sind nicht
+  als falsch belegt; Programm-Images enthalten auch echte Konstanten-Tabellen. Keine Präzisionsangabe.
+- **Keine Regression:** Auf den 15 realen Vergleichspaaren bleiben exakte Kennfelder, Datentypen, Achsen und
+  Achsadressen gleich; in den synthetischen Fällen ein exakter Fund mehr. Laufzeit und Speicher unverändert.
+- **Neues Werkzeug** `tools/negative_benchmark.py` für reproduzierbare Fehlfund-Messungen (auch Vorher/Nachher mit
+  einem anderen Quellstand und Versionsvergleich).
+- **C16x nur mit zwei unabhängigen Merkmalen:** Trap-Vektortabelle (`jmps` ab Adresse 0) und C16x-Befehlsdichte.
+  Viele ME7-Aufrufsequenzen allein genügen nicht mehr; sie bestehen aus denselben `mov`-Befehlen wie das
+  Dichtemerkmal. MS42, MS43 und ME7.5 werden weiter als C16x erkannt, alle anderen Zuordnungen bleiben gleich.
+- **Kein Zwischenspeicher hält mehr Firmwaredateien:** C16x-Ladeadresse und A2L-Referenz (Namensübertragung,
+  Versionsvergleich) speicherten bis zu 8 + 4 vollständige Images über das Schließen eines Projekts hinaus. Die
+  Ladeadresse wird jetzt wie die Architektur einmal je Scan berechnet und weitergegeben; der A2L-Zwischenspeicher
+  behält nur die verknüpften Einträge (Schlüssel: SHA-256).
+
 ## 1.19.0 (04.11.2026)
 
 Kennfelderkennung ohne Definition, abgesichert durch eine abschließende Prüfung; Lerndaten ohne nachweisbare Freigabe

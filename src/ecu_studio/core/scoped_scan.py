@@ -13,16 +13,47 @@ from .profiles import identify_profile
 from .precision import rank_candidates
 from .axis_records import scan_axis_records, record_axes
 from .curve_records import scan_curve_records
-from .structure_scan import scan_structures, lookup_descriptors
+from .structure_scan import scan_structures, lookup_descriptors, c16x_base
 from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence
 from .candidate_model import load_model, model_status, score_candidates
 from .map_groups import mark_twins
+from .architecture import detect_architecture, TRICORE, C16X
+from .region_classes import text_spans, pointer_spans, address_word_spans, classify, POINTER_COVERAGE
 from . import parallel
 
 RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
+AXIS_RECORD_LAYOUTS=('candidate:record-axis','candidate:count-axis','candidate:curve-record')
+
+
+def _axis_ranges(m):
+    """Byte ranges of a structural find's axes (its own bytes for a single axis)."""
+    if m.record_layout in AXIS_RECORD_LAYOUTS:
+        return [(m.offset,m.offset+m.length)]
+    if m.record_layout!='candidate:nx,ny,x,y,z':
+        return []
+    out=[]
+    for off,values in ((m.axis_x_offset,m.axes_x),(m.axis_y_offset,m.axes_y)):
+        if off is not None and values:
+            width=1 if all(0<=v<=255 for v in values) else 2
+            out.append((off,off+width*len(values)))
+    return out
+
+
+def _axes_are_pointers(m,addresses):
+    """All axes of a header record lie on address words (ARM descriptors, rusEFI Map3D); a single
+    axis only if a neighbouring aligned word is an address word as well."""
+    ranges=_axis_ranges(m)
+    if not ranges or not all(addresses.coverage(a,b)>=POINTER_COVERAGE for a,b in ranges):
+        return False
+    if m.record_layout!='candidate:nx,ny,x,y,z':
+        a,b=ranges[0]
+        return addresses.coverage(a-4,a)==1 or addresses.coverage(b,b+4)==1
+    return True
+
+
 INDEPENDENT_EVIDENCE=('candidate:code-reference','candidate:code-reference-generic','candidate:count-axis','candidate:nx,ny,x,y,z','candidate:pointer-descriptor','candidate:record-axis','candidate:curve-record','candidate:code-call')
 
 
@@ -122,6 +153,12 @@ def scan_calibration_candidates(image: BinaryImage, *,
     stage('Achsen-Arrays', 75)
     lo,hi=start or 0,end if end is not None else image.size
     raw=image.read(0,image.size)
+    # Code decoders run only for an established architecture (core/architecture):
+    # chance opcodes of other code are no evidence.
+    arch=detect_architecture(raw)
+    if diagnostics is not None:diagnostics['architecture']=arch.describe()
+    # Computed once per scan and passed on; nothing keeps the image after the scan.
+    base=c16x_base(raw) if arch.name==C16X and structure_limit>0 else None
     mask=data_mask(raw) if start is None else None
     # Unknown image: the row-pitch search only visits data-like blocks (faster,
     # and code bytes cannot produce smoothness-only candidates).
@@ -130,12 +167,13 @@ def scan_calibration_candidates(image: BinaryImage, *,
     if cancelled and cancelled():
         return []
     stage('Programmcode: Interpolationsaufrufe', 78)
-    calls=call_descriptors(raw,lo,hi) if structure_limit>0 else {}
+    calls=call_descriptors(raw,lo,hi) if structure_limit>0 and arch.name==TRICORE else {}
     if structure_limit>0:
         # Axes named by lookup calls are code-confirmed even without a chain.
         known={ax.header for ax in axes}
         spans=[(ax.header,ax.end) for ax in axes]
-        pairs=list(lookup_descriptors(raw,lo,hi).values())+[(c.x_axis,c.y_axis) for c in calls.values()]
+        lookups=lookup_descriptors(raw,lo,hi,base) if arch.name==C16X else {}
+        pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()]
         for pair in pairs:
             for ax in pair:
                 # Values decide: a record's second count lies inside the span of its first axis.
@@ -144,7 +182,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
         axes.sort(key=lambda ax:ax.header)
     stage('Strukturen und Zeilenabstände', 82)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,
-                               axes=axes,regions=regions,calls=calls) if structure_limit>0 else []
+                               axes=axes,regions=regions,calls=calls,architecture=arch,
+                               base=base) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
     if jobs is not None:
@@ -195,6 +234,25 @@ def scan_calibration_candidates(image: BinaryImage, *,
         if key not in seen:
             seen.add(key);extra.append(c)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
+    # Proven non-tables: runs of text strings, and pointer tables of an
+    # architecture with a known pointer format (core/region_classes). Only
+    # near-complete coverage counts; everything else stays a candidate.
+    # Header records whose axes are address words are pointer structures
+    # (little-endian 0x080Axxxx reads as a falling u8 axis 0x11 0x10 0x0A 0x08).
+    text,pointers=text_spans(raw),pointer_spans(raw,arch)
+    addresses=address_word_spans(raw,arch)
+    suppressed={'text':0,'pointer':0}
+    kept_result=[]
+    for m in result:
+        reason=classify(m.offset,m.offset+m.length,text,pointers)
+        if not reason and len(addresses) and _axes_are_pointers(m,addresses):
+            reason='pointer'
+        if reason:
+            suppressed[reason]+=1
+        else:
+            kept_result.append(m)
+    result=kept_result
+    if diagnostics is not None:diagnostics['suppressed']=suppressed
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: a learned scorer may drop weak ones; it is applied only
     # with cleared training data (core/candidate_model.py). None ships with 1.19.

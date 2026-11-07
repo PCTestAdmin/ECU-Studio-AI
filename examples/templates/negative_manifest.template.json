@@ -1,0 +1,7 @@
+[
+  {"name": "rusEFI 2026-11-01", "family": "rusEFI (f407-discovery)", "architecture": "ARM",
+   "path": "C:/pfad/zur/rusefi_...f407-discovery_....bin",
+   "srec": "C:/pfad/zur/rusefi_...f407-discovery_..._update.srec"},
+  {"name": "Speeduino 202501.6", "family": "Speeduino (Mega2560)", "architecture": "AVR",
+   "path": "C:/pfad/zur/speeduino_202501_6.hex"}
+]

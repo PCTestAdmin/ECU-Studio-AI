@@ -20,7 +20,6 @@ tools/structure_benchmark.py). Labels/units still require XDF/A2L metadata.
 from __future__ import annotations
 import bisect
 import re
-from functools import lru_cache
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 from .model import BinaryImage, MapDefinition
@@ -249,12 +248,12 @@ MIN_BASE_VOTES = 5
 
 
 def c16x_base(data: bytes) -> int:
-    """Load address of the image, voted by lookup calls whose axis pointer hits a valid axis."""
-    return _c16x_base(data if isinstance(data, bytes) else bytes(data))
+    """Load address of the image, voted by lookup calls whose axis pointer hits a valid axis.
 
-
-@lru_cache(maxsize=8)
-def _c16x_base(data: bytes) -> int:
+    Not cached: a module-level cache keyed by the image kept whole firmware
+    files alive. A scan computes the base once and passes it on
+    (scan_structures ``base``).
+    """
     calls = [tuple(int.from_bytes(g, 'little') for g in m.groups()) for m in _LOOKUP.finditer(data)]
     votes = {}
     for base in C16X_BASES:
@@ -550,7 +549,8 @@ def _cell_type_note(call, dtype: str) -> str:
 
 def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, *,
                     max_results: int = 400, cancelled=None, axes=None,
-                    regions: list[tuple[int, int]] | None = None, calls=None) -> list[MapDefinition]:
+                    regions: list[tuple[int, int]] | None = None, calls=None,
+                    architecture=None, base: int | None = None) -> list[MapDefinition]:
     """Non-overlapping table-shaped regions in [start, end); offsets are absolute.
 
     ``regions`` limits the smoothness-only (row-pitch) search, e.g. to data-like
@@ -562,6 +562,15 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
 
     ``calls`` are TriCore interpolation calls (tricore_refs.call_descriptors),
     computed here when not given.
+
+    ``architecture`` (core.architecture.Architecture) limits the code decoders to
+    the established architecture: C16x page/offset loads and ME7 lookup calls only
+    on C16x, the auto-detected 8/16-bit and 68k loads and the SH-2 pointer
+    descriptors only where no other architecture is established. Without it all
+    decoders run (decoder-level use and tests); the application scan always
+    passes it (scoped_scan).
+
+    ``base`` is the C16x load address (c16x_base), computed here when not given.
     """
     end = image.size if end is None else min(end, image.size)
     if end - start < 64:
@@ -569,13 +578,20 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
     data = image.read(0, image.size)
     if axes is None:
         axes = scan_count_axes(data, start, end)
-    refs = c16x_reference_positions(data, start, end)
-    descriptors = lookup_descriptors(data, start, end)
-    # Other CPUs (HC11, 8051): address loads with an auto-detected memory map.
-    cpu, generic = detect_cpu(data)
+    from .architecture import C16X
+    # C16x decoders read chance byte pairs of other code as MOV Rw,#imm16
+    # (1.19.0: a page+offset "reference" on a string list of an ARM image).
+    c16x = architecture is None or architecture.name == C16X
+    other = architecture is None or not architecture.known
+    if c16x and base is None:
+        base = c16x_base(data)
+    refs = c16x_reference_positions(data, start, end, base) if c16x else {}
+    descriptors = lookup_descriptors(data, start, end, base) if c16x else {}
+    # Other CPUs (HC11, 8051, 68k): address loads with an auto-detected memory map.
+    cpu, generic = detect_cpu(data) if other else (None, set())
     generic_only = {a for a in generic if start <= a < end} - set(refs) - set(descriptors)
     # Pointer descriptors (Denso SH-2) name start, shape, type and axes outright.
-    pointed = pointer_descriptors(data, start, end)
+    pointed = pointer_descriptors(data, start, end) if other else {}
     # TriCore interpolation calls name start, shape and axes; the cell width
     # follows from the next object the calls name (see tricore_refs.cell_widths).
     calls = call_descriptors(data, start, end) if calls is None else calls
