@@ -18,6 +18,13 @@ Release, Versionsnummer unverändert). Messungen und Grenzen: [Entwicklungsberic
   Achsadressen gleich; in den synthetischen Fällen ein exakter Fund mehr. Laufzeit und Speicher unverändert.
 - **Neues Werkzeug** `tools/negative_benchmark.py` für reproduzierbare Fehlfund-Messungen (auch Vorher/Nachher mit
   einem anderen Quellstand und Versionsvergleich).
+- **C16x nur mit zwei unabhängigen Merkmalen:** Trap-Vektortabelle (`jmps` ab Adresse 0) und C16x-Befehlsdichte.
+  Viele ME7-Aufrufsequenzen allein genügen nicht mehr; sie bestehen aus denselben `mov`-Befehlen wie das
+  Dichtemerkmal. MS42, MS43 und ME7.5 werden weiter als C16x erkannt, alle anderen Zuordnungen bleiben gleich.
+- **Kein Zwischenspeicher hält mehr Firmwaredateien:** C16x-Ladeadresse und A2L-Referenz (Namensübertragung,
+  Versionsvergleich) speicherten bis zu 8 + 4 vollständige Images über das Schließen eines Projekts hinaus. Die
+  Ladeadresse wird jetzt wie die Architektur einmal je Scan berechnet und weitergegeben; der A2L-Zwischenspeicher
+  behält nur die verknüpften Einträge (Schlüssel: SHA-256).
 
 ## 1.19.0 (04.11.2026)
 

@@ -12,7 +12,8 @@ from ecu_studio.core.architecture import (detect_architecture, ARM, AVR, C16X, T
 from ecu_studio.core.model import BinaryImage
 from ecu_studio.core.region_classes import text_spans, pointer_spans, classify, is_text_string, EMPTY
 from ecu_studio.core.scoped_scan import scan_calibration_candidates
-from ecu_studio.core.structure_scan import scan_structures, REFERENCE_LAYOUT, c16x_reference_anchors
+from ecu_studio.core.structure_scan import (scan_structures, REFERENCE_LAYOUT, POINTER_LAYOUT,
+                                           c16x_reference_anchors)
 
 SIZE = 0x20000
 
@@ -59,16 +60,25 @@ def avr_image(size=SIZE, seed=3):
     return data
 
 
-def c16x_image(size=SIZE, seed=5):
+def c16x_image(size=SIZE, seed=5, vectors=True, code=True):
     h = _halfwords(size // 2, seed)
-    _sprinkle(h, 0x00DB, 200, seed + 1)                        # rets (bytes DB 00)
+    if code:
+        _sprinkle(h, 0x00DB, 200, seed + 1)                    # rets (bytes DB 00)
     data = bytearray(h.tobytes())
     # mov Rw,#0xFFFF (E6 Fx FF FF): page 0xFFFF lies outside the image, so the
     # moves give C16x density without chance page/offset references.
     pos = _rng(seed + 2).choice(np.arange(16, size // 4 - 1), 400 * size // 0x10000, replace=False)
-    for p in pos.tolist():
+    for p in pos.tolist() if code else ():
         data[4 * p:4 * p + 4] = bytes([0xE6, 0xF0 | (p & 0xF), 0xFF, 0xFF])
+    if vectors:
+        _c16x_vectors(data)
     return data
+
+
+def _c16x_vectors(data, slots=range(128)):
+    # Trap/interrupt vector table: jmps seg,addr (FA seg addr16) per 4-byte slot (MS43: 128 of 128).
+    for k in slots:
+        data[4 * k:4 * k + 4] = bytes([0xFA, 0x00, (0x40 + 8 * k) & 0xFE, 0x20])
 
 
 def tricore_image(size=SIZE, seed=7):
@@ -104,6 +114,71 @@ def test_one_sign_alone_is_not_enough():
     assert detect_architecture(bytes(data)).name == UNKNOWN
 
 
+# --- C16x: trap vector table AND code density (1.19.1, final review) -----------------------------------------
+
+
+def _lookup_sequences(data, count, start=0x2000, step=0x40):
+    # Bosch ME7 lookup call: mov R12..R15,#imm16 (E6 FC.. E6 FD.. E6 FE.. E6 FF..).
+    for k in range(count):
+        at = start + k * step
+        data[at:at + 16] = bytes([0xE6, 0xFC, 0x00, 0x50, 0xE6, 0xFD, 0x02, 0x00,
+                                  0xE6, 0xFE, 0x00, 0x48, 0xE6, 0xFF, 0x02, 0x00])
+    return data
+
+
+def test_c16x_needs_vector_table_and_code_density():
+    arch = detect_architecture(bytes(c16x_image()))
+    assert arch.name == C16X
+    assert arch.evidence[0].startswith('128 Trap-Vektoren (jmps)')
+    assert arch.evidence[1].startswith('C16x-Code: rets')
+    # Each sign alone is one sign: vector table without code, code without vector table.
+    assert detect_architecture(bytes(c16x_image(code=False))).name == UNKNOWN
+    assert detect_architecture(bytes(c16x_image(vectors=False))).name == UNKNOWN
+
+
+def test_lookup_like_sequences_alone_are_not_c16x():
+    # 59f355d: >= 20 such sequences alone made an image C16x. They are moves of the
+    # same mov Rw,#imm16 family as the density sign: no second independent sign.
+    for base in (bytearray(_rng(8).integers(0, 256, SIZE, dtype=np.uint8).tobytes()), bytearray(SIZE)):
+        data = _lookup_sequences(base, 120)
+        arch = detect_architecture(bytes(data))
+        assert arch.signs['c16x_lookups'] == 120
+        assert arch.name == UNKNOWN
+        found = scan_calibration_candidates(BinaryImage(bytes(data)), use_definitions=False)
+        assert not [m for m in found if m.evidence_tier == 'Code-Beleg']
+    # On a C16x image the sequences change nothing about the decision or its evidence.
+    plain, more = detect_architecture(bytes(c16x_image())), detect_architecture(bytes(_lookup_sequences(c16x_image(), 120)))
+    assert plain.name == more.name == C16X
+    assert not any('Aufrufsequenzen' in e for e in more.evidence)
+
+
+def test_random_c16x_sequences_in_other_code_are_not_c16x():
+    def with_c16x_noise(data, seed):
+        # Chance rets/mov opcodes and lookup sequences at C16x density, but no trap vectors.
+        h = np.frombuffer(bytes(data), np.uint16).copy()
+        _sprinkle(h, 0x00DB, 200, seed)
+        noisy = bytearray(h.tobytes())
+        for p in _rng(seed + 1).choice(np.arange(256, SIZE // 4 - 1), 800, replace=False).tolist():
+            noisy[4 * p:4 * p + 4] = bytes([0xE6, 0xF0 | (p & 0xF), 0xFF, 0xFF])
+        return _lookup_sequences(noisy, 30, start=0x1C000, step=0x20)
+    for build, name in ((arm_image, ARM), (avr_image, AVR), (tricore_image, TRICORE)):
+        arch = detect_architecture(bytes(with_c16x_noise(build(), 31)))
+        assert arch.name == name, (name, arch.describe())
+        assert C16X not in arch.conflicts
+
+
+def test_calibration_and_damaged_c16x_images_are_unknown():
+    smooth = bytearray(np.tile(_table(16, 16, 20, 3, 2).astype(np.uint8).ravel(), SIZE // 256).tobytes())
+    assert detect_architecture(bytes(smooth)).name == UNKNOWN
+    assert detect_architecture(bytes(_lookup_sequences(smooth, 40))).name == UNKNOWN
+    full = bytes(c16x_image())
+    assert detect_architecture(full[0x200:]).name == UNKNOWN    # vector table cut off
+    erased = bytearray(full)
+    erased[:0x200] = b'\xff' * 0x200                            # erased boot sector
+    assert detect_architecture(bytes(erased)).name == UNKNOWN
+    assert detect_architecture(full[:0x800]).name == UNKNOWN    # too short to judge
+
+
 def test_random_calibration_and_tiny_images_are_unknown():
     assert detect_architecture(_rng(1).integers(0, 256, SIZE, dtype=np.uint8).tobytes()).name == UNKNOWN
     smooth = np.tile(_table(16, 16, 20, 3, 2).astype(np.uint8).ravel(), SIZE // 256).tobytes()
@@ -119,6 +194,7 @@ def test_conflicting_signs_give_unknown_with_reason():
     data = bytearray(h.tobytes())
     for p in range(64, SIZE // 4, 8):
         data[4 * p:4 * p + 4] = bytes([0xE6, 0xF0 | (p & 0xF), 0xFF, 0xFF])
+    _c16x_vectors(data, range(16, 128))                         # after the 16 Cortex-M words
     arch = detect_architecture(bytes(data))
     assert arch.name == UNKNOWN
     assert set(arch.conflicts) == {ARM, C16X}
@@ -183,6 +259,38 @@ def test_c16x_moves_in_avr_and_unknown_images_give_no_code_evidence():
         data = _with_c16x_references(base)
         found = scan_calibration_candidates(BinaryImage(bytes(data)), use_definitions=False)
         assert not [m for m in found if m.record_layout == REFERENCE_LAYOUT]
+
+
+def _with_denso_descriptors(data, at=0x10000, n_tables=6):
+    # SH-2 (Denso) descriptors nx, ny, &X, &Y, &Z, type (big endian), as in test_structure_families.
+    for k in range(n_tables):
+        x_ptr = at + 0x1000 + 0x200 * k
+        y_ptr, z_ptr = x_ptr + 16, x_ptr + 36
+        data[x_ptr:y_ptr] = struct.pack('>4f', 0, 1000, 2000, 3000)
+        data[y_ptr:z_ptr] = struct.pack('>5f', 10, 20, 40, 80, 160)
+        z = np.add.outer(np.arange(5) * 300, np.arange(4) * 70).astype('>u2') + 100 * k
+        data[z_ptr:z_ptr + z.nbytes] = z.tobytes()
+        d = at + 0x200 + 0x20 * k
+        data[d:d + 24] = struct.pack('>HHIIIBxxxf', 4, 5, x_ptr, y_ptr, z_ptr, 0x08, 1.)
+    return data
+
+
+def test_generic_and_sh2_decoders_run_only_without_established_architecture():
+    # 1.19.1 review: HC11/8051/68k address loads and SH-2 descriptors are decoded only on
+    # unknown images; on an established architecture their chance hits are no evidence.
+    table = 0x10000 + 0x1000 + 36
+    unknown = bytes(_with_denso_descriptors(bytearray(_rng(12).integers(0, 256, SIZE, dtype=np.uint8).tobytes())))
+    assert detect_architecture(unknown).name == UNKNOWN
+    found = {m.offset: m for m in scan_structures(BinaryImage(unknown), 0x11000, 0x12000, architecture=detect_architecture(unknown))}
+    assert found[table].record_layout == POINTER_LAYOUT
+    for build in (arm_image, avr_image, c16x_image, tricore_image):
+        data = bytes(_with_denso_descriptors(build()))
+        arch = detect_architecture(data)
+        assert arch.known, build.__name__
+        legacy = {m.offset: m for m in scan_structures(BinaryImage(data), 0x11000, 0x12000)}
+        assert legacy[table].record_layout == POINTER_LAYOUT          # the decoder itself still reads them
+        gated = scan_structures(BinaryImage(data), 0x11000, 0x12000, architecture=arch)
+        assert not [m for m in gated if m.record_layout in (POINTER_LAYOUT, 'candidate:code-reference-generic')]
 
 
 def test_scan_reports_the_architecture_decision():

@@ -73,13 +73,16 @@ def test_code_loaded_axes_fix_table_shape_and_values():
 
 
 def _as_c16x_program(image):
-    """Add C16x code density (rets, mov Rw,#0xFFFF) away from the lookup code and calibration page.
+    """Add a C16x trap vector table (jmps at 0x000-0x1FF) and code density
+    (rets, mov Rw,#0xFFFF) away from the lookup code and calibration page.
 
     Since 1.19.1 the application scan applies the C16x decoders only to images
     established as C16x (core/architecture); a few moves in zeros are no
     program. The moves load page 0xFFFF, outside the image: no extra references.
     """
     data=bytearray(image.read(0,image.size))
+    for k in range(128):
+        data[4*k:4*k+4]=bytes([0xFA,0x00,0x00,0x10])                                    # jmps 0,0x1000
     for k in range(400):
         data[0x1000+k*0x100:0x1002+k*0x100]=bytes([0xDB,0x00])                     # rets
         for j in range(4):

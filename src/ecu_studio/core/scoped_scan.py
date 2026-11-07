@@ -13,7 +13,7 @@ from .profiles import identify_profile
 from .precision import rank_candidates
 from .axis_records import scan_axis_records, record_axes
 from .curve_records import scan_curve_records
-from .structure_scan import scan_structures, lookup_descriptors
+from .structure_scan import scan_structures, lookup_descriptors, c16x_base
 from .tricore_refs import call_descriptors
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
@@ -157,6 +157,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # chance opcodes of other code are no evidence.
     arch=detect_architecture(raw)
     if diagnostics is not None:diagnostics['architecture']=arch.describe()
+    # Computed once per scan and passed on; nothing keeps the image after the scan.
+    base=c16x_base(raw) if arch.name==C16X and structure_limit>0 else None
     mask=data_mask(raw) if start is None else None
     # Unknown image: the row-pitch search only visits data-like blocks (faster,
     # and code bytes cannot produce smoothness-only candidates).
@@ -170,7 +172,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
         # Axes named by lookup calls are code-confirmed even without a chain.
         known={ax.header for ax in axes}
         spans=[(ax.header,ax.end) for ax in axes]
-        lookups=lookup_descriptors(raw,lo,hi) if arch.name==C16X else {}
+        lookups=lookup_descriptors(raw,lo,hi,base) if arch.name==C16X else {}
         pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()]
         for pair in pairs:
             for ax in pair:
@@ -180,7 +182,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
         axes.sort(key=lambda ax:ax.header)
     stage('Strukturen und Zeilenabstände', 82)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,
-                               axes=axes,regions=regions,calls=calls,architecture=arch) if structure_limit>0 else []
+                               axes=axes,regions=regions,calls=calls,architecture=arch,
+                               base=base) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
     if jobs is not None:

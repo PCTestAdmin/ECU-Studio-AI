@@ -1,6 +1,6 @@
 # Aufgaben für 1.19.1
 
-Stand: 05.11.2026 (erstellt 03.11.2026, nach der Veröffentlichung von 1.19.0). Messungen und Hintergrund:
+Stand: 07.11.2026 (erstellt 03.11.2026, nach der Veröffentlichung von 1.19.0). Messungen und Hintergrund:
 [Validierungsbericht § 13–14](VALIDIERUNG_1.19.0.md), [Modellkarte § 2e](MODELLKARTE.md).
 
 Jede Änderung an der Erkennung wird mit `benchmark_suite` gegen 1.19.0 gemessen. Die Aufgaben sind erst erledigt,
@@ -51,6 +51,9 @@ MS42 72 → 66 %, ME9 62 → 42 %, ME9.2.1 72 → 64 %, MS45 66 → 38 %. In der
 - Offen: Die Präzision auf den Paaren mit vollständiger Referenz ist unverändert (die realen Paare enthalten kaum
   Text- und Zeigerbereiche im gescannten Bereich). Weitere Regeln für Datenmuster-Fehlfunde in Kalibrierbereichen
   (Wiederholungen, Überlappung) stehen noch aus; siehe auch Aufgaben 8–10.
+- Abschließende Prüfung 07.11.2026: Globale Zwischenspeicher mit ganzen Firmwaredateien entfernt (Architektur,
+  C16x-Ladeadresse, A2L-Referenz); C16x nur noch mit Trap-Vektortabelle und Befehlsdichte (Aufrufsequenzen allein
+  genügen nicht mehr). Erkennungsergebnisse identisch zu 59f355d. Neuer offener Punkt: Aufgabe 11.
 
 ### 3. Zuordnung von X- und Y-Achsen verbessern
 
@@ -109,3 +112,16 @@ Byte-Statistik als alleiniger Grund.
 
 Die Zahl der wegen Text oder Zeigertabellen unterdrückten Funde steht in den Scan-Diagnosedaten
 (`diagnostics['suppressed']`), nicht im Scan-Bericht der Oberfläche. Anzeige mit Übersetzung ergänzen.
+
+### 11. HC11/8051/68k-Erkennung auf Images ohne Programmcode
+
+Abschließende Prüfung von PR #16 (07.11.2026): Die Generik-Decoder (`cpu_refs.detect_cpu`) laufen nur noch auf Images
+unbekannter Architektur. Auf 21 von 22 lokalen Dateien und auf Zufallsdaten liefern sie nichts. Auf ME7.5
+06A906018CG (256 KiB, kein Programmcode, beginnt mit FF) erkennt `detect_cpu` aber „HC11, Basis 0x8000“ mit 305
+Adresszielen, davon 0 exakte Referenzstarts. Im Scan entsteht daraus ein unbegründeter Code-Beleg bei `0x5C6` (4 × 4,
+nicht in der XDF). Unverändert seit 1.19.0.
+
+- Ohne HC11-, 8051- und 68k-Referenzimages (Firmware + Definition) keine Regeländerung: jede Verschärfung der
+  Anreicherungsprüfung ist sonst unbelegt.
+- Mit Referenzdaten: prüfen, ob die Anreicherung zusätzlich echte Befehlsdichte der Familie verlangen muss
+  (wie in `core/architecture`).

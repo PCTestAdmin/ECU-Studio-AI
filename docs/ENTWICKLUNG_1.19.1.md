@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.19.1 – Fehlfunde reduzieren, Prozessorarchitektur erkennen
 
-Stand: 05.11.2026. Branch `feature/1.19.1-false-positive-reduction`, Ausgangspunkt `v1.19.0` (63ea112). Noch kein
+Stand: 07.11.2026 (abschließende Prüfung von PR #16: § 11). Branch `feature/1.19.1-false-positive-reduction`, Ausgangspunkt `v1.19.0` (63ea112). Noch kein
 Release, Versionsnummer unverändert. Firmware und Referenzdateien bleiben lokal; dieser Bericht enthält nur Zählwerte,
 Offsets und Hashes.
 
@@ -144,7 +144,7 @@ sehen für sie wie Tabellenzeilen aus (FOME 0x80070: 28 × 16 u8).
 |---|---|---|
 | ARM Cortex-M | Vektortabelle: Stack-Zeiger im SRAM/CCM, ≥ 8 von 15 Handlern ungerade (Thumb) nahe dem Reset-Vektor | Thumb-Dichte: `bx lr` ≥ 40 und `push {…, lr}` ≥ 60 je 64 KiB |
 | AVR | ≥ 16 Interrupt-Sprungvektoren (`jmp`/`rjmp`) ab Adresse 0 | `ret` ≥ 50 je 64 KiB |
-| C16x | `rets` ≥ 40 und `mov Rw,#imm16` ≥ 150 je 64 KiB | oder ≥ 20 ME7-Aufrufsequenzen (`mov R12..R15`) |
+| C16x | ≥ 16 von 128 Trap-Vektorplätzen ab Adresse 0 mit `jmps seg,addr` (gerade Zieladresse) | C16x-Code-Dichte: `rets` ≥ 40 und `mov Rw,#imm16` ≥ 150 je 64 KiB |
 | TriCore | `ret` (16 Bit) ≥ 32 je 64 KiB | `movh.a` ≥ 300 je 64 KiB (unverändert aus 1.19.0) |
 
 Trifft keine oder mehr als eine Architektur zu, gilt **unbekannt** (bei Widerspruch mit Nennung der Familien). Ein
@@ -153,12 +153,15 @@ einzelnes Merkmal genügt nie. Gemessene Werte (je 64 KiB):
 | Datei | Ergebnis | Merkmale |
 |---|---|---|
 | MSD80 I8A0S | TriCore | ret 261, movh.a 620 |
-| MS43 430069, MS42 0110C6, ME7.5 8E0909518AK | C16x | rets 151–235, mov 571–964 (ME7.5: 115 Aufrufsequenzen) |
+| MS43 430069, MS42 0110C6, ME7.5 8E0909518AK | C16x | Trap-Vektoren 128 / 127 / 120, rets 151–235, mov 571–964 |
 | FOME ×3, rusEFI ×2 | ARM | Vektortabelle gültig, bx lr 118–222, push 140–169 |
 | Speeduino ×2 | AVR | Sprungvektoren ab 0, ret 218 |
 | ME9, ME9.2.1, MS45, MED17 ×6, MED9, ME7.5 06A906018CG | unbekannt | Kalibrierbereiche ohne Programmcode bzw. ohne zwei Merkmale (höchstens rets 2, mov 9, bx lr 1) |
 
 Die Kalibrierbereiche ohne Code verlieren damit nur Code-Belege, die dort nie begründet waren (3 MED17-Fälle, § 4.1).
+
+Die C16x-Regel wurde in der abschließenden Prüfung geändert (§ 11.2): Bis 59f355d genügten ≥ 20 ME7-Aufrufsequenzen
+(`mov R12..R15`) allein. Alle anderen 19 Dateien haben 0 Trap-Vektorplätze mit `jmps`.
 
 ### 5.2 Schutz echter Kennfelder
 
@@ -257,8 +260,8 @@ Ergebnisse (05.11.2026, Windows, Python 3.13):
 
 | Prüfung | Ergebnis |
 |---|---|
-| pytest vollständig | 886 bestanden, 10 übersprungen (1.19.0: 863/10; keine Tests deaktiviert oder abgeschwächt) |
-| Übersetzungsprüfung (`i18n_extract --check`) | 2061 Texte, 0 ohne Übersetzung |
+| pytest vollständig | 886 bestanden, 10 übersprungen (1.19.0: 863/10; keine Tests deaktiviert oder abgeschwächt); nach § 11: 897/10 |
+| Übersetzungsprüfung (`i18n_extract --check`) | 2061 Texte, 0 ohne Übersetzung; nach § 11: 2060/0 |
 | Firmware-Guard (`firmware_guard.py staged`) | sauber |
 | GUI-Smoke (`tools.gui_smoke`, mit lokaler MS43-Datei) | 10/10 Prüfungen, MS43 856 Kennfelder (wie 1.19.0) |
 | Bestehende Kennfeld-Benchmarks | § 8 |
@@ -280,3 +283,99 @@ Ergebnisse (05.11.2026, Windows, Python 3.13):
 - **Negativ-Bestand ≠ unabhängige Validierung:** Die Regeln wurden an diesen sieben Images entwickelt; die Zahlen
   „sicher falsch“ messen nur die Klassen, die die Regeln selbst definieren. Keine Präzisions- oder Recall-Angabe.
 - Keine Lernmodelle verändert oder trainiert; keine Firmware im Repository.
+
+## 11. Abschließende Prüfung von PR #16 (07.11.2026)
+
+### 11.1 Zwischenspeicher mit ganzen Firmwaredateien
+
+**Ursache.** Drei modulweite `lru_cache` verwendeten die vollständigen Firmwarebytes als Schlüssel und hielten sie
+dadurch über das Ende eines Scans und das Schließen eines Projekts hinaus:
+
+| Cache | seit | höchstens gehalten |
+|---|---|---|
+| `architecture._detect` | 59f355d (PR #16) | 8 Images |
+| `structure_scan._c16x_base` (C16x-Ladeadresse) | 1.19.0 (bc0e7fd) | 8 Images |
+| `structure_benchmark._a2l_cached` (A2L-Referenz, auch Namensübertragung und Versionsvergleich) | 8e063c0 | 4 Images |
+
+**Aufrufhäufigkeit (gemessen).** `detect_architecture` läuft genau einmal je Scan (3–17 ms, 2 MiB MSD80); der
+Cache brachte innerhalb eines Scans nichts. Die C16x-Ladeadresse wurde auf C16x-Images dreimal je Scan angefragt
+(einmal berechnet, ≤ 3 ms).
+
+**Korrektur.** Kein Cache mehr für Architektur und Ladeadresse: `scoped_scan` berechnet beide einmal und gibt die
+Ladeadresse an `lookup_descriptors` und `scan_structures(base=…)` weiter. Die A2L-Referenz wird weiter
+zwischengespeichert (höchstens 4 Einträge, mit Sperre für Worker-Threads), aber unter Pfad, SHA-256 und Anker; der
+Speicher hält nur die verknüpften Kennfelder, nie die Firmware. Entscheidungen und Ergebnisse sind unverändert.
+
+**Speicher über wiederholte Scans** (ein Prozess, 10 verschiedene reale Dateien nacheinander, danach fünfmal MS42,
+jedes Mal neu geöffnet und Ergebnisse verworfen; Python-Heap nach dem Scan gegenüber dem Start, `tracemalloc`):
+
+| Stand | nach 10 Dateien | nach 5 weiteren Scans | Verlauf |
+|---|---|---|---|
+| 59f355d | +5,08 MB | +4,59 MB | wächst mit jeder neuen Datei (Cache-Schlüssel) |
+| neu | +0,03 MB | +0,03 MB | konstant |
+
+Die Prozessgröße (RSS) schwankt in beiden Ständen um 20–50 MB durch den Speicherverwalter und ist kein Maß für
+gehaltene Daten.
+
+### 11.2 C16x-Regel
+
+**Befund.** Bis 59f355d genügten ≥ 20 ME7-Aufrufsequenzen allein. Eine Aufrufsequenz besteht aus vier
+`mov Rw,#imm16` und ist damit derselbe Befehl wie das Dichtemerkmal, kein zweites unabhängiges Merkmal.
+
+**Neue Regel.** Wie bei ARM und AVR: Strukturmerkmal **und** Befehlsdichte. Strukturmerkmal ist die Trap-/Interrupt-
+Vektortabelle ab Adresse 0: ≥ 16 der 128 Vier-Byte-Plätze 0x000–0x1FF mit `jmps seg,addr` (0xFA) auf eine gerade
+Adresse. Gemessen: MS43 128, MS42 127, ME7.5 8E0909518AK 120, alle anderen 19 Dateien 0. Die Aufrufsequenzen
+stehen nur noch in den Messwerten (`signs`), nicht mehr in der Begründung.
+
+**Architekturzuordnung** auf allen 22 lokalen Dateien unverändert (MS42, MS43, ME7.5 8E0 C16x; MSD80 TriCore;
+FOME/rusEFI ARM; Speeduino AVR; übrige unbekannt). Grenze: Ein C16x-Image ohne die ersten 512 Bytes (z. B. nur der
+Programmteil) gilt jetzt als unbekannt; dann laufen keine C16x-Decoder.
+
+### 11.3 Generik-Decoder (HC11, 8051, 68k) und SH-2-Deskriptoren
+
+Nur Diagnose, keine Regeländerung (keine Referenzimages dieser Familien vorhanden). Ausgeführt auf 22 realen Dateien,
+14 synthetischen Fällen und Zufallsdaten (128 KiB, 512 KiB):
+
+- Keine Ausgabe auf allen Images mit erkannter Architektur, auf Zufallsdaten und auf allen synthetischen Fällen.
+- **Einziger Befund:** ME7.5 06A906018CG (256 KiB, kein Programmcode) wird von `cpu_refs.detect_cpu` als HC11
+  (Basis 0x8000) mit 305 Adresszielen erkannt, 0 davon exakte Referenzstarts. Im Scan entsteht daraus ein
+  unbegründeter Code-Beleg bei `0x5C6` (4 × 4). Unverändert seit 1.19.0; offen als Aufgabe 11.
+- Neuer Test: SH-2-Deskriptoren und Generik-Decoder liefern auf ARM, AVR, C16x und TriCore keine Funde, auf
+  unbekannten Images weiterhin.
+
+### 11.4 Regression und Laufzeit
+
+| Vergleich | Ergebnis |
+|---|---|
+| 15 reale Paare gegen 59f355d | 0 Unterschiede in allen Erkennungsfeldern (exakt 2D/1D, Typen, Achsen, Achsadressen, Gruppenpaare, Funde) |
+| 15 reale Paare gegen 1.19.0 | wie § 8: nur MED17 404A/E/G gefunden 2D je −1 (falscher C16x-Code-Beleg); kein exakter Fund verloren |
+| 14 synthetische Fälle gegen 59f355d | 0 Unterschiede; gegen 1.19.0 wie § 8 (aligned-padded exakt 2 → 3), Negativkontrollen unverändert |
+| Negativ-Benchmark | 875 Funde, 0 nachweislich falsch, 875 unklar (36 Strukturbelege, 839 Datenmuster), je Image wie 59f355d; Stabilität FOME 74 / 20 / 8 / 34 wie 59f355d |
+| Laufzeit 15 Paare | direkt nacheinander gemessen: 59f355d 92,7 s, neu 89,4 s; einzelne Läufe streuten je nach Rechnerlast 88,8–95,0 s; Wechselmessung je Datei ohne Unterschied |
+| Spitzen-Speicher | 86,9 MB (unverändert) |
+| Negativ-Benchmark Laufzeit | 111,8 s (59f355d 110,8 s), Spitze 67,5 MB |
+
+Die 875 unklaren Funde sind keine bestätigten Kennfelder.
+
+### 11.5 Tests
+
+- `tests/test_firmware_cache.py` (neu, 6 Tests): 10 verschiedene Images nacheinander halten nichts fest (Architektur,
+  Ladeadresse, vollständiger Scan); wiederholter Scan und erneut geöffnetes Projekt liefern identische Ergebnisse
+  ohne Wachstum; Architektur und Ladeadresse werden je Scan einmal berechnet; der A2L-Speicher hält keine Firmware.
+- `tests/test_architecture_false_finds.py` (+5 Tests): C16x mit Vektortabelle und Code-Dichte, jedes Merkmal allein
+  unbekannt; Aufrufsequenzen allein (Zufall, leer) unbekannt und ohne Code-Beleg; zufällige C16x-Sequenzen in ARM-,
+  AVR- und TriCore-Code ändern deren Zuordnung nicht; reine Kalibrierdaten, abgeschnittene Vektortabelle, gelöschter
+  Bootsektor und zu kurze Images unbekannt; Generik- und SH-2-Decoder nur ohne erkannte Architektur.
+- Angepasste Testbilder (Prüfungen unverändert): Die synthetischen C16x-Images in `test_architecture_false_finds.py`
+  und `test_axis_arrays.py` haben jetzt eine `jmps`-Vektortabelle; der Widerspruchsfall ARM + C16x enthält die
+  Vektortabelle ab Platz 16.
+- Gegen 59f355d schlagen fehl: alle Speichertests (2,1–4,3 MB gehalten) und die vier C16x-Regeltests. Nicht
+  fehlschlagend gegen 59f355d, weil Schutz gegen künftige Fehler: einmalige Berechnung je Scan, wiederholter Scan
+  derselben Datei, Generik-/SH-2-Gate.
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig | 897 bestanden, 10 übersprungen, 0 fehlgeschlagen |
+| Übersetzungsprüfung | 2060 Texte, 0 ohne Übersetzung (nicht mehr benutzter Text „Kennfeld-Aufrufsequenzen“ entfernt) |
+| GUI-Smoke | 10/10, MS43 856 Kennfelder |
+| Firmware-Guard (`firmware_guard.py staged`) | sauber |

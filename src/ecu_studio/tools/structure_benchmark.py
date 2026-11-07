@@ -7,7 +7,8 @@ list, e.g. one exported from another tool. Reports counts only; no firmware byte
 from __future__ import annotations
 import argparse
 import json
-from functools import lru_cache
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from time import perf_counter
 from ecu_studio.core.model import BinaryImage, MapDefinition
@@ -35,11 +36,28 @@ def a2l_reference(path: str, image: BinaryImage, anchor: int | None = None) -> l
     HEX file) is checked the same way: the A2L must explain the file. Raises if
     it does not; a declared EPK that differs links nothing.
     """
-    return list(_a2l_cached(str(Path(path).resolve()), image.digest, image.read(0, image.size), anchor))
+    # Linking an A2L is slow and repeated (benchmarks, name transfer). The cache
+    # key is the image's SHA-256, not its bytes: the cache keeps linked records,
+    # never a firmware image.
+    key = (str(Path(path).resolve()), image.digest, anchor)
+    with _A2L_LOCK:
+        found = _A2L_CACHE.get(key)
+    if found is None:
+        found = _a2l_link(key[0], image.read(0, image.size), anchor)
+    with _A2L_LOCK:
+        _A2L_CACHE[key] = found
+        _A2L_CACHE.move_to_end(key)
+        while len(_A2L_CACHE) > A2L_CACHE_SIZE:
+            _A2L_CACHE.popitem(last=False)
+    return list(found)
 
 
-@lru_cache(maxsize=4)
-def _a2l_cached(path: str, digest: str, data: bytes, anchor: int | None) -> tuple:
+A2L_CACHE_SIZE = 4
+_A2L_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
+_A2L_LOCK = threading.Lock()
+
+
+def _a2l_link(path: str, data: bytes, anchor: int | None) -> tuple:
     from ecu_studio.core.a2l import read_a2l, suggest_anchor, MIN_ANCHOR_MONOTONE
     catalog = read_a2l(path)
     if anchor is None:
