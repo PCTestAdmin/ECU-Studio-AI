@@ -375,8 +375,10 @@ if ($Mode -eq 'InApp') {
     Check 'nach In-App-Update: private Datei in .ecu_studio_ai unverändert' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
 
     Check 'Deinstallation nach In-App-Update' ((Uninstall) -eq 0)
+    $left = @(Get-ChildItem $install -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Substring($install.Length + 1) })
+    $left | Set-Content -Encoding utf8 "$Out\leftovers-after-uninstall.txt"
     Check 'Programmordner und Update-Sicherung entfernt' (-not (Test-Path $install) -and -not (Test-Path "$install.backup")) `
-        ((Get-ChildItem "$install*" -Force -ErrorAction SilentlyContinue | ForEach-Object Name) -join ', ')
+        ("$($left.Count) Dateien übrig: " + (($left | Select-Object -First 12) -join ', '))
     Check 'Benutzerdaten nach Deinstallation erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
 }
 
