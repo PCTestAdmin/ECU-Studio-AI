@@ -17,18 +17,47 @@
 
 <br>
 
-## ![Aktuell: 1.17.0](https://img.shields.io/badge/🎉_AKTUELL-1.17.0_·_veröffentlicht_24.10.2026-1a7f37?style=for-the-badge)
+## ![Aktuell: 1.19.1](https://img.shields.io/badge/🎉_AKTUELL-1.19.1_·_veröffentlicht_08.11.2026-1a7f37?style=for-the-badge)
 
-[Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest) – installierte Versionen bieten das Update automatisch an.
-**1.17.0** ergänzt das [offene Kennfeldpaket v2](docs/MAP_PACK.md): Import/Export mit Vorschau, Herkunft,
-Konfliktprüfung und Undo sowie lokale Paket-/Projektvorschläge und den vorhandenen Softwarestand-Abgleich.
-Der [Messworkflow](docs/REFERENCE_VALIDATION.md) bindet lokale Referenzmessungen an Hashes und Datenrollen.
-Scanner und OEM-Korrektursperren bleiben unverändert; neue Bosch-Referenzmessungen fehlen weiterhin.
-Die Clips sind echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten),
-die neuesten Funktionen stehen oben.
+[Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest). Die automatische Update-Suche
+ist seit 1.18.0 ab Werk aus („Offline zuerst“) und lässt sich in den Einstellungen einschalten.
+
+**1.19.1** macht die Kennfelderkennung zuverlässiger: weniger Fehlfunde aus Programmcode, Text und Zeigertabellen,
+kein bisher exaktes Kennfeld verloren ([Entwicklungsbericht](docs/ENTWICKLUNG_1.19.1.md)). Die Clips sind echte
+Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten). Die neuesten Funktionen stehen oben.
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
+<tr><td>
+
+**Zuverlässigere Erkennung** – Prozessorarchitektur nur mit zwei unabhängigen Merkmalen. Keine Code-Belege auf fremden Architekturen, weniger Fehlfunde auf Text und Zeigertabellen. Auf sieben offenen Firmwareständen: nachweislich falsche Funde 921 → 0.
+
+</td><td align="center"><b>1.19.1</b></td></tr>
+<tr><td>
+
+**Kennfelder aus TriCore-Programmcode** – Bei Siemens-MSD80-Vollflashs liest die Suche die Interpolationsaufrufe: Datenstart, beide Achsen und Zelltyp kommen direkt aus dem Code. MSD80 mit Community-XDF: 39 → 86 von 99 Kennfeldern exakt (Entwicklungsdaten).
+
+</td><td align="center"><b>1.19</b></td></tr>
+<tr><td>
+
+**Drei Erkennungsebenen** – Definitionen, dann Code- und Strukturfunde, erst danach Datenmuster. Die App zeigt die Art des Belegs statt Prozentwerten. Eine falsche Definition (anderer Softwarestand) wird erkannt.
+
+</td><td align="center"><b>1.19.0</b></td></tr>
+<tr><td>
+
+**Kennfelddefinition bearbeiten / prüfen** – <i>Strg+E</i>: Name, Adresse, Größe, Datentyp, Faktor, Einheit und Achsen ändern. <i>Prüfen</i> zeigt jede Änderung und eine Vorschau aus den echten Dateibytes, <i>Übernehmen</i> erst danach – rückgängig machbar, die BIN bleibt unverändert.<br><img src="docs/clips/definition.gif" width="720" alt="Kennfelddefinition bearbeiten">
+
+</td><td align="center"><b>1.18</b></td></tr>
+<tr><td>
+
+**XDF-Export** – Den Katalog als TunerPro-XDF speichern. Jede exportierte Datei wird sofort mit dem eigenen Importer zurückgelesen und Feld für Feld verglichen – erst dann heißt es „Rückimport geprüft“.<br><img src="docs/clips/xdfexport.gif" width="720" alt="XDF-Export">
+
+</td><td align="center"><b>1.18</b></td></tr>
+<tr><td>
+
+**Offline zuerst und lokale Referenzsuche** – Ohne eigene Einstellung baut die App keine Netzwerkverbindung auf. Beim Öffnen einer BIN werden passende Projekte und Kennfeldpakete auch über Hardware- und Softwarenummer gefunden, mit Stufe und Grund.
+
+</td><td align="center"><b>1.18.0</b></td></tr>
 <tr><td>
 
 **Kennfeldpakete** – Definitionen als offenes Paket exportieren und in einem anderen Projekt importieren: Vorschau aller Einträge, Prüfung von Original-Hash und Konflikten, ausdrückliche Übernahme mit Undo. Keine BIN-Bytes im Paket.<br><img src="docs/clips/mappack.gif" width="720" alt="Kennfeldpakete">
@@ -93,32 +122,37 @@ die neuesten Funktionen stehen oben.
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-fertig_im_Quellcode-0969da?style=for-the-badge)
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.0_in_Prüfung-0969da?style=for-the-badge)
 
-Diese Funktionen sind bereits im Quellcode und kommen mit der nächsten Version.
+Diese Funktionen sind im Quellcode fertig und liegen zur Prüfung in
+[Pull Request #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19) und
+[#20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20). Sie kommen erst nach Freigabe mit 1.20.0, der
+**ersten validierten Ausbaustufe** des Checksummensystems: Keine untersuchte Originaldatei erreicht bisher eine
+vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe
+([Release-Notes-Entwurf](docs/RELEASE_NOTES_1.20.0.md)).
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
 <tr><td>
 
-**Kennfelddefinition bearbeiten / prüfen** – <i>Strg+E</i>: Name, Adresse, Größe, Datentyp, Faktor, Einheit und Achsen ändern. <i>Prüfen</i> zeigt jede Änderung und eine Vorschau aus den echten Dateibytes, <i>Übernehmen</i> erst danach – rückgängig machbar, die BIN bleibt unverändert.<br><img src="docs/clips/definition.gif" width="720" alt="Kennfelddefinition bearbeiten">
+**Checksummen & Integrität** – Ein gemeinsamer Bereich mit fünf klaren Status: gültig, ungültig, unvollständig, nicht unterstützt, unbekannt. Ein zufällig passendes Verfahren macht eine Datei nie gültig. Bosch-Multipoint (ME7.x, ME9, MED9) ist unabhängig belegt: 199 von 199 Herstellerwerten. Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen ([Details](docs/CHECKSUMMEN.md)).
 
-</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
 <tr><td>
 
-**XDF-Export** – Den Katalog als TunerPro-XDF speichern. Jede exportierte Datei wird sofort mit dem eigenen Importer zurückgelesen und Feld für Feld verglichen – erst dann heißt es „Rückimport geprüft“.<br><img src="docs/clips/xdfexport.gif" width="720" alt="XDF-Export">
+**Sichere Prüfsummenkorrektur** – Vorschau mit jedem Byte, ausdrückliche Bestätigung, unabhängige Nachprüfung vor dem Schreiben. Korrigierte Kopie und Änderungsprotokoll bleiben auch bei Schreibfehlern konsistent. Korrektur nur, wenn Steuergerät oder Datei das Verfahren ausreichend belegen.
 
-</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
 <tr><td>
 
-**Kennfelder aus TriCore-Programmcode** – Bei Siemens-MSD80-Vollflashs liest die Suche die Interpolationsaufrufe des Programmcodes: Datenstart, beide Achsen und der Zelltyp kommen direkt aus dem Code. Auf einem MSD80 mit Community-XDF 39 → 73 von 99 Kennfeldern exakt ([Bericht](docs/ANALYSE_2026-10-30.md)).
+**Ehrlicher Preflight** – Profil-Prüffelder, bekannte Prüfsummen, vollständige Abdeckung, Signaturen und Flashfreigabe werden getrennt angezeigt. Ein Teilprofil oder eine unvollständige Prüfung ergibt nie einen sauberen Preflight.
 
-</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
 <tr><td>
 
-**Filter „Noch nicht manuell geprüft“** – Alle Kennfelder, die du noch nicht selbst bestätigt hast, auf einen Blick.
+**Stabiler Definitionseditor** – Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei mehr; ohne Kennfeldauswahl sind die Bearbeitungsfunktionen gesperrt.
 
-</td><td align="center"><b>nächstes<br>Update</b></td></tr>
+</td><td align="center"><b>1.20.0<br>(PR #20)</b></td></tr>
 </table>
 
 <br>
@@ -140,12 +174,38 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 | | Thema | Stand |
 |:--:|---|---|
+| 🧮 | **Checksummen & Integrität (1.20.0)** | Fertig im Quellcode, Review-Nachbesserungen eingearbeitet, Release-Kandidat mit Installer-Test auf frischen Windows-Systemen geprüft; wartet auf Freigabe ([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19), [Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
-| 🧮 | **Prüfsummen EDC16 · EDC17** | Rechnerische Prüfung eingebaut; OEM-Nachweise für sichere Korrektur fehlen noch |
+| 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
 
 <br>
 
 ## ![Als Nächstes](https://img.shields.io/badge/📋_ALS_NÄCHSTES-geplant-8250df?style=for-the-badge)
+
+Zunächst geplant, noch nicht begonnen. Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
+gemessen ist.
+
+**Hohe Priorität – Checksummen und Steuergeräte**
+
+| | Thema | Warum |
+|:--:|---|---|
+| 🔎 | **1. ME9-Identifikation verbessern** | Die ME9-Referenz wird noch nicht als Familie erkannt; ihre Prüfsummenkorrektur stützt sich bisher nur auf die Tabellen der Datei (Regel B statt A) |
+| 🧮 | **2. Fehlende ME7-Prüfsummenverfahren untersuchen** | ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen fehlen noch – erst dann kann eine ME7-Datei „gültig“ statt „unvollständig“ sein |
+| 🧮 | **3. EDC17-Blockprüfungen erweitern** | EDC17CP09: 3 von 11 Strukturen unbestätigt; weitere EDC17-/MED17-Varianten ungemessen |
+| 🧪 | **4. Unabhängige Validierung weiterer Steuergerätefamilien** | Zwei Softwarestände je Familie mit dokumentierter Herkunft, bevor ein Verfahren als „unterstützt“ gilt |
+| 🧮 | **5. Checksummen für Siemens/Continental** | MS4x, MSD8x, Simos, SID: bisher kein Verfahren („nicht unterstützt“) |
+| 🚗 | **6. Moderne Familien wie MG1 und MD1** | Erst, sobald rechtmäßig verwendbare Referenzen vorliegen |
+
+**Mittlere Priorität – Dokumentation**
+
+| | Thema | Warum |
+|:--:|---|---|
+| 🌐 | **7. Dokumentationswebsite** | GitHub Pages mit MkDocs: eine durchsuchbare Seite statt verteilter Markdown-Dateien |
+| 📘 | **8. Zweisprachiges Benutzerhandbuch** | Deutsch und Englisch, passend zur zweisprachigen Oberfläche |
+| 🚗 | **9. Alle unterstützten Steuergeräte dokumentieren** | Je Familie: Kennfelderkennung, Prüfsummen, Messwerte und Grenzen auf einer Seite |
+| 🖼️ | **10. Schritt-für-Schritt-Anleitungen mit Screenshots** | Öffnen, Scannen, Prüfsummen prüfen, korrigierte Kopie, Projekt – aus echten Aufnahmen mit synthetischen Dateien |
+
+**Weitere Vorhaben**
 
 | | Thema | Warum |
 |:--:|---|---|
@@ -175,6 +235,18 @@ Bitte keine Firmware hochladen.
 <details>
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
+
+**1.19.1** · 08.11.2026 – Zuverlässigere Kennfelderkennung, zwei MSD80-Kennfelder wiederhergestellt
+
+**1.19.0** · 04.11.2026 – Drei Erkennungsebenen, TriCore-Programmcode, Lerndaten ohne Freigabe entfernt
+
+**1.18.2** · 01.11.2026 – Sicherheitskorrektur der Bildprüfung im Firmware-Schutz
+
+**1.18.1** · 31.10.2026 – Programm-Symbol, Firmware-Schutz prüft Bilder strukturell
+
+**1.18.0** · 31.10.2026 – Offline zuerst, lokale Referenzsuche, Definition bearbeiten, XDF-Export
+
+**1.17.0** · 24.10.2026 – Offenes Kennfeldpaket v2 mit Vorschau, Herkunft und Undo
 
 **1.16.4** · 23.10.2026 – Verlustfreies Laden neuerer Projekte und unabhängige Transfer-Regressionstests
 

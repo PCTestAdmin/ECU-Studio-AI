@@ -30,7 +30,10 @@ no reproduced block reports "nicht nachgewiesen", never a guess.
 from __future__ import annotations
 
 import struct
+import zlib
 from dataclasses import dataclass, field, asdict
+
+import numpy as np
 
 from .checksum_validation import validation_record
 
@@ -83,26 +86,20 @@ def crc32_edc17(payload: bytes, seed: int = MAGIC_A) -> int:
     bitwise complement of this value (a correct block gives 0x35015001, i.e.
     ~0xCAFEAFFE). Trailing bytes that do not fill a dword are ignored, exactly as
     the ECU processes whole dwords.
+
+    Consuming a little-endian dword LSB first is the same bit order as the
+    reflected byte-wise CRC, so zlib computes it: zlib inverts the register
+    before and after, which the two complements here undo. The bitwise
+    reference stays in tests/test_edc17_checksum.py.
     """
-    crc = seed & 0xFFFFFFFF
-    for i in range(0, len(payload) - 3, 4):
-        dword = payload[i] | (payload[i + 1] << 8) | (payload[i + 2] << 16) | (payload[i + 3] << 24)
-        for _ in range(32):
-            if (dword ^ crc) & 1:
-                crc = (crc >> 1) ^ 0xEDB88320
-            else:
-                crc >>= 1
-            dword >>= 1
-    return crc & 0xFFFFFFFF
+    n = len(payload) // 4 * 4
+    return ~zlib.crc32(payload[:n], ~seed & 0xFFFFFFFF) & 0xFFFFFFFF
 
 
 def add32_edc17(payload: bytes, seed: int = MAGIC_A) -> int:
     """Sum of little-endian dwords plus the seed (overflow discarded)."""
-    total = seed & 0xFFFFFFFF
-    for i in range(0, len(payload) - 3, 4):
-        total = (total + (payload[i] | (payload[i + 1] << 8) |
-                          (payload[i + 2] << 16) | (payload[i + 3] << 24))) & 0xFFFFFFFF
-    return total
+    n = len(payload) // 4 * 4
+    return (seed + int(np.frombuffer(payload[:n], '<u4').sum(dtype=np.uint64))) & 0xFFFFFFFF
 
 
 def add16_edc17(payload: bytes, seed: int = MAGIC_A) -> int:
@@ -110,14 +107,11 @@ def add16_edc17(payload: bytes, seed: int = MAGIC_A) -> int:
     the high half (the ECU's documented tail behaviour), so the region's last
     dword contributes its full 32-bit value.
     """
-    total = seed & 0xFFFFFFFF
     n = len(payload) - (len(payload) % 2)
-    if n >= 2:
-        for i in range(0, n - 2, 2):
-            total = (total + (payload[i] | (payload[i + 1] << 8))) & 0xFFFFFFFF
-        last = payload[n - 2] | (payload[n - 1] << 8)
-        total = (total + (last << 16)) & 0xFFFFFFFF
-    return total
+    if n < 2:
+        return seed & 0xFFFFFFFF
+    words = np.frombuffer(payload[:n], '<u2')
+    return (seed + int(words[:-1].sum(dtype=np.uint64)) + (int(words[-1]) << 16)) & 0xFFFFFFFF
 
 
 _ALGO = {0x00: crc32_edc17, 0x01: add32_edc17, 0x10: add16_edc17}
