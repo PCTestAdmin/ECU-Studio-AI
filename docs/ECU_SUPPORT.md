@@ -4,6 +4,9 @@ Diese Seite und das Fenster **Hilfe → Unterstützte Steuergeräte …** in der
 (`src/ecu_studio/recognition/data/ecu_support.json`, erzeugt mit `python -m ecu_studio.tools.support_matrix`
 aus Ergebnissen von `benchmark_suite`). Die Messwerte der Tabelle stammen aus diesen Läufen.
 
+**Ergänzt am 08.11.2026 (1.19.1):** Matrixwerte unverändert. MSD80-Vollflash (Entwicklungsdaten) 84 → 86 von 99;
+TriCore-Codeerkennung weiter **experimentell**. Architekturprüfung und Fehlfund-Filter: [Entwicklungsbericht 1.19.1](ENTWICKLUNG_1.19.1.md).
+
 **Ergänzt am 03.11.2026 (1.19.0):**
 
 - Das Lernmodell für Datenmuster-Funde, das MS43-Strukturmodell und die Tabelle der Trefferquoten je Beweisart sind
