@@ -187,7 +187,7 @@ geschlossen. **Ab dem Branch `feature/1.20-checksum-system`** fasst `core/integr
 
 | Verfahren | Familien | Status | Nachweis |
 |---|---|---|---|
-| Bosch-Multipoint-Tabelle (Start, Ende, Wert, ~Wert; Summe der 16-Bit-Wörter) | ME7.x, MED9, ME9 | **unabhängig belegt**: 199/199 Herstellerwerte in drei Originalen, Verfahren wie ME7Sum; deckt nur die Tabellen ab | `core/integrity.py`, `core/checksum_tables.py` |
+| Bosch-Multipoint-Tabelle (Start, Ende, Wert, ~Wert; Summe der 16-Bit-Wörter) | ME7.x, MED9, ME9 | **unabhängig belegt**: 199/199 Herstellerwerte in drei Originalen, Verfahren wie ME7Sum; deckt nur die Tabellen ab. Korrektur nur bei eindeutig identifiziertem ME7/ME9/MED9 oder ≥ 32 am Original bestätigten Einträgen, sonst nur Prüfung | `core/integrity.py`, `core/checksum_tables.py` |
 | Selbstbeschreibende Tabellen mit anderem generischem Verfahren (Byte-/Doppelwortsumme, CRC32) | – | experimentell: nur Prüfung, keine Korrektur | `core/checksum_tables.py` |
 | Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc17_checksum.py` |
 | Bosch EDC16U1/U31/U34-Prüfsummenbereiche (FADECAFE/CAFEAFFE, BE-DWORD-Summe) | EDC16 MPC5xx | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc16_checksum.py` |

@@ -236,6 +236,9 @@ def run(output):
         assert not window.maps and not target_ref.dirty_bytes
         transfer.reject()
         result['checks'].append('tolerant shifted map recognition / odd word address / competing-match guard / unverified raw proposal')
+        result['checksums']=_integrity_smoke(app,window,Path(directory),out)
+        result['checks'].append('checksums & integrity worker / five states / correction preview / corrected copy + log / '
+                                'separate preflight stages')
         ms42_path=os.environ.get('ECU_STUDIO_MS42_REGRESSION_BIN')
         if ms42_path:
             from ..recognition.bundled_definitions import definition_candidates
@@ -306,6 +309,72 @@ def run(output):
     result['passed']=True
     (out/'gui-smoke.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     return 0
+
+
+def _integrity_smoke(app,window,directory,out):
+    """Checksums & integrity in the real window: synthetic ME7-like multipoint table, no manufacturer data."""
+    import numpy as np
+    from ..core import integrity as ig
+    from ..core.model import BinaryImage
+    from ..core.i18n import t
+    table,ranges=0x10000,[(0x10000,0x100FF),(0x1000,0x1FFF),(0x3000,0x37FF),(0x5000,0x5FFF),(0x8000,0x8FFF)]
+    data=bytearray(np.random.default_rng(3).integers(0,256,0x20000,dtype=np.uint8).tobytes())
+    epk=b'40/1/ME7.5/5/5016.01//24f/Dst02o/220503/'
+    data[0x200:0x200+len(epk)]=epk
+    for i,(s,e) in enumerate(ranges):
+        rec=table+16*i
+        data[rec:rec+8]=(s+0x800000).to_bytes(4,'little')+(e+0x800000).to_bytes(4,'little')
+        data[rec+8:rec+16]=ig._pair(0x12345678,'little')
+    data[table+16*len(ranges):table+16*len(ranges)+16]=b'\xFF'*16
+    for i,(s,e) in enumerate(ranges):
+        rec=table+16*i
+        data[rec+8:rec+16]=ig._pair(ig.reference_word_sum(bytes(data),s,e,'little'),'little')
+    source=directory/'integrity-smoke.bin'
+    source.write_bytes(bytes(data))
+    image=BinaryImage.from_file(str(source))
+
+    def check():
+        window.integrity_timer.stop()
+        window.check_integrity_async()
+        deadline=time.monotonic()+60
+        while time.monotonic()<deadline:
+            app.processEvents()
+            worker=window.integrity_worker
+            if worker is not None and worker.isFinished() and window._integrity_fresh():
+                app.processEvents()
+                return window.integrity_report
+            time.sleep(.01)
+        raise AssertionError('Checksummenprüfung nicht beendet')
+    window.load_state(image,[],[],'Synthetische Checksummenprüfung',None)
+    first=check()
+    assert first.status==ig.INCOMPLETE and window.checksum_chip.text()==t('CHECKSUMME: UNVOLLSTÄNDIG')
+    assert t('Flashfreigabe: keine (Signaturen und ECU-Prüfungen ungeprüft)') in window.integrity_info.text()
+    image.write(0x3400,bytes([image.byte(0x3400)^1]))
+    window.on_edited()
+    bad=check()
+    assert bad.status==ig.INVALID and bad.correctable and window.integrity_preview_button.isEnabled()
+    preflight=window._preflight()
+    assert preflight.status=='rot' and not preflight.checksum_verified and 'FEHLERHAFT' in preflight.checksum_summary
+    plan=ig.plan_correction(image,bad)
+    log=ig.write_corrected_copy(image,plan,directory/'integrity-smoke-korrigiert.bin')
+    copy=BinaryImage.from_file(str(directory/'integrity-smoke-korrigiert.bin'))
+    assert copy.digest==log['sha256_output'] and not ig.check_integrity(copy).errors
+    assert source.read_bytes()==image.original
+    fixed=ig.apply_correction(image,plan)
+    window.on_edited()
+    assert not fixed.errors and check().status==ig.INCOMPLETE
+    preflight=window._preflight()
+    assert not preflight.checksum_verified and 'UNVOLLSTÄNDIG' in preflight.checksum_summary
+    assert [label for label,_ in preflight.stages()][-1]=='Flashfreigabe'
+    app.processEvents()
+    assert window.grab().save(str(out/'checksums-integrity.png'))
+    window.undo()
+    window.on_edited()
+    assert check().status==ig.INVALID
+    window.saved_fingerprint=window.project_state()
+    return {'states':[first.status,bad.status,ig.INCOMPLETE],'corrected_bytes':len(plan.positions),
+            'copy_sha256_matches_log':True,'original_unchanged':True,'flash_approved':False,
+            'data':'synthetic ME7-like multipoint table'}
 
 
 if __name__=='__main__':

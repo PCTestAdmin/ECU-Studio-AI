@@ -122,9 +122,28 @@ SIGNATURE_TEXT = {'erwartet': 'bei dieser Familie üblich – nicht geprüft',
 EDC17_SIGNATURE_BLOCKS = ('Tuning protection', 'Customer Tuning protection', 'Application Attestation')
 MAX_PASSES = 6
 
+# When a multipoint correction may be offered (check_integrity, _gate_multipoint):
+#  A) the family is identified unambiguously as one the method is documented for, or
+#  B) the family is NOT identified, but the original itself proves the tables strongly:
+#     at least MIN_STRUCTURAL_PROOF entries (value AND complement reproduced, 64 bit per
+#     entry), one table with at least MIN_RUN_PROOF of them, and no entry inferred from an
+#     already modified original. A family identified as something else is always locked.
+# Measured on the references: ME7.5 70, ME9 63 (family not identified), MED9.1 66 entries.
+MULTIPOINT_FAMILIES = re.compile(r'^(ME7|MED?9)')
+MIN_STRUCTURAL_PROOF = 32
+MIN_RUN_PROOF = 16
+
 
 class Cancelled(Exception):
     """The caller asked to stop; nothing was changed."""
+
+
+class CopyNotSaved(OSError):
+    """The corrected copy was NOT saved. ``restored`` says whether the previous files are back."""
+
+    def __init__(self, message: str, restored: bool):
+        super().__init__(message)
+        self.restored = restored
 
 
 @dataclass
@@ -152,6 +171,7 @@ class MethodResult:
     regions: list[Region] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     correction: str = ''       # '' = correction possible; otherwise the reason it is locked
+    evidence: dict = field(default_factory=dict)   # what proves the method in THIS file
 
     @property
     def info(self) -> Method:
@@ -170,6 +190,7 @@ class MethodResult:
         return {'method': self.method, 'title': self.info.title, 'validation': self.info.validation,
                 'coverage': self.coverage, 'ok': self.count(OK), 'fehler': self.count(BAD),
                 'unbestaetigt': self.count(UNPROVEN), 'correction': self.correction or 'möglich',
+                'evidence': dict(self.evidence),
                 'notes': list(self.notes), 'regions': [r.asdict() for r in self.regions]}
 
 
@@ -315,9 +336,15 @@ def _table_runs(records):
 def _tables(original: bytes, current: bytes) -> tuple[MethodResult | None, MethodResult | None, int]:
     """Multipoint tables (reference-validated word sum) and other proven table records."""
     multipoint, generic, candidates = MethodResult('bosch-multipoint'), MethodResult('tabelle-generisch'), 0
+    total_proven, largest_run, inferred = 0, 0, 0
     for run in _table_runs(tables.find_checksum_tables(original)):
         proven = [b for b in run if _word_sum(original, b.start, b.end, b.endian) == b.stored]
         bases = {b.base for b in proven}
+        total_proven += len(proven)
+        largest_run = max(largest_run, len(proven))
+        # Entries that do not hold on the opened "original" are only taken as wrong checksums
+        # (file was already modified) when the table itself is well established there.
+        majority = len(proven) >= 2 and len(proven) > len(run) - len(proven)
         for b in run:
             fields_now = current[b.record + 8:b.record + 16]
             stored = int.from_bytes(fields_now[:4], b.endian)
@@ -327,11 +354,15 @@ def _tables(original: bytes, current: bytes) -> tuple[MethodResult | None, Metho
             if proven:
                 computed = _word_sum(current, b.start, b.end, b.endian)
                 words = f'sum32-words-{"le" if b.endian == "little" else "be"}'
-                if b not in proven and b.base not in bases:
+                if b not in proven and (b.base not in bases or not majority):
                     multipoint.regions.append(Region('bosch-multipoint', name, b.start, b.end, b.record + 8, 8, words,
                                                      stored, computed, UNPROVEN,
-                                                     'Adresslage weicht von der bestätigten Tabelle ab'))
+                                                     'Adresslage weicht von der bestätigten Tabelle ab'
+                                                     if b.base not in bases else
+                                                     'zu wenige am Original bestätigte Einträge in dieser Tabelle'))
                     continue
+                if b not in proven:
+                    inferred += 1
                 good = computed == stored and coherent and not moved
                 note = ('Tabelleneintrag (Adressen) verändert' if moved else
                         '' if b in proven else 'am geöffneten Original nicht bestätigt – Datei war bereits verändert')
@@ -353,7 +384,33 @@ def _tables(original: bytes, current: bytes) -> tuple[MethodResult | None, Metho
                                     '(bei Wortsummen unkritisch: Wert und Komplement ergeben eine Konstante).')
     if generic.regions:
         generic.correction = 'gesperrt: Verfahren experimentell (keine Referenz)'
+    multipoint.evidence = {'proven_entries': total_proven, 'largest_table': largest_run, 'inferred_entries': inferred}
     return (multipoint if multipoint.regions else None, generic if generic.regions else None, candidates)
+
+
+def _gate_multipoint(multipoint: MethodResult, family: str | None, level: str) -> None:
+    """Lock the multipoint correction unless family or file evidence is strong enough (see MULTIPOINT_FAMILIES)."""
+    ev = multipoint.evidence
+    known = bool(family) and bool(MULTIPOINT_FAMILIES.search(family.upper()))
+    if known and level == 'eindeutig':
+        ev['basis'] = 'familie'
+        return
+    if family and not known and level == 'eindeutig':
+        ev['basis'] = 'gesperrt'
+        multipoint.correction = (f'gesperrt: Steuergerät als {family} identifiziert – für diese Familie ist das '
+                                 'Multipoint-Verfahren nicht belegt (nur Prüfung)')
+        return
+    if (ev.get('proven_entries', 0) >= MIN_STRUCTURAL_PROOF and ev.get('largest_table', 0) >= MIN_RUN_PROOF
+            and not ev.get('inferred_entries')):
+        ev['basis'] = 'struktur'
+        multipoint.notes.append(f'Steuergerät nicht eindeutig identifiziert; Verfahren nur durch '
+                                f'{ev["proven_entries"]} am Original bestätigte Tabelleneinträge belegt.')
+        return
+    ev['basis'] = 'gesperrt'
+    multipoint.correction = ('gesperrt: Steuergerät nicht eindeutig als ME7/ME9/MED9 identifiziert und zu wenige '
+                             f'am Original bestätigte Einträge ({ev.get("proven_entries", 0)}, nötig '
+                             f'{MIN_STRUCTURAL_PROOF}, ohne abgeleitete Einträge) – nur Prüfung; '
+                             'Korrektur über ein geprüftes, SHA-256-gebundenes Profil möglich')
 
 
 def _edc17(image: BinaryImage, original: bytes, current: bytes) -> tuple[MethodResult | None, list[Signature]]:
@@ -472,6 +529,8 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     methods = [m for m in (multipoint, e17, e16, prof, generic) if m is not None]
 
     family = ident.family
+    if multipoint is not None:
+        _gate_multipoint(multipoint, family, ident.level)
     unchecked, signature = _family_rules(family)
     if signature and not any(s.state == 'erkannt' for s in signatures):
         signatures.insert(0, Signature(signature[0], signature[1]))
@@ -648,6 +707,10 @@ def plan_correction(image: BinaryImage, report: IntegrityReport | None = None, *
                         'ungeprüft und unverändert.')
     if any(r.state == UNPROVEN for r in report.regions):
         warnings.append('Nicht bestätigte Bereiche werden weder geprüft noch korrigiert.')
+    if any(s.method == 'bosch-multipoint' for s in steps) and any(
+            m.method == 'bosch-multipoint' and m.evidence.get('basis') == 'struktur' for m in report.methods):
+        warnings.append('Steuergerät nicht eindeutig identifiziert: die Multipoint-Korrektur stützt sich nur auf die '
+                        'am Original bestätigten Tabelleneinträge dieser Datei.')
     return CorrectionPlan(report.sha256_current, image.revision, sorted(steps, key=lambda s: s.offset),
                           refused, warnings, report.status)
 
@@ -743,38 +806,78 @@ def change_log(image: BinaryImage, plan: CorrectionPlan, after: bytes, report: I
             'flash_approved': False}
 
 
+def _restore(path: Path, previous: bytes | None, protected) -> str | None:
+    """Put ``path`` back to ``previous`` (None = did not exist); the problem text if that fails."""
+    from . import storage
+    try:
+        if previous is None:
+            path.unlink(missing_ok=True)
+        elif not path.exists() or path.read_bytes() != previous:     # untouched files are left alone
+            storage.atomic_write(path, previous, protected=protected)
+        return None
+    except BaseException as exc:          # report, never mask the original failure
+        return f'{path}: {exc}'
+
+
 def write_corrected_copy(image: BinaryImage, plan: CorrectionPlan, target: str | Path, *,
                          profile: ChecksumProfile | None = None) -> dict:
     """Corrected COPY at ``target`` plus ``<target>.korrektur.json``; session and original stay unchanged.
 
-    Every check runs before the first byte is written; the copy is written
-    atomically (existing target kept as .bak). If the change log cannot be
-    written, the copy is removed again: there is never a partial result.
+    Order, so that no change log ever documents firmware that is not on disk:
+      0. every check (stale plan, byte guard, independent re-check) before the first byte is written;
+      1. an existing change log is removed first – it describes another file;
+      2. the copy is written atomically (existing target kept as .bak) and read back by SHA-256;
+      3. the change log is written atomically and read back (it must name the copy's SHA-256).
+    Any failure in 1–3, including an interruption inside this process, restores the previous
+    target and change log and raises CopyNotSaved (``restored`` False if even that failed; the
+    message then names what is left). If the process is killed between 2 and 3, a copy without
+    change log remains – never one with a wrong log.
     """
-    from .storage import atomic_write
+    from . import storage
     if not plan.steps:
         raise ValueError('Nichts zu korrigieren')
     target = Path(target)
     log_path = target.with_name(target.name + '.korrektur.json')
-    if image.path and target.resolve() == Path(image.path).resolve():
-        raise ValueError('Originaldatei darf nicht überschrieben werden')
+    protected = (image.path,)
+    if image.path:
+        source = Path(image.path).resolve()
+        if source in (target.resolve(), log_path.resolve()):
+            raise ValueError('Originaldatei darf nicht überschrieben werden')
     before = _fresh(plan, image)
     after = corrected_bytes(image, plan)
     report = recheck(image, before, after, plan, profile=profile)
     log = change_log(image, plan, after, report, str(target))
     payload = json.dumps(log, indent=2, ensure_ascii=False).encode('utf-8')
-    previous = target.read_bytes() if target.exists() else None
-    atomic_write(target, after, backup=True, protected=(image.path,))
+    digest = log['sha256_output']
+    previous_target = target.read_bytes() if target.exists() else None
+    previous_log = log_path.read_bytes() if log_path.exists() else None
+    stage = 'altes Änderungsprotokoll entfernen'
     try:
-        atomic_write(log_path, payload, protected=(image.path,))
-    except Exception:
-        if previous is None:
-            target.unlink(missing_ok=True)
-        else:
-            atomic_write(target, previous, protected=(image.path,))
-        raise
-    if Path(target).read_bytes() != after:
-        raise ValueError('Gespeicherte Kopie weicht ab')
+        log_path.unlink(missing_ok=True)
+        stage = 'Kopie schreiben'
+        storage.atomic_write(target, after, backup=True, protected=protected)
+        stage = 'gespeicherte Kopie prüfen'
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise OSError('gespeicherte Kopie weicht von der geprüften Korrektur ab')
+        stage = 'Änderungsprotokoll schreiben'
+        storage.atomic_write(log_path, payload, protected=protected)
+        stage = 'Änderungsprotokoll prüfen'
+        saved = json.loads(log_path.read_bytes().decode('utf-8'))
+        if saved.get('sha256_output') != digest or saved != json.loads(payload.decode('utf-8')):
+            raise OSError('gespeichertes Änderungsprotokoll weicht ab')
+    except BaseException as exc:
+        problems = [p for p in (_restore(log_path, previous_log, protected),
+                                _restore(target, previous_target, protected)) if p]
+        if problems:
+            backup = f' Der vorherige Stand der Zieldatei liegt in {target}.bak.' if previous_target is not None else ''
+            raise CopyNotSaved(f'Korrigierte Kopie NICHT gespeichert ({stage}: {exc}). Wiederherstellung '
+                               f'fehlgeschlagen: {"; ".join(problems)}. Die Zieldatei kann die korrigierte, '
+                               f'nicht protokollierte Fassung enthalten – nicht verwenden.{backup}',
+                               restored=False) from exc
+        if not isinstance(exc, Exception):
+            raise                          # interruption: files restored, pass it on unchanged
+        raise CopyNotSaved(f'Korrigierte Kopie NICHT gespeichert ({stage}: {exc}). Der vorherige Zustand '
+                           'von Zieldatei und Änderungsprotokoll ist wiederhergestellt.', restored=True) from exc
     return log
 
 

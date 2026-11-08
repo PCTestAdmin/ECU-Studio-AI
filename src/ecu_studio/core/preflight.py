@@ -28,9 +28,41 @@ class Finding:
 
 @dataclass
 class PreflightReport:
+    """Preflight result. Five checksum-related states are kept apart and never conflated:
+
+    1. ``profile_status``     - the loaded profile: 'unknown' (none), 'match' (every DECLARED slot
+                                matches; the profile may declare only some checksums) or 'mismatch'.
+    2. ``known_checksums_ok`` - every checksum the program could check (profile and the methods the
+                                file proves) matches, and at least one was checked.
+    3. ``integrity_complete`` - the checksum coverage is complete: the integrity check says
+                                'gueltig', or (without an integrity report) a reviewed profile that
+                                the reviewer marked complete matches. Only this sets ``checksum_verified``.
+    4. ``signatures_checked`` - always False: ECU Studio AI never checks manufacturer signatures.
+    5. ``flash_validated``    - always False: there is no flash approval.
+    """
     findings: list[Finding] = field(default_factory=list)
     changed_bytes: int = 0
-    checksum_verified: bool = False
+    profile_status: str = 'unknown'
+    integrity_status: str | None = None          # core/integrity status, None = not run
+    integrity_text: str = ''
+    known_checked: int = 0                        # checked checksum regions (integrity, else profile)
+    known_errors: int = 0
+    integrity_complete: bool = False
+    signature_notes: list[str] = field(default_factory=list)
+
+    # ECU Studio AI performs no flash validation (no ECU-side signature, boot or
+    # monitoring check). The flags exist so callers cannot mistake the others for them.
+    flash_validated = False
+    signatures_checked = False
+
+    @property
+    def checksum_verified(self) -> bool:
+        """Complete checksum coverage proven (state 3). A matching but partial profile is NOT enough."""
+        return self.integrity_complete
+
+    @property
+    def known_checksums_ok(self) -> bool:
+        return self.known_checked > 0 and self.known_errors == 0 and self.profile_status != 'mismatch'
 
     @property
     def status(self) -> str:
@@ -38,13 +70,23 @@ class PreflightReport:
 
     @property
     def checks_passed(self) -> bool:
-        """Green AND every *declared* checksum slot verified.
+        """Green AND complete checksum coverage proven (``checksum_verified``).
 
-        This is NOT a flash approval: a profile may declare only some of the
-        checksums, signatures or monitoring blocks an ECU actually checks, and
-        the preflight covers a fixed list of plausibility tests only.
+        This is NOT a flash approval: signatures, boot and monitoring checks of the ECU
+        stay unchecked, and the preflight covers a fixed list of plausibility tests only.
         """
         return self.status == 'grün' and self.checksum_verified
+
+    @property
+    def checksum_summary(self) -> str:
+        """One line for status bars and dialogs; never suggests flashability."""
+        if self.known_errors or self.profile_status == 'mismatch':
+            return 'Prüfsummen FEHLERHAFT – nicht flashbereit'
+        if self.integrity_complete:
+            return 'Checksummenprüfung vollständig – Signaturen ungeprüft, keine Flashfreigabe'
+        if self.known_checksums_ok:
+            return 'bekannte Prüfsummen stimmen, Prüfung UNVOLLSTÄNDIG – nicht flashbereit'
+        return 'Checksummen NICHT verifiziert – nicht flashbereit'
 
     def add(self, *args, **kwargs):
         self.findings.append(Finding(*args, **kwargs))
@@ -57,23 +99,39 @@ class PreflightReport:
         if not self.findings:
             lines.append('Keine Befunde in den geprüften Punkten.')
         lines += ['', f'Geprüft: {self.changed_bytes} geänderte Byte, jede Position einzeln.', '',
-                  'PRÜFSTATUS (drei getrennte Stufen):']
+                  'PRÜFSTATUS (getrennte Stufen):']
         lines += [f'  {i}. {label}: {state}' for i, (label, state) in enumerate(self.stages(), 1)]
-        lines += ['', 'Grün bedeutet nur: keiner der geprüften Fehler gefunden. Auch mit verifizierten '
-                  'Prüffeldern ist das KEINE Flash-, Abgas- oder Straßenfreigabe.']
+        lines += ['', 'Grün bedeutet nur: keiner der geprüften Fehler gefunden. Auch mit vollständig geprüften '
+                  'Prüfsummen ist das KEINE Flash-, Abgas- oder Straßenfreigabe.']
         return '\n'.join(lines)
 
-    # ECU Studio AI performs no flash validation (no ECU-side signature, boot or
-    # monitoring check). The flag exists so callers cannot mistake the others for it.
-    flash_validated = False
-
     def stages(self) -> list[tuple[str, str]]:
-        """The three statuses that must never be conflated, as (label, state)."""
+        """The statuses that must never be conflated, as (label, state)."""
+        profile = {'unknown': 'kein Checksummenprofil geladen',
+                   'match': 'alle im Profil deklarierten Prüffelder stimmen (Profil kann unvollständig sein)',
+                   'mismatch': 'mindestens ein Profil-Prüffeld stimmt NICHT'}[self.profile_status]
+        if self.known_errors or self.profile_status == 'mismatch':
+            known = f'{self.known_errors or 1} Prüfsumme(n) stimmen NICHT'
+        elif self.known_checked:
+            known = f'alle {self.known_checked} geprüften Prüfsummen stimmen'
+        else:
+            known = 'keine Prüfsumme geprüft'
+        if self.integrity_complete:
+            complete = 'vollständig – alle bekannten Prüfsummen dieser Datei geprüft'
+        elif self.integrity_status is None:
+            complete = 'nicht nachgewiesen – Datei ist nicht flashbereit'
+        else:
+            complete = f'NICHT vollständig ({self.integrity_text}) – Datei ist nicht flashbereit'
+        signatures = 'nicht geprüft – ECU Studio AI prüft keine Herstellersignaturen'
+        if self.signature_notes:
+            signatures += f' ({"; ".join(self.signature_notes)})'
         return [
-            ('Prüfsummen', 'alle im Profil deklarierten Prüffelder stimmen (Profil kann unvollständig sein)'
-             if self.checksum_verified else 'NICHT verifiziert – Datei ist nicht flashbereit'),
+            ('Profil-Prüffelder', profile),
+            ('Bekannte Prüfsummen', known),
+            ('Checksummenabdeckung', complete),
+            ('Signaturen', signatures),
             ('Preflight', {'grün': 'ohne Befund', 'gelb': 'Befunde prüfen', 'rot': 'kritische Befunde'}[self.status]),
-            ('Flashvalidierung', 'nicht durchgeführt – ECU Studio AI validiert keine Flashbarkeit '
+            ('Flashfreigabe', 'keine – ECU Studio AI validiert keine Flashbarkeit '
              '(Signaturen, Bootloader, Überwachung bleiben ungeprüft)'),
         ]
 
@@ -120,8 +178,9 @@ def _overlaps(m: MapDefinition, s: int, e: int) -> bool:
 
 def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_profile=None,
                   cal_window: tuple[int, int] | None = None, integrity=None) -> PreflightReport:
-    """``integrity`` (core/integrity.IntegrityReport of the same bytes) adds the checksum methods the
-    file itself proves; without it only the loaded profile counts, as before."""
+    """``integrity`` (core/integrity.IntegrityReport of the same bytes, checked WITH the same profile)
+    decides the checksum coverage. Without it only a reviewed profile marked complete proves complete
+    coverage; a matching partial profile only proves its declared slots."""
     report = PreflightReport()
     original = image.original
     modified = image.materialize()
@@ -131,7 +190,19 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
 
     # 1. Checksums (also for an unchanged file: a broken read must not look fine)
     status = verify_checksums(image, checksum_profile)
-    report.checksum_verified = status['status'] == 'match' or (integrity is not None and integrity.status == 'gueltig')
+    report.profile_status = status['status']
+    profile_rows = status['regions']
+    if integrity is not None:
+        report.integrity_status, report.integrity_text = integrity.status, integrity.status_text
+        report.known_checked = sum(r.state != 'unbestaetigt' for r in integrity.regions)
+        report.known_errors = len(integrity.errors)
+        report.integrity_complete = integrity.status == 'gueltig' and status['status'] != 'mismatch'
+        report.signature_notes = [f'{s.kind}: {s.state}' for s in integrity.signatures]
+    else:
+        report.known_checked = len(profile_rows)
+        report.known_errors = sum(not row['match'] for row in profile_rows)
+        report.integrity_complete = (status['status'] == 'match'
+                                     and bool(getattr(checksum_profile, 'complete', False)))
     if status['status'] == 'mismatch':
         report.add('rot', 'checksum', 'Checksumme stimmt nicht', status['message'])
     if integrity is not None and integrity.errors:
@@ -139,13 +210,20 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
         report.add('rot', 'checksum-integrity', f'{len(integrity.errors)} Prüfsumme(n) stimmen nicht',
                    f'{integrity.status_text}; zuerst {first.name}. Korrektur über „Korrekturvorschau …“.',
                    first.storage)
-    elif status['status'] != 'match' and runs and integrity is not None and integrity.status != 'gueltig':
-        report.add('gelb', 'checksum', 'Checksummen nicht vollständig geprüft',
-                   f'{integrity.status_text}: {integrity.reasons[-1] if integrity.reasons else ""} '
-                   'Vor dem Flashen mit geeignetem Werkzeug prüfen.')
-    elif status['status'] != 'match' and runs and integrity is None:
-        report.add('gelb', 'checksum', 'Checksumme unbekannt',
-                   'Kein Checksummenprofil geladen; vor dem Flashen mit geeignetem Werkzeug korrigieren.')
+    elif status['status'] != 'mismatch' and runs and not report.integrity_complete:
+        # A changed file without complete checksum coverage is never a clean preflight.
+        why = (f'{integrity.status_text}: {integrity.reasons[-1] if integrity.reasons else ""} '
+               if integrity is not None else '')
+        if status['status'] == 'match':
+            report.add('gelb', 'checksum-coverage', 'Profil-Prüffelder stimmen, Checksummenabdeckung unvollständig',
+                       f'{why}Das Profil belegt nur seine deklarierten Prüffelder. '
+                       'Vor dem Flashen mit geeignetem Werkzeug prüfen.')
+        elif integrity is not None:
+            report.add('gelb', 'checksum', 'Checksummen nicht vollständig geprüft',
+                       f'{why}Vor dem Flashen mit geeignetem Werkzeug prüfen.')
+        else:
+            report.add('gelb', 'checksum', 'Checksumme unbekannt',
+                       'Kein Checksummenprofil geladen; vor dem Flashen mit geeignetem Werkzeug korrigieren.')
     if not runs:
         return report
 

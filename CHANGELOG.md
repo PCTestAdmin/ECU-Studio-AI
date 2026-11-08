@@ -10,7 +10,8 @@ Nachweise und Grenzen: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
   Felder bitgenau auf die Herstellerbytes zurück. Weitere ME7-Prüfsummen und Signaturen bleiben ungeprüft, der Status
   bleibt deshalb „Unvollständige Prüfung“.
 - **Bereits veränderte Dateien:** Tabelleneinträge, die auf der geöffneten Datei nicht stimmen, gelten als ungültig
-  und sind korrigierbar, statt als „unbekannt“ zu verschwinden.
+  und sind korrigierbar, statt als „unbekannt“ zu verschwinden. Voraussetzung: Die Mehrheit der Einträge der Tabelle
+  ist am Original bestätigt.
 - **Signaturen getrennt:** erwartet, erkannt oder unbekannt, nie „gültig“. Eine Prüfsummenkorrektur ersetzt keine
   Herstellersignatur. Signaturen werden nie verändert.
 - **Sichere Korrektur:**
@@ -30,6 +31,41 @@ Nachweise und Grenzen: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
   die Zeit von 3,2 s auf unter 0,1 s.
 - **Unverändert:** MED17/EDC17 und EDC16 bleiben „am Original gemessen“, die Korrektur ist ohne signierten
   OEM-Nachweis gesperrt. Kennfelderkennung und Firmware-Guard sind nicht berührt.
+
+### Nachbesserungen nach Review (PR #19)
+
+- **Preflight konnte trotz unvollständiger Prüfung grün sein (behoben):** Ein passendes Checksummenprofil, das nur
+  einen Teil der Prüfsummen deklariert, setzte `checksum_verified` und `checks_passed`. Die gelbe Warnung zur
+  unvollständigen Integritätsprüfung entfiel. Eine bearbeitete Datei ergab dann einen grünen Preflight.
+  - Getrennte Stufen jetzt: Profil-Prüffelder, bekannte Prüfsummen, Checksummenabdeckung, Signaturen (nie geprüft),
+    Preflight, Flashfreigabe (nie).
+  - `checksum_verified` bedeutet nur noch *vollständige* Abdeckung.
+  - Statusleiste, Exportdialog und Panel zeigen dieselben Stufen.
+- **Multipoint-Korrektur bei nicht identifizierten Steuergeräten abgesichert:** Bisher genügte ein am Original
+  bestätigter Tabelleneintrag, auch bei unbekannter Familie. Jetzt ist die Korrektur nur frei
+  - bei eindeutig identifiziertem ME7, ME9 oder MED9, oder
+  - bei starker Strukturbelegung (mindestens 32 bestätigte Einträge, eine Tabelle mit mindestens 16). Dann ist der
+    Fall eigens gekennzeichnet.
+
+  Bei einer anders identifizierten Familie oder schwachen Belegen bleibt es bei „nur Prüfung“. Die drei
+  Referenzdateien behalten ihre Korrektur.
+- **Korrigierte Kopie und Änderungsprotokoll immer konsistent:** Bisher lief die Lese-Prüfung der Kopie erst nach
+  dem Protokoll. Schlug sie fehl, blieb ein Protokoll stehen, das einen abweichenden Stand dokumentierte.
+  - Neue Reihenfolge: altes Protokoll entfernen, Kopie schreiben und prüfen, Protokoll schreiben und prüfen.
+  - Jeder Fehler und jeder Abbruch stellt beide Dateien wieder her (`CopyNotSaved`).
+  - Eine gescheiterte Wiederherstellung wird ausdrücklich gemeldet.
+- **EXE-Selbsttest prüft Checksummen:** `--smoke-test` der gebauten EXE (und der GUI-Smoke-Test) prüft jetzt auch
+  das Checksummensystem im echten Fenster:
+  - Hintergrundprüfung, Status und Panel;
+  - Korrektur, korrigierte Kopie mit Protokoll und Undo;
+  - getrennte Preflight-Stufen.
+
+  Dafür wird eine synthetische Datei verwendet, keine Herstellerdaten.
+- **Neue Tests:** Preflight-Matrix, Multipoint-Absicherung, Fehlerinjektion beim Speichern
+  (`tests/test_integrity_safety.py`), GUI-Abläufe (Abbrechen und Neustart, Wiederöffnen, Export bei unvollständiger
+  Abdeckung: `tests/test_integrity_gui_flow.py`) sowie weitere lokale Referenztests.
+- **Doku:** SHA-256-Präfixe der lokalen Referenzdateien nicht mehr veröffentlicht (Herkunft undokumentiert, für den
+  Nachweis nicht nötig). Die Preflight-Stufen sind jetzt auch auf Englisch übersetzt.
 
 ## 1.19.1 (08.11.2026)
 

@@ -2994,6 +2994,7 @@ class Window(QMainWindow):
         lines.append(f'Korrektur: {state}')
         lines+=[f'Signatur: {s.kind} – {SIGNATURE_TEXT[s.state]}' for s in report.signatures[:2]] or \
                ['Signatur: keine bekannt (nicht geprüft)']
+        lines.append('Flashfreigabe: keine (Signaturen und ECU-Prüfungen ungeprüft)')
         self.integrity_info.setText('\n'.join(lines))
         chip={'gueltig':'GÜLTIG','ungueltig':'UNGÜLTIG','unvollstaendig':'UNVOLLSTÄNDIG',
               'nicht_unterstuetzt':'NICHT UNTERSTÜTZT','unbekannt':'UNBEKANNT'}[report.status]
@@ -3248,7 +3249,7 @@ class Window(QMainWindow):
         self.diff_view.setPlainText(report.text())
         self.tabs.setCurrentWidget(self.diff_view)
         self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde · '
-                                     +('alle bekannten Prüfsummen stimmen – keine Flashfreigabe' if report.checksum_verified else 'Checksummen NICHT vollständig verifiziert – nicht flashbereit'),8000)
+                                     +report.checksum_summary,8000)
 
     def export_bin(self):
         if not self.require_image():return
@@ -3267,7 +3268,9 @@ class Window(QMainWindow):
         lines+=["Details: Datei → Flash-Preflight prüfen.","",
                 f"Checksummen & Integrität: {integrity.status_text}"]
         lines+=[f"  • {r}" for r in integrity.reasons[:3]]
-        lines+=[f"Profil-Prüfsummen: {check_state.upper()}",
+        lines+=["",preflight.checksum_summary]
+        lines+=[f"  {i}. {label}: {state}" for i,(label,state) in enumerate(preflight.stages(),1)]
+        lines+=["",f"Profil-Prüfsummen: {check_state.upper()}",
                 f"Geänderte Bytes: {check['dirty_bytes']}",
                 f"Geänderte Bytes außerhalb erkannter Tabellen: {check['changed_outside_maps']}",
                 f"Definitionen mit Prüfhilfen: {check['map_review_hints']}","",

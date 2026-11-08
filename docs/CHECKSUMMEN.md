@@ -53,16 +53,18 @@ die EDC17-/EDC16-Korrektur gesperrt, und das bleibt so.
 
 ### Messung auf lokalen Dateien (nur Zählwerte)
 
-| Datei (Familie, Software) | SHA-256 (Präfix) | Belegt am Original |
-|---|---|---|
-| Bosch ME7.5 8E0909518AK (1 MiB, Vollflash) | `50ca08d8f62e` | 70/70 Tabelleneinträge (Wortsumme LE) |
-| BMW ME9 770115XE (1 MiB) | `70aa4e7b317e` | 63/63 Tabelleneinträge (Wortsumme BE) |
-| Bosch MED9.1 1K090711S (2 MiB) | `7f2480ddbb03` | 66/66 Tabelleneinträge (Wortsumme BE), 2 Einzelkandidaten ohne Verfahren |
-| Bosch EDC17CP09 (2 MiB) | `f9057f1a05f0` | 8/11 Blockstrukturen (2 stimmen am Original nicht, 1 außerhalb des Blocks) |
-| Bosch EDC16C31 (4,5 MiB) | `1d7ed00be179` | 1/1 Bereich |
-| Bosch EDC16C35 (2 MiB) | `30757e6cf332` | 1/1 Bereich |
-| Siemens MS43 430069, MS42 0110C6, MSD80, MSD85, MS45, ME9.2.1 | – | kein Verfahren nachweisbar |
-| Bosch MED17.1.62 ×6 (Kalibrierbereich), ME7.2 (64-KiB-Teilabbilder), ME7.5 06A906018CG (256 KiB) | – | kein Verfahren nachweisbar (nur Füllmuster-Kandidaten) |
+| Datei (Familie, Software) | Belegt am Original |
+|---|---|
+| Bosch ME7.5 8E0909518AK (1 MiB, Vollflash) | 70/70 Tabelleneinträge (Wortsumme LE) |
+| BMW ME9 770115XE (1 MiB) | 63/63 Tabelleneinträge (Wortsumme BE) |
+| Bosch MED9.1 1K090711S (2 MiB) | 66/66 Tabelleneinträge (Wortsumme BE), 2 Einzelkandidaten ohne Verfahren |
+| Bosch EDC17CP09 (2 MiB) | 8/11 Blockstrukturen (2 stimmen am Original nicht, 1 außerhalb des Blocks) |
+| Bosch EDC16C31 (4,5 MiB) | 1/1 Bereich |
+| Bosch EDC16C35 (2 MiB) | 1/1 Bereich |
+| Siemens MS43 430069, MS42 0110C6, MSD80, MSD85, MS45, ME9.2.1 | kein Verfahren nachweisbar |
+| Bosch MED17.1.62 ×6 (Kalibrierbereich), ME7.2 (64-KiB-Teilabbilder), ME7.5 06A906018CG (256 KiB) | kein Verfahren nachweisbar (nur Füllmuster-Kandidaten) |
+
+**Kennungen:** Die Teilenummern stehen bereits in der Herkunftstabelle von [ECU-Unterstützung](ECU_SUPPORT.md). SHA-256-Werte der Dateien werden nicht veröffentlicht: Für die meisten Dateien ist die Herkunft nicht dokumentiert, und für den Nachweis genügen Familie, Größe und Zählwerte. Die vollständigen SHA-256 stehen nur im lokalen Manifest; die Opt-in-Tests prüfen sie vor jeder Messung.
 
 **Herkunft und Nutzung:** Die MS43-Datei gehört dem Nutzer. Für die übrigen Dateien gibt es keine dokumentierte
 Herkunft ([ECU-Unterstützung](ECU_SUPPORT.md), Abschnitt „Herkunft der lokalen Referenzdaten“). Sie wurden deshalb
@@ -116,9 +118,33 @@ Generische Tabelleneinträge laufen als „experimentell“. Sie werden geprüft
     - Multipoint-Felder werden mit einer zweiten, einfachen Implementierung (`reference_word_sum`) nachgerechnet.
   - In der Sitzung ein Undo-Schritt. Als Kopie atomar geschrieben, ein vorhandenes Ziel bleibt als `.bak` erhalten.
     Dazu kommt `<ziel>.korrektur.json` mit Hashes, Schritten, abgelehnten Verfahren und Warnungen.
-  - Scheitert das Protokoll, wird die Kopie entfernt bzw. das alte Ziel wiederhergestellt. Es gibt keine
-    Teilausgabe.
-  - Das Original ist geschützt.
+  - Reihenfolge beim Speichern der Kopie (`write_corrected_copy`):
+    1. Ein vorhandenes Protokoll wird zuerst entfernt, weil es eine andere Datei beschreibt.
+    2. Die Kopie wird atomar geschrieben und per SHA-256 zurückgelesen.
+    3. Erst dann wird das Protokoll geschrieben und zurückgelesen. Es muss den SHA-256 der Kopie nennen.
+  - Jeder Fehler in diesen Schritten stellt Zieldatei und Protokoll wieder her. Das gilt für vollen Datenträger,
+    Schreib- und Lesefehler, abweichenden Inhalt und Abbruch im Programm. Der Fehler wird als `CopyNotSaved`
+    gemeldet.
+  - Scheitert sogar die Wiederherstellung, nennt die Meldung, was noch liegt, und wo der vorherige Stand liegt
+    (`.bak`). Sie warnt davor, die Zieldatei zu verwenden.
+  - Ein Protokoll dokumentiert nie einen Stand, der nicht auf dem Datenträger liegt. Wird der Prozess hart zwischen
+    Schritt 2 und 3 beendet, bleibt höchstens eine Kopie *ohne* Protokoll zurück, nie eine mit falschem Protokoll.
+  - Original und Protokollpfad werden geschützt: Weder die Kopie noch ihr Protokoll darf auf die geöffnete
+    Originaldatei zeigen.
+- **Wann eine Multipoint-Korrektur angeboten wird** (Review PR #19): Ein am Original bestätigtes Tabellenmuster
+  allein genügt nicht. Die Korrektur ist frei, wenn
+  - **A)** das Steuergerät eindeutig als ME7, ME9 oder MED9 identifiziert ist, oder
+  - **B)** das Steuergerät nicht identifiziert ist, das Original die Tabellen aber stark belegt: mindestens 32
+    bestätigte Einträge (je 64 Bit aus Wert und Komplement), eine Tabelle mit mindestens 16 davon und kein Eintrag,
+    der nur aus einem bereits veränderten Original abgeleitet ist. Das ist der Fall der ME9-Referenz (nicht
+    identifiziert, 63 Einträge). Bericht und Vorschau kennzeichnen diesen Fall eigens.
+
+  Ist das Steuergerät als *andere* Familie identifiziert, oder sind es zu wenige Belege, bleibt es bei „nur
+  Prüfung“: Die Fehler werden angezeigt, die Korrektur ist gesperrt. Dann bleibt der Weg über ein geprüftes,
+  SHA-256-gebundenes Profil.
+
+  Einträge, die am geöffneten „Original“ nicht stimmen, gelten nur dann als korrigierbare Fehler, wenn die Mehrheit
+  der Einträge dieser Tabelle (mindestens zwei) am Original bestätigt ist. Sonst sind sie „nicht bestätigt“.
 
 ### Oberfläche (Phase 6)
 
@@ -132,7 +158,25 @@ Generische Tabelleneinträge laufen als „experimentell“. Sie werden geprüft
 - **Detailbericht** mit JSON-Export.
 - **Korrekturvorschau:** „In Sitzung übernehmen“ oder „Korrigierte Kopie speichern“.
 - **Exportdialog:** zeigt Status und Gründe, bei korrigierbaren Fehlern mit der Schaltfläche „Korrekturvorschau …“.
-- Die Statusleiste zeigt den Status („CHECKSUMME: UNVOLLSTÄNDIG“ usw.).
+- Die Statusleiste zeigt den Status („CHECKSUMME: UNVOLLSTÄNDIG“ usw.). Das Panel nennt immer „Flashfreigabe:
+  keine“.
+- **Preflight und Exportdialog (Review PR #19)** führen getrennte Stufen, die nie vermischt werden:
+
+  | Stufe | Bedeutung |
+  |---|---|
+  | Profil-Prüffelder | alle im geladenen Profil *deklarierten* Felder stimmen (Profil kann unvollständig sein) |
+  | Bekannte Prüfsummen | alle geprüften Prüfsummen (Profil und nachgewiesene Verfahren) stimmen |
+  | Checksummenabdeckung | vollständig nur bei Integritätsstatus „gültig“ bzw. bestätigt vollständigem Profil |
+  | Signaturen | immer „nicht geprüft“ |
+  | Preflight | grün / gelb / rot |
+  | Flashfreigabe | immer „keine“ |
+
+  `checksum_verified` und `checks_passed` bedeuten seither *vollständige* Abdeckung. Ein passendes Teilprofil
+  genügt nicht mehr. Vorher konnte ein passendes Teilprofil bei unvollständiger Integritätsprüfung einen grünen
+  Preflight mit `checks_passed=True` ergeben.
+
+  Eine bearbeitete Datei ohne vollständige Abdeckung bekommt immer einen gelben Befund. Bei passendem Profil lautet
+  er „Profil-Prüffelder stimmen, Checksummenabdeckung unvollständig“.
 - Die vier alten Einzel-Dialoge sind durch den gemeinsamen Ablauf ersetzt. Die Profilfunktionen (Profil
   importieren, Plausibilitätsbericht) bleiben.
 - Alle Texte gibt es auf Deutsch und Englisch.
@@ -243,6 +287,14 @@ die numpy-Wortsummen.
 - Die Referenzdateien außer MS43 haben keine dokumentierte Herkunft. Deshalb wurden sie nur lokal gemessen. Eine
   unabhängige Bestätigung mit rechtmäßig bereitgestellten Originalen (zwei Softwarestände je Familie) steht aus.
 - Signaturen werden nur als vorhanden/erwartet ausgewiesen. Es gibt keine Umgehung, Fälschung oder Änderung.
+  Digitale Herstellersignaturen werden nicht geprüft.
+- EDC17CP09: 3 von 11 Strukturen bleiben unbestätigt. 2 stimmen am Original nicht, 1 liegt außerhalb des Blocks.
+- Keine der untersuchten Originaldateien hat eine vollständige Checksummenabdeckung. ECU Studio AI erteilt keine
+  Flashfreigabe.
+- Die Grenzwerte der Regel B (32/16 Einträge) sind eine Sicherheitsabwägung, keine Messgröße des Steuergeräts. Sie
+  liegen deutlich unter den 63 Einträgen der ME9-Referenz und deutlich über zufälligen oder kleinen Tabellen.
+- Die ME9-Referenz wird von der Identifikation nicht erkannt (Familie leer). Eine bessere ME9-Identifikation würde
+  sie von Regel B auf Regel A heben.
 
 ### Lokale Referenztests ausführen
 

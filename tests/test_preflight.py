@@ -203,18 +203,28 @@ def test_similar_twins_changed_at_different_cells_are_flagged():
     assert any(f.code=='twin-similar-partial' for f in report.findings)
 
 
-def test_three_status_levels_are_never_conflated():
-    import json
+def test_status_levels_are_never_conflated():
+    # Until PR #19 review a matching profile set checksum_verified even when it declared only some
+    # checksums (complete=False). Now: a partial profile proves its declared slots only; complete
+    # coverage needs the reviewer's completeness confirmation (or a 'gueltig' integrity report).
     from ecu_studio.core.checksum_audit import ChecksumSlot, ChecksumProfile, slot_value
     image,maps=_image()
     data=bytearray(image.original)
     slot=ChecksumSlot('cal','sum16-bytes',0x1000,0x1040,0x3FF0)
     data[0x3FF0:0x3FF2]=slot_value(BinaryImage(bytes(data)),slot).to_bytes(2,'big')
     image=BinaryImage(bytes(data))
-    profile=ChecksumProfile(image.digest,'test','reviewer',True,(slot,))
-    report=run_preflight(image,maps,checksum_profile=profile)
+    partial=ChecksumProfile(image.digest,'test','reviewer',True,(slot,))
+    report=run_preflight(image,maps,checksum_profile=partial)
+    assert report.profile_status=='match' and report.known_checksums_ok
+    assert not report.checksum_verified and not report.checks_passed and report.status=='grün'
+    assert 'UNVOLLSTÄNDIG' in report.checksum_summary
+    complete=ChecksumProfile(image.digest,'test','reviewer',True,(slot,),complete=True)
+    report=run_preflight(image,maps,checksum_profile=complete)
     assert report.checksum_verified and report.status=='grün' and report.checks_passed
-    assert report.flash_validated is False
+    assert report.flash_validated is False and report.signatures_checked is False
     labels=[label for label,_ in report.stages()]
-    assert labels==['Prüfsummen','Preflight','Flashvalidierung']
-    assert 'nicht durchgeführt' in report.stages()[2][1] and 'PRÜFSTATUS' in report.text()
+    assert labels==['Profil-Prüffelder','Bekannte Prüfsummen','Checksummenabdeckung','Signaturen',
+                    'Preflight','Flashfreigabe']
+    stages=dict(report.stages())
+    assert 'nicht geprüft' in stages['Signaturen'] and stages['Flashfreigabe'].startswith('keine')
+    assert 'PRÜFSTATUS' in report.text() and 'Flashfreigabe' in report.checksum_summary

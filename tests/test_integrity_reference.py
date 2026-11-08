@@ -113,3 +113,51 @@ def test_measured_methods_detect_edits_but_stay_locked(entry):
     assert report.status == ig.INVALID and not report.correctable
     plan = ig.plan_correction(image, report)
     assert not plan.steps and plan.refused
+
+
+def test_all_manufacturer_multipoint_values_are_reproduced_by_both_implementations():
+    """Every stored multipoint value of the references (199 in the documented set) is reproduced by the
+    vectorised sum AND by the plain second implementation."""
+    total = 0
+    for entry in MULTIPOINT:
+        data = _load(entry)
+        for r in _method(ig.check_integrity(BinaryImage(data)), 'bosch-multipoint').regions:
+            e = 'little' if r.algorithm.endswith('le') else 'big'
+            assert r.state == ig.OK and r.stored == ig.reference_word_sum(data, r.start, r.end, e) == r.computed
+            total += 1
+    assert total == sum(e['regions'] for e in MULTIPOINT)
+
+
+@pytest.mark.parametrize('entry', MULTIPOINT, ids=lambda e: e['name'])
+def test_multipoint_correction_basis_is_established_and_named(entry):
+    """PR #19 review: correction needs an identified family or strong structural proof – the references
+    keep their correction (ME9 is not identified and passes on its 63 proven entries)."""
+    image = BinaryImage(_load(entry))
+    report = ig.check_integrity(image)
+    m = _method(report, 'bosch-multipoint')
+    assert m.evidence['inferred_entries'] == 0 and m.evidence['proven_entries'] == entry['regions']
+    assert m.evidence['basis'] == ('familie' if report.family else 'struktur') and not m.correction
+
+
+@pytest.mark.parametrize('entry', ENTRIES, ids=lambda e: e['name'])
+def test_signatures_are_reported_never_valid(entry):
+    report = ig.check_integrity(BinaryImage(_load(entry)))
+    assert all(s.state in ('erwartet', 'erkannt', 'unbekannt') for s in report.signatures)
+    if entry['method'] == 'bosch-edc17':
+        assert any(s.state == 'erkannt' for s in report.signatures)
+
+
+@pytest.mark.parametrize('entry', MULTIPOINT, ids=lambda e: e['name'])
+def test_corrected_copy_of_a_real_file_is_consistent(entry, tmp_path):
+    data = _load(entry)
+    source = tmp_path / 'original.bin'
+    source.write_bytes(data)
+    image = BinaryImage.from_file(str(source))
+    r = max(_method(ig.check_integrity(image), 'bosch-multipoint').regions, key=lambda r: r.end - r.start)
+    endian = 'little' if r.algorithm.endswith('le') else 'big'
+    image.write(r.storage, ig._pair(r.stored ^ 0x1, endian))
+    log = ig.write_corrected_copy(image, ig.plan_correction(image), tmp_path / 'kopie.bin')
+    copy = (tmp_path / 'kopie.bin').read_bytes()
+    assert copy == data and hashlib.sha256(copy).hexdigest() == log['sha256_output']
+    assert json.loads((tmp_path / 'kopie.bin.korrektur.json').read_text(encoding='utf-8')) == log
+    assert source.read_bytes() == data
