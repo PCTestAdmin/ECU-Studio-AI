@@ -1,7 +1,8 @@
 # Entwicklungsbericht 1.19.1 – Fehlfunde reduzieren, Prozessorarchitektur erkennen
 
-Stand: 08.11.2026 (abschließende Prüfung von PR #16: § 11; letzte Korrekturen vor 1.19.1: § 12). Branch `feature/1.19.1-false-positive-reduction`, Ausgangspunkt `v1.19.0` (63ea112). Noch kein
-Release, Versionsnummer unverändert. Firmware und Referenzdateien bleiben lokal; dieser Bericht enthält nur Zählwerte,
+Stand: 08.11.2026, veröffentlicht als **1.19.1** (abschließende Prüfung von PR #16: § 11; letzte Korrekturen: § 12,
+PR #17). Ausgangspunkt `v1.19.0` (63ea112); Branches `feature/1.19.1-false-positive-reduction` und
+`feature/1.19.1-final-fixes`. Firmware und Referenzdateien bleiben lokal; dieser Bericht enthält nur Zählwerte,
 Offsets und Hashes.
 
 ## 1. Kurzfassung

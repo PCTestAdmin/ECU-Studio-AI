@@ -184,9 +184,10 @@ beider Achsen direkt in Registern übergeben (`a4` / `a5` / `a6`), teils über S
 Achsensuche. ECU Studio AI liest diese Aufrufe aus und leitet Zellbreite und Vorzeichen aus den Ladebefehlen der
 Routine ab.
 
-Auf einem MSD80-Vollflash mit Community-XDF (Entwicklungsdaten, Teilreferenz): **39 → 73 von 99** Kennfeldern exakt,
-Datentyp bei 62 davon richtig, gemeinsame Achsen 37/37, keine neuen Widersprüche zur Referenz.
-Ausführlich: [docs/ANALYSE_2026-10-30.md](docs/ANALYSE_2026-10-30.md).
+Auf einem MSD80-Vollflash mit Community-XDF (Entwicklungsdaten, Teilreferenz, keine unabhängige Bestätigung):
+**39 → 86 von 99** Kennfeldern exakt (1.18: 73, 1.19.0: 84, 1.19.1: 86), Datentyp bei 85 davon richtig, gemeinsame
+Achsen 51/51. Die TriCore-Codeerkennung ist **experimentell**.
+Ausführlich: [docs/ANALYSE_2026-10-30.md](docs/ANALYSE_2026-10-30.md), [docs/ENTWICKLUNG_1.19.1.md](docs/ENTWICKLUNG_1.19.1.md) § 12.2.
 
 </details>
 
@@ -208,7 +209,7 @@ wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einstellen der E
 | Bosch EDC16C31 | Hersteller-A2L | `███████████████████░░░░░░░` **272** / 364 | **82 %** |
 | Siemens MS43 | Community-XDF | `██████████████░░░░░░░░░░░░` **197** / 379 | **79 %** |
 | BMW ME9.2.1 | Hersteller-A2L | `██████████░░░░░░░░░░░░░░░░` **170** / 460 | **72 %** |
-| Siemens MSD80 Vollflash · *Entwicklung* | Community-XDF (Teil) | `███████████████████░░░░░░░` **73** / 99 | – |
+| Siemens MSD80 Vollflash · *Entwicklung* | Community-XDF (Teil) | `███████████████████████░░░` **86** / 99 | – |
 | Denso SH-2 (Subaru) | RomRaider (Auswahl) | **147–178** | – |
 
 <sub>Balken = Anteil exakt gefundener Kennfelder. Die MSD80/85-Teststände sind reine Kalibrierbereiche ohne

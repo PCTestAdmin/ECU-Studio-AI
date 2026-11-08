@@ -1,53 +1,63 @@
-## Unveröffentlicht
+## 1.19.1 (08.11.2026)
 
-Weniger Fehlfunde aus Programmcode, Text und Zeigertabellen (Branch `feature/1.19.1-false-positive-reduction`, noch kein
-Release, Versionsnummer unverändert). Messungen und Grenzen: [Entwicklungsbericht 1.19.1](docs/ENTWICKLUNG_1.19.1.md).
+Zuverlässigere Kennfelderkennung: weniger Fehlfunde aus Programmcode, Text und Zeigertabellen, korrigierte
+Zuordnungen, kein bisher exaktes Kennfeld verloren. Messungen und Grenzen:
+[Entwicklungsbericht 1.19.1](docs/ENTWICKLUNG_1.19.1.md), Release Notes Deutsch/Englisch:
+[RELEASE_NOTES_1.19.1.md](docs/RELEASE_NOTES_1.19.1.md). *Entwicklungsdaten* = an derselben Datei entwickelt und
+gemessen, keine unabhängige Bestätigung.
 
-- **Prozessorarchitektur:** TriCore, C16x, ARM (Cortex-M) und AVR werden nur erkannt, wenn zwei unabhängige Merkmale
-  übereinstimmen (z. B. Vektortabelle und Befehlsdichte); sonst gilt „unbekannt“. Code-Belege entstehen nur noch auf
-  der belegten Architektur. Bisher las die C16x-Suche zufällige Bytes anderer Prozessoren als Ladebefehle: auf einer
-  rusEFI-ARM-Firmware ergab das einen Code-Beleg auf einer Zeichenkettenliste, auf drei MED17-Dateien (TriCore) einen
-  falschen Code-Beleg bei 0x12600. Die C16x-Erkennung auf C16x-Steuergeräten bleibt unverändert.
-- **Text und Zeigertabellen:** Funde, die nahezu vollständig auf Zeichenkettenlisten oder (bei ARM) auf Zeigertabellen
-  und der Vektortabelle liegen, werden nicht mehr als Kennfeld angeboten; ebenso Datensätze, deren „Achsen“ Adressen
-  sind. Kalibrierwerte, die zufällig wie Text oder Adressen aussehen, bleiben erhalten (eigene Tests).
-- **Gemessen** auf sieben offenen Firmwareständen ohne Abstimmungsdaten (FOME, rusEFI, Speeduino; lokal, nicht im
-  Repository): 1795 → 875 Funde, nachweislich falsche 921 → 0, Strukturbelege 294 → 36. Die übrigen Funde sind nicht
-  als falsch belegt; Programm-Images enthalten auch echte Konstanten-Tabellen. Keine Präzisionsangabe.
-- **Keine Regression:** Auf den 15 realen Vergleichspaaren bleiben exakte Kennfelder, Datentypen, Achsen und
-  Achsadressen gleich; in den synthetischen Fällen ein exakter Fund mehr. Laufzeit und Speicher unverändert.
-- **Neues Werkzeug** `tools/negative_benchmark.py` für reproduzierbare Fehlfund-Messungen (auch Vorher/Nachher mit
-  einem anderen Quellstand und Versionsvergleich).
-- **C16x nur mit zwei unabhängigen Merkmalen:** Trap-Vektortabelle (`jmps` ab Adresse 0) und C16x-Befehlsdichte.
-  Viele ME7-Aufrufsequenzen allein genügen nicht mehr; sie bestehen aus denselben `mov`-Befehlen wie das
-  Dichtemerkmal. MS42, MS43 und ME7.5 werden weiter als C16x erkannt, alle anderen Zuordnungen bleiben gleich.
-- **Kein Zwischenspeicher hält mehr Firmwaredateien:** C16x-Ladeadresse und A2L-Referenz (Namensübertragung,
-  Versionsvergleich) speicherten bis zu 8 + 4 vollständige Images über das Schließen eines Projekts hinaus. Die
-  Ladeadresse wird jetzt wie die Architektur einmal je Scan berechnet und weitergegeben; der A2L-Zwischenspeicher
-  behält nur die verknüpften Einträge.
+**Kennfelderkennung**
 
-Letzte Korrekturen vor 1.19.1 (Branch `feature/1.19.1-final-fixes`, Versionsnummer unverändert):
+- **Architekturprüfung:** TriCore, C16x, ARM (Cortex-M) und AVR gelten nur als erkannt, wenn zwei unabhängige
+  Merkmale übereinstimmen (z. B. Vektortabelle und Befehlsdichte); sonst „unbekannt“. C16x verlangt Trap-Vektortabelle
+  und C16x-Befehlsdichte; MS42, MS43 und ME7.5 werden weiter als C16x erkannt.
+- **Keine Code-Belege auf fremden Architekturen:** Code-Decoder laufen nur auf der belegten Architektur. Behoben: ein
+  falscher C16x-Code-Beleg bei 0x12600 auf drei MED17-Dateien (TriCore) und einer auf einer Zeichenkettenliste einer
+  rusEFI-ARM-Firmware.
+- **Weniger Fehlfunde auf Text und Zeigertabellen:** Funde, die nahezu vollständig auf Zeichenkettenlisten oder (ARM)
+  auf Zeigertabellen und der Vektortabelle liegen, und Datensätze mit Adressen als „Achsen“ werden nicht mehr als
+  Kennfeld angeboten. Gemessen auf sieben offenen Firmwareständen ohne Abstimmungsdaten (FOME, rusEFI, Speeduino;
+  Entwicklungsdaten): 1795 → 875 Funde, nachweislich falsche 921 → 0, Strukturbelege 294 → 36.
+- **Zwei MSD80-Kennfelder wiederhergestellt:** 0x4FB18 (6 × 7 u16) und 0x5604C (6 × 8 u16), in 1.18.2 exakt, in
+  1.19.0 verloren. Ursache: Der TriCore-Decoder hielt je Programmstelle nur 8 Registerzustände; seit dem Verfolgen
+  bedingter Sprünge fielen dadurch Tabellenadressen weg. Jetzt 32. MSD80 I8A0S 84 → 86 von 99 exakt, Achsen
+  74 → 77 richtig (Entwicklungsdaten). Etwa 4 % längere Scanzeit auf MSD80.
+- **Falscher HC11-Code-Beleg auf ME7.5 06A906018CG behoben:** Die HC11-/8051-Suche rechnet 16-Bit-Adressen linear in
+  Dateipositionen um und lief trotzdem auf Images bis 256 KiB; zufällige Bytes galten als Ladebefehle (Code-Beleg bei
+  0x5C6). Sie läuft jetzt nur auf Images bis 64 KiB. Auf 38 lokalen Images ändert sich nur 06A.
+- **Keine Regression:** Auf den 15 realen Vergleichspaaren geht kein exaktes Kennfeld verloren; Datentypen, Achsen und
+  Achsadressen bleiben gleich oder werden besser (nur MSD80). Synthetische Fälle: ein exakter Fund mehr,
+  Negativkontrollen unverändert.
 
-- **A2L-Zwischenspeicher nach Inhalt statt Pfad:** Wurde eine A2L unter demselben Pfad geändert (auch bei gleicher
-  Dateigröße), lieferten Namensübertragung und Versionsvergleich bis zur nächsten Programmsitzung die Kennfelder der
-  alten Fassung. Schlüssel ist jetzt SHA-256 von A2L und Firmware; jeder Aufrufer erhält eine eigene Kopie, sodass
-  Umbenennen oder Übernehmen den Speicher nicht verändert. Weiterhin keine Firmware im Speicher.
-- **MSD80: zwei verlorene Kennfelder zurück (Entwicklungsdatei):** Seit 1.19.0 werden bedingte Sprünge im
-  TriCore-Code verfolgt; an Zusammenführungspunkten kamen dadurch mehr als die gehaltenen 8 Registerzustände an, und
-  die zuletzt eintreffenden fielen weg. Zwei Aufrufstellen verloren so ihre Tabellenadresse (0x4FB18 6 × 7 u16,
-  0x5604C 6 × 8 u16; in 1.18.2 exakt). Jetzt 32 Zustände: MSD80 I8A0S 84 → 86 exakt, Achsen 74 → 77 richtig,
-  kein anderes Kennfeld verloren. **Nur an der Entwicklungsdatei gemessen**; eine unabhängige TriCore-Referenz fehlt.
-- **Kein HC11-Code-Beleg mehr auf ME7.5 06A906018CG:** Die HC11-/8051-Suche bildet 16-Bit-Adressen linear auf die
-  Datei ab und lief auch auf Images bis 256 KiB. Auf ME7.5 06A (256 KiB, ohne HC11-Code) galten zufällige Bytes als
-  HC11-Ladebefehle (305 Adressziele, keines ein Referenzkennfeld) und ergaben einen unbegründeten Code-Beleg bei
-  0x5C6. HC11/8051 werden jetzt nur auf Images bis 64 KiB (ein 16-Bit-Adressraum) geprüft. Auf 38 lokalen Images
-  ändert sich nur 06A. Größere HC11-/8051-Images mit Speicherbänken erhalten keine Code-Belege mehr; dafür gab es
-  keine Referenzdaten.
-- **Windows-Dateiversion:** `ECU-Studio-AI.exe` und der Installer tragen die Programmversion in den
-  Dateieigenschaften (bisher 0.0.0.0).
-- **Code-Scanning:** CodeQL übersprang `tests/test_a2l_records.py` mit „Syntaxfehler“, weil die erste
-  Docstring-Zeile („decoding: counts …“) nach PEP 263 als Kodierungsangabe „counts“ gelesen wurde. Docstring
-  umformuliert; ein Test prüft alle Python-Dateien auf solche unbeabsichtigten Angaben.
+**Stabilität und Speicher**
+
+- **Keine globalen Zwischenspeicher mit ganzen Firmwaredateien:** C16x-Ladeadresse und A2L-Referenz hielten in
+  1.19.0 bis zu 8 + 4 vollständige Images über das Schließen eines Projekts hinaus. Speicher nach 15 Scans
+  verschiedener Dateien jetzt konstant (+0,03 MB statt wachsend).
+- **A2L-Zwischenspeicher gegen veraltete Definitionen:** Eine unter demselben Pfad geänderte A2L (auch bei gleicher
+  Größe) lieferte in Namensübertragung und Versionsvergleich die Kennfelder der alten Fassung. Schlüssel ist jetzt der
+  Inhalt (SHA-256) von A2L und Firmware; jeder Aufrufer erhält eine eigene Kopie.
+- **Parallele Zugriffe:** Der A2L-Zwischenspeicher ist gesperrt und liefert jedem Thread die richtige Definition
+  (Test mit 8 Threads).
+
+**Windows**
+
+- **Dateiversion:** `ECU-Studio-AI.exe` und der Installer zeigen in den Dateieigenschaften die Programmversion
+  (bisher 0.0.0.0). Das ist keine digitale Signatur; die EXE bleibt ohne Authenticode-Signatur.
+- **Build-Prozess:** Der Compiler-Aufruf des Startprogramms ist eine eigene, getestete Funktion; ein Test prüft die
+  Build-Funktionen auf undefinierte Namen.
+- **CodeQL:** `tests/test_a2l_records.py` wurde vom Code-Scanning übersprungen, weil eine Docstring-Zeile als
+  Kodierungsangabe gelesen wurde. Behoben, mit Test für alle Python-Dateien.
+- **Neues Werkzeug** `tools/negative_benchmark.py` für reproduzierbare Fehlfund-Messungen.
+
+**Bekannte Einschränkungen**
+
+- Die TriCore-Codeerkennung bleibt **experimentell**; es gibt keinen unabhängigen, vollständigen TriCore-Blindtest.
+- Die 875 verbleibenden Funde auf den offenen Firmwareständen sind **nicht** als echte Kennfelder bestätigt; ohne
+  Symbole (ELF/Map) ist ihre Richtigkeit unbekannt. Keine allgemeingültige Präzisionsangabe.
+- Für HC11-/8051-Images über 64 KiB (Speicherbänke) gibt es keine validierten Code-Belege; sie erhalten keine mehr.
+- Die Ursache des einmaligen GUI-Absturzes vom 01.11.2026 ist weiter unbekannt (seither nicht reproduziert).
+- Als „nicht validiert“ geführte Steuergerätefamilien bleiben es ([ECU-Unterstützung](docs/ECU_SUPPORT.md)).
 
 ## 1.19.0 (04.11.2026)
 
