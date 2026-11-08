@@ -279,7 +279,8 @@ Alle Softwarestände und Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.
 ### 🛡️ Prüfen
 - **Flash-Preflight** für jede geänderte Byteposition
 - **Zwillingskennfelder** auf gleiche Änderung geprüft
-- **Checksummen** mit geprüften Profilen, Korrektur mit Byte-Vorschau, Suche unbekannter Layouts
+- **Checksummen & Integrität:** fünf klare Status, Bosch-Multipoint unabhängig belegt, Korrektur mit Byte-Vorschau,
+  Nachprüfung und korrigierter Kopie ([Details](docs/CHECKSUMMEN.md))
 - **Software-Kennung (EPK)** gegen die Definition
 - Drei getrennte Stufen: Prüfsummen · Preflight · Flashvalidierung
 
@@ -348,8 +349,8 @@ Weg automatisch auf Windows Server 2022 und 2025 durchgespielt.
 ## 🛡️ Sicherheit und Grenzen
 
 > [!WARNING]
-> **ECU Studio AI gibt keine Flashfreigabe.** Checksummen werden nur mit einem geprüften, an die Original-Firmware
-> gebundenen Profil verifiziert – Signaturen und weitere Prüfungen des Steuergeräts bleiben ungeprüft. Geänderte
+> **ECU Studio AI gibt keine Flashfreigabe.** Checksummen werden nur mit einem am Original belegten Verfahren oder einem
+> geprüften Profil verifiziert und korrigiert – Signaturen und weitere Prüfungen des Steuergeräts bleiben ungeprüft. Geänderte
 > Dateien vor dem Flashen mit einem geeigneten Werkzeug prüfen. Eingriffe können Typgenehmigung, Abgasverhalten und
 > Versicherungsschutz betreffen.
 
@@ -357,7 +358,7 @@ Weg automatisch auf Windows Server 2022 und 2025 durchgespielt.
 |---|---|
 | Original unverändert lassen – Änderungen als nachvollziehbare Ebene | Automatisches „Stage 1“-Tuning |
 | Funde mit Art des Belegs zeigen | Abgas- oder Schutzfunktionen abschalten |
-| Checksummen nur mit geprüftem Profil korrigieren | Flashfreigaben erteilen |
+| Checksummen nur mit belegtem Verfahren korrigieren – Vorschau, Nachprüfung, Protokoll | Flashfreigaben erteilen, Signaturen umgehen |
 | Firmware lokal halten – sie wird nie hochgeladen | Kennfeldnamen erfinden |
 
 - **Keine Firmware im Repository** – Tests verhindern Programmdateien, Archive und Firmware außerhalb von `examples/`.

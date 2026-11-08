@@ -16,6 +16,8 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
+import numpy as np
+
 from .checksum_validation import validation_record
 
 MAGIC = bytes.fromhex('FADECAFECAFEAFFE')
@@ -69,10 +71,9 @@ def find_regions(data: bytes) -> list[Region]:
 
 
 def sum_region(data: bytes, region: Region) -> int:
-    total = 0
-    for pos in range(region.start, region.end + 1, 4):
-        total = (total + _u32be(data, pos)) & 0xFFFFFFFF
-    return total
+    """Big-endian dword sum over the region (modulo 2^32)."""
+    words = np.frombuffer(data, '>u4', count=(region.end + 1 - region.start) // 4, offset=region.start)
+    return int(words.sum(dtype=np.uint64)) & 0xFFFFFFFF
 
 
 def analyze(data: bytes) -> list[RegionStatus]:

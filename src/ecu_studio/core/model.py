@@ -387,6 +387,17 @@ class BinaryImage:
         pos = m.cell_offset(row,col)
         self.write(pos, struct.pack((">" if m.endian == "big" else "<") + code, raw))
 
+    def snapshot(self) -> BinaryImage:
+        """Independent copy of the current bytes for background work (no undo history).
+
+        The original is immutable and shared; only the small patch overlay is
+        copied, so a worker never races with edits in the window.
+        """
+        snap = BinaryImage(self.original, self.path)
+        snap._patches = dict(self._patches)
+        snap.revision = self.revision
+        return snap
+
     def materialize(self) -> bytes:
         out = bytearray(self.original)
         for p, b in self._patches.items():

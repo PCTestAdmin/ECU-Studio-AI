@@ -84,6 +84,8 @@ class ChecksumProfile:
     reviewer: str
     reviewed: bool
     slots: tuple[ChecksumSlot, ...]
+    # The reviewer confirms the slots are ALL checksums this ECU checks (default: only the declared ones).
+    complete: bool = False
 
     def check(self, image: BinaryImage) -> None:
         if not (isinstance(self.firmware_sha256, str) and len(self.firmware_sha256) == 64 and
@@ -130,9 +132,11 @@ def load_checksum_profile(path: str | Path, image: BinaryImage) -> ChecksumProfi
         if not isinstance(extra,list) or not all(isinstance(r,list) and len(r)==2 for r in extra):
             raise ValueError('extra_ranges muss eine Liste von [start, end] sein')
         items.append(ChecksumSlot(**row,extra_ranges=tuple(tuple(r) for r in extra)))
+    complete=obj.get('complete',False)
+    if not isinstance(complete,bool): raise ValueError('complete muss true oder false sein')
     profile=ChecksumProfile(
         firmware_sha256=obj['firmware_sha256'],source=obj['source'],
-        reviewer=obj['reviewer'],reviewed=obj['reviewed'],slots=tuple(items))
+        reviewer=obj['reviewer'],reviewed=obj['reviewed'],slots=tuple(items),complete=complete)
     profile.check(image)
     return profile
 

@@ -52,8 +52,8 @@ from ..core.definitions import import_definitions, export_definitions, parse_off
 from ..core.search import hex_pattern_search, compare_reference, export_patch_csv
 from ..core.compare_maps import compare_images, export_map_comparison_csv, export_cell_comparison_csv, delta_matrix
 from ..core.axis_inference import suggest_adjacent_axes
-from ..core.checksum_audit import (load_checksum_profile, audit_export, write_audit_json,
-                                  plan_checksum_correction, apply_checksum_correction, correction_preview)
+from ..core.checksum_audit import load_checksum_profile, audit_export, write_audit_json
+from ..core.integrity import check_integrity, Cancelled
 from ..core.map_groups import group_maps, export_groups_csv
 from ..core.axis_groups import group_index, shared_axis_groups
 from ..recognition.identity_registry import identify_vehicle, import_identity_manifest, identity_stats
@@ -133,6 +133,31 @@ class ScanWorker(QThread):
         except Exception as exc:
             self.failed.emit(str(exc))
 
+
+
+class IntegrityWorker(QThread):
+    """Checksums & integrity on a snapshot: the window stays usable, edits never race the check."""
+    complete = Signal(object)
+    failed = Signal(str)
+    cancelled = Signal()
+    progress = Signal(int, str)
+    def __init__(self, image, profile=None):
+        super().__init__()
+        self.snapshot = image.snapshot()
+        self.revision = image.revision
+        self.profile = profile
+    def run(self):
+        try:
+            report = check_integrity(self.snapshot, profile=self.profile,
+                                     progress=lambda pct, text: self.progress.emit(pct, text),
+                                     cancelled=self.isInterruptionRequested)
+        except Cancelled:
+            self.cancelled.emit()
+            return
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.complete.emit(report)
 
 
 class RecognitionWorker(QThread):
@@ -247,6 +272,10 @@ class Window(QMainWindow):
         self.library = MapLibrary()
         self.saved_fingerprint = None
         self.checksum_profile = None
+        self.integrity_worker: IntegrityWorker | None = None
+        self.integrity_report = None
+        self.integrity_revision = None
+        self._integrity_rerun = False
         self.map_editors = []
         self.project_store = ProjectStore()
         self.setWindowTitle(f"ECU Studio AI v{__version__}  |  Calibration Workbench")
@@ -258,6 +287,10 @@ class Window(QMainWindow):
         self.resize(1510,930)
         self.setMinimumSize(1100,680)
         self._build()
+        self.integrity_timer=QTimer(self)
+        self.integrity_timer.setSingleShot(True)
+        self.integrity_timer.setInterval(900)
+        self.integrity_timer.timeout.connect(self._auto_integrity)
         self._actions()
         self._build_toolbar()
         self.set_theme(self.theme)
@@ -514,6 +547,22 @@ class Window(QMainWindow):
         self.notes.setPlaceholderText('Befunde, ECU-Version, Prüfung, Aufgaben …')
         self.notes.setMinimumHeight(100)
         rr.addWidget(self.notes,1)
+        rr.addWidget(self._label('CHECKSUMMEN & INTEGRITÄT'))
+        self.integrity_info=QLabel('Keine Datei geöffnet')
+        self.integrity_info.setObjectName('hint')
+        self.integrity_info.setWordWrap(True)
+        self.integrity_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        rr.addWidget(self.integrity_info)
+        integrity_row=QHBoxLayout()
+        self.integrity_check_button=QPushButton('Checksummen prüfen')
+        self.integrity_check_button.setToolTip('Prüft im Hintergrund alle unterstützten Verfahren und zeigt den Bericht.')
+        self.integrity_check_button.clicked.connect(lambda:self.check_integrity_async(show=True))
+        self.integrity_preview_button=QPushButton('Korrekturvorschau')
+        self.integrity_preview_button.setToolTip('Zeigt jedes zu ändernde Byte; nichts wird ohne Bestätigung geschrieben.')
+        self.integrity_preview_button.setEnabled(False)
+        self.integrity_preview_button.clicked.connect(self.integrity_correction_preview)
+        integrity_row.addWidget(self.integrity_check_button);integrity_row.addWidget(self.integrity_preview_button)
+        rr.addLayout(integrity_row)
         rr.addWidget(self._label('DATEISTATUS'))
         self.file_info=QLabel('Keine Datei geöffnet')
         self.file_info.setWordWrap(True)
@@ -772,10 +821,8 @@ class Window(QMainWindow):
         act(tools,"Kennfelder automatisch gruppieren …",self.open_map_groups,"Ctrl+Shift+G")
         act(tools,"ECU-Checksummenprofil importieren …",self.load_checksum_manifest)
         act(tools,"Checksum- und Plausibilitätsprüfung …",self.open_checksum_audit,"Ctrl+Shift+Q")
-        act(tools,"Checksummen korrigieren (mit Vorschau) …",self.correct_checksums)
-        act(tools,"Prüfsummen-Tabellen der Datei prüfen / korrigieren …",self.correct_table_checksums)
-        act(tools,"EDC17/MED17-Prüfsummenblöcke prüfen / korrigieren …",self.correct_edc17_blocks)
-        act(tools,"EDC16-Prüfsummen prüfen / korrigieren …",self.correct_edc16_blocks)
+        act(tools,"Checksummen & Integrität prüfen …",lambda:self.check_integrity_async(show=True))
+        act(tools,"Checksummen-Korrekturvorschau …",self.integrity_correction_preview)
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
@@ -1015,6 +1062,8 @@ class Window(QMainWindow):
         self.project_path=project_path
         self.selected=None
         self.checksum_profile=None
+        self.integrity_report=None
+        self.integrity_revision=None
         self.map_hint.setText("Kennfeld links auswählen, um Definition und Hinweise zu sehen.")
         self.notes.setPlainText(notes)
         self.hex_model.set_image(image)
@@ -1028,6 +1077,7 @@ class Window(QMainWindow):
         self.saved_fingerprint = self.project_state()
         self.statusBar().showMessage("Datei geladen · Original unverändert",5000)
         self.update_local_suggestions()
+        QTimer.singleShot(0,self._auto_integrity)
 
     def update_status(self):
         if not self.image: return
@@ -1053,6 +1103,7 @@ class Window(QMainWindow):
         guesses=sum(m.source in ('heuristic','reference-shape','transfer-proposed','ml-proposed') for m in self.maps)
         self.stats_chip.setText(f"{len(self.maps):,} Einträge · {guesses} Suchvorschläge · {img.dirty_bytes:,} Byte geändert")
         self.statusBar().showMessage(f"{img.size:,} Bytes · {img.dirty_bytes:,} veränderte Bytes · {guesses} ungeprüfte Suchvorschläge")
+        self._show_integrity_state()
 
     def refresh_map_list(self,*args):
         previous=self.selected
@@ -1910,6 +1961,8 @@ class Window(QMainWindow):
         # Virtual HEX model reads the patch overlay lazily. Repaint visible rows only;
         # sending a multi-million-row dataChanged range freezes large BINs.
         self.hex_table.viewport().update()
+        if self.image is not None and not self._integrity_fresh():
+            self.integrity_timer.start()
         self.map_model.refresh()
         for pane in self.map_editors:
             pane.refresh()
@@ -2897,6 +2950,8 @@ class Window(QMainWindow):
         try:
             profile=load_checksum_profile(path,self.image)
             self.checksum_profile=profile
+            self.integrity_report=None
+            QTimer.singleShot(0,self._auto_integrity)
             result=audit_export(self.image,self.maps,profile)
             QMessageBox.information(self,'Checksummenprofil geladen',
                 f'{len(profile.slots)} geprüfte Bereichsdefinitionen importiert.\n'
@@ -2904,145 +2959,201 @@ class Window(QMainWindow):
                 'Nur die deklarierten Bereiche werden geprüft; keine ECU-Gesamtfreigabe.')
         except Exception as exc:self.warning('Profil abgewiesen',exc)
 
-    def correct_checksums(self):
-        """Plan, show every byte, ask, write, verify – or leave the file untouched."""
-        if not self.require_image():return
-        if self.checksum_profile is None:
-            QMessageBox.information(self,'Checksummen-Korrektur','Zuerst ein geprüftes Checksummenprofil laden.');return
-        try:steps=plan_checksum_correction(self.image,self.checksum_profile)
-        except Exception as exc:self.warning('Korrektur verweigert',exc);return
-        text=correction_preview(steps)
-        if not steps:
-            QMessageBox.information(self,'Checksummen-Korrektur',text);return
-        box=QMessageBox(self)
-        box.setWindowTitle('Checksummen-Korrektur – Vorschau')
-        box.setText(text)
-        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        if box.exec()!=QMessageBox.StandardButton.Yes:return
-        try:apply_checksum_correction(self.image,self.checksum_profile,steps)
-        except Exception as exc:self.warning('Korrektur nicht übernommen',exc);return
-        self.on_edited()
-        self.statusBar().showMessage(f'{len(steps)} Prüffeld(er) geschrieben und verifiziert · rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+    # --- Checksummen & Integrität (core/integrity.py) -------------------------------
+    def _integrity_fresh(self) -> bool:
+        return (self.image is not None and self.integrity_report is not None
+                and self.integrity_revision == self.image.revision
+                and self.integrity_report.sha256_original == self.image.digest)
 
-    def correct_table_checksums(self):
-        """Self-describing checksum tables (ME7.x, MED9, ME9): proven on the original, then corrected."""
-        if not self.require_image():return
-        from ..core.checksum_tables import check_tables, plan_table_correction, apply_table_correction
-        state=check_tables(self.image)
-        if state['status']=='none':
-            QMessageBox.information(self,'Prüfsummen-Tabellen',
-                'In dieser Datei wurde keine Prüfsummen-Tabelle gefunden, deren Werte das unveränderte Original exakt '
-                'reproduziert. Für diese Datei gibt es daher keine automatische Prüfung oder Korrektur.');return
-        head=(f'{state["blocks"]} Prüfsummenblöcke sind am unveränderten Original bewiesen '
-              f'(Verfahren aus der Datei selbst bestätigt). Aktuell stimmen {state["blocks"]-state["mismatches"]} '
-              f'von {state["blocks"]}.')
-        if not state['mismatches']:
-            QMessageBox.information(self,'Prüfsummen-Tabellen',head+'\n\nNichts zu korrigieren. Keine Flashfreigabe: '
-                                    'Signaturen und weitere ECU-Prüfungen sind nicht abgedeckt.');return
-        try:steps=plan_table_correction(self.image)
-        except ValueError as exc:self.warning('Korrektur verweigert',exc);return
-        lines='\n'.join(f'• 0x{o:08X}: {old.hex(" ").upper()}  →  {new.hex(" ").upper()}' for o,old,new in steps[:20])
-        more=f'\n… und {len(steps)-20} weitere' if len(steps)>20 else ''
-        box=QMessageBox(self)
-        box.setWindowTitle('Prüfsummen-Tabellen – Vorschau')
-        box.setText(head+f'\n\n{len(steps)} Feld(er) würden geschrieben (Wert und invertierter Wert, rückgängig machbar):\n'
-                    +lines+more+'\n\nNur diese Tabellen-Prüfsummen; Signaturen (z. B. RSA) und weitere ECU-Prüfungen '
-                    'werden NICHT behandelt. Keine Flashfreigabe.')
-        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        if box.exec()!=QMessageBox.StandardButton.Yes:return
-        try:apply_table_correction(self.image,steps)
-        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
-        self.on_edited()
-        self.statusBar().showMessage(f'{len(steps)} Tabellen-Prüfsumme(n) geschrieben, alle {state["blocks"]} Blöcke verifiziert · '
-                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+    def _show_integrity_state(self):
+        """Panel and status chip from the last report; a report of older bytes is marked stale."""
+        from ..core.integrity import SIGNATURE_TEXT
+        if self.image is None:
+            self.integrity_info.setText('Keine Datei geöffnet')
+            self.checksum_chip.setText('CHECKSUMME: OFFEN')
+            self.integrity_preview_button.setEnabled(False)
+            return
+        report=self.integrity_report
+        running=bool(self.integrity_worker and self.integrity_worker.isRunning())
+        if report is None or report.sha256_original!=self.image.digest:
+            self.integrity_info.setText('Prüfung läuft …' if running else 'Noch nicht geprüft')
+            self.checksum_chip.setText('CHECKSUMME: OFFEN')
+            self.integrity_preview_button.setEnabled(False)
+            return
+        fresh=self._integrity_fresh()
+        lines=[f'Status: {report.status_text}' if fresh else f'Status: {report.status_text} (veraltet – neu prüfen)',
+               f'Steuergerät: {report.family or "nicht identifiziert"}',
+               f'Software: {", ".join(report.software) or "unbekannt"}',
+               f'Verfahren: {", ".join(m.info.title for m in report.methods) or "keines nachgewiesen"}',
+               f'Bereiche: {len(report.regions)} · Fehler: {len(report.errors)}']
+        lines+=[f'  Fehler @ 0x{r.storage:X} ({r.name})' for r in report.errors[:4]]
+        if len(report.errors)>4:
+            lines.append(f'  … und {len(report.errors)-4} weitere')
+        state=('möglich – Korrekturvorschau öffnen' if report.correctable
+               else 'nicht möglich' if report.errors else 'nicht nötig')
+        lines.append(f'Korrektur: {state}')
+        lines+=[f'Signatur: {s.kind} – {SIGNATURE_TEXT[s.state]}' for s in report.signatures[:2]] or \
+               ['Signatur: keine bekannt (nicht geprüft)']
+        self.integrity_info.setText('\n'.join(lines))
+        chip={'gueltig':'GÜLTIG','ungueltig':'UNGÜLTIG','unvollstaendig':'UNVOLLSTÄNDIG',
+              'nicht_unterstuetzt':'NICHT UNTERSTÜTZT','unbekannt':'UNBEKANNT'}[report.status]
+        self.checksum_chip.setText(f'CHECKSUMME: {chip}' if fresh else 'CHECKSUMME: VERALTET')
+        self.integrity_preview_button.setEnabled(fresh and report.correctable)
 
-    def correct_edc17_blocks(self):
-        """Bosch MED17/EDC17 checksum blocks (CRC32/ADD32/ADD16): proven on the original, then corrected."""
-        if not self.require_image():return
-        from ..core.edc17_checksum import verify, check_current, plan_correction, correction_preview, apply_correction
-        proof=verify(self.image)
-        if not proof['detected']:
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
-                'In dieser Datei wurde kein Bosch MED17/EDC17-Prüfsummenblock gefunden '
-                '(Signatur FADECAFE/CAFEAFFE). Keine Prüfung oder Korrektur für dieses Verfahren.');return
-        if proof['proven_on_original']==0:
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
-                f'{proof["blocks"]} Blockkandidat(en) gefunden, aber kein Block ließ sich am unveränderten Original '
-                'mit CRC32/ADD32/ADD16 reproduzieren. Das Verfahren gilt für diese Datei als NICHT nachgewiesen – '
-                'keine Korrektur.');return
-        if proof['coverage'] != 'full':
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
-                f'Nur {proof["proven_on_original"]} von {proof["structures_total"]} Strukturen sind am '
-                'unveränderten Original bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.');return
-        if not proof['oem_validated']:
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',
-                'Die Strukturen sind rechnerisch reproduziert, aber für diese Originaldatei fehlt der geprüfte '
-                'OEM-Nachweis. Prüfung bleibt möglich; automatische Korrektur ist bis zur OEM-Validierung gesperrt.');return
-        state=check_current(self.image)
-        cover={'full':'Vollständig geprüft','partial':'Teilweise geprüft'}.get(state['coverage'],'Geprüft')
-        head=(cover+'\n'
-              +f'{state["structures_proven"]} von {state["structures_total"]} Prüfsummenstrukturen am '
-              f'unveränderten Original nachgewiesen. Aktuell stimmen {state["blocks"]-state["mismatches"]} '
-              f'von {state["blocks"]}.')
-        if state['structures_unproven']:
-            head+=f'\n{state["structures_unproven"]} Struktur(en) sind nicht nachgewiesen und bleiben ungeprüft.'
-        if not state['mismatches']:
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',head+'\n\nNichts zu korrigieren. Keine Flashfreigabe: '
-                                    'Signaturen und weitere ECU-Prüfungen sind nicht abgedeckt.');return
-        try:steps,skipped=plan_correction(self.image)
-        except ValueError as exc:self.warning('Korrektur verweigert',exc);return
-        if not steps:
-            QMessageBox.information(self,'EDC17/MED17-Prüfsummen',head+'\n\n'+correction_preview(steps,skipped));return
-        box=QMessageBox(self)
-        box.setWindowTitle('EDC17/MED17-Prüfsummen – Vorschau')
-        box.setText(head+'\n\n'+correction_preview(steps,skipped))
-        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        if box.exec()!=QMessageBox.StandardButton.Yes:return
-        try:apply_correction(self.image,steps)
-        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
-        self.on_edited()
-        self.statusBar().showMessage(f'{len(steps)} EDC17/MED17-Kompensationswort(e) geschrieben, Blöcke neu verifiziert · '
-                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+    def _auto_integrity(self):
+        if self.image is not None and not self._integrity_fresh():
+            self.check_integrity_async()
 
-    def correct_edc16_blocks(self):
-        """Bosch EDC16 self-describing checksum regions, with strict proof gates."""
+    def check_integrity_async(self,show=False,then=None):
+        """Check in a worker thread on a snapshot; progress and cancel when shown to the user."""
+        if self.image is None:
+            if show:self.require_image()
+            return
+        if self.integrity_worker and self.integrity_worker.isRunning():
+            if show or then:
+                self.statusBar().showMessage('Checksummenprüfung läuft bereits …',4000)
+            else:
+                self._integrity_rerun=True
+            return
+        self._release_worker(self.integrity_worker)
+        image=self.image
+        worker=IntegrityWorker(image,self.checksum_profile)
+        self.integrity_worker=worker
+        progress=None
+        if show or then:
+            progress=QProgressDialog('Checksummen werden geprüft …','Abbrechen',0,100,self)
+            progress.setWindowTitle('Checksummen & Integrität')
+            progress.setMinimumDuration(400)
+            progress.setAutoClose(False)
+            progress.setAutoReset(False)
+            progress.canceled.connect(worker.requestInterruption)
+            worker.progress.connect(lambda pct,text:(progress.setValue(pct),progress.setLabelText(text)))
+        def finish():
+            if progress is not None:
+                progress.canceled.disconnect()
+                progress.close()
+            if self._integrity_rerun and self.image is image:
+                self._integrity_rerun=False
+                QTimer.singleShot(0,self._auto_integrity)
+        def done(report):
+            finish()
+            if self.image is not image:return
+            self.integrity_report=report
+            self.integrity_revision=worker.revision
+            self._show_integrity_state()
+            if show:self.show_integrity_report()
+            if then and self._integrity_fresh():then(report)
+        def failed(message):
+            finish()
+            self._show_integrity_state()
+            if show or then:self.warning('Checksummenprüfung fehlgeschlagen',message)
+        def cancelled():
+            finish()
+            self._show_integrity_state()
+            self.statusBar().showMessage('Checksummenprüfung abgebrochen · nichts geändert',5000)
+        worker.complete.connect(done)
+        worker.failed.connect(failed)
+        worker.cancelled.connect(cancelled)
+        worker.start()
+        self._show_integrity_state()
+
+    def show_integrity_report(self):
         if not self.require_image():return
-        from ..core.edc16_checksum import (verify, check_current, plan_correction,
-                                            apply_correction)
-        proof=verify(self.image)
-        if not proof['detected']:
-            QMessageBox.information(self,'EDC16-Prüfsummen',
-                'Kein unterstützter EDC16-Prüfsummenbereich (FADECAFE/CAFEAFFE) gefunden.');return
-        if proof['coverage'] != 'full':
-            QMessageBox.information(self,'EDC16-Prüfsummen',
-                f'Nur {proof["proven_on_original"]} von {proof["regions_total"]} Bereichen sind am Original '
-                'bestätigt. Teilbestätigte Strukturen werden nicht korrigiert.');return
-        state=check_current(self.image)
-        head=(f'{state["regions_proven"]} von {state["regions_total"]} EDC16-Bereichen am unveränderten '
-              f'Original bestätigt. Aktuell stimmen {state["regions"]-state["mismatches"]} von {state["regions"]}.')
-        if not state['mismatches']:
-            QMessageBox.information(self,'EDC16-Prüfsummen',head+'\n\nNichts zu korrigieren.');return
-        if not proof['oem_validated']:
-            QMessageBox.information(self,'EDC16-Prüfsummen',head+'\n\nFür diese Originaldatei fehlt der geprüfte '
-                                    'OEM-Nachweis. Automatische Korrektur ist gesperrt.');return
-        try:steps=plan_correction(self.image)
+        if not self._integrity_fresh():
+            self.check_integrity_async(show=True);return
+        from ..core.integrity import write_report_json
+        report=self.integrity_report
+        dialog=QDialog(self)
+        dialog.setWindowTitle('Checksummen & Integrität – Bericht')
+        dialog.resize(940,640)
+        layout=QVBoxLayout(dialog)
+        layout.addWidget(QLabel(f'{report.summary()} · KEINE Flashfreigabe'))
+        out=QPlainTextEdit(dialog)
+        out.setReadOnly(True)
+        out.setFont(QFont('Consolas',10))
+        out.setPlainText(report.text())
+        layout.addWidget(out,1)
+        row=QHBoxLayout()
+        preview=QPushButton('Korrekturvorschau …')
+        preview.setEnabled(report.correctable)
+        preview.setToolTip('Zeigt jedes zu ändernde Byte; nichts wird ohne Bestätigung geschrieben.')
+        save=QPushButton('Bericht als JSON speichern …')
+        close=QPushButton('Schließen')
+        row.addWidget(preview);row.addWidget(save);row.addStretch();row.addWidget(close)
+        layout.addLayout(row)
+        preview.clicked.connect(lambda:(dialog.accept(),self.integrity_correction_preview()))
+        def save_report():
+            target,_=self.save_destination(dialog,'Prüfbericht speichern','checksummen_bericht.json','JSON (*.json)')
+            if target:
+                try:write_report_json(target,report)
+                except Exception as exc:self.warning('Bericht konnte nicht gespeichert werden',exc)
+        save.clicked.connect(save_report)
+        close.clicked.connect(dialog.accept)
+        dialog.exec()
+
+    def integrity_correction_preview(self):
+        """Plan, show every byte, confirm, then correct the session or save a corrected copy."""
+        if not self.require_image():return
+        if not self._integrity_fresh():
+            self.check_integrity_async(then=lambda report:self.integrity_correction_preview());return
+        from ..core.integrity import plan_correction, apply_correction, write_corrected_copy
+        report=self.integrity_report
+        if not report.errors:
+            QMessageBox.information(self,'Checksummen-Korrekturvorschau',
+                f'Keine fehlerhafte Prüfsumme gefunden – nichts zu korrigieren.\n\nStatus: {report.status_text}');return
+        try:plan=plan_correction(self.image,report,profile=self.checksum_profile)
         except ValueError as exc:self.warning('Korrektur verweigert',exc);return
-        lines='\n'.join(f'• 0x{o:08X}: {old.hex(" ").upper()}  →  {new.hex(" ").upper()}'
-                        for o,old,new in steps)
-        box=QMessageBox(self)
-        box.setWindowTitle('EDC16-Prüfsummen – Vorschau')
-        box.setText(head+f'\n\n{len(steps)} Kompensationswort(e) würden geschrieben:\n{lines}')
-        box.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        if box.exec()!=QMessageBox.StandardButton.Yes:return
-        try:apply_correction(self.image,steps)
-        except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
-        self.on_edited()
-        self.statusBar().showMessage(f'{len(steps)} EDC16-Kompensationswort(e) geschrieben, Bereiche neu verifiziert · '
-                                     'rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+        dialog=QDialog(self)
+        dialog.setWindowTitle('Checksummen-Korrekturvorschau')
+        dialog.resize(940,600)
+        layout=QVBoxLayout(dialog)
+        out=QPlainTextEdit(dialog)
+        out.setReadOnly(True)
+        out.setFont(QFont('Consolas',10))
+        out.setPlainText(plan.text())
+        layout.addWidget(out,1)
+        confirm=QCheckBox('Vorschau geprüft. Mir ist bewusst: keine Flashfreigabe, Signaturen bleiben ungeprüft.')
+        confirm.setEnabled(bool(plan.steps))
+        layout.addWidget(confirm)
+        row=QHBoxLayout()
+        apply_btn=QPushButton('In Sitzung übernehmen (rückgängig mit Strg+Z)')
+        copy_btn=QPushButton('Korrigierte Kopie speichern …')
+        cancel=QPushButton('Abbrechen')
+        for button in (apply_btn,copy_btn):
+            button.setEnabled(False)
+        confirm.toggled.connect(lambda on:(apply_btn.setEnabled(on),copy_btn.setEnabled(on)))
+        row.addWidget(apply_btn);row.addWidget(copy_btn);row.addStretch();row.addWidget(cancel)
+        layout.addLayout(row)
+        cancel.setDefault(True)
+        cancel.clicked.connect(dialog.reject)
+        def apply_session():
+            try:result=apply_correction(self.image,plan,profile=self.checksum_profile)
+            except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
+            self.integrity_report=result
+            self.integrity_revision=self.image.revision
+            dialog.accept()
+            self.on_edited()
+            self.update_status()
+            self.statusBar().showMessage(f'{len(plan.steps)} Prüffeld(er) geschrieben und unabhängig nachgeprüft · '
+                                         f'Status: {result.status_text} · rückgängig mit Strg+Z · keine Flashfreigabe',10000)
+        def save_copy():
+            origin=Path(self.image.path) if self.image.path else Path('ecu.bin')
+            target,_=self.save_destination(dialog,'Korrigierte Kopie speichern',
+                                           str(origin.with_name(origin.stem+'_pruefsumme.bin')),
+                                           'BIN-Dateien (*.bin);;Alle Dateien (*)')
+            if not target:return
+            try:log=write_corrected_copy(self.image,plan,target,profile=self.checksum_profile)
+            except Exception as exc:self.warning('Kopie nicht gespeichert',exc);return
+            dialog.accept()
+            QMessageBox.information(self,'Korrigierte Kopie gespeichert',
+                f'Kopie: {target}\nSHA-256: {log["sha256_output"]}\n'
+                f'{len(plan.steps)} Prüffeld(er), {log["changed_bytes"]} Byte geändert\n'
+                f'Status der Kopie: {log["status_after"]}\n'
+                f'Änderungsprotokoll: {target}.korrektur.json\n\n'
+                'Die geöffnete Datei und das Original bleiben unverändert. Keine Flashfreigabe.')
+        apply_btn.clicked.connect(apply_session)
+        copy_btn.clicked.connect(save_copy)
+        dialog.exec()
 
     def open_checksum_audit(self):
         if not self.require_image():return
@@ -3076,15 +3187,14 @@ class Window(QMainWindow):
         layout.addWidget(out,1)
         row=QHBoxLayout()
         import_btn=QPushButton('Geprüftes Checksum-Profil laden …')
-        correct_btn=QPushButton('Prüffelder korrigieren (Vorschau) …')
-        correct_btn.setEnabled(self.checksum_profile is not None and state['status']=='mismatch')
-        correct_btn.setToolTip('Nur mit geprüftem Profil, das am Original stimmt; zeigt vorher jedes Byte.')
+        correct_btn=QPushButton('Checksummen-Korrekturvorschau …')
+        correct_btn.setToolTip('Alle unterstützten Verfahren; zeigt vorher jedes Byte.')
         export_btn=QPushButton('Prüfbericht als JSON speichern …')
         close=QPushButton('Schließen')
         row.addWidget(import_btn);row.addWidget(correct_btn);row.addWidget(export_btn);row.addStretch();row.addWidget(close)
         layout.addLayout(row)
         import_btn.clicked.connect(lambda:(dialog.accept(),self.load_checksum_manifest()))
-        correct_btn.clicked.connect(lambda:(dialog.accept(),self.correct_checksums()))
+        correct_btn.clicked.connect(lambda:(dialog.accept(),self.integrity_correction_preview()))
         def save():
             target,_=self.save_destination(dialog,'Prüfbericht speichern','ecu_check_report_v18.json','JSON (*.json)')
             if target:
@@ -3096,7 +3206,11 @@ class Window(QMainWindow):
 
     def _preflight(self):
         profile=identify_profile(self.image)
-        return run_preflight(self.image,self.maps,checksum_profile=self.checksum_profile,
+        if not self._integrity_fresh():
+            self.integrity_report=check_integrity(self.image.snapshot(),profile=self.checksum_profile)
+            self.integrity_revision=self.image.revision
+            self._show_integrity_state()
+        return run_preflight(self.image,self.maps,checksum_profile=self.checksum_profile,integrity=self.integrity_report,
                              cal_window=(profile.cal_start,profile.cal_end) if profile.cal_start is not None else None)
 
     def _code_window(self):
@@ -3134,32 +3248,42 @@ class Window(QMainWindow):
         self.diff_view.setPlainText(report.text())
         self.tabs.setCurrentWidget(self.diff_view)
         self.statusBar().showMessage(f'Flash-Preflight: {report.status.upper()} · {len(report.findings)} Befunde · '
-                                     +('deklarierte Prüffelder stimmen – keine Flashfreigabe' if report.checksum_verified else 'Checksummen NICHT verifiziert – nicht flashbereit'),8000)
+                                     +('alle bekannten Prüfsummen stimmen – keine Flashfreigabe' if report.checksum_verified else 'Checksummen NICHT vollständig verifiziert – nicht flashbereit'),8000)
 
     def export_bin(self):
         if not self.require_image():return
         try:
             check=audit_export(self.image,self.maps,self.checksum_profile)
-            preflight=self._preflight()
+            preflight=self._preflight()             # also brings the integrity report up to date
+            integrity=self.integrity_report
         except Exception as exc:
             self.warning('Exportprüfung fehlgeschlagen',exc)
             return
         check_state=check['checksums']['status']
         red=[f for f in preflight.findings if f.level=='rot']
-        msg=(f"FLASH-PREFLIGHT: {preflight.status.upper()} – {len(preflight.findings)} Befunde"
-             + ("".join(f"\n  • {f.title}" for f in red[:6]) if red else "")
-             + "\nDetails: Datei → Flash-Preflight prüfen.\n\n"
-             f"Prüfsummenstatus: {check_state.upper()}\n"
-             f"Geänderte Bytes: {check['dirty_bytes']}\n"
-             f"Geänderte Bytes außerhalb erkannter Tabellen: {check['changed_outside_maps']}\n"
-             f"Definitionen mit Prüfhilfen: {check['map_review_hints']}\n\n"
-             "Auch bei einem passenden Prüfprofil ist KEINE ECU-/Flash-, "
-             "Emissions-, Motor- oder Straßensicherheitsfreigabe gegeben.\n"
-             "Es erfolgt KEINE Checksummenreparatur.\n\n"
-             "BIN nur zur Offline-Analyse/Validierung exportieren?")
-        if QMessageBox.warning(self,"Wichtiger Sicherheitshinweis",msg,
-                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                               QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:return
+        # One text per line: the English interface translates a multi-line message line by line.
+        lines=[f"FLASH-PREFLIGHT: {preflight.status.upper()} – {len(preflight.findings)} Befunde"]
+        lines+=[f"  • {f.title}" for f in red[:6]]
+        lines+=["Details: Datei → Flash-Preflight prüfen.","",
+                f"Checksummen & Integrität: {integrity.status_text}"]
+        lines+=[f"  • {r}" for r in integrity.reasons[:3]]
+        lines+=[f"Profil-Prüfsummen: {check_state.upper()}",
+                f"Geänderte Bytes: {check['dirty_bytes']}",
+                f"Geänderte Bytes außerhalb erkannter Tabellen: {check['changed_outside_maps']}",
+                f"Definitionen mit Prüfhilfen: {check['map_review_hints']}","",
+                "Auch bei einem passenden Prüfprofil ist KEINE ECU-/Flash-, Emissions-, Motor- oder Straßensicherheitsfreigabe gegeben.",
+                "Beim Export wird nichts automatisch korrigiert; fehlerhafte Prüfsummen lassen sich über „Korrekturvorschau …“ korrigieren."
+                if integrity.correctable else "Beim Export wird nichts automatisch korrigiert.","",
+                "BIN nur zur Offline-Analyse/Validierung exportieren?"]
+        msg="\n".join(lines)
+        box=QMessageBox(QMessageBox.Icon.Warning,"Wichtiger Sicherheitshinweis",msg,
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,self)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        preview=box.addButton('Korrekturvorschau …',QMessageBox.ButtonRole.ActionRole) if integrity.correctable else None
+        box.exec()
+        if preview is not None and box.clickedButton() is preview:
+            self.integrity_correction_preview();return
+        if box.clickedButton() is not box.button(QMessageBox.StandardButton.Yes):return
         origin=Path(self.image.path) if self.image.path else Path("ecu.bin")
         p,_=self.save_destination(self,"Gepatchte BIN exportieren",str(origin.with_name(origin.stem+"_edited.bin")),"BIN-Dateien (*.bin);;Alle Dateien (*)")
         if not p:return
@@ -3307,6 +3431,10 @@ class Window(QMainWindow):
         dialog.exec()
 
     def closeEvent(self,event):
+        # The checksum check is short and read-only: stop it and let the window close.
+        if self.integrity_worker and self.integrity_worker.isRunning():
+            self.integrity_worker.requestInterruption()
+            self.integrity_worker.wait(5000)
         if any(w and w.isRunning() for w in (self.scanner,self.recognition_worker,self.batch_worker)):
             self.cancel_analysis()
             QMessageBox.information(self,"Analyse aktiv","Analyse wird beendet. Bitte nach Abschluss erneut schließen.")
@@ -3319,7 +3447,7 @@ class Window(QMainWindow):
                 event.ignore();return
         self.settings.setValue("ui/geometry",self.saveGeometry())
         self.settings.setValue("ui/state_v06",self.saveState(1))
-        for worker in (self.scanner,self.recognition_worker,self.batch_worker):
+        for worker in (self.scanner,self.recognition_worker,self.batch_worker,self.integrity_worker):
             self._release_worker(worker)
         event.accept()
         # A confirmed update starts only after closing was accepted (no unsaved work lost).
@@ -3338,7 +3466,7 @@ class Window(QMainWindow):
             worker.wait()
 
     def cancel_analysis(self):
-        for worker in (self.scanner,self.recognition_worker,self.batch_worker):
+        for worker in (self.scanner,self.recognition_worker,self.batch_worker,self.integrity_worker):
             if worker and worker.isRunning():
                 worker.requestInterruption()
         self.statusBar().showMessage('Abbruch angefordert · laufenden Analyseschritt abschließen')

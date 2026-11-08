@@ -119,7 +119,9 @@ def _overlaps(m: MapDefinition, s: int, e: int) -> bool:
 
 
 def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_profile=None,
-                  cal_window: tuple[int, int] | None = None) -> PreflightReport:
+                  cal_window: tuple[int, int] | None = None, integrity=None) -> PreflightReport:
+    """``integrity`` (core/integrity.IntegrityReport of the same bytes) adds the checksum methods the
+    file itself proves; without it only the loaded profile counts, as before."""
     report = PreflightReport()
     original = image.original
     modified = image.materialize()
@@ -129,10 +131,19 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
 
     # 1. Checksums (also for an unchanged file: a broken read must not look fine)
     status = verify_checksums(image, checksum_profile)
-    report.checksum_verified = status['status'] == 'match'
+    report.checksum_verified = status['status'] == 'match' or (integrity is not None and integrity.status == 'gueltig')
     if status['status'] == 'mismatch':
         report.add('rot', 'checksum', 'Checksumme stimmt nicht', status['message'])
-    elif status['status'] != 'match' and runs:
+    if integrity is not None and integrity.errors:
+        first = integrity.errors[0]
+        report.add('rot', 'checksum-integrity', f'{len(integrity.errors)} Prüfsumme(n) stimmen nicht',
+                   f'{integrity.status_text}; zuerst {first.name}. Korrektur über „Korrekturvorschau …“.',
+                   first.storage)
+    elif status['status'] != 'match' and runs and integrity is not None and integrity.status != 'gueltig':
+        report.add('gelb', 'checksum', 'Checksummen nicht vollständig geprüft',
+                   f'{integrity.status_text}: {integrity.reasons[-1] if integrity.reasons else ""} '
+                   'Vor dem Flashen mit geeignetem Werkzeug prüfen.')
+    elif status['status'] != 'match' and runs and integrity is None:
         report.add('gelb', 'checksum', 'Checksumme unbekannt',
                    'Kein Checksummenprofil geladen; vor dem Flashen mit geeignetem Werkzeug korrigieren.')
     if not runs:

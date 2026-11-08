@@ -1,3 +1,36 @@
+## Unveröffentlicht – Checksummen & Integrität (Branch `feature/1.20-checksum-system`)
+
+Ein gemeinsames Checksummen- und Integritätssystem. Kein Release, keine neue Versionsnummer. Bestandsaufnahme,
+Nachweise und Grenzen: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
+- **Fünf Status:** Unterstützt und gültig, Unterstützt und ungültig, Unvollständige Prüfung, Nicht unterstützt,
+  Unbekannt. Ein generisches Verfahren, das zufällig passt, macht eine Datei nie gültig.
+- **Bosch-Multipoint (ME7.x, ME9, MED9) unabhängig belegt:** 199 von 199 Herstellerwerten in drei unveränderten
+  Originalen reproduziert. Das Verfahren stimmt mit dem quelloffenen ME7Sum überein. Die Korrektur stellt beschädigte
+  Felder bitgenau auf die Herstellerbytes zurück. Weitere ME7-Prüfsummen und Signaturen bleiben ungeprüft, der Status
+  bleibt deshalb „Unvollständige Prüfung“.
+- **Bereits veränderte Dateien:** Tabelleneinträge, die auf der geöffneten Datei nicht stimmen, gelten als ungültig
+  und sind korrigierbar, statt als „unbekannt“ zu verschwinden.
+- **Signaturen getrennt:** erwartet, erkannt oder unbekannt, nie „gültig“. Eine Prüfsummenkorrektur ersetzt keine
+  Herstellersignatur. Signaturen werden nie verändert.
+- **Sichere Korrektur:**
+  - Vorschau mit jedem Byte und ausdrückliche Bestätigung.
+  - Unabhängige Nachprüfung vor dem Schreiben: nur dokumentierte Positionen, frische Neuprüfung, zweite Rechnung.
+  - In der Sitzung ein Undo-Schritt.
+  - Korrigierte Kopie mit Änderungsprotokoll (`.korrektur.json`) und `.bak`, ohne Teilausgabe.
+  - Original und Sitzung bleiben unverändert.
+- **Oberfläche:**
+  - Neuer Bereich „Checksummen & Integrität“ mit „Checksummen prüfen“ und „Korrekturvorschau“.
+  - Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen.
+  - Detailbericht mit JSON-Export. Statusanzeige in der Statusleiste.
+  - Der Exportdialog zeigt Status und Gründe und bietet bei korrigierbaren Fehlern direkt die Vorschau.
+  - Die Flash-Vorprüfung meldet Prüfsummenfehler aller Verfahren.
+  - Die vier Einzel-Dialoge (Profil, Tabellen, EDC17, EDC16) sind ersetzt.
+- **Schneller:** Die MED17/EDC17-CRC rechnet über zlib (identisches Ergebnis, getestet). Auf einer 2-MiB-Datei sank
+  die Zeit von 3,2 s auf unter 0,1 s.
+- **Unverändert:** MED17/EDC17 und EDC16 bleiben „am Original gemessen“, die Korrektur ist ohne signierten
+  OEM-Nachweis gesperrt. Kennfelderkennung und Firmware-Guard sind nicht berührt.
+
 ## 1.19.1 (08.11.2026)
 
 Zuverlässigere Kennfelderkennung: weniger Fehlfunde aus Programmcode, Text und Zeigertabellen, korrigierte

@@ -181,11 +181,14 @@ und Fahrgestellnummer) und nur Dateien eigener Fahrzeuge oder mit Zustimmung des
 
 Prüfsummen-Unterstützung wird eigenständig nachgewiesen: Ein Verfahren gilt nur dann als unterstützt, wenn es den
 gespeicherten Wert aus der **unveränderten Originaldatei** exakt reproduziert. Nichts wird aus dem Familiennamen
-geschlossen.
+geschlossen. **Ab dem Branch `feature/1.20-checksum-system`** fasst `core/integrity.py` alle Verfahren zu einem Status
+(gültig / ungültig / unvollständig / nicht unterstützt / unbekannt) zusammen. Bestandsaufnahme, Nachweise und Grenzen:
+[Checksummen und Integrität](CHECKSUMMEN.md).
 
 | Verfahren | Familien | Status | Nachweis |
 |---|---|---|---|
-| Selbstbeschreibende Tabellen (Start, Ende, Wert, ~Wert; 32-Bit-Summen/CRC32) | ME7.x, MED9, ME9 | am Original gemessen | `core/checksum_tables.py` |
+| Bosch-Multipoint-Tabelle (Start, Ende, Wert, ~Wert; Summe der 16-Bit-Wörter) | ME7.x, MED9, ME9 | **unabhängig belegt**: 199/199 Herstellerwerte in drei Originalen, Verfahren wie ME7Sum; deckt nur die Tabellen ab | `core/integrity.py`, `core/checksum_tables.py` |
+| Selbstbeschreibende Tabellen mit anderem generischem Verfahren (Byte-/Doppelwortsumme, CRC32) | – | experimentell: nur Prüfung, keine Korrektur | `core/checksum_tables.py` |
 | Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc17_checksum.py` |
 | Bosch EDC16U1/U31/U34-Prüfsummenbereiche (FADECAFE/CAFEAFFE, BE-DWORD-Summe) | EDC16 MPC5xx | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc16_checksum.py` |
 | Manuelles, geprüftes Profil (SHA-256-gebunden) | beliebig | am Original gemessen | `core/checksum_audit.py` |
