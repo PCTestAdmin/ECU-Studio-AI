@@ -239,8 +239,9 @@ def test_rescan_honours_fusion_rejections_and_reload(tmp_path, monkeypatch):
     partial = cand('teilweise', 0x130, rows=8, cols=8)          # 16 of 64 bytes inside the definition
     stronger = cand('stärker', 0x400)                           # code evidence for the rejected pattern table
     other_file = cand('andere Datei', 0x600)                    # rejected on another firmware only
+    # A scan result is accepted only for the opened file it was started for (worker.target, since 1.20).
     w.scanner = SimpleNamespace(source_digest=hashlib.sha256(w.image.materialize()).digest(), isRunning=lambda: False,
-                                wait=lambda: True)
+                                wait=lambda: True, target=w.image)
     w.scan_finished([partial, stronger, other_file])
     names = [m.name for m in w.maps]
     assert 'teilweise' not in names and 'stärker' in names and 'andere Datei' in names

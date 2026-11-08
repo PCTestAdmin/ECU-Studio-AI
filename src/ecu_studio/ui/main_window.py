@@ -491,6 +491,7 @@ class Window(QMainWindow):
         apply.setObjectName('primary')
         apply.clicked.connect(self.apply_definition)
         rr.addWidget(apply)
+        self.map_action_buttons=[apply]
         rerun=QPushButton('Metadaten neu klassifizieren')
         rerun.setToolTip('Bewertet Name/Beschreibung erneut; keine Klassifizierung nur anhand von Rohwerten.')
         rerun.clicked.connect(self.reclassify_maps)
@@ -499,6 +500,7 @@ class Window(QMainWindow):
         row1=QHBoxLayout()
         for caption,fn in [('Kennfeld-Check',self.check_map),('Ähnliche suchen',self.find_twins)]:
             button=QPushButton(caption);button.clicked.connect(fn);row1.addWidget(button)
+            self.map_action_buttons.append(button)
         rr.addLayout(row1)
         batch=QPushButton('Batchbearbeitung mit Vorschau')
         batch.clicked.connect(self.batch_transform)
@@ -509,6 +511,11 @@ class Window(QMainWindow):
         export_values=QPushButton('Kennfeldwerte als CSV')
         export_values.clicked.connect(self.export_values)
         rr.addWidget(export_values)
+        self.map_action_buttons += [batch,self.remember_button,export_values]
+        self.map_form_widgets=[self.name_edit,self.type_edit,self.offset_edit,self.rows_edit,self.cols_edit,
+                               self.dtype_edit,self.endian_edit,self.factor_edit,self.bias_edit,self.unit_edit,
+                               self.verified_edit]
+        self.clear_map_editor()
         rr.addWidget(self._label('PROJEKTNOTIZEN'))
         self.notes=QPlainTextEdit()
         self.notes.setPlaceholderText('Befunde, ECU-Version, Prüfung, Aufgaben …')
@@ -1007,19 +1014,21 @@ class Window(QMainWindow):
             self.tabs.removeTab(self.tabs.indexOf(pane))
             pane.deleteLater()
         self.map_editors=[]
+        # A scan or recognition still running belongs to the previous file; its result is discarded on arrival.
+        for worker in (self.scanner,self.recognition_worker):
+            if worker is not None and worker.isRunning():
+                worker.requestInterruption()
         self.image=image
         self.maps=maps
         self.bookmarks=bookmarks
         self.snapshots=[]
         self.reviews=[]
         self.project_path=project_path
-        self.selected=None
         self.checksum_profile=None
-        self.map_hint.setText("Kennfeld links auswählen, um Definition und Hinweise zu sehen.")
+        self.clear_map_editor()
         self.notes.setPlainText(notes)
         self.hex_model.set_image(image)
         self.raw2d.set_image(image)
-        self.map_model.set_map(None,None)
         self.memory_atlas.set_context(image,maps)
         self.refresh_map_list()
         self.refresh_bookmarks()
@@ -1028,6 +1037,34 @@ class Window(QMainWindow):
         self.saved_fingerprint = self.project_state()
         self.statusBar().showMessage("Datei geladen · Original unverändert",5000)
         self.update_local_suggestions()
+
+    def clear_map_editor(self):
+        """No selected map: nothing of a previous map or file stays visible, and nothing can be applied to it."""
+        self.selected=None
+        self.map_model.set_map(None,None)
+        selection=self.map_list.selectionModel()
+        selection.blockSignals(True)
+        self.map_list.clearSelection()
+        self.map_list.setCurrentIndex(QModelIndex())
+        selection.blockSignals(False)
+        self.name_edit.clear()
+        self.type_edit.setEditText('')
+        self.offset_edit.clear()
+        self.rows_edit.setValue(16)
+        self.cols_edit.setValue(16)
+        self.dtype_edit.setCurrentIndex(0)
+        self.endian_edit.setCurrentIndex(0)
+        self.factor_edit.setValue(1)
+        self.bias_edit.setValue(0)
+        self.factor_edit.setToolTip('')
+        self.unit_edit.clear()
+        self.verified_edit.setChecked(False)
+        for widget in (*self.map_form_widgets,*self.map_action_buttons):
+            widget.setEnabled(False)
+        self.identification_label.setText('TYP: Nicht identifiziert')
+        self.identification_detail.setText('Erkennung aus A2L oder geprüften Referenzen möglich.')
+        self.map_hint.setText("Kennfeld links auswählen, um Definition und Hinweise zu sehen.")
+        self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
 
     def update_status(self):
         if not self.image: return
@@ -1101,6 +1138,8 @@ class Window(QMainWindow):
         if not item.isValid() or not self.image:return
         m=self.maps[item.data(Qt.ItemDataRole.UserRole)]
         self.selected=m
+        for widget in (*self.map_form_widgets,*self.map_action_buttons):
+            widget.setEnabled(True)
         self.map_model.set_map(self.image,m)
         self.raw2d.go_offset(m.offset)
         self.name_edit.setText(m.name)
@@ -1250,8 +1289,7 @@ class Window(QMainWindow):
             if pane.definition is m:
                 self.close_map_tab(pane)
         if self.selected is m:
-            self.selected=None
-            self.map_model.set_map(None,None)
+            self.clear_map_editor()
         self.refresh_map_list();self.update_status()
 
     def show_review_checklist(self):
@@ -1666,6 +1704,7 @@ class Window(QMainWindow):
             return
         self._release_worker(self.recognition_worker)
         self.recognition_worker=RecognitionWorker(self.image,self.recognition_db.path,self.trained_model_path,self.shape_model_path)
+        self.recognition_worker.target=self.image
         self.recognition_worker.complete.connect(self.recognition_pipeline_finished)
         self.recognition_worker.failed.connect(lambda msg:self.warning('Erkennung fehlgeschlagen',msg))
         self.scan_progress.setRange(0,0)
@@ -1678,7 +1717,8 @@ class Window(QMainWindow):
 
     def recognition_pipeline_finished(self,result):
         worker=self.recognition_worker
-        if not worker or not self.image or hashlib.sha256(self.image.materialize()).digest()!=worker.source_digest:
+        if (not worker or not self.image or getattr(worker,'target',None) is not self.image
+                or hashlib.sha256(self.image.materialize()).digest()!=worker.source_digest):
             self.statusBar().showMessage('Erkennung verworfen: Datei zwischenzeitlich geändert',6000)
             return
         transfers=result['transfer']
@@ -1762,6 +1802,7 @@ class Window(QMainWindow):
         self.statusBar().showMessage("Scanne BIN: Definitionsachsen, Datentypen und Strukturen …")
         self._release_worker(self.scanner)
         self.scanner=ScanWorker(self.image, self.library.signatures,include_u32=self.scan32_action.isChecked())
+        self.scanner.target=self.image
         self.scanner.complete.connect(self.scan_finished)
         self.scanner.failed.connect(lambda err: self.warning("Scan fehlgeschlagen",err))
         self.scanner.progress.connect(self.scan_progress.setValue)
@@ -1775,7 +1816,8 @@ class Window(QMainWindow):
         self.scanner.start()
 
     def scan_finished(self, candidates):
-        if not self.image or not self.scanner or hashlib.sha256(self.image.materialize()).digest()!=self.scanner.source_digest:
+        if (not self.image or not self.scanner or getattr(self.scanner,'target',None) is not self.image
+                or hashlib.sha256(self.image.materialize()).digest()!=self.scanner.source_digest):
             self.statusBar().showMessage("Scan verworfen: Datei oder Änderungen währenddessen gewechselt",7000)
             return
         self.last_scan_report=getattr(self.scanner,'report',{})
@@ -1788,8 +1830,7 @@ class Window(QMainWindow):
         for pane in list(self.map_editors):
             if id(pane.definition) in removed_ids:self.close_map_tab(pane)
         if self.selected and id(self.selected) in removed_ids:
-            self.selected=None
-            self.map_model.set_map(None,None)
+            self.clear_map_editor()
         self.maps=[m for m in self.maps if id(m) not in removed_ids]
         # Three layers (core/fusion.py): definitions stay; detection confirms or contradicts them.
         fusion=fuse(self.image,[m for m in self.maps if layer_of(m)==1],
@@ -1841,8 +1882,7 @@ class Window(QMainWindow):
                              and not x.label_origin.startswith('Manuelle') and self._overlaps(m,x)]
                 for guess in old_guesses:
                     if self.selected is guess:
-                        self.selected = None
-                        self.map_model.set_map(None,None)
+                        self.clear_map_editor()
                     old.discard((guess.offset,guess.rows,guess.cols,guess.dtype,guess.endian,guess.name))
                     self.maps.remove(guess)
             key=(m.offset,m.rows,m.cols,m.dtype,m.endian,m.name)
@@ -1904,8 +1944,7 @@ class Window(QMainWindow):
             for pane in self.map_editors:
                 self.tabs.removeTab(self.tabs.indexOf(pane)); pane.deleteLater()
             self.map_editors = []
-            self.selected = None
-            self.map_model.set_map(None, None)
+            self.clear_map_editor()
             self.image.last_change_metadata = False
         # Virtual HEX model reads the patch overlay lazily. Repaint visible rows only;
         # sending a multi-million-row dataChanged range freezes large BINs.
@@ -3471,8 +3510,7 @@ class Window(QMainWindow):
         for pane in list(self.map_editors):
             if id(pane.definition) in gone:self.close_map_tab(pane)
         if self.selected is not None and id(self.selected) in gone:
-            self.selected=None
-            self.map_model.set_map(None,None)
+            self.clear_map_editor()
         self.maps=[m for m in self.maps if id(m) not in gone]
         self.maps.sort(key=lambda m:m.offset)
         self.refresh_map_list();self.update_status()
