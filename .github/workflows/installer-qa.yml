@@ -95,7 +95,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory qa-out -Force | Out-Null
-          Copy-Item "$env:RUNNER_TEMP\qa\results.json", "$env:RUNNER_TEMP\qa\*.png", "$env:RUNNER_TEMP\qa\*.log", "$env:RUNNER_TEMP\qa\python-*", "$env:RUNNER_TEMP\qa\*.out", "$env:RUNNER_TEMP\qa\*.err", "$env:RUNNER_TEMP\qa\staging\requests.log" qa-out -ErrorAction SilentlyContinue
+          Copy-Item "$env:RUNNER_TEMP\qa\results.json", "$env:RUNNER_TEMP\qa\*.png", "$env:RUNNER_TEMP\qa\*.log", "$env:RUNNER_TEMP\qa\python-*", "$env:RUNNER_TEMP\qa\*.out", "$env:RUNNER_TEMP\qa\*.err", "$env:RUNNER_TEMP\qa\staging\requests.log", "$env:RUNNER_TEMP\qa\*.txt" qa-out -ErrorAction SilentlyContinue
           Get-ChildItem "$env:RUNNER_TEMP\qa" -Recurse -Include *.json, *.png -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch '\\old\\' } | ForEach-Object {
               $name = $_.FullName.Substring("$env:RUNNER_TEMP\qa\".Length).Replace('\', '__')
