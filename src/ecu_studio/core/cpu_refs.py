@@ -8,6 +8,13 @@ do. Only a clear enrichment is accepted; otherwise nothing is returned.
 Measured on ARAP.bin (16 KB): HC11 at 0xC000, 112 targets, 88 % in data blocks
 vs 16 % for random addresses.
 
+The address map is linear (file offset = address - base), so it can only
+describe images that fit the 64 KiB address space. Up to 1.19.0 the 8/16-bit
+families were also tried on images up to 256 KiB; on ME7.5 06A906018CG (256 KiB,
+no HC11 code) chance ``CE hi lo`` bytes then passed as "HC11 at 0x8000" and gave
+an unfounded code reference. Larger (banked) 8/16-bit images are not analysed:
+no reference data for them exists.
+
 68k/CPU32 (e.g. GM P01): 32-bit absolute operands (abs.L / #imm.L) of 16-bit
 opcodes. On a GM P01 image 254 of 351 XDF objects are such operand targets;
 a PowerPC image (Opel E78) yields none, and the density rule rejects it.
@@ -29,6 +36,7 @@ GENERIC_LAYOUT = 'candidate:code-reference-generic'
 M68K_BASES = (0, 0x40000, 0x80000, 0x100000, 0x400000, 0x800000)
 M68K_MIN_TARGETS = 200
 M68K_MAX_SIZE = 4 * 1024 * 1024
+ADDRESS_SPACE_16 = 0x10000   # HC11 / 8051: 16-bit addresses, linear map only
 
 
 @dataclass(frozen=True)
@@ -95,6 +103,8 @@ def detect_cpu(data: bytes, mask: np.ndarray | None = None) -> tuple[CpuGuess | 
     if len(data) > 256 * 1024:
         # 8/16-bit families have a 64 KB address space; only 68k remains.
         return _m68k_guess(data, mask, baseline) or (None, set())
+    if len(data) > ADDRESS_SPACE_16:
+        return None, set()      # does not fit a linear 16-bit address map
     best = None
     size = len(data)
     bases = sorted({0, 0x2000, 0x4000, 0x8000, 0xC000, 0xE000, max(0, 0x10000 - size)})

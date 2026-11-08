@@ -43,7 +43,13 @@ from .axis_arrays import axis_at, CountAxis
 SEGMENTS = (0x80000000, 0xA0000000)    # PFLASH cached / uncached
 GLOBAL_BASES = (0, 1, 8, 9)
 MAX_JOIN = 512          # forward jump distance whose register state reaches the target
-MAX_STATES = 8
+# Register states kept per address (distinct states, oldest first). Since forward
+# conditional branches are followed (1.19), every branch to a join point brings its
+# own copy; with 8, states that arrive last were cut off: two MSD80 tables whose
+# call site receives a4 from two paths (1.18.2 exact, 1.19.0 lost). 16 recovers one,
+# 32 both; 64 adds no exact table on MSD80 (development data, no other TriCore
+# reference) and costs time.
+MAX_STATES = 32
 MIN_CALLS = 20          # fewer resolved data calls: not a TriCore image with this convention
 _BOL = {0xD9, 0x99, 0x19, 0x59, 0xB5}   # lea, ld.a, ld.w, st.w, st.a (TC1.3 BOL forms)
 _LOWER = (2, 3, 4, 5, 6, 7)              # address registers not preserved across calls

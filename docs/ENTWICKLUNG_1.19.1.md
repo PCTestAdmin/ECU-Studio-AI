@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.19.1 – Fehlfunde reduzieren, Prozessorarchitektur erkennen
 
-Stand: 07.11.2026 (abschließende Prüfung von PR #16: § 11). Branch `feature/1.19.1-false-positive-reduction`, Ausgangspunkt `v1.19.0` (63ea112). Noch kein
+Stand: 08.11.2026 (abschließende Prüfung von PR #16: § 11; letzte Korrekturen vor 1.19.1: § 12). Branch `feature/1.19.1-false-positive-reduction`, Ausgangspunkt `v1.19.0` (63ea112). Noch kein
 Release, Versionsnummer unverändert. Firmware und Referenzdateien bleiben lokal; dieser Bericht enthält nur Zählwerte,
 Offsets und Hashes.
 
@@ -379,3 +379,143 @@ Die 875 unklaren Funde sind keine bestätigten Kennfelder.
 | Übersetzungsprüfung | 2060 Texte, 0 ohne Übersetzung (nicht mehr benutzter Text „Kennfeld-Aufrufsequenzen“ entfernt) |
 | GUI-Smoke | 10/10, MS43 856 Kennfelder |
 | Firmware-Guard (`firmware_guard.py staged`) | sauber |
+
+## 12. Letzte Korrekturen vor 1.19.1 (07./08.11.2026)
+
+Branch `feature/1.19.1-final-fixes` ab `main` (eb30c81, Stand nach PR #16). Versionsnummer unverändert. Verglichen
+wird mit eb30c81 (direkt nacheinander auf demselben Rechner gemessen) und mit 1.19.0.
+
+### 12.1 A2L-Zwischenspeicher
+
+**Ursache.** Der Schlüssel der A2L-Referenz war (Pfad, SHA-256 der Firmware, Anker). Eine unter demselben Pfad
+geänderte A2L – auch bei gleicher Größe – lieferte die zuvor verknüpften Kennfelder, bis der Eintrag aus dem Speicher
+fiel (4 Einträge) oder das Programm neu startete. Betroffen: Namensübertragung, Versionsvergleich, Benchmarks.
+Außerdem bekamen alle Aufrufer dieselben `MapDefinition`-Objekte; eine Änderung durch einen Aufrufer (Umbenennen,
+Übernehmen) hätte die nächste Antwort verändert.
+
+**Korrektur.** Die A2L wird einmal gelesen; Schlüssel ist (SHA-256 der A2L-Bytes, SHA-256 der Firmware, Anker), und
+dieselben Bytes werden verknüpft. Jeder Aufrufer erhält eine tiefe Kopie. Sperre, Größe (4) und „keine Firmware im
+Speicher“ bleiben. `core.a2l.read_a2l` ist in `read_a2l_bytes` und `decode_a2l` geteilt (Verhalten gleich).
+
+**Tests** (`tests/test_a2l_reference_cache.py`, 7 Tests, synthetische A2L und Images): zwei A2Ls zur selben
+Firmware; derselbe Pfad mit geändertem Inhalt und mit gleicher Größe (auch verschobene Adresse); Kopien je Aufrufer;
+Namensübertragung und Versionsvergleich nach Änderung der Definition; wiederholtes Öffnen verknüpft nur einmal;
+8 Threads, 48 Aufrufe mit zwei Definitionen und drei Images; Projektwechsel halten keinen Block ≥ 256 KiB und weniger als 1 MiB.
+Gegen eb30c81 schlagen 3 fehl (geänderter Inhalt, Kopien, Namensübertragung/Versionsvergleich); die übrigen 4 sichern
+bestehendes Verhalten ab.
+
+### 12.2 MSD80: 0x4FB18 und 0x5604C
+
+**Vorgehen.** Kandidaten je Stufe in 1.18.2, 1.19.0 und eb30c81 protokolliert (TriCore-Aufrufe, Strukturfunde,
+Eingang/Ausgang der Rangfolge, Endergebnis). In 1.18.2 kommen beide Tabellen aus TriCore-Interpolationsaufrufen
+(nicht aus Datenmustern, wie Aufgabe 1 ursprünglich annahm). In 1.19.0/eb30c81 fehlen sie schon in
+`call_descriptors`; Strukturfunde, Rangfolge und Zusammenführung verwerfen nichts. An ihrer Stelle füllen
+Zeilenabstands-Funde (0x4FADE, 0x4FB26) die Lücke.
+
+**Ursache.** `tricore_refs._walk` hält je Adresse höchstens 8 verschiedene Registerzustände (älteste zuerst). Seit
+1.19.0 werden bedingte Vorwärtssprünge verfolgt; jeder Sprung zu einem Zusammenführungspunkt bringt eine eigene
+Kopie mit. An den Aufrufstellen 0x12A786 (Tabellen 0x4FB18/0x4FB6C) und 0xBB618 (0x55FEC/0x5604C) kommen mehr als
+8 Zustände an; der Zustand mit der zweiten Tabellenadresse in `a4` traf zuletzt ein und wurde abgeschnitten.
+
+**Korrektur.** `MAX_STATES` 8 → 32. Gemessen auf MSD80 I8A0S (exakte 2D): 8 → 84, 16 → 85, 32 → 86 (beide Tabellen),
+64 → 86. Keine Adressen, keine Sonderregel für I8A0S. Der Test
+`test_states_from_many_branches_keep_every_table_of_a_call_site` baut 12 Aufrufstellen mit je 9 Verzweigungen vor
+dem Zusammenführungspunkt; mit 8 Zuständen fehlen die zweiten Tabellen (schlägt gegen eb30c81 fehl). Der
+Opt-in-Test mit der echten Datei verlangt jetzt ≥ 86 exakte Kennfelder und beide Offsets mit 16-Bit-Zellen
+(bestanden, lokal).
+
+**Einschränkung.** Nachgewiesen nur an der Entwicklungsdatei I8A0S (Teil-XDF). Auf den übrigen 14 realen Paaren
+läuft der TriCore-Decoder nicht (Architektur nicht als TriCore belegt) und die Ergebnisse sind identisch. Eine
+unabhängige TriCore-Referenz fehlt weiterhin.
+
+### 12.3 HC11-Code-Beleg auf ME7.5 06A906018CG
+
+**Ursache.** `cpu_refs.detect_cpu` sucht HC11- (`CE hi lo`, `18 CE hi lo`) und 8051-Ladebefehle (`90 hi lo`) und
+bildet die 16-Bit-Adresse linear auf die Datei ab (`Datei = Adresse − Basis`). Das beschreibt nur Images bis 64 KiB;
+die Prüfung lief aber auf Images bis 256 KiB (ursprüngliche Absicht in c326003: „64 KB address space only“). Auf 06A
+(256 KiB, keine HC11-Firmware, Daten im ersten 64-KiB-Fenster konzentriert) gab es 1090 zufällige `CE hi lo`-Treffer,
+933 davon außerhalb des adressierbaren Fensters und nur 5 % in Datenbereichen. Mit Basis 0x8000 landeten 77 % der
+Ziele in Datenbereichen; gemessen am Datenanteil des ganzen Images reichte das für die Anreicherungsschwelle. Ergebnis: „HC11, Basis
+0x8000“, 305 Ziele, 0 exakte Referenzstarts (18 zufällig innerhalb von Referenzkennfeldern), daraus ein Code-Beleg
+bei 0x5C6 (4 × 4 u16, nicht in der XDF).
+
+**Geprüfte Alternativen.** Eine Anreicherung gegen das adressierbare Fenster statt das ganze Image ist statistisch
+richtig, senkt 06A aber nur auf 2,6 (Schwelle 2,5) – keine sichere Korrektur. Eine Schwellenänderung wäre an einer
+Datei abgestimmt und ohne HC11-Referenz unbelegt; nicht übernommen.
+
+**Korrektur.** HC11/8051 nur auf Images bis 64 KiB. Keine Änderung am Decoder, an den Schwellen oder an 68k.
+
+**Wirkung.** Decoder-Diagnose auf 38 Images (15 reale Paare, 14 synthetische Fälle, offene Firmware, Zufallsdaten):
+nur 06A ändert sich (kein CPU-Befund mehr). Im Scan von 06A entfällt der Code-Beleg 0x5C6; weil die 305 Zufallsziele
+nicht mehr als Anker die Datenbereiche teilen, verschieben sich einige Datenmuster-Funde (161 → 165 Funde, 06A
+gefunden 2D 147 → 151, exakt unverändert 0). Verdrängt hatte der Code-Beleg kein Referenzkennfeld.
+
+**Grenze.** Größere HC11-/8051-Images (Speicherbänke) erhalten keine Code-Belege mehr; dafür gab es nie
+Referenzdaten. Test `test_hc11_is_not_claimed_from_chance_loads_into_the_only_data_of_a_larger_image` (synthetisch,
+256 KiB, Daten nur am Anfang, zufällige `CE hi lo`): kein CPU-Befund, kein Code-Beleg; schlägt gegen eb30c81 fehl.
+Die echte 06A-Datei ist nicht im Repository.
+
+### 12.4 Windows-Dateiversion
+
+`ECU-Studio-AI.exe` wird aus `packaging/windows_launcher.cs` mit `csc` gebaut; ohne Assembly-Attribute steht in den
+Dateieigenschaften 0.0.0.0. `build_portable_runtime.compile_launcher` kompiliert jetzt zusätzlich eine erzeugte
+Datei mit Produktname, Hersteller und Version (Dateiversion `x.y.z.0`, Produktversion `x.y.z`) aus `__version__`.
+Der Installer setzt `VersionInfoVersion`/`VersionInfoProductVersion` aus `AppVersion`. Tests: kompilierte EXE trägt
+Version und Icon; Installer-Skript enthält die Angabe.
+
+Der erste lokale RC-Build brach ab: Beim Auslagern des Compiler-Aufrufs war die Variable `exe` in `build()` entfallen
+(`NameError`). Behoben; neuer Test prüft die Build-Funktionen auf undefinierte Namen, weil der Build selbst nur unter
+CPython 3.13 in `build_release.ps1` läuft.
+
+### 12.5 CodeQL: Syntaxfehler in `tests/test_a2l_records.py`
+
+GitHub-Code-Scanning (Python, CodeQL 2.27.4, Stand eb30c81) meldete „Could not process some files due to syntax
+errors“ für `tests/test_a2l_records.py`; Python selbst übersetzt die Datei fehlerfrei (3.8–3.13). Lokal mit dem
+CodeQL-CLI 2.27.4 nachgestellt: Der Extraktor meldet „has encoding 'counts'“. Ursache ist die erste Docstring-Zeile
+`"""ASAP2 RECORD_LAYOUT decoding: counts …`: Das PEP-263-Muster `coding[:=]\s*name` wird in Zeile 1–2 auch
+außerhalb eines Kommentars gefunden. Docstring umformuliert; danach meldet CodeQL über `src` und `tests` keine
+Kodierungs- und Syntaxwarnung mehr. Test `tests/test_source_encoding_lines.py` prüft alle Python-Dateien (schlägt mit
+der alten Zeile fehl).
+
+### 12.6 Regression, Laufzeit, Speicher
+
+Gleicher Rechner; `benchmark_suite --memory` und `negative_benchmark` für eb30c81 und den neuen Stand.
+
+| Vergleich | Ergebnis |
+|---|---|
+| eb30c81 gegen PR-#16-Messung (59f355d-Lauf) | 0 Unterschiede in allen Erkennungsfeldern (Ausgangsstand bestätigt) |
+| 15 reale Paare, neu gegen eb30c81 | nur zwei Paare ändern sich: **MSD80** exakt 2D 84 → 86, Typ richtig 83 → 85, Achsen richtig 74 → 77 (mit Achsen 81 → 84), Achsadresse richtig 141 → 147 (von 160 → 166), Gruppenpaare 45/45/47 → 51/51/51, gefunden 2D 1246 → 1253, 1D 2716 → 2731; **ME7.5 06A** gefunden 2D 147 → 151 (Code-Beleg 0x5C6 entfällt, Datenmuster verschoben), exakt unverändert |
+| Exakte Kennfelder je Paar | keines verloren (Mengenvergleich der exakten Layouts gegen 1.19.0 und eb30c81); neu exakt nur 0x4FB18 6 × 7 und 0x5604C 6 × 8 (16 Bit) |
+| Datentypen, Achsen, Achsadressen auf den übrigen 13 Paaren | unverändert |
+| 15 reale Paare gegen 1.19.0 | wie oben, zusätzlich MED17 404A/E/G gefunden 2D je −1 (PR #16, falscher C16x-Code-Beleg) |
+| 14 synthetische Fälle | identisch zu eb30c81; gegen 1.19.0 weiterhin aligned-padded exakt 2 → 3, Negativkontrollen unverändert |
+| Negativ-Benchmark (7 Images) | je Image identisch zu eb30c81 (alle Felder außer Zeit/Speicher): 875 Funde, 0 nachweislich falsch, 875 unklar (36 Strukturbelege, 839 Datenmuster); Stabilität FOME 74 / 20 / 8 / 34. Die 921 entfernten Fehlfunde kommen nicht zurück. Die 875 unklaren Funde sind keine bestätigten Kennfelder. |
+| Laufzeit 15 Paare (Summe) | neu 91,8 s; eb30c81 im selben Durchgang 116,3 s, davon ein Ausreißer ME9.2.1 27,8 s statt ~6,5 s (parallel lief die CodeQL-Prüfung); PR-#16-Messung 89,4 s. Je Paar ohne Ausreißer −1,9 … +1,3 s |
+| MSD80 allein, 4 × abwechselnd, ohne Nebenlast (voller Scan 2 MiB) | eb30c81 29,2–29,9 s, neu 30,3–32,4 s (Median +1,2 s, ≈ +4 %): Kosten der 32 Registerzustände |
+| Spitzen-Speicher | 15 Paare 86,3 MB (eb30c81 86,3); MSD80 mit `tracemalloc` 87,4 MB in beiden Ständen; Negativ-Benchmark je Image gleich (Spitze 67,5 MB) |
+| Wiederholte Scans (10 Dateien + 5 × MS42, ein Prozess) | Python-Heap nach dem Scan +0,03 MB in beiden Ständen, kein Wachstum |
+| Projektwechsel / A2L | Test: 8 Projekte zu je 1 MiB mit wechselnden Definitionen halten keinen Block ≥ 256 KiB, < 1 MiB gesamt, Cache bleibt bei 4 Einträgen |
+
+### 12.7 Tests und Prüfungen
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig | 910 bestanden (nach dem Build-Fix; davor 909), 10 übersprungen, 0 fehlgeschlagen (eb30c81: 897/10); kein Test deaktiviert oder abgeschwächt. Der Opt-in-Test der echten MSD80-Datei ist schärfer (≥ 86 statt ≥ 84, beide Offsets) |
+| MSD80-Opt-in mit lokaler Datei | bestanden (38/38 in `test_tricore_refs.py`) |
+| Übersetzungsprüfung | 2060 Texte, 0 ohne Übersetzung |
+| GUI-Smoke (mit lokaler MS43-Datei) | 10/10, MS43 856 Kennfelder; enthält Speichern und Wiederöffnen eines Projekts |
+| Firmware-Guard (`firmware_guard.py staged`) | sauber |
+| CodeQL 2.27.4 lokal (Python, `src` + `tests`) | keine Kodierungs- oder Syntaxwarnung |
+| Windows-RC 1.19.1 (`build_release.ps1 -SkipTests`, isolierte Kopie, Version nur dort auf 1.19.1 gesetzt, nicht committet) | EXE-Oberflächentest, `--self-check`, entpacktes ZIP ohne Python im PATH, Installer gebaut, Installer-Inhalt ohne zurückgezogene Lerndaten; Dateiversion EXE 1.19.1.0, Setup 1.19.1, Icon eingebettet |
+| Update 1.19.0 → 1.19.1-RC (Updater der veröffentlichten 1.19.0, eigener Temp-Ordner, wie Release-Workflow) | SHA-256 geprüft, Update installiert, Oberflächentest bestanden, Wiederherstellen auf 1.19.0 und zurück auf 1.19.1, `--self-check` bestanden |
+| Installer installieren/deinstallieren | lokal **nicht** ausgeführt: auf dem Rechner ist eine echte Installation (1.16.3) mit derselben Installer-ID; der Test läuft im Release-Workflow auf Windows Server 2022/2025 |
+
+Neue bzw. geänderte Tests: `test_a2l_reference_cache.py` (7), `test_tricore_refs.py` (+1, Opt-in verschärft),
+`test_analysis_features.py` (+1 HC11), `test_app_icon.py` (+3: Version von EXE und Installer, undefinierte Namen im Build), `test_source_encoding_lines.py` (1).
+
+### 12.8 Offen
+
+- MSD80-Korrektur und Fehlfund-Zahlen sind an Entwicklungsdaten gemessen; keine unabhängige TriCore-Referenz.
+- HC11/8051/68k: keine Referenzimages; Images über 64 KiB erhalten keine HC11-/8051-Code-Belege mehr.
+- Aufgaben 2–10 unverändert offen (Präzision der Datenmuster, Achsen, Darstellung, Abbruch, lange Pfade, Absturz,
+  Konstanten-Referenz, Thumb/AVR, Anzeige unterdrückter Funde).

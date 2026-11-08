@@ -24,7 +24,30 @@ Release, Versionsnummer unverändert). Messungen und Grenzen: [Entwicklungsberic
 - **Kein Zwischenspeicher hält mehr Firmwaredateien:** C16x-Ladeadresse und A2L-Referenz (Namensübertragung,
   Versionsvergleich) speicherten bis zu 8 + 4 vollständige Images über das Schließen eines Projekts hinaus. Die
   Ladeadresse wird jetzt wie die Architektur einmal je Scan berechnet und weitergegeben; der A2L-Zwischenspeicher
-  behält nur die verknüpften Einträge (Schlüssel: SHA-256).
+  behält nur die verknüpften Einträge.
+
+Letzte Korrekturen vor 1.19.1 (Branch `feature/1.19.1-final-fixes`, Versionsnummer unverändert):
+
+- **A2L-Zwischenspeicher nach Inhalt statt Pfad:** Wurde eine A2L unter demselben Pfad geändert (auch bei gleicher
+  Dateigröße), lieferten Namensübertragung und Versionsvergleich bis zur nächsten Programmsitzung die Kennfelder der
+  alten Fassung. Schlüssel ist jetzt SHA-256 von A2L und Firmware; jeder Aufrufer erhält eine eigene Kopie, sodass
+  Umbenennen oder Übernehmen den Speicher nicht verändert. Weiterhin keine Firmware im Speicher.
+- **MSD80: zwei verlorene Kennfelder zurück (Entwicklungsdatei):** Seit 1.19.0 werden bedingte Sprünge im
+  TriCore-Code verfolgt; an Zusammenführungspunkten kamen dadurch mehr als die gehaltenen 8 Registerzustände an, und
+  die zuletzt eintreffenden fielen weg. Zwei Aufrufstellen verloren so ihre Tabellenadresse (0x4FB18 6 × 7 u16,
+  0x5604C 6 × 8 u16; in 1.18.2 exakt). Jetzt 32 Zustände: MSD80 I8A0S 84 → 86 exakt, Achsen 74 → 77 richtig,
+  kein anderes Kennfeld verloren. **Nur an der Entwicklungsdatei gemessen**; eine unabhängige TriCore-Referenz fehlt.
+- **Kein HC11-Code-Beleg mehr auf ME7.5 06A906018CG:** Die HC11-/8051-Suche bildet 16-Bit-Adressen linear auf die
+  Datei ab und lief auch auf Images bis 256 KiB. Auf ME7.5 06A (256 KiB, ohne HC11-Code) galten zufällige Bytes als
+  HC11-Ladebefehle (305 Adressziele, keines ein Referenzkennfeld) und ergaben einen unbegründeten Code-Beleg bei
+  0x5C6. HC11/8051 werden jetzt nur auf Images bis 64 KiB (ein 16-Bit-Adressraum) geprüft. Auf 38 lokalen Images
+  ändert sich nur 06A. Größere HC11-/8051-Images mit Speicherbänken erhalten keine Code-Belege mehr; dafür gab es
+  keine Referenzdaten.
+- **Windows-Dateiversion:** `ECU-Studio-AI.exe` und der Installer tragen die Programmversion in den
+  Dateieigenschaften (bisher 0.0.0.0).
+- **Code-Scanning:** CodeQL übersprang `tests/test_a2l_records.py` mit „Syntaxfehler“, weil die erste
+  Docstring-Zeile („decoding: counts …“) nach PEP 263 als Kodierungsangabe „counts“ gelesen wurde. Docstring
+  umformuliert; ein Test prüft alle Python-Dateien auf solche unbeabsichtigten Angaben.
 
 ## 1.19.0 (04.11.2026)
 

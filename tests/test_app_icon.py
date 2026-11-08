@@ -102,6 +102,62 @@ def test_compiled_launcher_carries_the_icon(tmp_path):
     assert first in data                                       # icon image embedded as a resource
 
 
+@pytest.mark.skipif(sys.platform != 'win32' or not Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe').exists(),
+                    reason='Windows .NET compiler not available')
+def test_compiled_launcher_carries_the_program_version(tmp_path):
+    """Explorer > Properties > Details showed file version 0.0.0.0 up to 1.19.0."""
+    import subprocess
+    from ecu_studio.tools.build_portable_runtime import compile_launcher
+    exe = tmp_path / 'ECU-Studio-AI.exe'
+    compile_launcher(ROOT, exe, '7.8.9')
+    script = ("$v=(Get-Item -LiteralPath $env:EXE).VersionInfo;"
+              "$v.FileVersion;$v.ProductVersion;$v.ProductName;$v.CompanyName")
+    out = subprocess.run(['powershell', '-NoProfile', '-Command', script], capture_output=True, text=True,
+                         env={**os.environ, 'EXE': str(exe)}, check=True).stdout.split('\n')
+    assert [line.strip() for line in out[:4]] == ['7.8.9.0', '7.8.9', 'ECU Studio AI', 'PCTestAdmin']
+    first = next(png for *_, png in _entries((ASSETS / 'app.ico').read_bytes()))
+    assert first in exe.read_bytes()                           # icon still embedded
+
+
+def test_build_functions_use_no_undefined_names():
+    """The package build only runs under CPython 3.13 in build_release.ps1; an undefined name there (1.19.1 RC:
+    'exe' after moving the compiler call into compile_launcher) would only show up in the release build."""
+    import ast
+    import builtins
+    source = (ROOT / 'src' / 'ecu_studio' / 'tools' / 'build_portable_runtime.py').read_text(encoding='utf-8')
+    tree = ast.parse(source)
+    module_names = {'__file__', '__name__', '__doc__'}
+    module_names |= {t.id for n in tree.body if isinstance(n, (ast.Assign, ast.AnnAssign))
+                     for t in ast.walk(n) if isinstance(t, ast.Name) and isinstance(t.ctx, ast.Store)}
+    module_names |= {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+    module_names |= {(a.asname or a.name).split('.')[0] for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))
+                     for a in n.names}
+    missing = []
+    for func in (n for n in tree.body if isinstance(n, ast.FunctionDef)):
+        local = {a.arg for a in func.args.args + func.args.kwonlyargs}
+        for node in ast.walk(func):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                local.add(node.id)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                local |= {(a.asname or a.name).split('.')[0] for a in node.names}
+            elif isinstance(node, (ast.For, ast.comprehension)):
+                local |= {t.id for t in ast.walk(node.target) if isinstance(t, ast.Name)}
+            elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+                local |= {t.id for t in ast.walk(node.optional_vars) if isinstance(t, ast.Name)}
+            elif isinstance(node, ast.ExceptHandler) and node.name:
+                local.add(node.name)
+        for node in ast.walk(func):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and \
+                    node.id not in local | module_names and not hasattr(builtins, node.id):
+                missing.append(f'{func.name}: {node.id} (line {node.lineno})')
+    assert not missing, missing
+
+
+def test_installer_carries_the_program_version():
+    installer = (ROOT / 'packaging' / 'installer.iss').read_text(encoding='utf-8-sig')
+    assert 'VersionInfoVersion={#AppVersion}' in installer
+
+
 def test_relaunch_properties_need_the_packaged_launcher():
     from ecu_studio import main
     assert main.launcher_path() is None                        # development run: python.exe, no launcher next to it

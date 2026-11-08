@@ -684,10 +684,19 @@ def suggest_anchor(catalog: A2LCatalog, data: bytes, step: int = 0x10000) -> dic
 
 
 def read_a2l(path: str) -> A2LCatalog:
+    return parse_a2l(decode_a2l(read_a2l_bytes(path)))
+
+
+def read_a2l_bytes(path: str) -> bytes:
+    """Raw content of an A2L file (size limit checked); see decode_a2l."""
     source = Path(path)
     if source.stat().st_size > 45 * 1024 * 1024:
         raise ValueError('A2L-Dateien über 45 MiB in Version 0.2 nicht unterstützt')
-    payload = source.read_bytes()
+    return source.read_bytes()
+
+
+def decode_a2l(payload: bytes) -> str:
+    """Text of an A2L file: UTF-8 (with or without BOM), else cp1252, else Latin-1."""
     if payload.startswith(b'\xef\xbb\xbf'):
         text = payload.decode('utf-8-sig')
     else:
@@ -700,7 +709,7 @@ def read_a2l(path: str) -> A2LCatalog:
                 text = payload.decode('cp1252')
             except UnicodeDecodeError:
                 text = payload.decode('latin-1')
-    return parse_a2l(text)
+    return text
 
 
 def parse_a2l(source: str) -> A2LCatalog:

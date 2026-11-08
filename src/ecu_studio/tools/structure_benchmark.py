@@ -6,9 +6,11 @@ list, e.g. one exported from another tool. Reports counts only; no firmware byte
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import threading
 from collections import OrderedDict
+from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
 from ecu_studio.core.model import BinaryImage, MapDefinition
@@ -36,20 +38,27 @@ def a2l_reference(path: str, image: BinaryImage, anchor: int | None = None) -> l
     HEX file) is checked the same way: the A2L must explain the file. Raises if
     it does not; a declared EPK that differs links nothing.
     """
-    # Linking an A2L is slow and repeated (benchmarks, name transfer). The cache
-    # key is the image's SHA-256, not its bytes: the cache keeps linked records,
-    # never a firmware image.
-    key = (str(Path(path).resolve()), image.digest, anchor)
+    # Linking an A2L is slow and repeated (benchmarks, name transfer, version
+    # compare). The cache key is the content of both files: SHA-256 of the A2L
+    # bytes (a definition changed under the same path, even at the same size, is
+    # linked anew) and of the image (never its bytes: the cache keeps linked
+    # records, no firmware), plus the anchor. The A2L is read once; hash and
+    # parse use the same bytes. Callers get their own copies: renaming or
+    # adopting a map must not change what the next caller receives.
+    from ecu_studio.core.a2l import read_a2l_bytes
+    payload = read_a2l_bytes(path)
+    key = (hashlib.sha256(payload).hexdigest(), image.digest, anchor)
     with _A2L_LOCK:
         found = _A2L_CACHE.get(key)
     if found is None:
-        found = _a2l_link(key[0], image.read(0, image.size), anchor)
+        found = _a2l_link(payload, image.read(0, image.size), anchor)
+    del payload
     with _A2L_LOCK:
         _A2L_CACHE[key] = found
         _A2L_CACHE.move_to_end(key)
         while len(_A2L_CACHE) > A2L_CACHE_SIZE:
             _A2L_CACHE.popitem(last=False)
-    return list(found)
+    return deepcopy(list(found))
 
 
 A2L_CACHE_SIZE = 4
@@ -57,9 +66,9 @@ _A2L_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
 _A2L_LOCK = threading.Lock()
 
 
-def _a2l_link(path: str, data: bytes, anchor: int | None) -> tuple:
-    from ecu_studio.core.a2l import read_a2l, suggest_anchor, MIN_ANCHOR_MONOTONE
-    catalog = read_a2l(path)
+def _a2l_link(payload: bytes, data: bytes, anchor: int | None) -> tuple:
+    from ecu_studio.core.a2l import parse_a2l, decode_a2l, suggest_anchor, MIN_ANCHOR_MONOTONE
+    catalog = parse_a2l(decode_a2l(payload))
     if anchor is None:
         found = suggest_anchor(catalog, data)
         if found is None:

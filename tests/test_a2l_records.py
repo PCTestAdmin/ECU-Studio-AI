@@ -1,4 +1,8 @@
-"""ASAP2 RECORD_LAYOUT decoding: counts and axes read from the file, anchor from the firmware."""
+"""ASAP2 RECORD_LAYOUT: counts and axes are read from the file, the anchor from the firmware.
+
+No "coding" followed by a colon in the first two lines: tools that follow PEP 263 (CodeQL)
+read it as a source encoding declaration and skip the file.
+"""
 import struct
 import pytest
 from ecu_studio.core.a2l import parse_a2l, suggest_anchor
