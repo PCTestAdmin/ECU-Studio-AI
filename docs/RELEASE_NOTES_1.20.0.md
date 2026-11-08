@@ -94,6 +94,10 @@ Diese Schwellen sind eine **Sicherheitsentscheidung** von ECU Studio AI, keine E
   unabhängige Bestätigung mit weiteren rechtmäßigen Originalen steht aus.
 - Die **TriCore-Codeerkennung** (Architekturprüfung der Kennfelderkennung) ist weiterhin **experimentell**.
 - **Keine Authenticode-Signatur:** Die EXE ist nicht code-signiert; Windows kann beim ersten Start warnen.
+- **Deinstallation nach einem In-App-Update:** Wurde eine Installation über „Jetzt nach Updates suchen“ aktualisiert,
+  bleiben nach der Deinstallation Programmdateien zurück, die erst mit der neuen Version hinzukamen. Beim Update von
+  1.19.1 auf 1.20.0 ist das genau eine Datei (`_internal\app\ecu_studio\core\integrity.py`). Benutzerdaten sind
+  nicht betroffen; der Ordner `%LOCALAPPDATA%\Programs\ECU-Studio-AI` kann danach gelöscht werden.
 
 ---
 
@@ -179,3 +183,7 @@ These thresholds are a **safety decision** of ECU Studio AI, not a property of t
   confirmation with further lawfully obtained originals is still outstanding.
 - **TriCore code recognition** (architecture check of the map recognition) is still **experimental**.
 - **No Authenticode signature:** the EXE is not code-signed; Windows may warn on first start.
+- **Uninstall after an in-app update:** if an installation was updated via "Check for updates now", program files
+  that were added by the new version remain after uninstalling. For the update from 1.19.1 to 1.20.0 this is exactly
+  one file (`_internal\app\ecu_studio\core\integrity.py`). User data is not affected; the folder
+  `%LOCALAPPDATA%\Programs\ECU-Studio-AI` can be deleted afterwards.

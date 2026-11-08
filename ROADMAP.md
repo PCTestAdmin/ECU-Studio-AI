@@ -175,7 +175,7 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 | | Thema | Stand |
 |:--:|---|---|
-| 🧮 | **Checksummen & Integrität (1.20.0)** | In `main` zusammengeführt (PR #19, #20, #21), Version 1.20.0 vorbereitet, Release-Kandidat 1.20.0 in Prüfung; Veröffentlichung wartet auf Freigabe ([Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
+| 🧮 | **Checksummen & Integrität (1.20.0)** | In `main` zusammengeführt (PR #19, #20, #21), Version 1.20.0 vorbereitet; Release-Kandidat 1.20.0 auf frischen Windows-Systemen geprüft (Installation, Update per Installer, echtes In-App-Update aus 1.19.1); Veröffentlichung wartet auf Freigabe ([Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
 

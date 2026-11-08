@@ -91,6 +91,8 @@ Bestandsaufnahme, Nachweise und Grenzen: [Checksummen und Integrität](docs/CHEC
   ([ECU-Unterstützung](docs/ECU_SUPPORT.md)).
 - Die TriCore-Codeerkennung bleibt **experimentell**.
 - Die EXE ist weiterhin nicht Authenticode-signiert.
+- Nach einem In-App-Update und anschließender Deinstallation bleiben Programmdateien zurück, die erst mit der neuen
+  Version hinzukamen (1.19.1 → 1.20.0: eine Datei). Benutzerdaten sind nicht betroffen.
 
 ## 1.19.1 (08.11.2026)
 
