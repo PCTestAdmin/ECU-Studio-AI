@@ -1,6 +1,8 @@
 import numpy as np
 from ecu_studio.core.model import BinaryImage, MapDefinition
 from ecu_studio.core.cpu_refs import detect_cpu
+from ecu_studio.core.architecture import detect_architecture
+from ecu_studio.core.structure_scan import scan_structures
 from ecu_studio.core.function_graph import build_function_graph, related_maps
 from ecu_studio.core.signal_trace import trace_inputs, variable_table
 from ecu_studio.core.axis_semantics import guess_axis
@@ -26,6 +28,27 @@ def test_hc11_top_mapped_image_is_detected_from_address_loads():
     guess,targets=detect_cpu(bytes(data))
     assert guess and (guess.family,guess.base)==('HC11',0xC000)
     assert targets and all(t<0x600 for t in targets)
+
+
+def _large_image_with_data_only_at_its_start(seed=3):
+    """256 KiB like ME7.5 06A906018CG: smooth data in the first 32 KiB, the rest code-like
+    bytes with chance LDX #imm (CE hi lo) pointing at 0x8000..0xFFFF, i.e. into that data."""
+    rng=np.random.default_rng(seed)
+    data=bytearray(rng.integers(0,256,0x40000,dtype=np.uint8).tobytes())
+    data[:0x8000]=np.repeat(np.arange(0,250,5,dtype=np.uint8),128)[:0x8000].tobytes()
+    for pos in rng.choice(np.arange(0x8000,0x40000-3),400,replace=False).tolist():
+        data[pos:pos+3]=bytes([0xCE])+int(0x8000+rng.integers(0,0x8000)).to_bytes(2,'big')
+    return bytes(data)
+
+
+def test_hc11_is_not_claimed_from_chance_loads_into_the_only_data_of_a_larger_image():
+    # 1.19.0: enrichment was measured against the data share of the whole 256 KiB image,
+    # so any base whose 16-bit window covers the data at the start looked like HC11 code
+    # (ME7.5 06A906018CG: HC11 at 0x8000, 7.9x, a code reference at 0x5C6 without code).
+    data=_large_image_with_data_only_at_its_start()
+    assert detect_cpu(data)==(None,set())
+    found=scan_structures(BinaryImage(data),0,0x8000,architecture=detect_architecture(data))
+    assert not [m for m in found if m.record_layout=='candidate:code-reference-generic']
 
 
 def test_pure_data_image_has_no_cpu():
