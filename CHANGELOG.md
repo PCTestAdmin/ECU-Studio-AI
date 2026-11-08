@@ -1,21 +1,17 @@
-## Unveröffentlicht – geplant als 1.20.0 (Entwurf)
+## 1.20.0 (08.11.2026)
 
-Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Noch kein Release und keine neue
-Versionsnummer: Beides erfolgt erst nach Freigabe. Keine untersuchte Originaldatei erreicht eine vollständige
-Checksummenabdeckung, und es gibt keine Flashfreigabe. Release-Notes-Entwurf (Deutsch/Englisch):
-[RELEASE_NOTES_1.20.0.md](docs/RELEASE_NOTES_1.20.0.md). Bestandsaufnahme, Nachweise und Grenzen:
-[Checksummen und Integrität](docs/CHECKSUMMEN.md).
+Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Keine untersuchte Originaldatei
+erreicht eine vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe. Eine korrigierte Datei ist nicht
+automatisch flashbereit. Release Notes Deutsch/Englisch: [RELEASE_NOTES_1.20.0.md](docs/RELEASE_NOTES_1.20.0.md).
+Bestandsaufnahme, Nachweise und Grenzen: [Checksummen und Integrität](docs/CHECKSUMMEN.md). Prüfnachweise:
+[Release-Checkliste 1.20.0](docs/RELEASE_CHECKLIST_1.20.0.md).
 
-Für 1.20.0 sind außerdem zwei eigene Korrekturen vorgesehen, die in getrennten Pull Requests liegen:
-- [PR #20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20): Der Definitionseditor zeigt nach einem
-  Dateiwechsel keine Werte der vorherigen Firmware mehr.
-- [PR #21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21): Testläufe und der Oberflächentest schreiben nicht
-  mehr in die Einstellungen einer installierten Version.
-
-### Checksummen & Integrität
+**Checksummen & Integrität**
 
 - **Fünf Status:** Unterstützt und gültig, Unterstützt und ungültig, Unvollständige Prüfung, Nicht unterstützt,
   Unbekannt. Ein generisches Verfahren, das zufällig passt, macht eine Datei nie gültig.
+- **Automatische Prüfung** ausgewählter Checksummen nach dem Öffnen und nach Bearbeitungen, im Hintergrund mit
+  Fortschritt und Abbrechen.
 - **Bosch-Multipoint (ME7.x, ME9, MED9) unabhängig belegt:** 199 von 199 Herstellerwerten in drei unveränderten
   Originalen reproduziert. Das Verfahren stimmt mit dem quelloffenen ME7Sum überein. Die Korrektur stellt beschädigte
   Felder bitgenau auf die Herstellerbytes zurück. Weitere ME7-Prüfsummen und Signaturen bleiben ungeprüft, der Status
@@ -23,60 +19,78 @@ Für 1.20.0 sind außerdem zwei eigene Korrekturen vorgesehen, die in getrennten
 - **Bereits veränderte Dateien:** Tabelleneinträge, die auf der geöffneten Datei nicht stimmen, gelten als ungültig
   und sind korrigierbar, statt als „unbekannt“ zu verschwinden. Voraussetzung: Die Mehrheit der Einträge der Tabelle
   ist am Original bestätigt.
+- **Korrektur nur bei ausreichendem Beleg:** Multipoint-Korrektur nur
+  - bei eindeutig identifiziertem ME7, ME9 oder MED9, oder
+  - bei starker Strukturbelegung (mindestens 32 am Original bestätigte Einträge, eine Tabelle mit mindestens 16).
+    Dann ist der Fall eigens gekennzeichnet.
+
+  Bei einer anders identifizierten Familie oder schwachen Belegen bleibt es bei „nur Prüfung“. Diese Schwellen sind
+  eine Sicherheitsentscheidung von ECU Studio AI.
 - **Signaturen getrennt:** erwartet, erkannt oder unbekannt, nie „gültig“. Eine Prüfsummenkorrektur ersetzt keine
   Herstellersignatur. Signaturen werden nie verändert.
 - **Sichere Korrektur:**
-  - Vorschau mit jedem Byte und ausdrückliche Bestätigung.
+  - Korrekturvorschau mit jedem Byte und ausdrückliche Bestätigung.
   - Unabhängige Nachprüfung vor dem Schreiben: nur dokumentierte Positionen, frische Neuprüfung, zweite Rechnung.
   - In der Sitzung ein Undo-Schritt.
-  - Korrigierte Kopie mit Änderungsprotokoll (`.korrektur.json`) und `.bak`, ohne Teilausgabe.
-  - Original und Sitzung bleiben unverändert.
+  - Korrigierte Kopie mit Änderungsprotokoll (`.korrektur.json`) und `.bak`, ohne Teilausgabe. Original und Sitzung
+    bleiben unverändert.
+  - Kopie und Protokoll bleiben immer konsistent: altes Protokoll entfernen, Kopie schreiben und prüfen, Protokoll
+    schreiben und prüfen. Jeder Fehler und jeder Abbruch stellt beide Dateien wieder her; eine gescheiterte
+    Wiederherstellung wird ausdrücklich gemeldet.
+- **Erweiterter Preflight mit getrennten Stufen:**
+  - Profil-Prüffelder, bekannte Prüfsummen, Checksummenabdeckung, Signaturen (nie geprüft), Preflight,
+    Flashfreigabe (nie).
+  - `checksum_verified` bedeutet nur *vollständige* Abdeckung. Ein passendes Teilprofil oder eine unvollständige
+    Prüfung ergibt nie einen grünen Preflight.
+  - Statusleiste, Exportdialog und Panel zeigen dieselben Stufen.
 - **Oberfläche:**
   - Neuer Bereich „Checksummen & Integrität“ mit „Checksummen prüfen“ und „Korrekturvorschau“.
-  - Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen.
   - Detailbericht mit JSON-Export. Statusanzeige in der Statusleiste.
   - Der Exportdialog zeigt Status und Gründe und bietet bei korrigierbaren Fehlern direkt die Vorschau.
   - Die Flash-Vorprüfung meldet Prüfsummenfehler aller Verfahren.
   - Die vier Einzel-Dialoge (Profil, Tabellen, EDC17, EDC16) sind ersetzt.
+  - Die Preflight-Stufen sind auch auf Englisch übersetzt.
 - **Schneller:** Die MED17/EDC17-CRC rechnet über zlib (identisches Ergebnis, getestet). Auf einer 2-MiB-Datei sank
   die Zeit von 3,2 s auf unter 0,1 s.
-- **Unverändert:** MED17/EDC17 und EDC16 bleiben „am Original gemessen“, die Korrektur ist ohne signierten
-  OEM-Nachweis gesperrt. Kennfelderkennung und Firmware-Guard sind nicht berührt.
+- **Unverändert:** MED17/EDC17 und EDC16 bleiben „am Original gemessen“ (EDC17CP09: 8 von 11 Strukturen bestätigt,
+  3 unbestätigt; EDC16C31/C35: je 1 Bereich). Die Korrektur ist ohne signierten OEM-Nachweis gesperrt.
+  Kennfelderkennung und Firmware-Guard sind nicht berührt.
 
-### Nachbesserungen nach Review (PR #19)
+**Behobene Fehler**
 
-- **Preflight konnte trotz unvollständiger Prüfung grün sein (behoben):** Ein passendes Checksummenprofil, das nur
-  einen Teil der Prüfsummen deklariert, setzte `checksum_verified` und `checks_passed`. Die gelbe Warnung zur
-  unvollständigen Integritätsprüfung entfiel. Eine bearbeitete Datei ergab dann einen grünen Preflight.
-  - Getrennte Stufen jetzt: Profil-Prüffelder, bekannte Prüfsummen, Checksummenabdeckung, Signaturen (nie geprüft),
-    Preflight, Flashfreigabe (nie).
-  - `checksum_verified` bedeutet nur noch *vollständige* Abdeckung.
-  - Statusleiste, Exportdialog und Panel zeigen dieselben Stufen.
-- **Multipoint-Korrektur bei nicht identifizierten Steuergeräten abgesichert:** Bisher genügte ein am Original
-  bestätigter Tabelleneintrag, auch bei unbekannter Familie. Jetzt ist die Korrektur nur frei
-  - bei eindeutig identifiziertem ME7, ME9 oder MED9, oder
-  - bei starker Strukturbelegung (mindestens 32 bestätigte Einträge, eine Tabelle mit mindestens 16). Dann ist der
-    Fall eigens gekennzeichnet.
+- **Definitionseditor:** Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei
+  mehr. Name, Adresse, Größe, Skalierung und Hinweise werden geleert. Bearbeitungsfunktionen sind ohne
+  Kennfeldauswahl deaktiviert ([PR #20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20)).
+- **Scan-Ergebnisse beim Dateiwechsel:** Ein Kennfeldscan oder eine Erkennung, die für eine andere Datei gestartet
+  wurde, gelangt nicht mehr in die aktuell geöffnete Datei (PR #20).
+- **Isolation der Test-Einstellungen:** Testläufe und der Oberflächentest des Builds schreiben nicht mehr in die
+  Einstellungen (Registry) einer installierten ECU-Studio-Version
+  ([PR #21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21)).
 
-  Bei einer anders identifizierten Familie oder schwachen Belegen bleibt es bei „nur Prüfung“. Die drei
-  Referenzdateien behalten ihre Korrektur.
-- **Korrigierte Kopie und Änderungsprotokoll immer konsistent:** Bisher lief die Lese-Prüfung der Kopie erst nach
-  dem Protokoll. Schlug sie fehl, blieb ein Protokoll stehen, das einen abweichenden Stand dokumentierte.
-  - Neue Reihenfolge: altes Protokoll entfernen, Kopie schreiben und prüfen, Protokoll schreiben und prüfen.
-  - Jeder Fehler und jeder Abbruch stellt beide Dateien wieder her (`CopyNotSaved`).
-  - Eine gescheiterte Wiederherstellung wird ausdrücklich gemeldet.
-- **EXE-Selbsttest prüft Checksummen:** `--smoke-test` der gebauten EXE (und der GUI-Smoke-Test) prüft jetzt auch
-  das Checksummensystem im echten Fenster:
-  - Hintergrundprüfung, Status und Panel;
-  - Korrektur, korrigierte Kopie mit Protokoll und Undo;
-  - getrennte Preflight-Stufen.
+**Tests und Selbsttest**
 
-  Dafür wird eine synthetische Datei verwendet, keine Herstellerdaten.
-- **Neue Tests:** Preflight-Matrix, Multipoint-Absicherung, Fehlerinjektion beim Speichern
+- **EXE-Selbsttest prüft Checksummen:** `--smoke-test` der gebauten EXE (und der GUI-Smoke-Test) prüft das
+  Checksummensystem im echten Fenster: Hintergrundprüfung, Status und Panel; Korrektur, korrigierte Kopie mit
+  Protokoll und Undo; getrennte Preflight-Stufen. Dafür wird eine synthetische Datei verwendet, keine Herstellerdaten.
+- **Neue Tests:** Preflight-Matrix, Multipoint-Absicherung mit Grenzwerten, Fehlerinjektion beim Speichern
   (`tests/test_integrity_safety.py`), GUI-Abläufe (Abbrechen und Neustart, Wiederöffnen, Export bei unvollständiger
-  Abdeckung: `tests/test_integrity_gui_flow.py`) sowie weitere lokale Referenztests.
+  Abdeckung: `tests/test_integrity_gui_flow.py`), Definitionseditor beim Dateiwechsel
+  (`tests/test_definition_editor_file_switch.py`), Einstellungsisolation (`tests/test_settings_isolation.py`) sowie
+  weitere lokale Referenztests.
 - **Doku:** SHA-256-Präfixe der lokalen Referenzdateien nicht mehr veröffentlicht (Herkunft undokumentiert, für den
-  Nachweis nicht nötig). Die Preflight-Stufen sind jetzt auch auf Englisch übersetzt.
+  Nachweis nicht nötig).
+
+**Bekannte Einschränkungen**
+
+- Keine vollständige Checksummenabdeckung und keine Flashfreigabe. ME7-, EDC16- und EDC17-Dateien bleiben
+  „unvollständig“.
+- Signaturen werden nicht kryptografisch geprüft.
+- Fehlende ME7-Prüfungen: ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen.
+- EDC17CP09: 3 von 11 Strukturen unbestätigt; EDC16/EDC17-Korrektur gesperrt.
+- Weitere Familien nur eingeschränkt: Siemens/Continental, Bosch MG1/MD1 und alle übrigen ohne Checksummenprüfung
+  ([ECU-Unterstützung](docs/ECU_SUPPORT.md)).
+- Die TriCore-Codeerkennung bleibt **experimentell**.
+- Die EXE ist weiterhin nicht Authenticode-signiert.
 
 ## 1.19.1 (08.11.2026)
 

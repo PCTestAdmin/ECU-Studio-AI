@@ -1,6 +1,6 @@
 # Checksummen und Integrität
 
-Stand: 08.11.2026, Branch `feature/1.20-checksum-system` (Basis 1.19.1, geplant für 1.20.0). Diese Seite
+Stand: 08.11.2026, Version 1.20.0. Diese Seite
 dokumentiert die Bestandsaufnahme, die Architektur, die Nachweise je Verfahren und die Grenzen. Firmwaredateien
 liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 
