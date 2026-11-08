@@ -463,6 +463,10 @@ Datei mit Produktname, Hersteller und Version (Dateiversion `x.y.z.0`, Produktve
 Der Installer setzt `VersionInfoVersion`/`VersionInfoProductVersion` aus `AppVersion`. Tests: kompilierte EXE trägt
 Version und Icon; Installer-Skript enthält die Angabe.
 
+Der erste lokale RC-Build brach ab: Beim Auslagern des Compiler-Aufrufs war die Variable `exe` in `build()` entfallen
+(`NameError`). Behoben; neuer Test prüft die Build-Funktionen auf undefinierte Namen, weil der Build selbst nur unter
+CPython 3.13 in `build_release.ps1` läuft.
+
 ### 12.5 CodeQL: Syntaxfehler in `tests/test_a2l_records.py`
 
 GitHub-Code-Scanning (Python, CodeQL 2.27.4, Stand eb30c81) meldete „Could not process some files due to syntax
@@ -496,15 +500,18 @@ Gleicher Rechner; `benchmark_suite --memory` und `negative_benchmark` für eb30c
 
 | Prüfung | Ergebnis |
 |---|---|
-| pytest vollständig | 909 bestanden, 10 übersprungen, 0 fehlgeschlagen (eb30c81: 897/10); kein Test deaktiviert oder abgeschwächt. Der Opt-in-Test der echten MSD80-Datei ist schärfer (≥ 86 statt ≥ 84, beide Offsets) |
+| pytest vollständig | 910 bestanden (nach dem Build-Fix; davor 909), 10 übersprungen, 0 fehlgeschlagen (eb30c81: 897/10); kein Test deaktiviert oder abgeschwächt. Der Opt-in-Test der echten MSD80-Datei ist schärfer (≥ 86 statt ≥ 84, beide Offsets) |
 | MSD80-Opt-in mit lokaler Datei | bestanden (38/38 in `test_tricore_refs.py`) |
 | Übersetzungsprüfung | 2060 Texte, 0 ohne Übersetzung |
 | GUI-Smoke (mit lokaler MS43-Datei) | 10/10, MS43 856 Kennfelder; enthält Speichern und Wiederöffnen eines Projekts |
 | Firmware-Guard (`firmware_guard.py staged`) | sauber |
 | CodeQL 2.27.4 lokal (Python, `src` + `tests`) | keine Kodierungs- oder Syntaxwarnung |
+| Windows-RC 1.19.1 (`build_release.ps1 -SkipTests`, isolierte Kopie, Version nur dort auf 1.19.1 gesetzt, nicht committet) | EXE-Oberflächentest, `--self-check`, entpacktes ZIP ohne Python im PATH, Installer gebaut, Installer-Inhalt ohne zurückgezogene Lerndaten; Dateiversion EXE 1.19.1.0, Setup 1.19.1, Icon eingebettet |
+| Update 1.19.0 → 1.19.1-RC (Updater der veröffentlichten 1.19.0, eigener Temp-Ordner, wie Release-Workflow) | SHA-256 geprüft, Update installiert, Oberflächentest bestanden, Wiederherstellen auf 1.19.0 und zurück auf 1.19.1, `--self-check` bestanden |
+| Installer installieren/deinstallieren | lokal **nicht** ausgeführt: auf dem Rechner ist eine echte Installation (1.16.3) mit derselben Installer-ID; der Test läuft im Release-Workflow auf Windows Server 2022/2025 |
 
 Neue bzw. geänderte Tests: `test_a2l_reference_cache.py` (7), `test_tricore_refs.py` (+1, Opt-in verschärft),
-`test_analysis_features.py` (+1 HC11), `test_app_icon.py` (+2 Version), `test_source_encoding_lines.py` (1).
+`test_analysis_features.py` (+1 HC11), `test_app_icon.py` (+3: Version von EXE und Installer, undefinierte Namen im Build), `test_source_encoding_lines.py` (1).
 
 ### 12.8 Offen
 
