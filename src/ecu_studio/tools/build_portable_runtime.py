@@ -133,7 +133,8 @@ def build():
     # Separate updater: the app copies it out of the install folder and runs it after closing.
     shutil.copy2(root/'packaging'/'updater.ps1',output/'_internal'/'updater.ps1')
     (output/'VERSION.txt').write_text(version+'\n',encoding='ascii')
-    compile_launcher(root,output/EXE_NAME,version)
+    exe=output/EXE_NAME
+    compile_launcher(root,exe,version)
     (output/'RUNTIME_NOTICE.txt').write_text(
         f'ECU Studio AI {version} portable\n'
         'C# starter source: windows_launcher.cs (process launch only).\n'
