@@ -20,6 +20,25 @@ from pywinauto.application import Application
 PID, OUT, OLD, NEW = int(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4]
 OUT.mkdir(parents=True, exist_ok=True)
 RESULT = {'checks': [], 'steps': []}
+# The program follows the Windows display language: German texts and their English translations (en.json of the
+# old version). Each entry lists the accepted variants.
+T = {
+    'settings': ('Einstellungen', 'Settings'),
+    'check': ('Jetzt nach Updates suchen', 'Check for updates now'),
+    'dialog': ('Update verfügbar', 'update available'),
+    'available': (f'Version {NEW} ist verfügbar', f'version {NEW} is available'),
+    'installed': (f'Installiert: {OLD}', f'Installed: {OLD}'),
+    'new': (f'Neu: {NEW}', f'New: {NEW}'),
+    'now': ('Jetzt aktualisieren', 'Update now'),
+    'ready': ('Update bereit', 'Update ready'),
+    'not_installed': ('Update nicht installiert', 'Update not installed'),
+    'verified': (f'{NEW} ist geprüft (SHA-256', f'{NEW} has been verified (SHA-256'),
+    'yes': ('Ja', 'Yes'),
+}
+
+
+def has(text, key):
+    return any(v in text for v in T[key])
 
 
 def check(name, condition, detail=''):
@@ -47,12 +66,12 @@ def windows():
     return found
 
 
-def find_window(title_part, timeout):
+def find_window(key, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         for w in windows():
             try:
-                if title_part in w.window_text():
+                if has(w.window_text(), key):
                     return w
             except Exception:
                 pass
@@ -72,13 +91,13 @@ def texts(w):
     return out
 
 
-def click_menu_item(title, timeout=10):
+def click_menu_item(key, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         for w in windows():
             for item in w.descendants(control_type='MenuItem'):
                 try:
-                    if item.window_text().replace('&', '') == title:
+                    if item.window_text().replace('&', '') in T[key]:
                         item.click_input()
                         return True
                 except Exception:
@@ -95,21 +114,24 @@ def run():
     check('alte Version läuft (Fenstertitel)', f'v{OLD}' in title, title)
     shot('inapp-1-alte-version')
 
-    check('Menü „Einstellungen“ geöffnet', click_menu_item('Einstellungen'), [w.window_text() for w in windows()])
+    menus = [i.window_text() for w in windows() for i in w.descendants(control_type='MenuItem')]
+    RESULT['menu_items'] = menus
+    check('Menü „Einstellungen“ geöffnet', click_menu_item('settings'), menus)
     time.sleep(0.5)
     shot('inapp-2-menue')
-    check('„Jetzt nach Updates suchen“ angeklickt', click_menu_item('Jetzt nach Updates suchen'))
+    check('„Jetzt nach Updates suchen“ angeklickt', click_menu_item('check'))
 
-    dialog = find_window('Update verfügbar', 90)
+    dialog = find_window('dialog', 90)
     check('Update-Dialog erscheint', dialog is not None, [w.window_text() for w in windows()])
     shown = texts(dialog)
     RESULT['dialog_texts'] = shown
     shot('inapp-3-update-dialog')
-    check('Dialog zeigt die neue Version', any(f'Version {NEW} ist verfügbar' in t for t in shown), shown[:4])
-    check('Dialog zeigt installierte und neue Version', any(f'Installiert: {OLD}' in t and f'Neu: {NEW}' in t for t in shown))
+    check('Dialog zeigt die neue Version', any(has(t, 'available') for t in shown), shown[:4])
+    check('Dialog zeigt installierte und neue Version', any(has(t, 'installed') and has(t, 'new') for t in shown))
     buttons = {b.window_text().replace('&', ''): b for b in dialog.descendants(control_type='Button')}
-    check('Schaltfläche „Jetzt aktualisieren“', 'Jetzt aktualisieren' in buttons, list(buttons))
-    buttons['Jetzt aktualisieren'].click_input()
+    now = next((buttons[t] for t in T['now'] if t in buttons), None)
+    check('Schaltfläche „Jetzt aktualisieren“', now is not None, list(buttons))
+    now.click_input()
     RESULT['steps'].append('Jetzt aktualisieren geklickt')
 
     ready = None
@@ -117,7 +139,7 @@ def run():
     while time.monotonic() < deadline and ready is None:
         for w in windows():
             text = w.window_text()
-            if text in ('Update bereit', 'Update nicht installiert'):
+            if text in T['ready'] + T['not_installed']:
                 ready = w
         if ready is None:
             for w in windows():
@@ -128,9 +150,9 @@ def run():
     shown = texts(ready)
     RESULT['ready_texts'] = shown
     shot('inapp-4-update-bereit')
-    check('Download und SHA-256-Prüfung erfolgreich', ready.window_text() == 'Update bereit'
-          and any(f'{NEW} ist geprüft (SHA-256' in t for t in shown), shown)
-    yes = [b for b in ready.descendants(control_type='Button') if b.window_text().replace('&', '') in ('Yes', 'Ja')]
+    check('Download und SHA-256-Prüfung erfolgreich', ready.window_text() in T['ready']
+          and any(has(t, 'verified') for t in shown), shown)
+    yes = [b for b in ready.descendants(control_type='Button') if b.window_text().replace('&', '') in T['yes']]
     check('Schaltfläche „Ja“', yes, [b.window_text() for b in ready.descendants(control_type='Button')])
     yes[0].click_input()
     RESULT['steps'].append('Update bestätigt')

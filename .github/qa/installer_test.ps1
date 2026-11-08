@@ -293,8 +293,9 @@ if ($Mode -eq 'InApp') {
         $caThumb = (Import-Certificate "$staging\ca.cer" -CertStoreLocation Cert:\LocalMachine\Root).Thumbprint
         Add-Content $hosts "`r`n127.0.0.1 api.github.com`r`n127.0.0.1 github.com"
         ipconfig /flushdns | Out-Null
-        $probe = curl.exe -s "https://api.github.com/repos/$Repository/releases/latest" | ConvertFrom-Json
-        Check 'Staging-Quelle meldet den Kandidaten als neueste stabile Version' ($probe.tag_name -eq "v$version" -and -not $probe.prerelease) $probe.name
+        # Probe with the update code of the INSTALLED old version (its runtime, Windows trust store).
+        $probe = & "$install\_internal\python\python.exe" -I -B -c "from ecu_studio.core import updates; r = updates.fetch_latest(); print(r.version if r else 'none', updates.update_available('$oldVersion', r))" 2>&1
+        Check 'Staging-Quelle: alte Version sieht den Kandidaten als neueste stabile Version' ("$probe".Trim() -eq "$version True") "$probe"
 
         Start-Process $startMenuLink
         $proc = $null
