@@ -166,7 +166,9 @@ def test_qt_rescan_preserves_manual_verified_and_source_aliases_and_raw_precisio
             overlaps_reviewed=MapDefinition('Do not replace reviewed',2048,4,4,source='bundled-definition')
             window.load_state(image,[old,manual,checked],[],'',None)
             window.select_map(old);window.open_map_tab()
-            window.scanner=SimpleNamespace(source_digest=hashlib.sha256(image.materialize()).digest(),isRunning=lambda:False)
+            # A scan result is accepted only for the opened file it was started for (worker.target, since 1.20).
+            window.scanner=SimpleNamespace(source_digest=hashlib.sha256(image.materialize()).digest(),isRunning=lambda:False,
+                                           target=image)
             window.scan_finished([source,alias,overlaps_reviewed])
             assert window.maps==[source,alias,manual,checked]
             assert not window.map_editors and window.selected is source
