@@ -149,7 +149,8 @@ def apply_language(app) -> str:
     from PySide6.QtCore import QSettings
     from .core import i18n
     from .ui import i18n_qt
-    code = QSettings("ECU Studio", "ECU Studio AI").value('language', 'system')
+    code = QSettings(QSettings.defaultFormat(), QSettings.Scope.UserScope, "ECU Studio",
+                     "ECU Studio AI").value('language', 'system')
     if code not in i18n.LANGUAGES:
         code = i18n.system_language()
     i18n_qt.install(app, code)

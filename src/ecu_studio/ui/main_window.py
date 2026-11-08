@@ -250,7 +250,10 @@ class Window(QMainWindow):
         self.map_editors = []
         self.project_store = ProjectStore()
         self.setWindowTitle(f"ECU Studio AI v{__version__}  |  Calibration Workbench")
-        self.settings=QSettings("ECU Studio", "ECU Studio AI")
+        # defaultFormat(): the program uses the registry as before; tests, the smoke test and the screenshot tools
+        # switch to an INI file with setDefaultFormat/setPath. The two-argument constructor ignores that switch and
+        # always wrote into the user's real settings (the installed program's window layout, theme, update check).
+        self.settings=QSettings(QSettings.defaultFormat(),QSettings.Scope.UserScope,"ECU Studio","ECU Studio AI")
         self.theme=self.settings.value("ui/theme", "dark")
         if self.theme not in ("light","dark"): self.theme="light"
         self.actions={}
