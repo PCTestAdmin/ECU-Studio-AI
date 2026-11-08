@@ -102,6 +102,28 @@ def test_compiled_launcher_carries_the_icon(tmp_path):
     assert first in data                                       # icon image embedded as a resource
 
 
+@pytest.mark.skipif(sys.platform != 'win32' or not Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe').exists(),
+                    reason='Windows .NET compiler not available')
+def test_compiled_launcher_carries_the_program_version(tmp_path):
+    """Explorer > Properties > Details showed file version 0.0.0.0 up to 1.19.0."""
+    import subprocess
+    from ecu_studio.tools.build_portable_runtime import compile_launcher
+    exe = tmp_path / 'ECU-Studio-AI.exe'
+    compile_launcher(ROOT, exe, '7.8.9')
+    script = ("$v=(Get-Item -LiteralPath $env:EXE).VersionInfo;"
+              "$v.FileVersion;$v.ProductVersion;$v.ProductName;$v.CompanyName")
+    out = subprocess.run(['powershell', '-NoProfile', '-Command', script], capture_output=True, text=True,
+                         env={**os.environ, 'EXE': str(exe)}, check=True).stdout.split('\n')
+    assert [line.strip() for line in out[:4]] == ['7.8.9.0', '7.8.9', 'ECU Studio AI', 'PCTestAdmin']
+    first = next(png for *_, png in _entries((ASSETS / 'app.ico').read_bytes()))
+    assert first in exe.read_bytes()                           # icon still embedded
+
+
+def test_installer_carries_the_program_version():
+    installer = (ROOT / 'packaging' / 'installer.iss').read_text(encoding='utf-8-sig')
+    assert 'VersionInfoVersion={#AppVersion}' in installer
+
+
 def test_relaunch_properties_need_the_packaged_launcher():
     from ecu_studio import main
     assert main.launcher_path() is None                        # development run: python.exe, no launcher next to it

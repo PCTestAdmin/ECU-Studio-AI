@@ -13,6 +13,9 @@ AppId={{F8CD5330-FC90-4891-BFDA-58E6668C93A5}
 AppName=ECU Studio AI
 AppVersion={#AppVersion}
 AppVerName=ECU Studio AI {#AppVersion}
+; Windows file version of setup.exe (Properties > Details) instead of 0.0.0.0.
+VersionInfoVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
 AppPublisher=PCTestAdmin
 AppPublisherURL=https://github.com/PCTestAdmin/ECU-Studio-AI
 AppUpdatesURL=https://github.com/PCTestAdmin/ECU-Studio-AI/releases

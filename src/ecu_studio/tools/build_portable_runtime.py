@@ -40,6 +40,36 @@ def app_version(root: Path) -> str:
     return match.group(1)
 
 
+CSC=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
+
+
+def version_source(version: str) -> str:
+    """Assembly attributes for the starter: csc writes them into the Windows version
+    resource (Explorer > Properties > Details). Without them it shows 0.0.0.0."""
+    numeric=version+'.0'
+    return ('using System.Reflection;\n'
+            '[assembly: AssemblyTitle("ECU Studio AI")]\n'
+            '[assembly: AssemblyProduct("ECU Studio AI")]\n'
+            '[assembly: AssemblyCompany("PCTestAdmin")]\n'
+            f'[assembly: AssemblyVersion("{numeric}")]\n'
+            f'[assembly: AssemblyFileVersion("{numeric}")]\n'
+            f'[assembly: AssemblyInformationalVersion("{version}")]\n')
+
+
+def compile_launcher(root: Path, exe: Path, version: str) -> None:
+    """Compile the C# starter with program icon and version resource."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        info=Path(tmp)/'version_info.cs'
+        info.write_text(version_source(version),encoding='ascii')
+        # Program icon in the .exe: Explorer, Start menu, desktop shortcuts and the uninstall entry.
+        icon=root/'src'/'ecu_studio'/'ui'/'assets'/'app.ico'
+        subprocess.run([str(CSC),'/nologo','/target:winexe','/platform:x64','/optimize+',
+                        '/win32icon:'+str(icon),
+                        '/reference:System.Windows.Forms.dll','/out:'+str(exe),
+                        str(root/'packaging'/'windows_launcher.cs'),str(info)],check=True)
+
+
 def build():
     if sys.version_info[:2] != (3,13):raise RuntimeError('CPython 3.13 x64 required')
     root=Path(__file__).resolve().parents[3]
@@ -103,14 +133,7 @@ def build():
     # Separate updater: the app copies it out of the install folder and runs it after closing.
     shutil.copy2(root/'packaging'/'updater.ps1',output/'_internal'/'updater.ps1')
     (output/'VERSION.txt').write_text(version+'\n',encoding='ascii')
-    compiler=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
-    exe=output/EXE_NAME
-    # Program icon in the .exe: Explorer, Start menu, desktop shortcuts and the uninstall entry.
-    icon=root/'src'/'ecu_studio'/'ui'/'assets'/'app.ico'
-    subprocess.run([str(compiler),'/nologo','/target:winexe','/platform:x64','/optimize+',
-                    '/win32icon:'+str(icon),
-                    '/reference:System.Windows.Forms.dll','/out:'+str(exe),
-                    str(root/'packaging'/'windows_launcher.cs')],check=True)
+    compile_launcher(root,output/EXE_NAME,version)
     (output/'RUNTIME_NOTICE.txt').write_text(
         f'ECU Studio AI {version} portable\n'
         'C# starter source: windows_launcher.cs (process launch only).\n'
