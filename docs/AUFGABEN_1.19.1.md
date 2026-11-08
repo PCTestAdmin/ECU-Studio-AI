@@ -11,7 +11,14 @@ werden und die synthetischen Negativkontrollen nicht schlechter werden.
 
 ### 1. Zwei verlorene MSD80-Kennfelder untersuchen (bekannte Regression aus 1.19.0)
 
-MSD80 I8A0S (Teil-XDF, Entwicklungsdatei): 1.18.2 fand beide Tabellen exakt als Datenmuster-Funde, 1.19.0 nicht mehr.
+**Erledigt 07.11.2026 (Branch `feature/1.19.1-final-fixes`, [Entwicklungsbericht § 12](ENTWICKLUNG_1.19.1.md)):**
+Ursache war die Begrenzung auf 8 Registerzustände je Adresse in `tricore_refs._walk`; seit dem Verfolgen bedingter
+Sprünge (1.19.0) kamen an zwei Aufrufstellen mehr Zustände an, und die zuletzt eintreffenden mit der Tabellenadresse
+fielen weg. Mit 32 Zuständen werden beide Tabellen wieder exakt gefunden (84 → 86), kein anderes Paar ändert sich.
+Nur an der Entwicklungsdatei gemessen.
+
+Ursprüngliche Beschreibung (Korrektur: 1.18.2 fand beide Tabellen über TriCore-Interpolationsaufrufe, nicht als
+Datenmuster-Funde): MSD80 I8A0S (Teil-XDF, Entwicklungsdatei): 1.18.2 fand beide Tabellen exakt, 1.19.0 nicht mehr.
 Die Erkennung kam netto auf 73 → 84 exakt (13 neu, 2 verloren).
 
 | Tabelle laut XDF | 1.19.0 findet dort |
@@ -121,7 +128,15 @@ unbekannter Architektur. Auf 21 von 22 lokalen Dateien und auf Zufallsdaten lief
 Adresszielen, davon 0 exakte Referenzstarts. Im Scan entsteht daraus ein unbegründeter Code-Beleg bei `0x5C6` (4 × 4,
 nicht in der XDF). Unverändert seit 1.19.0.
 
-- Ohne HC11-, 8051- und 68k-Referenzimages (Firmware + Definition) keine Regeländerung: jede Verschärfung der
-  Anreicherungsprüfung ist sonst unbelegt.
+**Erledigt 07.11.2026 (Branch `feature/1.19.1-final-fixes`, [Entwicklungsbericht § 12](ENTWICKLUNG_1.19.1.md)):**
+Keine Schwellenänderung. Die HC11-/8051-Suche bildet 16-Bit-Adressen linear auf die Datei ab; das ist nur für Images
+bis 64 KiB möglich (so auch die ursprüngliche Absicht in c326003). Auf größeren Images lief sie trotzdem und las
+zufällige `CE hi lo`-Bytes als Ladebefehle (06A: 1090 Treffer, 933 davon außerhalb des adressierbaren Fensters).
+HC11/8051 jetzt nur bis 64 KiB; 68k unverändert. Auf 38 lokalen Images ändert sich nur 06A (kein CPU-Befund mehr,
+Code-Beleg 0x5C6 entfällt, exakte Funde unverändert).
+
+Weiter offen:
+
+- Ohne HC11-, 8051- und 68k-Referenzimages (Firmware + Definition) keine Änderung der Anreicherungsschwellen.
 - Mit Referenzdaten: prüfen, ob die Anreicherung zusätzlich echte Befehlsdichte der Familie verlangen muss
   (wie in `core/architecture`).
