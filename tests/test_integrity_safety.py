@@ -200,6 +200,59 @@ def test_unknown_family_with_strong_structural_proof_is_correctable_and_marked()
     assert not result.errors and result.status == ig.INCOMPLETE      # never valid without identification
 
 
+def _structure(entries):
+    """Unidentified image with one table of exactly `entries` proven entries (record 0 covers the table)."""
+    ranges = [(TABLE, TABLE + 0x2FF)] + [(0x400 * k, 0x400 * k + 0x3FF) for k in range(1, entries)]
+    image = _multipoint(epk=None, ranges=ranges)
+    _edit(image, 0x1400)
+    return image
+
+
+@pytest.mark.parametrize('entries,unlocked', [(31, False), (32, True)])
+def test_rule_b_boundary_of_proven_entries(entries, unlocked):
+    """Rule B, end to end: 31 proven entries stay check-only, 32 unlock the (marked) correction."""
+    assert ig.MIN_STRUCTURAL_PROOF == 32 and ig.MIN_RUN_PROOF == 16
+    image = _structure(entries)
+    report = ig.check_integrity(image)
+    m = _locked(report)
+    assert m.evidence['proven_entries'] == entries and m.evidence['largest_table'] == entries
+    assert report.status == ig.INVALID                                  # always checked and shown
+    assert report.correctable is unlocked
+    assert m.evidence['basis'] == ('struktur' if unlocked else 'gesperrt')
+    plan = ig.plan_correction(image, report)
+    assert bool(plan.steps) is unlocked
+    if unlocked:
+        assert any('nicht eindeutig identifiziert' in w for w in plan.warnings)
+        assert ig.apply_correction(image, plan).status == ig.INCOMPLETE   # never "valid"
+
+
+@pytest.mark.parametrize('proven,largest,inferred,basis', [
+    (32, 16, 0, 'struktur'),
+    (32, 15, 0, 'gesperrt'),        # enough entries in total, but no table with 16: several small tables
+    (31, 31, 0, 'gesperrt'),
+    (200, 200, 1, 'gesperrt'),      # one entry inferred from an already modified original
+    (0, 0, 0, 'gesperrt'),
+])
+def test_rule_b_thresholds_without_identification(proven, largest, inferred, basis):
+    """The gate itself at its limits; the thresholds are a safety decision, not a property of the ECU."""
+    m = ig.MethodResult('bosch-multipoint')
+    m.evidence.update(proven_entries=proven, largest_table=largest, inferred_entries=inferred)
+    ig._gate_multipoint(m, None, 'unbekannt')
+    assert m.evidence['basis'] == basis
+    assert bool(m.correction) is (basis == 'gesperrt')
+
+
+def test_rule_a_needs_an_unambiguous_identification():
+    """Rule A: ME7/ME9/MED9 only when unambiguous; a vague family hint falls back to rule B."""
+    for family, level, basis in [('ME7.5', 'eindeutig', 'familie'), ('MED9.1', 'eindeutig', 'familie'),
+                                 ('ME9', 'eindeutig', 'familie'), ('ME7.5', 'mehrdeutig', 'gesperrt'),
+                                 ('EDC17C46', 'eindeutig', 'gesperrt')]:
+        m = ig.MethodResult('bosch-multipoint')
+        m.evidence.update(proven_entries=5, largest_table=5, inferred_entries=0)
+        ig._gate_multipoint(m, family, level)
+        assert m.evidence['basis'] == basis, (family, level)
+
+
 def test_family_identified_as_something_else_locks_multipoint(monkeypatch):
     from ecu_studio.core import identification
     real = identification.identify

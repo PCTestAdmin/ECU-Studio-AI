@@ -1,7 +1,18 @@
-## Unveröffentlicht – Checksummen & Integrität (Branch `feature/1.20-checksum-system`)
+## Unveröffentlicht – geplant als 1.20.0 (Entwurf)
 
-Ein gemeinsames Checksummen- und Integritätssystem. Kein Release, keine neue Versionsnummer. Bestandsaufnahme,
-Nachweise und Grenzen: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Noch kein Release und keine neue
+Versionsnummer: Beides erfolgt erst nach Freigabe. Keine untersuchte Originaldatei erreicht eine vollständige
+Checksummenabdeckung, und es gibt keine Flashfreigabe. Release-Notes-Entwurf (Deutsch/Englisch):
+[RELEASE_NOTES_1.20.0.md](docs/RELEASE_NOTES_1.20.0.md). Bestandsaufnahme, Nachweise und Grenzen:
+[Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
+Für 1.20.0 sind außerdem zwei eigene Korrekturen vorgesehen, die in getrennten Pull Requests liegen:
+- [PR #20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20): Der Definitionseditor zeigt nach einem
+  Dateiwechsel keine Werte der vorherigen Firmware mehr.
+- [PR #21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21): Testläufe und der Oberflächentest schreiben nicht
+  mehr in die Einstellungen einer installierten Version.
+
+### Checksummen & Integrität
 
 - **Fünf Status:** Unterstützt und gültig, Unterstützt und ungültig, Unvollständige Prüfung, Nicht unterstützt,
   Unbekannt. Ein generisches Verfahren, das zufällig passt, macht eine Datei nie gültig.

@@ -181,13 +181,28 @@ und Fahrgestellnummer) und nur Dateien eigener Fahrzeuge oder mit Zustimmung des
 
 Prüfsummen-Unterstützung wird eigenständig nachgewiesen: Ein Verfahren gilt nur dann als unterstützt, wenn es den
 gespeicherten Wert aus der **unveränderten Originaldatei** exakt reproduziert. Nichts wird aus dem Familiennamen
-geschlossen. **Ab dem Branch `feature/1.20-checksum-system`** fasst `core/integrity.py` alle Verfahren zu einem Status
-(gültig / ungültig / unvollständig / nicht unterstützt / unbekannt) zusammen. Bestandsaufnahme, Nachweise und Grenzen:
-[Checksummen und Integrität](CHECKSUMMEN.md).
+geschlossen. **Ab 1.20.0** (in Prüfung, [PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)) fasst
+`core/integrity.py` alle Verfahren zu einem Status (gültig / ungültig / unvollständig / nicht unterstützt /
+unbekannt) zusammen. Bestandsaufnahme, Nachweise und Grenzen: [Checksummen und Integrität](CHECKSUMMEN.md).
+
+**Einordnung für 1.20.0.** Keine untersuchte Originaldatei erreicht eine vollständige Checksummenabdeckung. Keine
+Familie ist „vollständig unterstützt“, und es gibt keine Flashfreigabe.
+
+| Einordnung | Verfahren | Prüfung | Korrektur |
+|---|---|---|---|
+| **Unterstützt** (unabhängig belegt) | Bosch-Multipoint-Tabellen (ME7.x, ME9, MED9) | ja | ja, mit Vorschau und nur bei ausreichendem Beleg |
+| **Unterstützt** (vom Nutzer belegt) | geprüftes, SHA-256-gebundenes Profil | nur die deklarierten Prüffelder | ja |
+| **Teilweise geprüft** | Bosch MED17/EDC17-Blöcke (EDC17CP09: 8 von 11 Strukturen bestätigt) | ja | gesperrt (OEM-Nachweis) |
+| **Teilweise geprüft** | Bosch EDC16-Bereiche (EDC16C31, EDC16C35) | ja | gesperrt (OEM-Nachweis) |
+| **Nicht unterstützt** | weitere ME7-Prüfsummen (ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen) | nein | nein |
+| **Nicht unterstützt** | Siemens/Continental (MS4x, MSD8x, Simos, SID), Bosch MG1/MD1, übrige Familien | nein | nein |
+| **Nie** | digitale Herstellersignaturen | nur als erwartet/erkannt ausgewiesen | nie verändert |
+
+Einzelheiten je Verfahren:
 
 | Verfahren | Familien | Status | Nachweis |
 |---|---|---|---|
-| Bosch-Multipoint-Tabelle (Start, Ende, Wert, ~Wert; Summe der 16-Bit-Wörter) | ME7.x, MED9, ME9 | **unabhängig belegt**: 199/199 Herstellerwerte in drei Originalen, Verfahren wie ME7Sum; deckt nur die Tabellen ab. Korrektur nur bei eindeutig identifiziertem ME7/ME9/MED9 oder ≥ 32 am Original bestätigten Einträgen, sonst nur Prüfung | `core/integrity.py`, `core/checksum_tables.py` |
+| Bosch-Multipoint-Tabelle (Start, Ende, Wert, ~Wert; Summe der 16-Bit-Wörter) | ME7.x, MED9, ME9 | **unabhängig belegt**: 199/199 Herstellerwerte in drei Originalen, Verfahren wie ME7Sum; deckt nur die Tabellen ab. Korrektur nur bei eindeutig identifiziertem ME7/ME9/MED9 oder ≥ 32 am Original bestätigten Einträgen, davon ≥ 16 in einer Tabelle (Sicherheitsentscheidung, keine Eigenschaft des Steuergeräts), sonst nur Prüfung | `core/integrity.py`, `core/checksum_tables.py` |
 | Selbstbeschreibende Tabellen mit anderem generischem Verfahren (Byte-/Doppelwortsumme, CRC32) | – | experimentell: nur Prüfung, keine Korrektur | `core/checksum_tables.py` |
 | Bosch MED17/EDC17-Prüfsummenblöcke (CRC32/ADD32/ADD16, Signatur FADECAFE/CAFEAFFE) | MED17, EDC17 (inkl. EDC17CP09) | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc17_checksum.py` |
 | Bosch EDC16U1/U31/U34-Prüfsummenbereiche (FADECAFE/CAFEAFFE, BE-DWORD-Summe) | EDC16 MPC5xx | **rechnerisch implementiert; OEM-Nachweis fehlt** – Prüfung möglich, Korrektur gesperrt | `core/edc16_checksum.py` |

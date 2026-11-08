@@ -1,8 +1,8 @@
 # Checksummen und Integrität
 
-Stand: 08.11.2026, Branch `feature/1.20-checksum-system` (Basis 1.19.1). Diese Seite dokumentiert die
-Bestandsaufnahme, die Architektur, die Nachweise je Verfahren und die Grenzen. Firmwaredateien liegen **nicht** im
-Repository. Hier stehen nur Zählwerte und Hash-Präfixe.
+Stand: 08.11.2026, Branch `feature/1.20-checksum-system` (Basis 1.19.1, geplant für 1.20.0). Diese Seite
+dokumentiert die Bestandsaufnahme, die Architektur, die Nachweise je Verfahren und die Grenzen. Firmwaredateien
+liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 
 **Kurz:**
 - Jede Datei erhält genau einen von fünf Status.
@@ -11,6 +11,23 @@ Repository. Hier stehen nur Zählwerte und Hash-Präfixe.
   gesperrt.
 - Signaturen werden getrennt ausgewiesen und nie geprüft, erzeugt oder verändert.
 - Kein Ergebnis ist eine Flashfreigabe.
+
+**Einordnung für 1.20.0 – erste validierte Ausbaustufe.** Keine untersuchte Originaldatei erreicht eine
+vollständige Checksummenabdeckung.
+
+| Einordnung | Verfahren | Prüfung | Korrektur |
+|---|---|---|---|
+| **Unterstützt** (unabhängig belegt) | Bosch-Multipoint-Tabellen (ME7.x, ME9, MED9) | ja | ja, nur unter Regel A oder B (§ 2) |
+| **Unterstützt** (vom Nutzer belegt) | geprüftes, SHA-256-gebundenes Profil | nur deklarierte Prüffelder | ja |
+| **Teilweise geprüft** | MED17/EDC17-Blöcke, EDC16-Bereiche | ja | gesperrt bis zum signierten OEM-Nachweis |
+| **Nicht unterstützt** | weitere ME7-Prüfsummen; Siemens/Continental; MG1/MD1; übrige Familien | nein | nein |
+| **Nie** | digitale Herstellersignaturen | nicht verifiziert | nie verändert |
+
+Daraus folgt ausdrücklich:
+- Nicht alle Checksummen werden automatisch korrigiert.
+- ME7, ME9, EDC16 und EDC17 sind nicht vollständig unterstützt.
+- Eine korrigierte Datei ist nicht flashbereit.
+- Signaturen werden nicht verifiziert.
 
 ---
 
@@ -292,7 +309,12 @@ die numpy-Wortsummen.
 - Keine der untersuchten Originaldateien hat eine vollständige Checksummenabdeckung. ECU Studio AI erteilt keine
   Flashfreigabe.
 - Die Grenzwerte der Regel B (32/16 Einträge) sind eine Sicherheitsabwägung, keine Messgröße des Steuergeräts. Sie
-  liegen deutlich unter den 63 Einträgen der ME9-Referenz und deutlich über zufälligen oder kleinen Tabellen.
+  liegen deutlich unter den 63 Einträgen der ME9-Referenz und deutlich über zufälligen oder kleinen Tabellen. Die
+  Grenzen selbst sind getestet (`tests/test_integrity_safety.py`):
+  - 31 bestätigte Einträge bleiben gesperrt, 32 geben die gekennzeichnete Korrektur frei.
+  - Eine größte Tabelle mit 15 Einträgen bleibt gesperrt, eine mit 16 nicht.
+  - Ein einziger abgeleiteter Eintrag sperrt immer.
+  - Regel A gilt nur bei eindeutiger Identifikation.
 - Die ME9-Referenz wird von der Identifikation nicht erkannt (Familie leer). Eine bessere ME9-Identifikation würde
   sie von Regel B auf Regel A heben.
 

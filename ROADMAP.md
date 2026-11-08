@@ -125,7 +125,11 @@ Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 ## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.0_in_Prüfung-0969da?style=for-the-badge)
 
 Diese Funktionen sind im Quellcode fertig und liegen zur Prüfung in
-[Pull Request #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19). Sie kommen erst nach Freigabe mit 1.20.0.
+[Pull Request #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19) und
+[#20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20). Sie kommen erst nach Freigabe mit 1.20.0, der
+**ersten validierten Ausbaustufe** des Checksummensystems: Keine untersuchte Originaldatei erreicht bisher eine
+vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe
+([Release-Notes-Entwurf](docs/RELEASE_NOTES_1.20.0.md)).
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
@@ -144,6 +148,11 @@ Diese Funktionen sind im Quellcode fertig und liegen zur Prüfung in
 **Ehrlicher Preflight** – Profil-Prüffelder, bekannte Prüfsummen, vollständige Abdeckung, Signaturen und Flashfreigabe werden getrennt angezeigt. Ein Teilprofil oder eine unvollständige Prüfung ergibt nie einen sauberen Preflight.
 
 </td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
+<tr><td>
+
+**Stabiler Definitionseditor** – Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei mehr; ohne Kennfeldauswahl sind die Bearbeitungsfunktionen gesperrt.
+
+</td><td align="center"><b>1.20.0<br>(PR #20)</b></td></tr>
 </table>
 
 <br>
@@ -165,7 +174,7 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 | | Thema | Stand |
 |:--:|---|---|
-| 🧮 | **Checksummen & Integrität (1.20.0)** | Fertig im Quellcode, Review-Nachbesserungen eingearbeitet; wartet auf Freigabe ([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)) |
+| 🧮 | **Checksummen & Integrität (1.20.0)** | Fertig im Quellcode, Review-Nachbesserungen eingearbeitet, Release-Kandidat mit Installer-Test auf frischen Windows-Systemen geprüft; wartet auf Freigabe ([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19), [Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
 
@@ -173,10 +182,33 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 ## ![Als Nächstes](https://img.shields.io/badge/📋_ALS_NÄCHSTES-geplant-8250df?style=for-the-badge)
 
+Zunächst geplant, noch nicht begonnen. Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
+gemessen ist.
+
+**Hohe Priorität – Checksummen und Steuergeräte**
+
 | | Thema | Warum |
 |:--:|---|---|
-| 🧮 | **ME7-Prüfsummen vollständig** | ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen fehlen noch – erst dann kann eine ME7-Datei „gültig“ statt „unvollständig“ sein |
-| 🔎 | **ME9 sicher identifizieren** | Die ME9-Referenz wird noch nicht als Familie erkannt; ihre Prüfsummenkorrektur stützt sich bisher nur auf die Tabellen der Datei |
+| 🔎 | **1. ME9-Identifikation verbessern** | Die ME9-Referenz wird noch nicht als Familie erkannt; ihre Prüfsummenkorrektur stützt sich bisher nur auf die Tabellen der Datei (Regel B statt A) |
+| 🧮 | **2. Fehlende ME7-Prüfsummenverfahren untersuchen** | ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen fehlen noch – erst dann kann eine ME7-Datei „gültig“ statt „unvollständig“ sein |
+| 🧮 | **3. EDC17-Blockprüfungen erweitern** | EDC17CP09: 3 von 11 Strukturen unbestätigt; weitere EDC17-/MED17-Varianten ungemessen |
+| 🧪 | **4. Unabhängige Validierung weiterer Steuergerätefamilien** | Zwei Softwarestände je Familie mit dokumentierter Herkunft, bevor ein Verfahren als „unterstützt“ gilt |
+| 🧮 | **5. Checksummen für Siemens/Continental** | MS4x, MSD8x, Simos, SID: bisher kein Verfahren („nicht unterstützt“) |
+| 🚗 | **6. Moderne Familien wie MG1 und MD1** | Erst, sobald rechtmäßig verwendbare Referenzen vorliegen |
+
+**Mittlere Priorität – Dokumentation**
+
+| | Thema | Warum |
+|:--:|---|---|
+| 🌐 | **7. Dokumentationswebsite** | GitHub Pages mit MkDocs: eine durchsuchbare Seite statt verteilter Markdown-Dateien |
+| 📘 | **8. Zweisprachiges Benutzerhandbuch** | Deutsch und Englisch, passend zur zweisprachigen Oberfläche |
+| 🚗 | **9. Alle unterstützten Steuergeräte dokumentieren** | Je Familie: Kennfelderkennung, Prüfsummen, Messwerte und Grenzen auf einer Seite |
+| 🖼️ | **10. Schritt-für-Schritt-Anleitungen mit Screenshots** | Öffnen, Scannen, Prüfsummen prüfen, korrigierte Kopie, Projekt – aus echten Aufnahmen mit synthetischen Dateien |
+
+**Weitere Vorhaben**
+
+| | Thema | Warum |
+|:--:|---|---|
 | 🧩 | **TunerStudio-Abstimmungen öffnen** | Speeduino, rusEFI, MegaSquirt – die Definition ist dort öffentlich |
 | 🧠 | **Kennfelder aus dem Programmcode für Bosch** | Für Siemens MSD80 (TriCore) fertig; EDC17 und MED17 übergeben Kennfelder anders und brauchen eigene Referenzen |
 | 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
