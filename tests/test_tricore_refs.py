@@ -393,8 +393,10 @@ def test_real_msd80_calls_find_reference_tables_without_conflicts(msd80):
     exact = {(r.offset, r.width) for r in ref if min(r.rows, r.cols) >= 4 and any(
         m.offset == r.offset and m.width == r.width and {m.rows, m.cols} == {r.rows, r.cols} for m in maps)}
     # 39 before TriCore calls, 61 with a5/a6, 71 with stack + prelookup, 73 with named neighbours,
-    # 74 with conditional branches, 84 with record headers (1.19 development)
-    assert len(exact) >= 84
+    # 74 with conditional branches, 84 with record headers (1.19 development), 86 with 32 register
+    # states per join point (0x4FB18 and 0x5604C, exact in 1.18.2, lost with 8 states in 1.19.0)
+    assert len(exact) >= 86
+    assert {(0x4FB18, 2), (0x5604C, 2)} <= exact
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
     assert len(called) > 700
     scalars = set()
@@ -440,6 +442,39 @@ def test_register_state_reaches_conditional_branch_targets(monkeypatch):
     assert set(call_descriptors(data)) == set(tables)
     monkeypatch.setattr(tricore_refs, 'FOLLOW_BRANCHES', False)
     assert call_descriptors(data) == {}         # after the ret only the branch carries a4
+
+
+def many_paths_code(tables, base):
+    """Per table pair: a4 = first table, nine conditional jumps to a join point (each with
+    another unrelated a12), a4 = second table, a last jump, ret; at the join the shared axes
+    and the call. The second table reaches the call only in the state that arrives last."""
+    code = bytearray()
+    for a, b in zip(tables[0::2], tables[1::2]):
+        code += load(4, a)
+        jumps = []
+        for k in range(9):
+            code += movh_a(12, 0x1000 + k)
+            jumps.append(len(code))
+            code += b'\0\0'
+        code += load(4, b)
+        jumps.append(len(code))
+        code += b'\0\0' + RET
+        join = len(code)
+        for j in jumps:
+            code[j:j + 2] = jz16(base + j, base + join)
+        code += load(5, 0xC000) + load(6, 0xC010) + call(base + len(code) + 16, 0x7000) + RET
+    return bytes(code)
+
+
+def test_states_from_many_branches_keep_every_table_of_a_call_site(monkeypatch):
+    # 1.19.0 kept 8 states per join point: the state with the second table arrived ninth
+    # and was cut off (MSD80 0x4FB18 / 0x5604C, exact in 1.18.2, lost in 1.19.0).
+    data, tables = image_with(many_paths_code)
+    found = call_descriptors(data)
+    assert set(found) == set(tables)
+    assert all(found[t].x_axis.header == 0xC000 and found[t].y_axis.header == 0xC010 for t in tables)
+    monkeypatch.setattr(tricore_refs, 'MAX_STATES', 8)
+    assert not set(tables[1::2]) & set(call_descriptors(data))
 
 
 def u16(*v):
