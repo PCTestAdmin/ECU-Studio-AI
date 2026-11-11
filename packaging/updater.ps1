@@ -19,6 +19,18 @@ registry) and are not touched. Exit codes: 0 updated, 2 verification failed
 -Restore swaps the installation with <folder>.backup instead (the previous
 version; afterwards the replaced version is the new backup), runs the same
 self-check and swaps back if the restored version does not start.
+
+-Installer <setup.exe> (from 1.20.1, installations made with the installer):
+instead of swapping folders, the verified setup of the new version runs silently
+over the installation. Inno Setup then knows every program file (uninstall log),
+updates its uninstaller and the version shown in "Apps & Features", and removes
+unchanged files the new version no longer ships. Before that the program folder is
+copied to <folder>.backup; if the setup, the version/inventory check or the
+self-check fails, that copy is put back (exit 3).
+
+After a ZIP update, a restore or a rollback the version in "Apps & Features"
+(DisplayVersion/DisplayName of the Inno uninstall entry) is set to the installed
+version, but only when that entry's InstallLocation is exactly this folder.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
@@ -28,7 +40,12 @@ param(
     [string]$LogFile = '',
     [string]$CheckArguments = '--self-check',
     [switch]$Relaunch,
-    [switch]$Restore
+    [switch]$Restore,
+    [string]$Installer = '',
+    [string]$ExpectedVersion = '',
+    [string[]]$InstallerArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCANCEL', '/SP-'),
+    # Inno Setup uninstall entry of the per-user installation (AppId in installer.iss); '' = do not touch.
+    [string]$UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F8CD5330-FC90-4891-BFDA-58E6668C93A5}_is1'
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell started from a PowerShell 7 session inherits PSModulePath and may then
@@ -89,10 +106,50 @@ function Rename-WithRetry([string]$path, [string]$newName, [int]$timeoutSeconds 
     throw $last
 }
 
+function Get-UninstallEntry {
+    # The Inno uninstall entry if it belongs to THIS folder, else $null (other copy, portable, tests).
+    if (-not $UninstallKey -or -not (Test-Path -LiteralPath $UninstallKey)) { return $null }
+    try { $entry = Get-ItemProperty -LiteralPath $UninstallKey -ErrorAction Stop } catch { return $null }
+    $location = [string]$entry.InstallLocation
+    if (-not $location) { return $null }
+    try { $location = [System.IO.Path]::GetFullPath($location.TrimEnd('\')) } catch { return $null }
+    if ($location -ne $InstallDir) { return $null }      # -ne is case-insensitive
+    return $entry
+}
+
+function Sync-UninstallEntry {
+    # Keep "Apps & Features" in line with the version that is actually installed.
+    if ($null -eq (Get-UninstallEntry)) { return }
+    try {
+        $version = (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION.txt') -Raw).Trim()
+        if ($version -notmatch '^\d+\.\d+\.\d+$') { return }
+        Set-ItemProperty -LiteralPath $UninstallKey -Name 'DisplayVersion' -Value $version
+        Set-ItemProperty -LiteralPath $UninstallKey -Name 'DisplayName' -Value "ECU Studio AI $version"
+        Log ('Versionsanzeige in Apps & Features: ' + $version)
+    } catch { Log ('Versionsanzeige nicht angepasst: ' + $_.Exception.Message) }
+}
+
+function Get-InventoryProblem([string]$folder) {
+    # First file of RUNTIME_INVENTORY.json that is missing or differs, $null when all match.
+    $path = Join-Path $folder 'RUNTIME_INVENTORY.json'
+    if (-not (Test-Path -LiteralPath $path)) { return 'RUNTIME_INVENTORY.json fehlt' }
+    $inventory = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($entry in $inventory.files) {
+        $file = Join-Path $folder ($entry.path -replace '/', '\')
+        if (-not (Test-Path -LiteralPath $file)) { return "fehlt: $($entry.path)" }
+        if ((Get-Sha256 $file) -ne $entry.sha256) { return "abweichend: $($entry.path)" }
+    }
+    return $null
+}
+
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir.TrimEnd('\'))
 $backup = $InstallDir + '.backup'
 $staging = $InstallDir + '.update-staging'
 if ($Restore) { Log "Wiederherstellung gestartet: $backup -> $InstallDir" }
+elseif ($Installer) {
+    if (-not $Sha256) { Fail 2 'Sha256 ist für ein Update per Installer erforderlich.' }
+    Log "Update per Installer gestartet: $Installer -> $InstallDir"
+}
 elseif (-not $Archive -or -not $Sha256) { Fail 2 'Archive und Sha256 sind für ein Update erforderlich.' }
 else { Log "Update gestartet: $Archive -> $InstallDir" }
 
@@ -130,9 +187,65 @@ if ($Restore) {
             Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
             Rename-WithRetry $swap (Split-Path $backup -Leaf)
         } catch { Fail 4 ('Zurücktauschen fehlgeschlagen; Versionen liegen in ' + $InstallDir + ' und ' + $backup) }
+        Sync-UninstallEntry
         Fail 3 'Die gesicherte Version startete nicht – die bisherige Version bleibt aktiv.'
     }
     Log "Vorherige Version wiederhergestellt; die ersetzte Version liegt jetzt in $backup."
+    Sync-UninstallEntry
+    if ($Relaunch) { Start-Process -FilePath (Join-Path $InstallDir $ExeName) -WorkingDirectory $InstallDir | Out-Null }
+    exit 0
+}
+
+if ($Installer) {
+    # Installer route: only for an installation registered by the installer for exactly this folder.
+    if (-not (Test-Path -LiteralPath (Join-Path $InstallDir 'unins000.exe'))) { Fail 2 'Keine Installer-Installation (unins000.exe fehlt) – nichts wurde verändert.' }
+    if ($UninstallKey -and $null -eq (Get-UninstallEntry)) { Fail 2 'Die Windows-Installation gehört zu einem anderen Ordner – nichts wurde verändert.' }
+    if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) { Fail 2 "Installer fehlt: $Installer" }
+    if ((Get-Sha256 $Installer) -ne $Sha256.ToLowerInvariant()) { Fail 2 'Prüfsumme des Installers stimmt nicht – nichts wurde verändert.' }
+    $installerSignature = (Get-AuthenticodeSignature -LiteralPath $Installer).Status
+    if ($installerSignature -eq 'Valid') { Log 'Installer-Signatur gültig.' }
+    elseif ($installerSignature -eq 'NotSigned') { Log 'Installer ist nicht signiert (Integrität per SHA-256 geprüft).' }
+    else { Fail 2 ('Signatur des Installers ungültig: ' + $installerSignature) }
+
+    # Backup copy: the setup needs the folder in place, so copy instead of renaming.
+    if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
+    try {
+        Copy-Item -LiteralPath $InstallDir -Destination $backup -Recurse -Force -ErrorAction Stop
+        $before = @(Get-ChildItem -LiteralPath $InstallDir -Recurse -File -Force).Count
+        $copied = @(Get-ChildItem -LiteralPath $backup -Recurse -File -Force).Count
+        if ($before -ne $copied) { throw "Sicherung unvollständig ($copied von $before Dateien)" }
+    } catch {
+        if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue }
+        Fail 2 ('Sicherung der Installation nicht möglich – nichts wurde verändert: ' + $_.Exception.Message)
+    }
+    Log "Sicherung angelegt: $backup"
+
+    $setupLog = if ($LogFile) { [System.IO.Path]::ChangeExtension($LogFile, '.setup.log') } else { Join-Path ([System.IO.Path]::GetTempPath()) 'ECU-Studio-AI-setup.log' }
+    $arguments = @($InstallerArguments) + @(('/DIR="' + $InstallDir + '"'), ('/LOG="' + $setupLog + '"'))
+    $problem = $null
+    try {
+        $setup = Start-Process -FilePath $Installer -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
+        if ($setup.ExitCode -ne 0) { $problem = "Installer beendet mit Exit $($setup.ExitCode) (Protokoll: $setupLog)" }
+    } catch { $problem = 'Installer konnte nicht gestartet werden: ' + $_.Exception.Message }
+    if (-not $problem -and $ExpectedVersion) {
+        $installed = (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION.txt') -Raw -ErrorAction SilentlyContinue)
+        if (-not $installed -or $installed.Trim() -ne $ExpectedVersion) { $problem = "Nach dem Installer falsche Version: $installed" }
+    }
+    if (-not $problem) { $bad = Get-InventoryProblem $InstallDir; if ($bad) { $problem = "Installation unvollständig ($bad)" } }
+    if (-not $problem -and -not (Test-Start $InstallDir)) { $problem = 'Selbsttest der neuen Version fehlgeschlagen' }
+    if ($problem) {
+        Log ($problem + ' – Rollback.')
+        $failed = $InstallDir + '.update-failed'
+        try {
+            if (Test-Path -LiteralPath $failed) { Remove-Item -LiteralPath $failed -Recurse -Force }
+            Rename-WithRetry $InstallDir (Split-Path $failed -Leaf)
+            Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
+            Remove-Item -LiteralPath $failed -Recurse -Force -ErrorAction SilentlyContinue
+        } catch { Fail 4 ('Rollback fehlgeschlagen; vorherige Version liegt in ' + $backup) }
+        Sync-UninstallEntry
+        Fail 3 ('Das Update wurde nicht installiert – die vorherige Version wurde wiederhergestellt. ' + $problem)
+    }
+    Log "Update per Installer installiert; vorherige Version bleibt als Sicherung in $backup."
     if ($Relaunch) { Start-Process -FilePath (Join-Path $InstallDir $ExeName) -WorkingDirectory $InstallDir | Out-Null }
     exit 0
 }
@@ -211,6 +324,7 @@ if (-not (Test-Start $InstallDir)) {
     Fail 3 'Die neue Version startete nicht korrekt – die vorherige Version wurde wiederhergestellt.'
 }
 Log "Update installiert; vorherige Version bleibt als Sicherung in $backup."
+Sync-UninstallEntry
 
 # 8. Start the new version.
 if ($Relaunch) { Start-Process -FilePath $exe -WorkingDirectory $InstallDir | Out-Null }

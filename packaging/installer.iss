@@ -56,6 +56,78 @@ Name: "{userdesktop}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; Workin
 Filename: "{app}\ECU-Studio-AI.exe"; Description: "ECU Studio AI starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Folders the updater creates next to the program folder.
+; Folders the updater creates next to the program folder. Program files themselves are removed by the
+; uninstall log and by the inventory cleanup in [Code] below, never by a pattern rule such as {app}\_internal.
 Type: filesandordirs; Name: "{app}.backup"
 Type: filesandordirs; Name: "{app}.update-staging"
+
+[Code]
+// Program files by inventory (packaging/uninstall_cleanup.ps1, shipped in {app}\_internal):
+// - before uninstalling: every file of {app}\RUNTIME_INVENTORY.json that is unchanged (SHA-256), also
+//   files an in-app update added after the last installer run (finding A5 of 1.20.0);
+// - after installing over an existing version: unchanged files of the previous version that the new
+//   version no longer ships.
+// User files, changed files and anything outside the program folder or behind a junction/link stay.
+// A failing cleanup never fails the setup or uninstall: the files then simply remain.
+const
+  CleanupScript = '_internal\uninstall_cleanup.ps1';
+  InventoryFile = 'RUNTIME_INVENTORY.json';
+
+var
+  PreviousInventory: String;
+
+function CleanupLogFile(): String;
+begin
+  Result := ExpandConstant('{localappdata}\ECUStudioAI\install-cleanup.log');
+end;
+
+procedure RunInventoryCleanup(Arguments: String);
+var
+  Shipped, Script: String;
+  ResultCode: Integer;
+begin
+  Shipped := ExpandConstant('{app}\') + CleanupScript;
+  if not FileExists(Shipped) then
+  begin
+    Log('Inventarbereinigung übersprungen, Skript fehlt: ' + Shipped);
+    Exit;
+  end;
+  // The script is itself listed in the inventory and removes its own file: run a temporary copy.
+  Script := ExpandConstant('{tmp}\uninstall_cleanup.ps1');
+  if not FileCopy(Shipped, Script, False) then
+  begin
+    Log('Inventarbereinigung übersprungen, Skript nicht kopierbar: ' + Shipped);
+    Exit;
+  end;
+  ForceDirectories(ExtractFileDir(CleanupLogFile()));
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+          '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + Script + '" -InstallDir "' +
+          ExpandConstant('{app}') + '" ' + Arguments + ' -LogFile "' + CleanupLogFile() + '"',
+          '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('Inventarbereinigung beendet, Exit ' + IntToStr(ResultCode))
+  else
+    Log('Inventarbereinigung nicht gestartet: ' + SysErrorMessage(ResultCode));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+  begin
+    PreviousInventory := '';
+    if FileExists(ExpandConstant('{app}\') + InventoryFile) then
+    begin
+      PreviousInventory := ExpandConstant('{tmp}\previous-inventory.json');
+      if not FileCopy(ExpandConstant('{app}\') + InventoryFile, PreviousInventory, False) then
+        PreviousInventory := '';
+    end;
+  end
+  else if (CurStep = ssPostInstall) and (PreviousInventory <> '') then
+    RunInventoryCleanup('-Mode Obsolete -Inventory "' + PreviousInventory + '" -Keep "' +
+                        ExpandConstant('{app}\') + InventoryFile + '"');
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    RunInventoryCleanup('-Mode Uninstall');
+end;
