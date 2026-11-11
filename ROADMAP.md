@@ -17,17 +17,39 @@
 
 <br>
 
-## ![Aktuell: 1.19.1](https://img.shields.io/badge/🎉_AKTUELL-1.19.1_·_veröffentlicht_08.11.2026-1a7f37?style=for-the-badge)
+## ![Aktuell: 1.20.0](https://img.shields.io/badge/🎉_AKTUELL-1.20.0_·_veröffentlicht_11.11.2026-1a7f37?style=for-the-badge)
 
 [Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest). Die automatische Update-Suche
 ist seit 1.18.0 ab Werk aus („Offline zuerst“) und lässt sich in den Einstellungen einschalten.
 
-**1.19.1** macht die Kennfelderkennung zuverlässiger: weniger Fehlfunde aus Programmcode, Text und Zeigertabellen,
-kein bisher exaktes Kennfeld verloren ([Entwicklungsbericht](docs/ENTWICKLUNG_1.19.1.md)). Die Clips sind echte
-Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten). Die neuesten Funktionen stehen oben.
+**1.20.0** bringt die **erste validierte Ausbaustufe** des Checksummen- und Integritätssystems
+([Release Notes](docs/RELEASE_NOTES_1.20.0.md)). Keine untersuchte Originaldatei erreicht bisher eine vollständige
+Checksummenabdeckung; eine erfolgreiche Teilprüfung ist keine vollständige Integritätsbestätigung, und es gibt keine
+Flashfreigabe. Die Clips sind echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
+Die neuesten Funktionen stehen oben.
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
+<tr><td>
+
+**Checksummen & Integrität** – Ein gemeinsamer Bereich mit fünf klaren Status: gültig, ungültig, unvollständig, nicht unterstützt, unbekannt. Ein zufällig passendes Verfahren macht eine Datei nie gültig. Bosch-Multipoint (ME7.x, ME9, MED9) ist unabhängig belegt: 199 von 199 Herstellerwerten. Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen ([Details](docs/CHECKSUMMEN.md)).
+
+</td><td align="center"><b>1.20.0</b></td></tr>
+<tr><td>
+
+**Sichere Prüfsummenkorrektur** – Vorschau mit jedem Byte, ausdrückliche Bestätigung, unabhängige Nachprüfung vor dem Schreiben. Korrigierte Kopie und Änderungsprotokoll bleiben auch bei Schreibfehlern konsistent. Korrektur nur, wenn Steuergerät oder Datei das Verfahren ausreichend belegen.
+
+</td><td align="center"><b>1.20.0</b></td></tr>
+<tr><td>
+
+**Ehrlicher Preflight** – Profil-Prüffelder, bekannte Prüfsummen, vollständige Abdeckung, Signaturen und Flashfreigabe werden getrennt angezeigt. Ein Teilprofil oder eine unvollständige Prüfung ergibt nie einen sauberen Preflight.
+
+</td><td align="center"><b>1.20.0</b></td></tr>
+<tr><td>
+
+**Stabiler Definitionseditor** – Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei mehr; ohne Kennfeldauswahl sind die Bearbeitungsfunktionen gesperrt.
+
+</td><td align="center"><b>1.20.0</b></td></tr>
 <tr><td>
 
 **Zuverlässigere Erkennung** – Prozessorarchitektur nur mit zwei unabhängigen Merkmalen. Keine Code-Belege auf fremden Architekturen, weniger Fehlfunde auf Text und Zeigertabellen. Auf sieben offenen Firmwareständen: nachweislich falsche Funde 921 → 0.
@@ -122,39 +144,14 @@ Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.0_in_Vorbereitung-0969da?style=for-the-badge)
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_geplant-0969da?style=for-the-badge)
 
-Diese Funktionen sind in `main` zusammengeführt
-([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19),
-[#20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20),
-[#21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21)). Sie erscheinen nach Freigabe mit 1.20.0, der
-**ersten validierten Ausbaustufe** des Checksummensystems: Keine untersuchte Originaldatei erreicht bisher eine
-vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe
-([Release Notes](docs/RELEASE_NOTES_1.20.0.md)).
-
-<table>
-<tr><th align="left">Neu</th><th>Version</th></tr>
-<tr><td>
-
-**Checksummen & Integrität** – Ein gemeinsamer Bereich mit fünf klaren Status: gültig, ungültig, unvollständig, nicht unterstützt, unbekannt. Ein zufällig passendes Verfahren macht eine Datei nie gültig. Bosch-Multipoint (ME7.x, ME9, MED9) ist unabhängig belegt: 199 von 199 Herstellerwerten. Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen ([Details](docs/CHECKSUMMEN.md)).
-
-</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
-<tr><td>
-
-**Sichere Prüfsummenkorrektur** – Vorschau mit jedem Byte, ausdrückliche Bestätigung, unabhängige Nachprüfung vor dem Schreiben. Korrigierte Kopie und Änderungsprotokoll bleiben auch bei Schreibfehlern konsistent. Korrektur nur, wenn Steuergerät oder Datei das Verfahren ausreichend belegen.
-
-</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
-<tr><td>
-
-**Ehrlicher Preflight** – Profil-Prüffelder, bekannte Prüfsummen, vollständige Abdeckung, Signaturen und Flashfreigabe werden getrennt angezeigt. Ein Teilprofil oder eine unvollständige Prüfung ergibt nie einen sauberen Preflight.
-
-</td><td align="center"><b>1.20.0<br>(PR #19)</b></td></tr>
-<tr><td>
-
-**Stabiler Definitionseditor** – Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei mehr; ohne Kennfeldauswahl sind die Bearbeitungsfunktionen gesperrt.
-
-</td><td align="center"><b>1.20.0<br>(PR #20)</b></td></tr>
-</table>
+**Deinstallation nach einem In-App-Update ohne Rückstände.** Wurde eine Installation über „Jetzt nach Updates suchen“
+aktualisiert, bleiben nach der Deinstallation Programmdateien zurück, die erst mit der neuen Version hinzukamen
+(1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht betroffen). Geplanter Fix ohne pauschale Löschregel: Der
+Deinstaller entfernt genau die Dateien, die laut `RUNTIME_INVENTORY.json` ausgeliefert und unverändert sind, und
+Installationen mit Installer werden künftig über den geprüften Installer aktualisiert
+([Plan](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation)).
 
 <br>
 
@@ -175,7 +172,6 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 | | Thema | Stand |
 |:--:|---|---|
-| 🧮 | **Checksummen & Integrität (1.20.0)** | In `main` zusammengeführt (PR #19, #20, #21), Version 1.20.0 vorbereitet; Release-Kandidat 1.20.0 auf frischen Windows-Systemen geprüft (Installation, Update per Installer, echtes In-App-Update aus 1.19.1); Veröffentlichung wartet auf Freigabe ([Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
 
@@ -236,6 +232,8 @@ Bitte keine Firmware hochladen.
 <details>
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
+
+**1.20.0** · 11.11.2026 – Checksummen & Integrität (erste validierte Ausbaustufe), sichere Prüfsummenkorrektur, getrennte Preflight-Stufen, stabiler Definitionseditor
 
 **1.19.1** · 08.11.2026 – Zuverlässigere Kennfelderkennung, zwei MSD80-Kennfelder wiederhergestellt
 
