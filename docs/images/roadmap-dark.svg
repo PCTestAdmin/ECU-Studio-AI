@@ -9,32 +9,32 @@
 <text x="171.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#3fb950">VERÖFFENTLICHT</text>
 <rect x="40" y="186" width="262" height="496" rx="12" fill="#161b22" stroke="#30363d"/>
 <rect x="40" y="186" width="262" height="6" rx="3" fill="#3fb950"/>
-<text x="58" y="224" font-size="20" font-weight="700" fill="#e6edf3">1.19.1</text>
-<text x="284" y="224" text-anchor="end" font-size="13" fill="#9198a1">08.11.2026</text>
+<text x="58" y="224" font-size="20" font-weight="700" fill="#e6edf3">1.20.0</text>
+<text x="284" y="224" text-anchor="end" font-size="13" fill="#9198a1">11.11.2026</text>
 <rect x="52" y="246" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="246" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="272" font-size="14" font-weight="600" fill="#e6edf3">Zuverlässigere Erkennung</text>
-<text x="68" y="293" font-size="12.5" fill="#9198a1">falsche Funde 921 → 0</text>
+<text x="68" y="272" font-size="14" font-weight="600" fill="#e6edf3">Checksummen &amp; Integrität</text>
+<text x="68" y="293" font-size="12.5" fill="#9198a1">Multipoint: 199 von 199 Werten</text>
 <rect x="52" y="318" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="318" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="344" font-size="14" font-weight="600" fill="#e6edf3">Kennfelder aus TriCore-Code</text>
-<text x="68" y="365" font-size="12.5" fill="#9198a1">MSD80: 39 → 86 von 99 exakt</text>
+<text x="68" y="344" font-size="14" font-weight="600" fill="#e6edf3">Sichere Prüfsummenkorrektur</text>
+<text x="68" y="365" font-size="12.5" fill="#9198a1">Vorschau · Nachprüfung · Protokoll</text>
 <rect x="52" y="390" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="390" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="416" font-size="14" font-weight="600" fill="#e6edf3">Definition bearbeiten</text>
-<text x="68" y="437" font-size="12.5" fill="#9198a1">mit Vorschau und Undo · 1.18</text>
+<text x="68" y="416" font-size="14" font-weight="600" fill="#e6edf3">Getrennte Preflight-Stufen</text>
+<text x="68" y="437" font-size="12.5" fill="#9198a1">Abdeckung ≠ Flashfreigabe</text>
 <rect x="52" y="462" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="462" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="488" font-size="14" font-weight="600" fill="#e6edf3">XDF-Export</text>
-<text x="68" y="509" font-size="12.5" fill="#9198a1">mit Rückimport-Prüfung · 1.18</text>
+<text x="68" y="488" font-size="14" font-weight="600" fill="#e6edf3">Zuverlässigere Erkennung</text>
+<text x="68" y="509" font-size="12.5" fill="#9198a1">falsche Funde 921 → 0 · 1.19.1</text>
 <rect x="52" y="534" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="534" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="560" font-size="14" font-weight="600" fill="#e6edf3">Offline zuerst</text>
-<text x="68" y="581" font-size="12.5" fill="#9198a1">Update-Suche ab Werk aus</text>
+<text x="68" y="560" font-size="14" font-weight="600" fill="#e6edf3">Kennfelder aus TriCore-Code</text>
+<text x="68" y="581" font-size="12.5" fill="#9198a1">MSD80: 39 → 86 von 99 · 1.19</text>
 <rect x="52" y="606" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="52" y="606" width="4" height="62" rx="2" fill="#3fb950"/>
-<text x="68" y="632" font-size="14" font-weight="600" fill="#e6edf3">Kennfeldpakete</text>
-<text x="68" y="653" font-size="12.5" fill="#9198a1">Definitionen austauschen · 1.17</text>
+<text x="68" y="632" font-size="14" font-weight="600" fill="#e6edf3">Definition bearbeiten</text>
+<text x="68" y="653" font-size="12.5" fill="#9198a1">mit Vorschau und Undo · 1.18</text>
 <circle cx="457.0" cy="150" r="15" fill="#d29922"/>
 <circle cx="457.0" cy="150" r="9" fill="#0d1117"/>
 <text x="457.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#d29922">IN ARBEIT</text>
@@ -44,24 +44,16 @@
 <text x="570" y="224" text-anchor="end" font-size="13" fill="#9198a1">jetzt</text>
 <rect x="338" y="246" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="246" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="272" font-size="14" font-weight="600" fill="#e6edf3">Checksummen &amp; Integrität</text>
-<text x="354" y="293" font-size="12.5" fill="#9198a1">1.20.0 · Release-Kandidat geprüft</text>
+<text x="354" y="272" font-size="14" font-weight="600" fill="#e6edf3">Deinstallation nach Update</text>
+<text x="354" y="293" font-size="12.5" fill="#9198a1">1.20.1 geplant · ohne Rückstände</text>
 <rect x="338" y="318" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="318" width="4" height="62" rx="2" fill="#d29922"/>
 <text x="354" y="344" font-size="14" font-weight="600" fill="#e6edf3">Prüfsummen EDC16 · EDC17</text>
 <text x="354" y="365" font-size="12.5" fill="#9198a1">berechnet · OEM-Nachweis fehlt</text>
 <rect x="338" y="390" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
 <rect x="338" y="390" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="416" font-size="14" font-weight="600" fill="#e6edf3">Sichere Prüfsummenkorrektur</text>
-<text x="354" y="437" font-size="12.5" fill="#9198a1">Vorschau · Nachprüfung · Protokoll</text>
-<rect x="338" y="462" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
-<rect x="338" y="462" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="488" font-size="14" font-weight="600" fill="#e6edf3">Getrennte Preflight-Stufen</text>
-<text x="354" y="509" font-size="12.5" fill="#9198a1">Abdeckung ≠ Flashfreigabe</text>
-<rect x="338" y="534" width="238" height="62" rx="8" fill="#0d1117" stroke="#30363d"/>
-<rect x="338" y="534" width="4" height="62" rx="2" fill="#d29922"/>
-<text x="354" y="560" font-size="14" font-weight="600" fill="#e6edf3">Signierte Updates</text>
-<text x="354" y="581" font-size="12.5" fill="#9198a1">aktiv mit Schlüssel</text>
+<text x="354" y="416" font-size="14" font-weight="600" fill="#e6edf3">Signierte Updates</text>
+<text x="354" y="437" font-size="12.5" fill="#9198a1">aktiv mit Schlüssel</text>
 <circle cx="743.0" cy="150" r="15" fill="#ab7df8"/>
 <circle cx="743.0" cy="150" r="9" fill="#0d1117"/>
 <text x="743.0" y="118" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#ab7df8">ALS NÄCHSTES</text>

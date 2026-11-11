@@ -1,10 +1,10 @@
 # Release-Checkliste 1.20.0
 
-Stand: 08.11.2026.
+Stand: 11.11.2026 – **veröffentlicht**.
 
-- PR #19, #20 und #21 sind in `main` gemergt.
-- Version 1.20.0 ist auf dem Branch `release/1.20.0-preparation` vorbereitet; der PR wird erst nach Freigabe gemergt.
-- Tag, GitHub-Release und Veröffentlichung erfolgen erst nach ausdrücklicher Freigabe.
+- PR #19, #20, #21 und #22 sind in `main` gemergt; PR #22 als `5dedb77`.
+- Tag `v1.20.0` (annotiert) zeigt auf `5dedb774d52dfa919967418a5eda42821a30bc8c`.
+- Release: [ECU Studio AI v1.20.0](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.0). Prüfung der veröffentlichten Dateien: A7.
 
 Release-Text: [RELEASE_NOTES_1.20.0.md](RELEASE_NOTES_1.20.0.md).
 
@@ -138,17 +138,63 @@ im Programmordner: `_internal\app\ecu_studio\core\integrity.py`.
 - Nicht betroffen sind Funktion, Benutzerdaten und Sicherheit.
 - Das Update per Installer ist nicht betroffen (45/45).
 
-**Offene Entscheidung:** Ein Eintrag `Type: filesandordirs; Name: "{app}\_internal"` unter `[UninstallDelete]` in
-`packaging/installer.iss` würde künftige Fälle für Installationen ab dem 1.20.0-Installer beheben. Für bestehende
-1.19.1-Installationen hilft er nicht. Er löscht außerdem Dateien, die ein Benutzer selbst in `_internal` abgelegt hat.
-Nicht umgesetzt; als bekannte Einschränkung dokumentiert.
+**Entscheidung (11.11.2026):** Für 1.20.0 als bekannte Einschränkung akzeptiert und in den Release Notes
+beschrieben. Eine pauschale Regel `Type: filesandordirs; Name: "{app}\_internal"` unter `[UninstallDelete]` wird
+**nicht** verwendet: Sie löscht auch Dateien, die ein Benutzer selbst in `_internal` abgelegt hat, und hilft
+bestehenden Installationen nicht.
+
+**Sicherer Fix für 1.20.1 (Plan):**
+
+1. **Deinstallation nach Inventar.** Jede Installation enthält `RUNTIME_INVENTORY.json`: alle ausgelieferten Dateien
+   mit SHA-256. Das In-App-Update ersetzt sie durch das Inventar der neuen Version (`packaging/updater.ps1`, Schritt 5
+   nutzt es schon, um Benutzerdateien zu erkennen). Der Deinstaller des 1.20.1-Installers
+   (`[Code]`, `CurUninstallStepChanged`, Schritt `usUninstall`) entfernt zusätzlich genau die Dateien, die
+   - im Inventar stehen,
+   - innerhalb von `{app}` liegen (keine absoluten Pfade, kein `..`) und
+   - denselben SHA-256 wie im Inventar haben.
+
+   Danach entfernt er nur leere Ordner. Nicht gelistete oder veränderte Dateien bleiben stehen und werden im
+   Deinstallationsprotokoll genannt.
+2. **Installer-Installationen per Installer aktualisieren.** Ist `unins000.exe` vorhanden, lädt das In-App-Update
+   den geprüften `ECU-Studio-AI-<version>-setup.exe` (SHA-256 aus dem Release, wie beim ZIP) und führt ihn still mit
+   `/DIR` auf den bestehenden Ordner aus. Inno Setup kennt dann alle Dateien, und „Apps & Features“ zeigt die richtige
+   Version. Portable ZIP-Installationen behalten den bisherigen Weg; Sicherung und Wiederherstellen bleiben erhalten.
+3. **Grenze:** Ein Deinstaller aus 1.19.1 oder 1.20.0 bleibt unverändert. Wer mit einem solchen Deinstaller
+   deinstalliert, kann den Ordner `%LOCALAPPDATA%\Programs\ECU-Studio-AI` danach löschen (Benutzerdaten liegen
+   außerhalb). Einen aktuellen Deinstaller erhält eine Installation, sobald sie einmal den Installer ab 1.20.1
+   ausführt oder über Punkt 2 aktualisiert wird. Das Update 1.20.0 → 1.20.1 läuft noch mit dem Update-Code von
+   1.20.0, Punkt 2 wirkt also erst bei Updates, die eine Version ab 1.20.1 ausführt.
+4. **Nachweis vor dem Release:** Installer-QA-Modus `InApp` (Branch `qa/1.20.0-rc2`, `.github/qa/installer_test.ps1`)
+   auf Windows Server 2022 und 2025, erweitert um
+   - eine eigene Datei in `_internal` (muss bleiben),
+   - eine veränderte ausgelieferte Datei (muss bleiben) und
+   - die Erwartung „keine weiteren Rückstände“.
+
+### A7. Prüfung der veröffentlichten Dateien (11.11.2026)
+
+Die SHA-256-Werte des Release-Kandidaten gelten nicht für das Release. Alle Werte hier stammen aus den
+veröffentlichten Dateien.
+
+| Prüfung | Ergebnis |
+|---|---|
+| [x] Release-Workflow | [Lauf 43048590191](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/43048590191) erfolgreich. Build mit 987 bestandenen und 20 übersprungenen Tests. Prüfung auf zurückgezogene Lerndaten (ZIP und Installer): „sauber“. Update von v1.19.1 auf windows-2022 und windows-2025 bestanden, ebenso Oberflächentest, Wiederherstellen und Installer-Installation mit Deinstallation |
+| [x] GitHub-Release | öffentlich, kein Entwurf, keine Vorabversion, „Latest“. Titel „ECU Studio AI v1.20.0“. Release-Text auf Deutsch und Englisch |
+| [x] `ECU-Studio-AI-1.20.0-windows-x64.zip` | SHA-256 `69cd922f211545c25f246c94bec5a472e41ac316b69ef0b96cba1e12ad5ec23b`. Stimmt mit der `.sha256`-Datei und dem GitHub-Digest überein (unabhängiger Download über die öffentlichen Links) |
+| [x] `ECU-Studio-AI-1.20.0-setup.exe` | SHA-256 `05a1751dfc9945f2555e8f227a8e004e9e9d0835917ae2a6b8ae181c65ab6ca8`. Stimmt mit der `.sha256`-Datei und dem GitHub-Digest überein |
+| [x] Build-Herkunft | `gh attestation verify` für ZIP und Installer gültig. Workflow `release.yml@refs/tags/v1.20.0`, Quell-Commit `5dedb774…`, Lauf 43048590191 |
+| [x] Version | `VERSION.txt` 1.20.0. EXE-Dateiversion 1.20.0.0, Produktversion 1.20.0. Installer-Version 1.20.0 |
+| [x] Inhalt | Inventar: 1313 Einträge, 0 Abweichungen. 0 Treffer gegen die privaten Referenz-Hashes. Nur öffentliche XDF-Definitionen. Programmcode identisch mit dem geprüften Release-Kandidaten (214 Dateien). Gegenüber 1.19.1 ist genau eine Datei neu (`integrity.py`) |
+| [x] Signaturen | keine Authenticode-Signatur (bekannt). Kein Update-Signaturschlüssel eingerichtet, daher keine `.sig`-Dateien (wie bei 1.19.1) |
+| [x] Update-Erkennung 1.19.1 | Der Update-Code von 1.19.1 erkennt gegen die echte GitHub-API 1.20.0 als verfügbar. Er lädt das ZIP und prüft es (SHA-256 wie oben) |
+| [x] Installer-QA mit den veröffentlichten Dateien | [Lauf 43050701572](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/43050701572), Branch `qa/1.20.0-release`, gleiche SHA-256. Ergebnisse auf Server 2022 und 2025: Fresh 72/72, Update 45/45, InApp 46/47. Einzige Abweichung: A5, genau `_internal\app\ecu_studio\core\integrity.py` |
 
 ### A6. GitHub
 
 | Prüfung | Ergebnis |
 |---|---|
 | [x] PR #19, #20, #21 | gemergt; vor jedem Merge: offen, mergebar, CI grün, keine neuen Commits, keine offenen Review-Kommentare, Firmware-Guard OK |
-| [x] Release-Vorbereitungs-PR | offen, nicht gemergt |
+| [x] PR #22 (Release-Vorbereitung) | am 11.11.2026 nach erneuter Prüfung gemergt (`5dedb77`): offen, mergebar, CI grün, keine Reviews oder Kommentare, nur geprüfte Commits von PCTestAdmin, Firmware-Guard OK |
+| [x] CI auf `main` nach dem Merge | Tests 43047459244, CodeQL 43047459931: erfolgreich |
 
 ## B. Freigabe und Veröffentlichung
 
@@ -157,15 +203,23 @@ Nicht umgesetzt; als bekannte Einschränkung dokumentiert.
 3. [x] Version 1.20.0 (`pyproject.toml`, `src/ecu_studio/__init__.py`): im Release-Vorbereitungs-PR.
 4. [x] `CHANGELOG.md`: Abschnitt `## 1.20.0 (11.11.2026)` (Datum am Veröffentlichungstag angepasst);
    `tools/release_notes.py v1.20.0` prüft ihn.
-5. [ ] **Freigabe:** Release-Vorbereitungs-PR nach `main` mergen.
-6. [ ] `ROADMAP.md` und Roadmap-Grafiken: 1.20.0 als veröffentlicht eintragen.
-7. [ ] **Freigabe für Tag und Release:** `git tag v1.20.0` und `git push origin v1.20.0`. Der Workflow `release.yml`
+5. [x] **Freigabe:** PR #22 nach `main` gemergt (11.11.2026, `5dedb77`).
+6. [x] `ROADMAP.md` und Roadmap-Grafiken: 1.20.0 als veröffentlicht eingetragen (nach der Veröffentlichung).
+7. [x] **Freigabe für Tag und Release:** [Lauf 43048590191](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/43048590191) erfolgreich (build, update-test
+   windows-2022 und windows-2025, publish). `git tag v1.20.0` und `git push origin v1.20.0`. Der Workflow `release.yml`
    baut, testet und prüft das Update von 1.19.1 auf Windows Server 2022 und 2025. Erst danach veröffentlicht er.
-8. [ ] Nach der Veröffentlichung:
-   - Download-Hashes gegen die `.sha256`-Dateien prüfen und `gh attestation verify` ausführen.
-   - Englischen Teil aus [RELEASE_NOTES_1.20.0.md](RELEASE_NOTES_1.20.0.md) und absolute Links im Release-Text
-     ergänzen (wie bei 1.19.1).
-9. [ ] QA-Branches `qa/1.20.0-rc` und `qa/1.20.0-rc2` löschen. Sie werden nie gemergt; der QA-Workflow liegt nur dort.
+8. [x] Nach der Veröffentlichung (A7):
+   - Download-Hashes gegen die `.sha256`-Dateien geprüft; `gh attestation verify` ausgeführt.
+   - Titel „ECU Studio AI v1.20.0“. Englischer Teil aus [RELEASE_NOTES_1.20.0.md](RELEASE_NOTES_1.20.0.md) und
+     absolute Links im Release-Text ergänzt.
+9. [x] Branches aufgeräumt.
+   - Gelöscht sind die Branches der gemergten PRs #14 bis #22. Der Head jedes Branches ist per Commit-Abstammung
+     in `main` enthalten.
+   - `qa/1.20.0-rc` (letzter Commit `fca95a8`) ist gelöscht. Er ist vollständig ersetzt: Der Produktcode ist in
+     `main`, die QA-Werkzeuge liegen in neuerer Form in `qa/1.20.0-rc2`.
+   - `qa/1.20.0-release` (`f63ac99`, nur für A7) ist nach der Dokumentation gelöscht.
+   - **`qa/1.20.0-rc2` (`507aea3`) bleibt.** Der Installer-QA-Workflow mit dem Modus `InApp` liegt nur dort und
+     wird für den Nachweis des A5-Fixes in 1.20.1 gebraucht.
 
 ## C. Was ausdrücklich nicht im Release-Text stehen darf
 
