@@ -74,7 +74,9 @@ jobs:
           python -m ecu_studio.tools.release_notes $tag --out dist/release-notes.md --title-out dist/release-title.txt --package dist/ECU-Studio-AI
           if ($LASTEXITCODE -ne 0) { throw 'Programmordner hat eine andere Version als der Tag.' }
           $setup = Get-Item "dist\ECU-Studio-AI-$version-setup.exe"
-          if ($setup.VersionInfo.ProductVersion -ne $version) { throw "Installer-Version $($setup.VersionInfo.ProductVersion) statt $version" }
+          # Inno pads the version resource with blanks/NULs; compare the trimmed value exactly.
+          $productVersion = $setup.VersionInfo.ProductVersion -replace '[\s\x00]+$', ''
+          if ($productVersion -ne $version) { throw "Installer-Version '$productVersion' statt $version" }
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path "dist\ECU-Studio-AI-$version-windows-x64.zip").Path)
           try {
