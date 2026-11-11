@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025]
-        mode: [Fresh, Update, InApp, Repair, Chain, Rollback]
+        mode: [Fresh, Update, InApp, Repair, Chain, Heal, Rollback]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

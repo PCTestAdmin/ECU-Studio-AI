@@ -13,6 +13,8 @@ it installs, starts, uninstalls and changes per-user settings).
                 afterwards the uninstallation must leave nothing but the user's files
   -Mode Chain   v1.19.1 -> candidate (installer) -> next version (-Next) from the candidate's own menu, which uses
                 the verified setup.exe (installer route from 1.20.1); obsolete/new files, user files, uninstall
+  -Mode Heal    v1.20.0 updated by its own updater (ZIP route) to the candidate, then the candidate's own update to
+                -Next (installer route): the leftovers of the old route disappear with the next update
   -Mode Rollback candidate installed; its updater: wrong checksum (refused), failure after the setup (rollback),
                 real update to -Next, restore of the previous version, uninstall
 
@@ -22,7 +24,7 @@ uninstallation (only program files are removed, by inventory + SHA-256 or by the
 Writes $Out\results.json; exit code 1 if any check failed.
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Rollback')][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Heal', 'Rollback')][string]$Mode,
     [Parameter(Mandatory = $true)][string]$Package,
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Repository = 'PCTestAdmin/ECU-Studio-AI',
@@ -31,7 +33,7 @@ param(
     # Second QA package with a higher test version (built from the candidate in the QA workflow only).
     [string]$Next = ''
 )
-if (-not $OldTag) { $OldTag = @{ Update = 'v1.19.1'; InApp = 'v1.20.0'; Repair = 'v1.20.0'; Chain = 'v1.19.1' }[$Mode] }
+if (-not $OldTag) { $OldTag = @{ Update = 'v1.19.1'; InApp = 'v1.20.0'; Repair = 'v1.20.0'; Chain = 'v1.19.1'; Heal = 'v1.20.0' }[$Mode] }
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory $Out -Force | Out-Null
 $qa = $PSScriptRoot
@@ -569,6 +571,28 @@ if ($Mode -eq 'Chain') {
     Check-Uninstalled 'Kette 3'
     Check-UserFile 'Kette 3'
     Check 'Kette 3: Benutzerdaten erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
+}
+
+if ($Mode -eq 'Heal') {
+    # Realistic path of an existing installation: 1.20.0 updates itself with ITS OWN updater (ZIP route) to the
+    # candidate; the next update is done by the candidate's updater over the verified setup (installer route).
+    if (-not $Next) { throw '-Next fehlt' }
+    $old = Get-Release $OldTag @('*-setup.exe*')
+    Check "Installation $OldTag" ((Install (Get-ChildItem "$old\*-setup.exe").FullName "$Out\install-old.log") -eq 0)
+    New-UserFile "Heilung ($OldTag)"
+    $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+    $code = Invoke-Updater @('-Archive', $zip, '-Sha256', $sha) "$Out\heal-1.log"
+    Check "Heilung 1: ZIP-Update mit dem Updater von $OldTag" ($code -eq 0 -and (Get-Content "$install\VERSION.txt").Trim() -eq $version) "Exit $code"
+    $nextSha = (Get-FileHash $nextSetup -Algorithm SHA256).Hash.ToLower()
+    $code = Invoke-Updater @('-Installer', $nextSetup, '-Sha256', $nextSha, '-ExpectedVersion', $nextVersion) "$Out\heal-2.log"
+    Check "Heilung 2: Update des Kandidaten auf $nextVersion per Installer" ($code -eq 0) "Exit $code"
+    Check-Installed 'Heilung 2' $nextVersion
+    Check-PackageInstalled 'Heilung 2' $nextZip
+    Check-UserFile 'Heilung 2'
+    Check-Running 'Heilung 2'
+    Check 'Heilung 3: Deinstallation' ((Uninstall) -eq 0)
+    Check-Uninstalled 'Heilung 3'
+    Check-UserFile 'Heilung 3'
 }
 
 if ($Mode -eq 'Rollback') {
