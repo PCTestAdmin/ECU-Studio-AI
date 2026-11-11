@@ -16,9 +16,11 @@ Every file ends in exactly one of five states, which are never conflated:
 A method only counts when the file itself proves it: a self-describing structure
 (range, stored value, complement or magic) whose stored values the UNMODIFIED
 original reproduces. A generic CRC or sum that happens to give a matching number
-never makes a file valid. Signatures are reported separately; this module never
-checks, creates, alters or removes a signature, and a corrected checksum never
-replaces a required manufacturer signature.
+never makes a file valid. Signatures are reported separately (core/firmware_signatures.py):
+"gueltig"/"ungueltig" only after a cryptographic check with a key from the user's trust
+store, never with a key taken from the file. Nothing here creates, alters or removes a
+signature, a signature never changes the checksum status, and a corrected checksum
+never replaces a required manufacturer signature.
 
 The per-method parsers live in checksum_tables, me7_checksums, edc17_checksum,
 edc16_checksum and checksum_audit; this module combines them and adds the status, the correction
@@ -42,6 +44,7 @@ import numpy as np
 from . import checksum_tables as tables
 from . import edc16_checksum as edc16
 from . import edc17_checksum as edc17
+from . import firmware_signatures as fsig
 from . import me7_checksums as me7
 from .checksum_audit import ChecksumProfile, plan_checksum_correction, verify_checksums
 from .model import BinaryImage
@@ -125,9 +128,12 @@ FAMILY_RULES = (
     (re.compile(r'^EDC16'), ('weitere Prüfungen dieser Familie (nicht dokumentiert)',),
      ('Herstellersignatur', 'unbekannt')),
 )
-SIGNATURE_TEXT = {'erwartet': 'bei dieser Familie üblich – nicht geprüft',
+SIGNATURE_TEXT = {'erwartet': 'bei dieser Familie üblich – nicht gefunden, nicht geprüft',
                   'erkannt': 'Struktur vorhanden – nicht geprüft',
-                  'unbekannt': 'unbekannt – nicht geprüft'}
+                  'unbekannt': 'unbekannt – nicht geprüft',
+                  'gueltig': 'gültig – mit vertrauenswürdigem Schlüssel kryptographisch geprüft (keine Flashfreigabe)',
+                  'ungueltig': 'UNGÜLTIG – mit vertrauenswürdigem Schlüssel geprüft, Daten oder Signatur verändert',
+                  'nicht_unterstuetzt': 'Verfahren nicht unterstützt – nicht geprüft'}
 EDC17_SIGNATURE_BLOCKS = ('Tuning protection', 'Customer Tuning protection', 'Application Attestation')
 MAX_PASSES = 6
 
@@ -211,7 +217,7 @@ class MethodResult:
 @dataclass(frozen=True)
 class Signature:
     kind: str
-    state: str                 # erwartet / erkannt / unbekannt – never "gültig"
+    state: str                 # firmware_signatures.STATES; gueltig/ungueltig only with a trusted key
     detail: str = ''
 
 
@@ -602,14 +608,18 @@ def _profile(image: BinaryImage, profile: ChecksumProfile | None) -> MethodResul
 # --- check ---------------------------------------------------------------------
 
 def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = None,
-                    progress=None, cancelled=None) -> IntegrityReport:
+                    progress=None, cancelled=None, signatures=(), trust=None) -> IntegrityReport:
     """Check every applicable method on ``image`` (original proves, current is checked).
 
     ``progress(percent, text)`` and ``cancelled()`` are optional callables; a
-    cancelled check raises Cancelled and changes nothing.
+    cancelled check raises Cancelled and changes nothing. ``signatures`` are located
+    firmware signatures (firmware_signatures.SignatureCandidate), verified on the current
+    bytes against ``trust`` (firmware_signatures.load_trust_store); they never change the
+    checksum status.
     """
     from .identification import identify
     started = time.perf_counter()
+    located = tuple(signatures)        # candidates; ``signatures`` below holds the reported states
     say = progress or (lambda pct, text: None)
     original = image.original
     say(5, 'Steuergerät identifizieren …')
@@ -638,8 +648,10 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     unchecked, signature = _family_rules(family)
     if unchecked and m7 is not None:
         unchecked = _me7_unchecked(unchecked, m7)
-    if signature and not any(s.state == 'erkannt' for s in signatures):
+    verified = [fsig.verify_candidate(current, c, trust) for c in located]
+    if signature and not any(s.state == 'erkannt' for s in signatures) and not verified:
         signatures.insert(0, Signature(signature[0], signature[1]))
+    signatures += [Signature(v.kind, v.state, v.detail) for v in verified]
     reasons = []
     regions = [r for m in methods for r in m.regions]
     bad = [r for r in regions if r.state == BAD]
@@ -679,8 +691,11 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     else:
         status = UNKNOWN
         reasons.append('Weder Steuergerät noch Prüfsummenverfahren nachweisbar.')
-    if any(s.state in ('erwartet', 'erkannt') for s in signatures):
-        reasons.append('Signaturen werden nicht geprüft; eine Prüfsummenkorrektur ersetzt keine gültige '
+    if any(s.state == 'ungueltig' for s in signatures):
+        reasons.append('Eine Herstellersignatur stimmt nicht (mit vertrauenswürdigem Schlüssel geprüft): die '
+                       'signierten Daten oder die Signatur wurden verändert.')
+    if any(s.state in ('erwartet', 'erkannt', 'nicht_unterstuetzt') for s in signatures):
+        reasons.append('Nicht alle Signaturen werden geprüft; eine Prüfsummenkorrektur ersetzt keine gültige '
                        'Herstellersignatur.')
     if unchecked and not profile_complete:
         unchecked = list(unchecked)
