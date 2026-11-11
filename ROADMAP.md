@@ -122,14 +122,15 @@ Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.0_in_Prüfung-0969da?style=for-the-badge)
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.0_in_Vorbereitung-0969da?style=for-the-badge)
 
-Diese Funktionen sind im Quellcode fertig und liegen zur Prüfung in
-[Pull Request #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19) und
-[#20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20). Sie kommen erst nach Freigabe mit 1.20.0, der
+Diese Funktionen sind in `main` zusammengeführt
+([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19),
+[#20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20),
+[#21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21)). Sie erscheinen nach Freigabe mit 1.20.0, der
 **ersten validierten Ausbaustufe** des Checksummensystems: Keine untersuchte Originaldatei erreicht bisher eine
 vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe
-([Release-Notes-Entwurf](docs/RELEASE_NOTES_1.20.0.md)).
+([Release Notes](docs/RELEASE_NOTES_1.20.0.md)).
 
 <table>
 <tr><th align="left">Neu</th><th>Version</th></tr>
@@ -174,7 +175,7 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 
 | | Thema | Stand |
 |:--:|---|---|
-| 🧮 | **Checksummen & Integrität (1.20.0)** | Fertig im Quellcode, Review-Nachbesserungen eingearbeitet, Release-Kandidat mit Installer-Test auf frischen Windows-Systemen geprüft; wartet auf Freigabe ([PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19), [Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
+| 🧮 | **Checksummen & Integrität (1.20.0)** | In `main` zusammengeführt (PR #19, #20, #21), Version 1.20.0 vorbereitet; Release-Kandidat 1.20.0 auf frischen Windows-Systemen geprüft (Installation, Update per Installer, echtes In-App-Update aus 1.19.1); Veröffentlichung wartet auf Freigabe ([Checkliste](docs/RELEASE_CHECKLIST_1.20.0.md)) |
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
 
