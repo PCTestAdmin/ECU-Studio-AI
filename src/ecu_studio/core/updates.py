@@ -259,8 +259,9 @@ def install_root(executable: str) -> Path | None:
 
 
 # ---- installations made with the installer (Inno Setup, per user) ---------------------------------
-# AppId of packaging/installer.iss; Inno writes its uninstall entry under '<AppId>_is1'.
-UNINSTALL_KEY = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\{F8CD5330-FC90-4891-BFDA-58E6668C93A5}_is1'
+# AppId of packaging/installer.iss; Inno writes its uninstall entry under '{<AppId>}_is1'.
+APP_GUID = 'F8CD5330-FC90-4891-BFDA-58E6668C93A5'
+UNINSTALL_KEY = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + '{' + APP_GUID + '}_is1'
 
 
 def _same_folder(a: str, b: Path) -> bool:

@@ -179,11 +179,15 @@ class UpdateController:
         if error:
             QMessageBox.warning(self.window, 'Update nicht installiert', error)
             return
-        how = 'mit dem geprüften Installer aktualisiert' if route == 'installer' else 'aktualisiert'
+        if route == 'installer':
+            text = (f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
+                    'Das Programm wird jetzt geschlossen, mit dem geprüften Installer aktualisiert und neu gestartet. '
+                    'Fortfahren?')
+        else:
+            text = (f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
+                    'Das Programm wird jetzt geschlossen, aktualisiert und neu gestartet. Fortfahren?')
         answer = QMessageBox.question(
-            self.window, 'Update bereit',
-            f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
-            f'Das Programm wird jetzt geschlossen, {how} und neu gestartet. Fortfahren?',
+            self.window, 'Update bereit', text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
         if answer != QMessageBox.StandardButton.Yes:
             return
