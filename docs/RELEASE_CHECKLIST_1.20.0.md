@@ -213,6 +213,8 @@ veröffentlichten Dateien.
    - Titel „ECU Studio AI v1.20.0“. Englischer Teil aus [RELEASE_NOTES_1.20.0.md](RELEASE_NOTES_1.20.0.md) und
      absolute Links im Release-Text ergänzt.
 9. [x] Branches aufgeräumt.
+   - Gelöscht sind die Branches der gemergten PRs #14 bis #22. Der Head jedes Branches ist per Commit-Abstammung
+     in `main` enthalten.
    - `qa/1.20.0-rc` (letzter Commit `fca95a8`) ist gelöscht. Er ist vollständig ersetzt: Der Produktcode ist in
      `main`, die QA-Werkzeuge liegen in neuerer Form in `qa/1.20.0-rc2`.
    - `qa/1.20.0-release` (`f63ac99`, nur für A7) ist nach der Dokumentation gelöscht.
