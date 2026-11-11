@@ -83,13 +83,20 @@ end;
 
 procedure RunInventoryCleanup(Arguments: String);
 var
-  Script: String;
+  Shipped, Script: String;
   ResultCode: Integer;
 begin
-  Script := ExpandConstant('{app}\') + CleanupScript;
-  if not FileExists(Script) then
+  Shipped := ExpandConstant('{app}\') + CleanupScript;
+  if not FileExists(Shipped) then
   begin
-    Log('Inventarbereinigung übersprungen, Skript fehlt: ' + Script);
+    Log('Inventarbereinigung übersprungen, Skript fehlt: ' + Shipped);
+    Exit;
+  end;
+  // The script is itself listed in the inventory and removes its own file: run a temporary copy.
+  Script := ExpandConstant('{tmp}\uninstall_cleanup.ps1');
+  if not FileCopy(Shipped, Script, False) then
+  begin
+    Log('Inventarbereinigung übersprungen, Skript nicht kopierbar: ' + Shipped);
     Exit;
   end;
   ForceDirectories(ExtractFileDir(CleanupLogFile()));

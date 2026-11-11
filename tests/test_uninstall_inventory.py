@@ -225,6 +225,8 @@ def test_installer_uses_inventory_cleanup_and_no_pattern_rule():
     assert "CleanupScript = '_internal\\uninstall_cleanup.ps1'" in text
     assert "RunInventoryCleanup('-Mode Uninstall')" in text and 'usUninstall' in text
     assert '-Mode Obsolete' in text and 'ssPostInstall' in text and 'ssInstall' in text
+    # The script removes its own file in {app}: it must run from a temporary copy.
+    assert "ExpandConstant('{tmp}\\uninstall_cleanup.ps1')" in text
     source = (ROOT / 'src' / 'ecu_studio' / 'tools' / 'build_portable_runtime.py').read_text(encoding='utf-8')
     assert "'uninstall_cleanup.ps1'" in source
 
