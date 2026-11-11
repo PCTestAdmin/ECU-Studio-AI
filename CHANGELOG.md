@@ -1,3 +1,26 @@
+## Unveröffentlicht
+
+Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach ausdrücklicher Freigabe.
+
+**Checksummen & Integrität**
+
+- **Weitere ME7-Prüfsummen, nur Prüfung:** ROMSYS (Startup, Parameterseite, Programmseiten), CRC-Tabelle,
+  Hauptdaten-Prüfsumme und Hauptprogramm-Prüfsumme. Eigene Umsetzung nach dem quelloffenen ME7Sum. Am Original
+  gemessen (ME7.5: alle Werte reproduziert), nicht unabhängig validiert. Keine Korrektur; der Status bleibt
+  „Unvollständige Prüfung“. Hauptdaten-CRC32 und indirekte CRC-Blöcke bleiben als ungeprüft ausgewiesen.
+- **Korrektur verweigert, wenn sie Stimmendes verfälschen würde:** Die Vorschau rechnet das Ergebnis vorab nach.
+  Würde eine Korrektur eine bisher stimmende Prüfsumme falsch machen, wird sie mit Begründung verweigert.
+- **Ehrlicher Status nach Korrektur:** Bleiben nicht korrigierbare Prüfsummen falsch, warnt die Vorschau. Die Datei
+  bleibt danach „Unterstützt und ungültig“ statt „unvollständig“.
+- **Signaturstatus getrennt und streng:** Herstellersignaturen in der Firmware haben sechs Status: gültig, ungültig,
+  Struktur erkannt, erwartet, nicht unterstützt, unbekannt. „Gültig“ und „ungültig“ gibt es nur nach einer echten
+  kryptographischen Prüfung (Ed25519 oder RSA-PKCS#1 v1.5/SHA-256) mit einem Schlüssel aus einem ausdrücklich
+  angegebenen Vertrauensspeicher, nie mit einem Schlüssel aus der Datei. Getrennt von Authenticode und
+  GitHub-Attestations. Signaturen werden nur geprüft, nie erzeugt, verändert oder entfernt. Für keine Familie ist
+  bisher eine Signatur lokalisiert oder ein OEM-Schlüssel vorhanden; belegt ist die Architektur mit synthetischen
+  Testschlüsseln.
+- Details: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
 ## 1.20.0 (11.11.2026)
 
 Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Keine untersuchte Originaldatei

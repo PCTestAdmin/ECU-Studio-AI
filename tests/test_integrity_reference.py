@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 from ecu_studio.core import integrity as ig
+from ecu_studio.core import me7_checksums as me7
 from ecu_studio.core.model import BinaryImage
 
 MANIFEST = os.environ.get('ECU_STUDIO_CHECKSUM_REFERENCES')
@@ -86,20 +87,32 @@ def test_edit_correct_revert_correct_gives_the_original(entry):
     image.write(offset, bytes([data[offset] ^ 0x01]))
     report = ig.check_integrity(image)
     covering = {r.storage for r in regions if r.start <= offset <= r.end}
-    assert report.status == ig.INVALID and {e.storage for e in report.errors} == covering
+    # Since 1.20.1 the ME7 checks (core/me7_checksums.py) see the edit too. Expected independently from the ME7
+    # ranges on the original: exactly the matching ME7 checks whose ranges contain the edited byte.
+    me7_hit = {c.field_offset for c in me7.check_me7(data)
+               if c.status == me7.OK and any(s <= offset <= e for s, e in c.ranges)}
+    assert report.status == ig.INVALID
+    assert {e.storage for e in report.errors if e.method == 'bosch-multipoint'} == covering
+    assert {(e.method, e.storage) for e in report.errors if e.method != 'bosch-multipoint'} == {
+        ('bosch-me7', s) for s in me7_hit}
     before = image.read(0, image.size)
     plan = ig.plan_correction(image, report)
     result = ig.apply_correction(image, plan)
     after = image.read(0, image.size)
     changed = set(np.flatnonzero(np.frombuffer(before, np.uint8) != np.frombuffer(after, np.uint8)).tolist())
     assert changed == plan.positions and all(any(r.storage <= p < r.storage + 8 for r in regions) for p in changed)
-    assert not result.errors
+    assert not [e for e in result.errors if e.method == 'bosch-multipoint']
+    # Checked-only ME7 checksums are never corrected and never hidden: they stay wrong, the file stays invalid.
+    assert {e.storage for e in result.errors} == me7_hit
+    assert (result.status == ig.INVALID) == bool(me7_hit)
+    assert bool(me7_hit) == any('stimmen nicht und werden nicht korrigiert' in w for w in plan.warnings)
     for r in regions:                              # second, plain implementation
         e = 'little' if r.algorithm.endswith('le') else 'big'
         assert after[r.storage:r.storage + 8] == ig._pair(ig.reference_word_sum(after, r.start, r.end, e), e)
     image.write(offset, bytes([data[offset]]))
     ig.apply_correction(image, ig.plan_correction(image))
     assert image.materialize() == data
+    assert not ig.check_integrity(image).errors
 
 
 @pytest.mark.parametrize('entry', [e for e in ENTRIES if e['method'] != 'bosch-multipoint'], ids=lambda e: e['name'])

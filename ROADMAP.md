@@ -174,6 +174,8 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 |:--:|---|---|
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
+| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | Umgesetzt, noch nicht veröffentlicht ([PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
+| 🔏 | **Signaturstatus für Firmware** | Umgesetzt, noch nicht veröffentlicht ([PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
 
 <br>
 
@@ -187,8 +189,8 @@ gemessen ist.
 | | Thema | Warum |
 |:--:|---|---|
 | 🔎 | **1. ME9-Identifikation verbessern** | Die ME9-Referenz wird noch nicht als Familie erkannt; ihre Prüfsummenkorrektur stützt sich bisher nur auf die Tabellen der Datei (Regel B statt A) |
-| 🧮 | **2. Fehlende ME7-Prüfsummenverfahren untersuchen** | ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen fehlen noch – erst dann kann eine ME7-Datei „gültig“ statt „unvollständig“ sein |
-| 🧮 | **3. EDC17-Blockprüfungen erweitern** | EDC17CP09: 3 von 11 Strukturen unbestätigt; weitere EDC17-/MED17-Varianten ungemessen |
+| 🧮 | **2. ME7-Prüfsummen unabhängig belegen** | Die Verfahren sind gemessen (siehe „In Arbeit“). Für „gültig“ fehlen ein zweiter Softwarestand mit dokumentierter Herkunft und ein Original mit Hauptdaten-CRC32; indirekte CRC-Blöcke werden noch nicht unterstützt |
+| 🧮 | **3. EDC17-Blockprüfungen erweitern** | EDC17CP09: 3 von 11 Strukturen unbestätigt. Nachuntersuchung: Datensatz #0 passt weder zu CRC32 noch zu ADD32 (vermutlich veränderte Kalibrierung); ein CRC32-Feld hinter dem Startup-Block reproduziert, ist aber nur dokumentiert ([Details](docs/CHECKSUMMEN.md)). Weitere EDC17-/MED17-Varianten ungemessen |
 | 🧪 | **4. Unabhängige Validierung weiterer Steuergerätefamilien** | Zwei Softwarestände je Familie mit dokumentierter Herkunft, bevor ein Verfahren als „unterstützt“ gilt |
 | 🧮 | **5. Checksummen für Siemens/Continental** | MS4x, MSD8x, Simos, SID: bisher kein Verfahren („nicht unterstützt“) |
 | 🚗 | **6. Moderne Familien wie MG1 und MD1** | Erst, sobald rechtmäßig verwendbare Referenzen vorliegen |

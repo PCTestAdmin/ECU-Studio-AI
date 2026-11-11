@@ -16,12 +16,14 @@ Every file ends in exactly one of five states, which are never conflated:
 A method only counts when the file itself proves it: a self-describing structure
 (range, stored value, complement or magic) whose stored values the UNMODIFIED
 original reproduces. A generic CRC or sum that happens to give a matching number
-never makes a file valid. Signatures are reported separately; this module never
-checks, creates, alters or removes a signature, and a corrected checksum never
-replaces a required manufacturer signature.
+never makes a file valid. Signatures are reported separately (core/firmware_signatures.py):
+"gueltig"/"ungueltig" only after a cryptographic check with a key from the user's trust
+store, never with a key taken from the file. Nothing here creates, alters or removes a
+signature, a signature never changes the checksum status, and a corrected checksum
+never replaces a required manufacturer signature.
 
-The per-method parsers live in checksum_tables, edc17_checksum, edc16_checksum and
-checksum_audit; this module combines them and adds the status, the correction
+The per-method parsers live in checksum_tables, me7_checksums, edc17_checksum,
+edc16_checksum and checksum_audit; this module combines them and adds the status, the correction
 plan, the independent re-check and the corrected copy. Nothing here keeps firmware
 in a module-level cache: every call works on the image it is given, so a worker
 thread can run it on a snapshot (BinaryImage.snapshot) without sharing state.
@@ -42,6 +44,8 @@ import numpy as np
 from . import checksum_tables as tables
 from . import edc16_checksum as edc16
 from . import edc17_checksum as edc17
+from . import firmware_signatures as fsig
+from . import me7_checksums as me7
 from .checksum_audit import ChecksumProfile, plan_checksum_correction, verify_checksums
 from .model import BinaryImage
 
@@ -85,6 +89,14 @@ METHODS = {
         'Herstellerwerte aus drei unveränderten Originalen reproduziert (ME7.5, ME9, MED9.1; 199 Einträge, '
         'je 32-Bit-Wert und Komplement); Verfahren stimmt mit dem quelloffenen ME7Sum überein.',
         'Nur die Multipoint-Tabellen. Weitere Prüfsummen der Familie und Signaturen werden nicht geprüft.'),
+    'bosch-me7': Method(
+        'bosch-me7', 'Bosch ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten, Hintergrund, Hauptprogramm)',
+        'ME7.x (C16x, 512 KiB oder 1 MiB)', 'gemessen',
+        'Eigene Umsetzung der im quelloffenen ME7Sum beschriebenen Verfahren (Quelltext gelesen, nicht ausgeführt). '
+        'Auf einem unveränderten ME7.5-Original 8 von 8 gespeicherten Werten reproduziert; kein Vergleich mit einem '
+        'zweiten Werkzeug und nur eine Variante.',
+        'Nur Prüfung, keine Korrektur. Indirekte CRC-Blöcke (ME7Sum FindIndirectCRCBlks) und die RSA-Signatur '
+        'werden nicht geprüft.'),
     'bosch-edc17': Method(
         'bosch-edc17', 'Bosch MED17/EDC17-Prüfsummenblöcke', 'MED17, EDC17', 'gemessen',
         'Auf einer EDC17CP09-Datei 8 von 11 Strukturen reproduziert; kein unabhängiger Nachweis.',
@@ -116,9 +128,12 @@ FAMILY_RULES = (
     (re.compile(r'^EDC16'), ('weitere Prüfungen dieser Familie (nicht dokumentiert)',),
      ('Herstellersignatur', 'unbekannt')),
 )
-SIGNATURE_TEXT = {'erwartet': 'bei dieser Familie üblich – nicht geprüft',
+SIGNATURE_TEXT = {'erwartet': 'bei dieser Familie üblich – nicht gefunden, nicht geprüft',
                   'erkannt': 'Struktur vorhanden – nicht geprüft',
-                  'unbekannt': 'unbekannt – nicht geprüft'}
+                  'unbekannt': 'unbekannt – nicht geprüft',
+                  'gueltig': 'gültig – mit vertrauenswürdigem Schlüssel kryptographisch geprüft (keine Flashfreigabe)',
+                  'ungueltig': 'UNGÜLTIG – mit vertrauenswürdigem Schlüssel geprüft, Daten oder Signatur verändert',
+                  'nicht_unterstuetzt': 'Verfahren nicht unterstützt – nicht geprüft'}
 EDC17_SIGNATURE_BLOCKS = ('Tuning protection', 'Customer Tuning protection', 'Application Attestation')
 MAX_PASSES = 6
 
@@ -130,6 +145,11 @@ MAX_PASSES = 6
 #     already modified original. A family identified as something else is always locked.
 # Measured on the references: ME7.5 70, ME9 63 (family not identified), MED9.1 66 entries.
 MULTIPOINT_FAMILIES = re.compile(r'^(ME7|MED?9)')
+ME7_FAMILIES = re.compile(r'^ME7')
+ME7_ALGORITHM = {'romsys-startup': 'sum16-le-einzelwoerter', 'romsys-param': 'sum16-le-einzelwoerter',
+                 'romsys-pages': 'sum16-le-einzelwoerter', 'crc-table': 'crc32-tabelle', 'main-crc': 'crc32',
+                 'main-csm': 'sum8-komplement', 'background': 'sum16-le-komplement',
+                 'main-program': 'sum16-le-komplement'}
 MIN_STRUCTURAL_PROOF = 32
 MIN_RUN_PROOF = 16
 
@@ -197,7 +217,7 @@ class MethodResult:
 @dataclass(frozen=True)
 class Signature:
     kind: str
-    state: str                 # erwartet / erkannt / unbekannt – never "gültig"
+    state: str                 # firmware_signatures.STATES; gueltig/ungueltig only with a trusted key
     detail: str = ''
 
 
@@ -413,6 +433,93 @@ def _gate_multipoint(multipoint: MethodResult, family: str | None, level: str) -
                              'Korrektur über ein geprüftes, SHA-256-gebundenes Profil möglich')
 
 
+def _ranges_text(ranges) -> str:
+    if len(ranges) <= 4:
+        return ', '.join(f'0x{s:X}–0x{e:X}' for s, e in ranges)
+    return f'{len(ranges)} Teilbereiche zwischen 0x{ranges[0][0]:X} und 0x{ranges[-1][1]:X}'
+
+
+def _me7(family: str | None, original: bytes, current: bytes,
+         multipoint: MethodResult | None = None) -> MethodResult | None:
+    """ME7.x checks beyond the multipoint tables (core/me7_checksums.py): proven on the original, checked on the
+    current bytes, never corrected. A check that does not hold on the opened original stays unconfirmed.
+
+    The background checksums have the layout of a multipoint record (start, end, value, complement) and the same
+    word sum; when the multipoint method already holds that very field and range, it is reported there only (no
+    double count, and the reference-validated multipoint rules apply to it)."""
+    if family and not ME7_FAMILIES.search(family.upper()):
+        return None
+    before = me7.check_me7(original)
+    if all(c.status == me7.NOT_FOUND for c in before):
+        return None
+    after = before if current == original else me7.check_me7(current)
+    now = {(c.kind, c.name): c for c in after}
+    result = MethodResult('bosch-me7', correction='gesperrt: Verfahren nur am Original gemessen, kein unabhängiger '
+                                                  'Nachweis – nur Prüfung')
+    proven, unconfirmed = [], set()
+    twins = {(r.storage, r.start, r.end): r for r in (multipoint.regions if multipoint else ())}
+    for c in before:
+        if c.status == me7.NOT_FOUND:
+            result.notes.append(f'{c.name}: nicht gefunden ({c.detail})')
+            continue
+        twin = twins.get((c.field_offset, *c.ranges[0])) if len(c.ranges) == 1 else None
+        if twin is not None:
+            result.notes.append(f'{c.name}: gleiches Feld und Verfahren wie der Multipoint-Eintrag {twin.name} '
+                                '– dort geprüft')
+            if c.status == me7.OK and twin.state != UNPROVEN:
+                proven.append(c.kind)
+            else:
+                unconfirmed.add(c.kind)
+            continue
+        start, end = min(s for s, _ in c.ranges), max(e for _, e in c.ranges)
+        algorithm = ME7_ALGORITHM[c.kind]
+        where = f'{c.detail}; Bereiche {_ranges_text(c.ranges)}'
+        if c.status != me7.OK:
+            result.regions.append(Region('bosch-me7', c.name, start, end, c.field_offset, c.field_size, algorithm,
+                                         c.stored, c.calculated, UNPROVEN,
+                                         f'stimmt am geöffneten Original nicht – Datei bereits verändert oder '
+                                         f'Verfahren für diese Variante nicht belegt ({where})'))
+            continue
+        proven.append(c.kind)
+        n = now.get((c.kind, c.name))
+        if n is None or n.status == me7.NOT_FOUND or n.field_offset != c.field_offset or n.ranges != c.ranges:
+            result.regions.append(Region('bosch-me7', c.name, start, end, c.field_offset, c.field_size, algorithm,
+                                         c.stored, None if n is None else n.calculated, BAD,
+                                         f'Struktur (Bereich oder Ablageort) in der aktuellen Datei verändert ({where})'))
+            continue
+        result.regions.append(Region('bosch-me7', c.name, start, end, c.field_offset, c.field_size, algorithm,
+                                     n.stored, n.calculated, OK if n.status == me7.OK else BAD, where))
+    # A kind counts as checked only when EVERY check of that kind holds on the original.
+    unconfirmed |= {c.kind for c in before if c.status == me7.MISMATCH}
+    result.evidence = {'proven_checks': sorted(set(proven) - unconfirmed), 'proven_values': len(proven)}
+    return result
+
+
+def _me7_unchecked(unchecked: list[str], m7: MethodResult) -> list[str]:
+    """FAMILY_RULES lists the ME7 checks as unchecked; drop what the ME7 method proved in this file."""
+    proven = set(m7.evidence.get('proven_checks', ()))
+    out = []
+    for item in unchecked:
+        if item == 'ROMSYS-Prüfsummen' and {'romsys-startup', 'romsys-param'} <= proven:
+            continue
+        if item == 'Programmseiten' and 'romsys-pages' in proven:
+            continue
+        if item == 'CRC-Tabelle' and 'crc-table' in proven:
+            continue
+        if item == 'Haupt-Datenprüfsummen' and 'main-csm' in proven:
+            if 'main-crc' not in proven:
+                out.append('Haupt-Daten-CRC32 (nicht gefunden; indirekte CRC-Blöcke werden nicht unterstützt)')
+            continue
+        if item == 'Hintergrund- und Hauptprogramm-Prüfsummen' and proven & {'background', 'main-program'}:
+            if 'background' not in proven:
+                out.append('Hintergrund-Prüfsummen')
+            if 'main-program' not in proven:
+                out.append('Hauptprogramm-Prüfsumme')
+            continue
+        out.append(item)
+    return out
+
+
 def _edc17(image: BinaryImage, original: bytes, current: bytes) -> tuple[MethodResult | None, list[Signature]]:
     blocks = edc17.find_blocks(original)
     if not blocks:
@@ -501,14 +608,18 @@ def _profile(image: BinaryImage, profile: ChecksumProfile | None) -> MethodResul
 # --- check ---------------------------------------------------------------------
 
 def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = None,
-                    progress=None, cancelled=None) -> IntegrityReport:
+                    progress=None, cancelled=None, signatures=(), trust=None) -> IntegrityReport:
     """Check every applicable method on ``image`` (original proves, current is checked).
 
     ``progress(percent, text)`` and ``cancelled()`` are optional callables; a
-    cancelled check raises Cancelled and changes nothing.
+    cancelled check raises Cancelled and changes nothing. ``signatures`` are located
+    firmware signatures (firmware_signatures.SignatureCandidate), verified on the current
+    bytes against ``trust`` (firmware_signatures.load_trust_store); they never change the
+    checksum status.
     """
     from .identification import identify
     started = time.perf_counter()
+    located = tuple(signatures)        # candidates; ``signatures`` below holds the reported states
     say = progress or (lambda pct, text: None)
     original = image.original
     say(5, 'Steuergerät identifizieren …')
@@ -518,6 +629,9 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     say(20, 'Multipoint-Tabellen prüfen …')
     multipoint, generic, candidates = _tables(original, current)
     _check(cancelled)
+    say(35, 'ME7-Prüfsummen prüfen …')
+    m7 = _me7(ident.family, original, current, multipoint)
+    _check(cancelled)
     say(50, 'MED17/EDC17-Blöcke prüfen …')
     e17, signatures = _edc17(image, original, current)
     _check(cancelled)
@@ -526,14 +640,18 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     _check(cancelled)
     say(90, 'Checksummenprofil prüfen …')
     prof = _profile(image, profile)
-    methods = [m for m in (multipoint, e17, e16, prof, generic) if m is not None]
+    methods = [m for m in (multipoint, m7, e17, e16, prof, generic) if m is not None]
 
     family = ident.family
     if multipoint is not None:
         _gate_multipoint(multipoint, family, ident.level)
     unchecked, signature = _family_rules(family)
-    if signature and not any(s.state == 'erkannt' for s in signatures):
+    if unchecked and m7 is not None:
+        unchecked = _me7_unchecked(unchecked, m7)
+    verified = [fsig.verify_candidate(current, c, trust) for c in located]
+    if signature and not any(s.state == 'erkannt' for s in signatures) and not verified:
         signatures.insert(0, Signature(signature[0], signature[1]))
+    signatures += [Signature(v.kind, v.state, v.detail) for v in verified]
     reasons = []
     regions = [r for m in methods for r in m.regions]
     bad = [r for r in regions if r.state == BAD]
@@ -573,8 +691,11 @@ def check_integrity(image: BinaryImage, *, profile: ChecksumProfile | None = Non
     else:
         status = UNKNOWN
         reasons.append('Weder Steuergerät noch Prüfsummenverfahren nachweisbar.')
-    if any(s.state in ('erwartet', 'erkannt') for s in signatures):
-        reasons.append('Signaturen werden nicht geprüft; eine Prüfsummenkorrektur ersetzt keine gültige '
+    if any(s.state == 'ungueltig' for s in signatures):
+        reasons.append('Eine Herstellersignatur stimmt nicht (mit vertrauenswürdigem Schlüssel geprüft): die '
+                       'signierten Daten oder die Signatur wurden verändert.')
+    if any(s.state in ('erwartet', 'erkannt', 'nicht_unterstuetzt') for s in signatures):
+        reasons.append('Nicht alle Signaturen werden geprüft; eine Prüfsummenkorrektur ersetzt keine gültige '
                        'Herstellersignatur.')
     if unchecked and not profile_complete:
         unchecked = list(unchecked)
@@ -698,7 +819,27 @@ def plan_correction(image: BinaryImage, report: IntegrityReport | None = None, *
         for i in range(len(s.new)):
             if taken.setdefault(s.offset + i, s.method) != s.method:
                 raise ValueError(f'Korrekturen überschneiden sich bei 0x{s.offset + i:X} – Korrektur verweigert')
+    if steps:
+        # A correction must never turn a matching checksum of ANY method into a wrong one (e.g. a CRC over the
+        # corrected fields): check the corrected bytes completely before offering the plan.
+        current_bytes = image.read(0, image.size)
+        trial = bytearray(current_bytes)
+        for s in steps:
+            trial[s.offset:s.offset + len(s.new)] = s.new
+        was_ok = {(r.method, r.name, r.storage) for r in report.regions if r.state == OK}
+        trial_report = check_integrity(image_with(image, bytes(trial)), profile=profile) if trial != current_bytes else report
+        broken = [r for r in trial_report.regions if (r.method, r.name, r.storage) in was_ok and r.state != OK]
+        if broken:
+            names = ', '.join(f'{METHODS[r.method].title} · {r.name}' for r in broken[:4])
+            for method in sorted({s.method for s in steps}):
+                refused.append((method, f'Korrektur verweigert: sie würde stimmende Prüfsummen verfälschen ({names})'))
+            steps = []
     warnings = []
+    still_wrong = [r for m in report.methods if m.correction and m.count(BAD) for r in m.regions if r.state == BAD]
+    if steps and still_wrong:
+        warnings.append(f'{len(still_wrong)} Prüfsumme(n) anderer Verfahren stimmen nicht und werden nicht korrigiert '
+                        f'(nur Prüfung): {", ".join(r.name for r in still_wrong[:6])}. Die Datei bleibt danach '
+                        '„Unterstützt und ungültig“ und ist nicht flashbereit.')
     if report.unchecked:
         warnings.append(f'Weitere Prüfsummen werden nicht geprüft und nicht korrigiert: {", ".join(report.unchecked)}. '
                         'Die Datei ist dadurch nicht flashbereit.')
@@ -756,9 +897,9 @@ def recheck(image: BinaryImage, before: bytes, after: bytes, plan: CorrectionPla
     if not changed <= plan.positions:
         raise ValueError(f'{len(changed - plan.positions)} Byte außerhalb der dokumentierten Positionen geändert')
     report = check_integrity(image_with(image, after), profile=profile)
-    by_storage = {r.storage: r for r in report.regions}
+    by_storage = {(r.method, r.storage): r for r in report.regions}
     for s in plan.steps:
-        region = by_storage.get(s.offset)
+        region = by_storage.get((s.method, s.offset))
         if region is not None and region.state != OK:
             raise ValueError(f'Nachprüfung: {region.name} stimmt nach der Korrektur nicht')
         if s.method == 'bosch-multipoint':
