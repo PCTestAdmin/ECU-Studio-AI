@@ -1,4 +1,4 @@
-## 1.20.0 (08.11.2026)
+## 1.20.0 (11.11.2026)
 
 Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Keine untersuchte Originaldatei
 erreicht eine vollständige Checksummenabdeckung, und es gibt keine Flashfreigabe. Eine korrigierte Datei ist nicht
@@ -84,6 +84,8 @@ Bestandsaufnahme, Nachweise und Grenzen: [Checksummen und Integrität](docs/CHEC
 
 - Keine vollständige Checksummenabdeckung und keine Flashfreigabe. ME7-, EDC16- und EDC17-Dateien bleiben
   „unvollständig“.
+- Checksummen werden nicht für alle Steuergeräte vollständig geprüft. Eine erfolgreiche Teilprüfung (zum Beispiel
+  alle Multipoint-Tabellen stimmen) ist keine vollständige Integritätsbestätigung der Datei.
 - Signaturen werden nicht kryptografisch geprüft.
 - Fehlende ME7-Prüfungen: ROMSYS, CRC-Tabellen, Haupt- und Programmprüfsummen.
 - EDC17CP09: 3 von 11 Strukturen unbestätigt; EDC16/EDC17-Korrektur gesperrt.

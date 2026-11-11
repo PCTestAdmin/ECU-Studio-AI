@@ -1,5 +1,7 @@
 # ECU Studio AI 1.20.0 – Release Notes
 
+**Veröffentlicht am 11.11.2026. Released on 11 Nov 2026.**
+
 Inhalt: [PR #19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19) (Checksummen & Integrität),
 [PR #20](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/20) (Definitionseditor) und
 [PR #21](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/21) (Testisolation). Prüfnachweise:
@@ -82,6 +84,9 @@ Diese Schwellen sind eine **Sicherheitsentscheidung** von ECU Studio AI, keine E
 
 - **Keine vollständige Checksummenabdeckung:** Keine untersuchte Originaldatei erreicht „gültig“. ME7-, EDC16- und
   EDC17-Dateien bleiben „unvollständig“.
+- **Teilprüfung ist keine Integritätsbestätigung:** Checksummen werden nicht für alle Steuergeräte vollständig
+  geprüft. Eine erfolgreiche Teilprüfung (zum Beispiel alle Multipoint-Tabellen stimmen) bestätigt nicht, dass die
+  ganze Datei unversehrt ist.
 - **Keine Flashfreigabe:** Auch eine korrigierte Datei ist nicht automatisch flashbereit.
 - **Signaturen werden nicht kryptografisch geprüft.** Sie werden nur als erwartet oder erkannt ausgewiesen und nie
   verändert.
@@ -173,6 +178,8 @@ These thresholds are a **safety decision** of ECU Studio AI, not a property of t
 
 - **No complete checksum coverage:** no original file examined reaches "valid". ME7, EDC16 and EDC17 files stay
   "incomplete".
+- **A partial check is no integrity confirmation:** checksums are not fully checked for every ECU. A successful
+  partial check (for example, all multipoint tables match) does not confirm that the whole file is intact.
 - **No flash approval:** a corrected file is not automatically ready to flash either.
 - **Signatures are not checked cryptographically.** They are only reported as expected or detected and never changed.
 - **Missing ME7 checks:** ROMSYS, CRC tables and main and program checksums are not checked.

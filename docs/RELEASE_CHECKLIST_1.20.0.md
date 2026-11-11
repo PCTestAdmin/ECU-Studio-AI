@@ -155,8 +155,8 @@ Nicht umgesetzt; als bekannte Einschränkung dokumentiert.
 1. [x] Merge von PR #21, #20 und #19 nach `main` (A1).
 2. [x] CI auf `main` grün.
 3. [x] Version 1.20.0 (`pyproject.toml`, `src/ecu_studio/__init__.py`): im Release-Vorbereitungs-PR.
-4. [x] `CHANGELOG.md`: Abschnitt `## 1.20.0 (08.11.2026)`; `tools/release_notes.py v1.20.0` prüft ihn. Bei späterer
-   Veröffentlichung das Datum anpassen.
+4. [x] `CHANGELOG.md`: Abschnitt `## 1.20.0 (11.11.2026)` (Datum am Veröffentlichungstag angepasst);
+   `tools/release_notes.py v1.20.0` prüft ihn.
 5. [ ] **Freigabe:** Release-Vorbereitungs-PR nach `main` mergen.
 6. [ ] `ROADMAP.md` und Roadmap-Grafiken: 1.20.0 als veröffentlicht eintragen.
 7. [ ] **Freigabe für Tag und Release:** `git tag v1.20.0` und `git push origin v1.20.0`. Der Workflow `release.yml`
