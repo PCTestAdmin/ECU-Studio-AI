@@ -2,6 +2,21 @@
 
 Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach ausdrücklicher Freigabe.
 
+**Installation und Update (A5: Rückstände nach In-App-Update und Deinstallation)**
+
+- **Deinstallation nach Inventar:** Der Deinstaller entfernt zusätzlich genau die Programmdateien, die laut
+  `RUNTIME_INVENTORY.json` ausgeliefert wurden, innerhalb des Programmordners liegen und unverändert sind (SHA-256).
+  Eigene, unbekannte und veränderte Dateien sowie Verknüpfungen und Junctions bleiben stehen und werden im
+  Deinstallationsprotokoll genannt. Keine pauschale Löschregel.
+- **Installer-Installationen werden per Installer aktualisiert:** „Jetzt nach Updates suchen“ lädt bei einer
+  Installation mit Installer den geprüften `ECU-Studio-AI-<version>-setup.exe` (SHA-256 aus dem Release) und führt
+  ihn mit Sicherung und automatischem Zurücksetzen aus. Portable ZIP-Kopien behalten den bisherigen Weg.
+- **Apps & Features** zeigt nach jedem Update die tatsächlich installierte Version.
+- **Grenze:** Updates, die noch der Updater von 1.20.0 oder älter ausführt (auch 1.20.0 → 1.20.1), laufen über den
+  alten Weg und behalten den alten Deinstaller. Deren Rückstände entfernt erst das nächste Update durch 1.20.1 oder
+  neuer oder ein Lauf des Installers ab 1.20.1. Nachweis auf Windows Server 2022 und 2025:
+  [Release-Checkliste 1.20.0, A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation).
+
 **Checksummen & Integrität**
 
 - **Weitere ME7-Prüfsummen, nur Prüfung:** ROMSYS (Startup, Parameterseite, Programmseiten), CRC-Tabelle,
@@ -13,6 +28,7 @@ Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach aus
 - **Ehrlicher Status nach Korrektur:** Bleiben nicht korrigierbare Prüfsummen falsch, warnt die Vorschau. Die Datei
   bleibt danach „Unterstützt und ungültig“ statt „unvollständig“.
 - Details: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
 
 ## 1.20.0 (11.11.2026)
 
