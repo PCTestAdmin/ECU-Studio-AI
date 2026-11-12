@@ -129,6 +129,7 @@ def _package(folder: Path, version: str, exe_source: Path):
     (folder / 'VERSION.txt').write_text(version)
     (folder / '_internal').mkdir()
     (folder / '_internal' / 'app.py').write_text(f'print("{version}")')
+    shutil.copy2(UPDATER.parent / 'uninstall_cleanup.ps1', folder / '_internal' / 'uninstall_cleanup.ps1')   # shipped
     files = [{'path': p.relative_to(folder).as_posix(), 'size': p.stat().st_size,
               'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(folder.rglob('*')) if p.is_file()]
     (folder / 'RUNTIME_INVENTORY.json').write_text(json.dumps({'format': 1, 'version': version, 'files': files}))
@@ -196,6 +197,8 @@ def test_updater_rolls_back_when_new_version_fails_self_check(setup):
     assert result.returncode == 3, result.stdout + result.stderr
     assert (install / 'VERSION.txt').read_text() == '1.14.0'
     assert (install / 'meine_notizen.txt').read_text() == 'vom Nutzer'
+    # The failed new version was cleaned file by file (its user file is a copy): nothing of it is left.
+    assert sorted(p.name for p in install.parent.iterdir()) == ['ECU-Studio-AI', 'new', 'update.zip']
 
 
 def test_release_notes_need_matching_tag_and_changelog_section(tmp_path):

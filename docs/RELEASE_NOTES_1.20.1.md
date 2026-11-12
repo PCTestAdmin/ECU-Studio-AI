@@ -42,6 +42,14 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
   Lässt sich einer der beiden Ordner nicht umbenennen, zum Beispiel weil eine Datei darin geöffnet ist, bricht die
   Deinstallation ab, bevor sie etwas entfernt, und meldet das. Schließe dann die Programme, die Dateien aus dem
   Ordner verwenden, und deinstalliere erneut.
+- **Updater löscht keine vorhandenen Ordner mehr als Ganzes:** Bis 1.20.0 löschte der Updater eine vorhandene
+  Update-Sicherung (`ECU-Studio-AI.backup`) und weitere Arbeitsordner neben dem Programmordner vollständig, bevor er
+  sie neu anlegte. Ab 1.20.1 gilt:
+  - Eine vorhandene Sicherung wird nur umbenannt.
+  - Scheitert das Update, bekommt sie ihren Namen zurück. Gelingt es, wird sie Datei für Datei mit denselben Regeln
+    wie beim Deinstallieren bereinigt. Eigene und veränderte Dateien bleiben in `ECU-Studio-AI.backup.erhalten`.
+  - Ist eine Datei in der Sicherung geöffnet, bricht das Update ab, ohne etwas zu verändern.
+  - Bei einem Rollback wird die gescheiterte neue Version ebenso Datei für Datei bereinigt, nicht gelöscht.
 - **Update über den geprüften Installer:**
   - Installationen mit Installer laden bei „Jetzt nach Updates suchen“ den Installer
     `ECU-Studio-AI-<version>-setup.exe`. Die SHA-256-Prüfsumme wird gegen das Release geprüft.
@@ -105,6 +113,9 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
     eigene Dateien bleiben erhalten. Auch das nächste Update durch 1.20.1 oder neuer behebt den Übergang.
   - Schon deinstalliert? Dann denselben Installer einmal ausführen und danach erneut deinstallieren. Die drei Dateien
     werden dabei als unveränderte Programmdateien erkannt und entfernt.
+  - Der Updater von 1.20.0 ersetzt außerdem eine bereits vorhandene Update-Sicherung (`ECU-Studio-AI.backup`)
+    vollständig. Liegen dort eigene oder veränderte Dateien, installiere 1.20.1 mit
+    `ECU-Studio-AI-1.20.1-setup.exe` statt über „Jetzt nach Updates suchen“. Der Installer fasst die Sicherung nicht an.
   - Lösche den Programmordner bitte nicht als Ganzes von Hand. Dort können eigene oder veränderte Dateien liegen.
 - **Keine vollständige Checksummenabdeckung:** Keine untersuchte Originaldatei erreicht „gültig“. ME7, EDC16 und
   EDC17 bleiben „unvollständig“. Eine erfolgreiche Teilprüfung bestätigt nicht die Unversehrtheit der ganzen Datei.
@@ -148,6 +159,14 @@ coverage.** ECU Studio AI still never approves a file for flashing.
 
   If one of the two folders cannot be renamed, for example because a file in it is open, the uninstallation stops
   before it removes anything and says so. Close the programs that use files from that folder, then uninstall again.
+- **The updater no longer deletes existing folders as a whole:** up to 1.20.0 the updater deleted an existing update
+  backup (`ECU-Studio-AI.backup`) and other work folders next to the program folder completely before creating them
+  again. From 1.20.1:
+  - An existing backup is only renamed.
+  - If the update fails, the backup gets its name back. If the update succeeds, the backup is cleaned file by file
+    with the same rules as on uninstall. Your own and changed files stay in `ECU-Studio-AI.backup.erhalten`.
+  - If a file in the backup is open, the update stops without changing anything.
+  - On a rollback, the failed new version is also cleaned file by file, not deleted.
 - **Update through the verified installer:**
   - Installations made with the installer download the installer `ECU-Studio-AI-<version>-setup.exe` on "Check for
     updates now". Its SHA-256 checksum is verified against the release.
@@ -208,6 +227,9 @@ coverage.** ECU Studio AI still never approves a file for flashing.
     are kept. The next update carried out by 1.20.1 or later also completes the transition.
   - Already uninstalled? Run the same installer once and uninstall again. The three files are then recognised as
     unchanged program files and removed.
+  - The 1.20.0 updater also replaces an existing update backup (`ECU-Studio-AI.backup`) completely. If it holds your
+    own or changed files, install 1.20.1 with `ECU-Studio-AI-1.20.1-setup.exe` instead of "Check for updates now".
+    The installer does not touch the backup.
   - Please do not delete the program folder as a whole by hand. It may contain your own or changed files.
 - **No complete checksum coverage:** no original file examined reaches "valid". ME7, EDC16 and EDC17 stay
   "incomplete". A successful partial check does not confirm that the whole file is intact.

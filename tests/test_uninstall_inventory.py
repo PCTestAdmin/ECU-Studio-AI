@@ -500,6 +500,7 @@ def _package(folder: Path, version: str, extra: dict | None = None):
     (folder / 'VERSION.txt').write_text(version)
     (folder / '_internal').mkdir()
     (folder / '_internal' / 'app.py').write_text(f'print("{version}")')
+    shutil.copy2(CLEANUP, folder / '_internal' / 'uninstall_cleanup.ps1')          # shipped like in the real package
     for relative, text in (extra or {}).items():
         (folder / relative).parent.mkdir(parents=True, exist_ok=True); (folder / relative).write_text(text)
     _inventory(folder, version)
@@ -553,7 +554,17 @@ def test_installer_update_rolls_back_on_any_failure(installed, case):
     assert result.returncode == 3, result.stdout + result.stderr
     assert (install / 'VERSION.txt').read_text() == '1.20.1' and not (install / '_internal' / 'neu.py').exists()
     assert (install / 'meine_notizen.txt').read_text() == 'vom Nutzer' and (install / 'unins000.exe').exists()
-    assert not (tmp / 'ECU-Studio-AI.update-failed').exists() and 'Rollback' in result.stdout
+    assert 'Rollback' in result.stdout
+    # The failed new version is cleaned file by file against the restored installation, never deleted as a whole.
+    failed = tmp / 'ECU-Studio-AI.update-failed'
+    if case == 'incomplete':
+        # The setup wrote a file that matches neither its inventory nor the restored installation: its origin is not
+        # proven, so it stays (with the inventory that describes the folder) - and nothing else.
+        assert _files(failed) == ['RUNTIME_INVENTORY.json', '_internal/app.py']
+        assert (failed / '_internal' / 'app.py').read_text() == 'manipuliert'
+    else:
+        assert not failed.exists(), _files(failed)
+    assert not list(tmp.glob('*.erhalten*')) and not (tmp / 'ECU-Studio-AI.update-staging').exists()
 
 
 @windows
@@ -566,6 +577,167 @@ def test_installer_update_refuses_wrong_checksum_and_portable_copies(installed):
     result = _update(install, setup, script)
     assert result.returncode == 2 and 'unins000.exe fehlt' in result.stdout
     assert (install / 'VERSION.txt').read_text() == '1.20.1'
+
+
+# ---- updater.ps1: existing folders are never deleted as a whole (from 1.20.1) ---------------------------
+def _tree(folder: Path) -> dict:
+    return {p.relative_to(folder).as_posix(): _sha(p) for p in sorted(folder.rglob('*')) if p.is_file()}
+
+
+def _names(tmp: Path) -> list:
+    return sorted(p.name for p in tmp.iterdir() if p.name != 'update.zip')     # the archive of the ZIP route
+
+
+def _old_backup(tmp: Path) -> Path:
+    """<app>.backup left by an earlier update: version 1.20.0 plus a file of the user and a program file the user
+    changed - the backup may hold the ONLY copy of both."""
+    old = tmp / 'ECU-Studio-AI.backup'
+    _package(old, '1.20.0')
+    (old / '_internal' / 'app.py').write_text('vom Nutzer angepasst')
+    (old / 'eigene.txt').write_text('nur in der Sicherung')
+    return old
+
+
+def _zip_update(install, payload, tmp, check='/c exit 0'):
+    archive = tmp / 'update.zip'
+    with zipfile.ZipFile(archive, 'w') as z:
+        for p in payload.rglob('*'):
+            if p.is_file():
+                z.write(p, 'ECU-Studio-AI/' + p.relative_to(payload).as_posix())
+    env = dict(os.environ, ECU_UPDATER_QUIET='1')
+    return subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(UPDATER),
+                           '-InstallDir', str(install), '-Archive', str(archive), '-Sha256', _sha(archive),
+                           '-CheckArguments', check, '-UninstallKey', ''],
+                          capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, timeout=300)
+
+
+def _route(route, install, setup, script, payload, tmp, fail=False):
+    if route == 'installer':
+        return _update(install, setup, script, expected='9.9.9' if fail else '1.20.2')
+    return _zip_update(install, payload, tmp, check='/c exit 7' if fail else '/c exit 0')
+
+
+@windows
+@pytest.mark.parametrize('route', ['installer', 'zip'])
+def test_update_cleans_existing_backup_file_by_file_and_keeps_user_and_changed_files(installed, route):
+    install, setup, script, payload, tmp = installed
+    _old_backup(tmp)
+    result = _route(route, install, setup, script, payload, tmp)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.20.2'
+    assert (tmp / 'ECU-Studio-AI.backup' / 'VERSION.txt').read_text() == '1.20.1'   # the new backup
+    kept = tmp / 'ECU-Studio-AI.backup.erhalten'                                   # the old one, file by file
+    assert _files(kept) == ['RUNTIME_INVENTORY.json', '_internal/app.py', 'eigene.txt'], result.stdout
+    assert (kept / '_internal' / 'app.py').read_text() == 'vom Nutzer angepasst'
+    assert (kept / 'eigene.txt').read_text() == 'nur in der Sicherung'
+    assert 'Beiseitegelegt (nichts gelöscht)' in result.stdout
+
+
+@windows
+def test_zip_update_cleans_an_interrupted_staging_folder_file_by_file(installed):
+    install, setup, script, payload, tmp = installed
+    left = tmp / 'ECU-Studio-AI.update-staging'
+    _package(left / 'ECU-Studio-AI', '1.20.2')                    # an interrupted earlier update
+    (left / 'ECU-Studio-AI' / '_internal' / 'eigene.txt').write_text('fremd')
+    result = _zip_update(install, payload, tmp)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.20.2' and not left.exists()
+    assert _files(tmp / 'ECU-Studio-AI.update-staging.erhalten') == [
+        'ECU-Studio-AI/RUNTIME_INVENTORY.json', 'ECU-Studio-AI/_internal/eigene.txt']
+
+
+@windows
+@pytest.mark.parametrize('route', ['installer', 'zip'])
+def test_locked_existing_backup_stops_the_update_before_any_change(installed, route):
+    install, setup, script, payload, tmp = installed
+    old = _old_backup(tmp)
+    staging = tmp / 'ECU-Studio-AI.update-staging'
+    (staging / 'ECU-Studio-AI').mkdir(parents=True); (staging / 'ECU-Studio-AI' / 'eigene.txt').write_text('fremd')
+    before = {folder.name: _tree(folder) for folder in (install, old, staging)}
+    names = _names(tmp)
+    with open(old / 'eigene.txt', 'rb'):                           # open without delete sharing: rename impossible
+        result = _route(route, install, setup, script, payload, tmp)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert 'beiseitelegen' in result.stdout and 'nichts wurde verändert' in result.stdout
+    assert {folder.name: _tree(folder) for folder in (install, old, staging)} == before
+    assert _names(tmp) == names          # no *.erhalten, no staging/backup copy left
+
+
+@windows
+@pytest.mark.parametrize('route', ['installer', 'zip'])
+def test_rollback_puts_the_existing_backup_back_and_leaves_an_existing_failed_folder_alone(installed, route):
+    install, setup, script, payload, tmp = installed
+    old = _old_backup(tmp)
+    earlier = tmp / 'ECU-Studio-AI.update-failed'                  # left by someone or something earlier
+    earlier.mkdir(); (earlier / 'eigene.txt').write_text('nicht von diesem Lauf')
+    before = {folder.name: _tree(folder) for folder in (install, old, earlier)}
+    names = _names(tmp)
+    result = _route(route, install, setup, script, payload, tmp, fail=True)
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert {folder.name: _tree(folder) for folder in (install, old, earlier)} == before
+    assert _names(tmp) == names, result.stdout   # update-failed-2 cleaned, nothing aside
+    assert 'Zurückbenannt' in result.stdout
+
+
+@windows
+@pytest.mark.parametrize('problem', ['missing', 'changed'])
+def test_without_a_verified_cleanup_script_the_old_backup_is_kept_completely(installed, problem):
+    install, setup, script, payload, tmp = installed
+    old = _old_backup(tmp)
+    before = _tree(old)
+    shipped = install / '_internal' / 'uninstall_cleanup.ps1'
+    if problem == 'missing':
+        shipped.unlink()
+    else:
+        shipped.write_text(shipped.read_text(encoding='utf-8-sig') + '\n# verändert\n', encoding='utf-8')
+    result = _update(install, setup, script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _tree(tmp / 'ECU-Studio-AI.backup.erhalten') == before
+    assert 'bleibt vollständig erhalten' in result.stdout
+
+
+@windows
+def test_restore_never_reuses_or_removes_an_existing_swap_folder(installed):
+    install, setup, script, payload, tmp = installed
+    assert _update(install, setup, script).returncode == 0
+    swap = tmp / 'ECU-Studio-AI.restore-swap'
+    swap.mkdir(); (swap / 'eigene.txt').write_text('nicht von diesem Lauf')
+    env = dict(os.environ, ECU_UPDATER_QUIET='1')
+    result = subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(UPDATER),
+                             '-InstallDir', str(install), '-Restore', '-CheckArguments', '/c exit 0', '-UninstallKey', ''],
+                            capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, timeout=300)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.20.1'
+    assert (tmp / 'ECU-Studio-AI.backup' / 'VERSION.txt').read_text() == '1.20.2'
+    assert _files(swap) == ['eigene.txt'] and not (tmp / 'ECU-Studio-AI.restore-swap-2').exists()
+
+
+def test_updater_deletes_no_existing_folder_as_a_whole():
+    text = UPDATER.read_text(encoding='utf-8-sig').replace('\r\n', '\n')
+    code = '\n'.join(line.split('#', 1)[0] for line in text.split('\n#>', 1)[1].splitlines())
+    # No recursive delete anywhere; folders go only through Remove-PlainTree (no links followed) ...
+    assert '-Recurse -Force' not in code.replace('Copy-Item -LiteralPath $InstallDir -Destination $backup -Recurse -Force', '')
+    for line in code.splitlines():
+        if 'Remove-Item' in line:
+            assert '-Recurse' not in line, line
+    assert code.count('Remove-PlainTree $') == 2            # the recursion itself and Remove-OwnFolder
+    own = code.split('function Remove-OwnFolder', 1)[1].split('\n}\n', 1)[0]
+    assert 'if (-not $script:own.Contains($path))' in own and 'Remove-PlainTree $path' in own
+    # ... and only folders this run created: registered right after proving the path is free.
+    adds = [line.strip() for line in code.splitlines() if '$script:own.Add(' in line]
+    assert adds == ['$script:own.Add($backup)', '$script:own.Add($staging)']
+    for name in ('backup', 'staging'):
+        before = code.split(f'$script:own.Add(${name})', 1)[0].rstrip().splitlines()[-1]
+        assert f'if (Test-Path -LiteralPath ${name}) {{ Fail 2' in before
+    # The backup copy stops being disposable as soon as it is complete (it is then the way back).
+    assert code.index('[void]$script:own.Remove($backup)') > code.index('if ($before -ne $copied)')
+    # Existing folders: moved aside before use, rollback/swap targets always on a free name.
+    assert code.count('Move-Aside $backup') == 2 and code.count('Move-Aside $staging') == 1
+    assert "Get-FreeName ($InstallDir + '.update-failed')" in code and "Get-FreeName ($InstallDir + '.restore-swap')" in code
+    leftover = code.split('function Invoke-Leftover', 1)[1].split('\n}\n', 1)[0]
+    assert "'-Mode', 'Leftover', '-Reference', $reference" in leftover
+    init = code.split('function Initialize-Cleanup', 1)[1].split('\n}\n', 1)[0]
+    assert "'_internal/uninstall_cleanup.ps1'" in init and '(Get-Sha256 $copy) -ne' in init
 
 
 # ---- registry (throw-away key, CI only) --------------------------------------------------------------
