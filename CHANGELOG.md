@@ -17,6 +17,19 @@ Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach aus
   neuer oder ein Lauf des Installers ab 1.20.1. Nachweis auf Windows Server 2022 und 2025:
   [Release-Checkliste 1.20.0, A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation).
 
+**Checksummen & Integrität**
+
+- **Weitere ME7-Prüfsummen, nur Prüfung:** ROMSYS (Startup, Parameterseite, Programmseiten), CRC-Tabelle,
+  Hauptdaten-Prüfsumme und Hauptprogramm-Prüfsumme. Eigene Umsetzung nach dem quelloffenen ME7Sum. Am Original
+  gemessen (ME7.5: alle Werte reproduziert), nicht unabhängig validiert. Keine Korrektur; der Status bleibt
+  „Unvollständige Prüfung“. Hauptdaten-CRC32 und indirekte CRC-Blöcke bleiben als ungeprüft ausgewiesen.
+- **Korrektur verweigert, wenn sie Stimmendes verfälschen würde:** Die Vorschau rechnet das Ergebnis vorab nach.
+  Würde eine Korrektur eine bisher stimmende Prüfsumme falsch machen, wird sie mit Begründung verweigert.
+- **Ehrlicher Status nach Korrektur:** Bleiben nicht korrigierbare Prüfsummen falsch, warnt die Vorschau. Die Datei
+  bleibt danach „Unterstützt und ungültig“ statt „unvollständig“.
+- Details: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
+
 ## 1.20.0 (11.11.2026)
 
 Erste validierte Ausbaustufe eines gemeinsamen Checksummen- und Integritätssystems. Keine untersuchte Originaldatei

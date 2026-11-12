@@ -1,6 +1,7 @@
 # Checksummen und Integrität
 
-Stand: 08.11.2026, Version 1.20.0. Diese Seite
+Stand: 08.11.2026, Version 1.20.0. Ergänzt am 11.11.2026 um die weiteren ME7-Prüfsummen (§ 3, unveröffentlicht,
+Branch `feat/me7-checksums`). Diese Seite
 dokumentiert die Bestandsaufnahme, die Architektur, die Nachweise je Verfahren und die Grenzen. Firmwaredateien
 liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 
@@ -9,6 +10,8 @@ liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 - Unabhängig belegt ist ein Verfahren: die Bosch-Multipoint-Prüfsummentabelle (ME7.x, ME9, MED9).
 - MED17/EDC17 und EDC16 sind am Original gemessen. Ihre Korrektur bleibt bis zu einem signierten OEM-Nachweis
   gesperrt.
+- **Unveröffentlicht (nach 1.20.0):** Die weiteren ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme,
+  Hauptprogramm) werden **geprüft, nicht korrigiert**. Sie sind am Original gemessen und nicht unabhängig validiert.
 - Signaturen werden getrennt ausgewiesen und nie geprüft, erzeugt oder verändert.
 - Kein Ergebnis ist eine Flashfreigabe.
 
@@ -20,7 +23,8 @@ vollständige Checksummenabdeckung.
 | **Unterstützt** (unabhängig belegt) | Bosch-Multipoint-Tabellen (ME7.x, ME9, MED9) | ja | ja, nur unter Regel A oder B (§ 2) |
 | **Unterstützt** (vom Nutzer belegt) | geprüftes, SHA-256-gebundenes Profil | nur deklarierte Prüffelder | ja |
 | **Teilweise geprüft** | MED17/EDC17-Blöcke, EDC16-Bereiche | ja | gesperrt bis zum signierten OEM-Nachweis |
-| **Nicht unterstützt** | weitere ME7-Prüfsummen; Siemens/Continental; MG1/MD1; übrige Familien | nein | nein |
+| **Teilweise geprüft** (unveröffentlicht) | ME7: ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme, Hauptprogramm | ja | nein, nur Prüfung |
+| **Nicht unterstützt** | ME7: Hauptdaten-CRC32 und indirekte CRC-Blöcke; Siemens/Continental; MG1/MD1; übrige Familien | nein | nein |
 | **Nie** | digitale Herstellersignaturen | nicht verifiziert | nie verändert |
 
 Daraus folgt ausdrücklich:
@@ -205,6 +209,7 @@ Generische Tabelleneinträge laufen als „experimentell“. Sie werden geprüft
 | Verfahren | Familien | Stufe | Korrektur |
 |---|---|---|---|
 | Bosch-Multipoint-Prüfsummentabelle | ME7.x (C16x, LE), ME9 und MED9 (PowerPC, BE) | **unabhängig belegt** | ja |
+| Bosch ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten, Hauptprogramm), unveröffentlicht | ME7.x (C16x, 512 KiB/1 MiB) | am Original gemessen | nein, nur Prüfung |
 | Bosch MED17/EDC17-Blöcke | MED17, EDC17 | am Original gemessen | gesperrt (OEM-Nachweis) |
 | Bosch EDC16-Bereiche | EDC16 (MPC5xx) | am Original gemessen | gesperrt (OEM-Nachweis) |
 | Geprüftes Profil | beliebig | manuell geprüft | ja |
@@ -245,10 +250,85 @@ Programmseiten, Hintergrund- und Hauptprogrammprüfsummen sowie die RSA-Signatur
 „Unvollständige Prüfung“, und die Vorschau sagt, dass die Datei dadurch nicht flashbereit ist. Für ME9/MED9 ist nicht
 dokumentiert, welche weiteren Prüfungen es gibt.
 
+### Bosch ME7 – weitere Prüfsummen (am Original gemessen, nur Prüfung; unveröffentlicht)
+
+`core/me7_checksums.py` ist eine eigene Python-Umsetzung der Verfahren, die das quelloffene ME7Sum beschreibt.
+- **Quelle:** github.com/nyetlabs/ME7Sum (früher nyetwurk), Datei `me7sum.c`, Commit `7095f930` vom 09.11.2026.
+- **Lizenz:** Erlaubnishinweis im Kopf von `me7sum.c` („Permission is hereby granted, free of charge … to use, copy,
+  modify …“, MIT-Wortlaut); das README nennt „BSD open source license“.
+- **Umgang:** Der C-Quelltext wurde gelesen und verglichen. Er wurde nicht ausgeführt und nicht kopiert, auch
+  `ME7Check.exe` nicht.
+- **Rückverfolgbarkeit:** Die Kommentare im Modul nennen die ME7Sum-Funktionen.
+- **Einbindung:** `core/integrity.py`, Verfahren `bosch-me7`. Es gelten dieselben Regeln wie bei EDC16/EDC17:
+  - am Original nachweisen, an den aktuellen Bytes prüfen;
+  - was am geöffneten Original nicht stimmt, bleibt „nicht bestätigt“;
+  - eine veränderte Struktur gilt als Fehler;
+  - die Korrektur ist gesperrt.
+
+| Nr. | Prüfpunkt | ROMSYS Startup / ParamPage / ProgramPages | CRC-Tabelle | Hauptdaten-Prüfsumme | Hauptdaten-CRC32 | Hintergrund 1/2 | Hauptprogramm |
+|---|---|---|---|---|---|---|---|
+| 1 | Dokumentation | `DoROMSYS_*`, `CheckROMSYSHeader` | `FindCRCTab`, `crc_table_fallback` | `FindMainCSMOffsets`, `DoMainCSMs` | `FindMainCRC*`, `DoMainCRCs` | `FindBgChecksums`, `DoBgChecksums` | `FindMainProgram*`, `DoMainProgramCSM` |
+| 2 | Bereiche | Wort 0x8000 + 0xFFFE; Wort Parameteranfang + -ende; erstes + letztes Wort jeder 8-KiB-Seite in 0–0xFFFF und 0x20000–Flashende | 1024 Byte ab Code-Verweis (`mov r4/r5`) oder Tabellenanfang | Blöcke aus den Code-Verweisen (Start/Ende) | dieselben Blöcke, ggf. verkettet ab Vorblock | Deskriptoren (Start, Ende, Wert, ~Wert), Anker bei Start 0x814000 | zwei Bereiche aus dem Deskriptor (0–0xFBFF, 0x20000–Flashende) |
+| 3 | Byte-Reihenfolge | 16-Bit-Wörter LE, Ergebnis 32 Bit | Standard-CRC-32 (gespiegelt, 0xEDB88320), Einträge LE | Bytesumme, Wert + Komplement LE | CRC-32 wie zlib | 16-Bit-Wörter LE, Wert + Komplement | 16-Bit-Wörter LE, Wert + Komplement am Dateiende − 0x20 |
+| 4 | Unabhängiger Vergleich | ME7Sum-Quelltext (gelesen); Herstellerwerte | ME7Sum; Tabelle aus zlib unabhängig erzeugt | ME7Sum; Herstellerwert | nur ME7Sum, **kein Original mit diesem Feld** | ME7Sum; zugleich Multipoint-Einträge (unabhängig belegt) | ME7Sum; Herstellerwert |
+| 5 | Unveränderte Referenzen | 1 (ME7.5 8E0909518AK, Herkunft nicht dokumentiert) | 1 | 1 | 0 | 1 (+ Multipoint-Nachweis) | 1 |
+| 6 | Erkennung von Änderungen | je 1 Byte im Bereich → genau die abdeckenden Prüfungen falsch (synthetisch und am Original) | ja | ja | synthetisch nicht belegt | über Multipoint | ja |
+| 7 | Falsch-Positive | keine auf ME9, MED9.1, EDC17CP09, EDC16C31/C35, MS43, MS45, MSD80, MSD85, MED17, Zufall, Nullen, 0xFF | ebenso | ebenso | ebenso | ebenso | ebenso |
+| 8 | Grenzfälle | gekürzte/vergrößerte Datei, falscher Kopf → „nicht gefunden“ | ohne Code-Verweis über Tabellenanfang; mehr als 2 Tabellen → nicht gefunden | mehrdeutige Verweise → nicht gefunden | 3 Ablageorte nötig, sonst nicht gefunden | zweiter Anker → nicht gefunden; ungültiger Vorgänger beendet die Kette | zweiter Deskriptor oder Wert ≠ ~Komplement → nicht gefunden |
+| 9 | Laufzeit/Speicher | gesamt +14 ms auf ME7.5 (1 MiB), höchstens +64 ms auf anderen Dateien, kein zusätzlicher Spitzenspeicher (§ 4) | | | | | |
+| 10 | Tests | `tests/test_me7_checksums.py` (40, synthetisch, mit zweiter, einfacher Implementierung), `tests/test_integrity_reference.py` (Opt-in) | | | | | |
+
+**Einstufung:**
+- ROMSYS (3 Werte), CRC-Tabelle, Hauptdaten-Prüfsumme und Hauptprogramm: **am Original gemessen**. Die
+  gespeicherten Werte eines unveränderten ME7.5-Originals werden exakt reproduziert, und das Verfahren stimmt mit
+  ME7Sum überein. Das ist **kein** unabhängiger Nachweis im Sinne dieser Seite: Es gibt nur eine Datei mit
+  undokumentierter Herkunft, keinen zweiten Softwarestand und keinen Lauf eines zweiten Werkzeugs. Deshalb gilt:
+  - nur Prüfung;
+  - der Status bleibt „Unvollständige Prüfung“;
+  - eine Korrektur ist gesperrt.
+- Hauptdaten-CRC32: **nicht validiert**. Implementiert, aber auf keinem Original gefunden. Zählt nur, wenn ein
+  geöffnetes Original den gespeicherten Wert selbst reproduziert. Indirekte CRC-Blöcke (`FindIndirectCRCBlks`) sind
+  **nicht unterstützt**. Fehlt die CRC, steht sie im Bericht als ungeprüft.
+- Hintergrund-Prüfsummen: Ihre Deskriptoren haben genau das Format eines Multipoint-Eintrags (gleiches Feld, gleiche
+  Wortsumme). Sie sind deshalb seit 1.20.0 als Multipoint-Einträge geprüft und korrigierbar. Das neue Verfahren
+  meldet sie nicht doppelt, sondern verweist auf den Multipoint-Eintrag.
+- Gemessen auf ME7.5 8E0909518AK: 8 von 8 Werten reproduziert, davon 2 (Hintergrund) bereits über Multipoint.
+
+| Prüfung | Prüffeld | gespeichert = berechnet |
+|---|---|---|
+| ROMSYS Startup | 0x8038 | 0x0000FB39 |
+| ROMSYS ParamPage | 0x1E4FA | 0x0000971D |
+| ROMSYS ProgramPages (120 Seiten) | 0x803C | 0x009B5F0C |
+| CRC-Tabelle (über Code-Verweis) | 0x1D40A | Standardtabelle |
+| Hauptdaten-Prüfsumme (4 Blöcke) | 0x9FEE6 | 0x008BBA6B |
+| Hintergrund 1 / 2 | 0x14230 / 0x14240 | 0x0CFD55CC / 0x004DE5DC |
+| Hauptprogramm | 0xFFFE0 | 0xB46D0EA8 |
+
+**Zusammenspiel mit der Multipoint-Korrektur (neu, gilt für alle Verfahren):**
+- **Simulation vor der Vorschau.** Die Korrekturvorschau rechnet das Ergebnis vorab vollständig nach. Würde eine
+  Korrektur eine bisher stimmende Prüfsumme irgendeines Verfahrens falsch machen, wird sie insgesamt verweigert,
+  mit Begründung. Beispiel: ein Multipoint-Feld auf einem Wort, das ROMSYS ProgramPages summiert.
+- **Nicht korrigierte ME7-Prüfsummen bleiben sichtbar.** Ändert eine Bearbeitung Bytes, die auch ME7-Prüfsummen
+  abdecken, korrigiert die Multipoint-Korrektur nur die Multipoint-Felder. Die ME7-Prüfsummen bleiben als Fehler
+  stehen, und die Vorschau warnt ausdrücklich: Die Datei bleibt „Unterstützt und ungültig“ und ist nicht
+  flashbereit.
+- **Gemessen auf ME7.5:** Ein Datenwort im größten Multipoint-Bereich wurde geändert. Danach sind 3 Multipoint-Einträge
+  sowie ROMSYS ProgramPages und Hauptprogramm falsch. Nach der Korrektur stimmen die Multipoint-Einträge, die beiden
+  ME7-Prüfsummen bleiben falsch, der Status ist „ungültig“. Nach dem Zurücksetzen des Wortes und erneuter Korrektur
+  ist die Datei bitgleich mit dem Original, ohne Fehler.
+- **Folge:** In 1.20.0 erschien dieselbe Datei nach der Korrektur als „unvollständig“, weil die ME7-Prüfsummen
+  unbekannt waren. Jetzt wird sie richtig als ungültig gemeldet.
+
 ### MED17/EDC17 und EDC16 (am Original gemessen)
 
-- **EDC17CP09:** 8 von 11 Strukturen reproduziert. Zwei Dataset-#0-Strukturen stimmen auf der lokalen Datei nicht
-  (die Datei ist möglicherweise kein unverändertes Original), eine liegt außerhalb des Blocks.
+- **EDC17CP09:** 8 von 11 Strukturen reproduziert. Nachuntersuchung am 11.11.2026, nur gemessen, Code
+  unverändert:
+  - **Dataset #0:** CRC32 über 0x20000–0x7FEFF und ADD32 über 0x20CE4–0x2230F stimmen beide nicht. Alle anderen
+    Blöcke stimmen. Das passt zu einem veränderten Kalibrierdatensatz. Zudem ist die Datei 1 Byte kürzer als 2 MiB
+    (2 097 151 Byte). Ohne zweites Original ist das nicht entscheidbar; die Strukturen bleiben „nicht bestätigt“.
+  - **Startup-Block, zweite Struktur:** Sie deckt 0x1FF00–0x1FFDF ab, also hinter dem deklarierten Blockende
+    0x1FEFF. Sie reproduziert ihren Wert mit CRC32. Die Regel „Bereich liegt im Block“ bleibt trotzdem streng; erst
+    ein zweites Original kann sie für diesen Bereich erweitern.
 - **EDC16C31 und EDC16C35:** je 1 von 1 Bereich.
 - Es gibt keine unabhängige Spezifikation oder Referenzimplementierung, die geprüft wurde, und keine signierte
   OEM-Bescheinigung. Die Prüfung meldet Änderungen als „ungültig“, die Korrektur bleibt gesperrt.
@@ -278,7 +358,27 @@ Die Firmwaredateien selbst liegen nicht im Repository.
 „Unvollständig“ bedeutet hier: Alle erkannten Bereiche stimmen, aber die Familie hat weitere Prüfungen
 (z. B. ME7-ROMSYS/CRC-Tabellen, RSA-Signatur), die dieses Programm nicht abdeckt.
 
-Korrekturlauf (ein Wort in der Mitte des größten Multipoint-Bereichs geändert):
+**Nach der ME7-Ergänzung (unveröffentlicht, 11.11.2026)**, gleiche Methode, Vergleich mit `main` (1.20.0) auf
+demselben Rechner:
+
+| Datei | ME7-Prüfungen | Status | Prüfung vorher → nachher | Speicherspitze |
+|---|---|---|---|---|
+| ME7.5 8E0909518AK | 6 stimmen (+2 über Multipoint) | unvollständig | 110 → 124 ms | 5,0 MiB (gleich) |
+| ME9 770115XE | – | unvollständig | 114 → 122 ms | 5,0 MiB |
+| MED9.1 1K090711S | – | unvollständig | 240 → 244 ms | 10,0 MiB |
+| EDC17CP09 | – | unvollständig | 277 → 258 ms | 10,0 MiB |
+| EDC16C31 | – | unvollständig | 527 → 591 ms | 22,4 MiB |
+| EDC16C35 | – | unvollständig | 246 → 287 ms | 9,9 MiB |
+| MS43 430069 | – | nicht unterstützt | 56 → 67 ms | 2,5 MiB |
+| MSD80, MSD85 (je 256 KiB) | – | unbekannt | 29 → 34 / 27 → 34 ms | 1,3 MiB |
+| MS45 | – | unbekannt | 109 → 118 ms | 5,0 MiB |
+| MED17.1.62 (Kalibrierbereich) | – | unbekannt | 57 → 62 ms | 2,4 MiB |
+
+Kein ME7-Verfahren schlägt auf einer Nicht-ME7-Datei an. Die Korrekturvorschau rechnet das Ergebnis jetzt vorab
+nach. Dadurch dauert „Prüfung + Plan“ etwa doppelt so lange: ME7.5 139 → 305 ms, ME9 150 → 294 ms, MED9.1
+299 → 584 ms. Kopie und Übernahme bleiben unverändert.
+
+Korrekturlauf (ein Wort in der Mitte des größten Multipoint-Bereichs geändert; Werte von 1.20.0):
 
 | Datei | betroffene Bereiche | geänderte Prüfbytes | Prüfung + Plan | Kopie mit Protokoll | Übernahme in Sitzung |
 |---|---|---|---|---|---|
@@ -296,9 +396,15 @@ die numpy-Wortsummen.
 
 - Kein Verfahren erreicht heute „Unterstützt und gültig“ ohne geprüftes Profil mit `"complete": true`. Das ist
   beabsichtigt, solange weitere Prüfsummen der Familie ungeprüft sind.
-- ME7.x: ROMSYS, CRC-Tabelle, Haupt-Datenprüfsummen, Programmseiten, Hintergrund- und Hauptprogrammprüfsummen fehlen.
-  Sie sind in ME7Sum beschrieben und wären der nächste Schritt zu einer vollständigen ME7-Prüfung. Die RSA-Signatur
-  wird nie verändert.
+- ME7.x (unveröffentlicht): ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme und Hauptprogramm werden geprüft, aber nur
+  am Original gemessen, nicht korrigiert. Es fehlen:
+  - die Hauptdaten-CRC32 (kein Original mit diesem Feld);
+  - indirekte CRC-Blöcke;
+  - ein zweiter Softwarestand;
+  - ein Lauf eines zweiten Werkzeugs.
+
+  Die RSA-Signatur wird nie verändert. ME7Sum prüft sie mit dem Schlüssel aus der Firmware selbst; das ist kein
+  Vertrauensanker und wird nicht übernommen.
 - MED17/EDC17, EDC16: Für die Korrektur fehlen eine unabhängige Referenz und die signierte OEM-Bescheinigung.
 - Siemens/Continental (MS4x, MSD8x, MS45, Simos, SID): kein Verfahren implementiert (Status „Nicht unterstützt“).
 - Die Referenzdateien außer MS43 haben keine dokumentierte Herkunft. Deshalb wurden sie nur lokal gemessen. Eine
@@ -317,6 +423,20 @@ die numpy-Wortsummen.
   - Regel A gilt nur bei eindeutiger Identifikation.
 - Die ME9-Referenz wird von der Identifikation nicht erkannt (Familie leer). Eine bessere ME9-Identifikation würde
   sie von Regel B auf Regel A heben.
+
+### Einstufung der Familien (11.11.2026)
+
+| Familie | belegt (unabhängig) | experimentell / am Original gemessen | nicht validiert | unbekannt |
+|---|---|---|---|---|
+| ME7.x | Multipoint (inkl. Hintergrund-Prüfsummen) | ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme, Hauptprogramm | Hauptdaten-CRC32, indirekte CRC-Blöcke | – |
+| ME9, MED9 | Multipoint | – | – | weitere Prüfungen der Familie |
+| MED17 | – | Bosch-Blockleser (auf EDC17CP09 gemessen) | auf MED17 selbst: nur Kalibrierabbilder ohne Blöcke vorhanden | Signaturblöcke (nur „erkannt“) |
+| EDC17 | – | 8 von 11 Strukturen auf EDC17CP09 | Dataset #0, Struktur hinter dem Startup-Block | – |
+| EDC16 | – | 1 von 1 Bereich auf C31 und C35 | – | weitere Prüfungen der Familie |
+| MG1/MD1 | – | – | – | kein Verfahren, keine Datei |
+| MS42/MS43 | – | – | – | kein Verfahren (MS43: „nicht unterstützt“) |
+| MSD80/MSD85 | – | – | – | kein Verfahren (Teilabbilder: „unbekannt“) |
+| Simos, SID | – | – | – | kein Verfahren, keine Datei |
 
 ### Lokale Referenztests ausführen
 
