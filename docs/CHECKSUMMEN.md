@@ -378,6 +378,19 @@ Kein ME7-Verfahren schlägt auf einer Nicht-ME7-Datei an. Die Korrekturvorschau 
 nach. Dadurch dauert „Prüfung + Plan“ etwa doppelt so lange: ME7.5 139 → 305 ms, ME9 150 → 294 ms, MED9.1
 299 → 584 ms. Kopie und Übernahme bleiben unverändert.
 
+**Kennfelderkennung unverändert (12.11.2026).** `ecu_studio.tools.benchmark_suite` auf `main` (1.20.0) und auf
+dem Stand mit ME7-Prüfungen und Signaturstatus, gleicher Rechner, ein BLAS-Thread. Verglichen wurde jedes Feld außer
+Laufzeit, Speicher und Quell-Hash:
+
+| Benchmark | Fälle | Unterschiede | Kennzahlen (beide Stände gleich) |
+|---|---|---|---|
+| Reale Vergleichspaare | 15 | 0 | exakt 2D 1454, exakt 1D 3800, Achsen 1215 von 1229, Datentyp exakt 1250, Achsadressen 2406 |
+| Synthetische Fälle | 14 | 0 | exakt 2D 222, exakt 1D 1140, Achsen 175 von 181, Falsch-Positive 2D 155 |
+| Negativ-Benchmark (FOME, rusEFI, Speeduino) | 7 | 0 | 875 Funde, sicher falsch 0; Speicherspitze je Datei gleich (10,2–67,5 MB) |
+
+Laufzeit der Erkennung: 105 → 93 s (reale Paare), 18 → 17 s (synthetisch), Negativ-Benchmark je Datei ±2 s –
+Messrauschen; die Erkennung ruft die neuen Module nicht auf.
+
 Korrekturlauf (ein Wort in der Mitte des größten Multipoint-Bereichs geändert; Werte von 1.20.0):
 
 | Datei | betroffene Bereiche | geänderte Prüfbytes | Prüfung + Plan | Kopie mit Protokoll | Übernahme in Sitzung |
