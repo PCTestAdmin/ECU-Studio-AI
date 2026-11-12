@@ -17,6 +17,10 @@ it installs, starts, uninstalls and changes per-user settings).
                 -Next (installer route): the leftovers of the old route disappear with the next update
   -Mode Rollback candidate installed; its updater: wrong checksum (refused), failure after the setup (rollback),
                 real update to -Next, restore of the previous version, uninstall
+  -Mode Blocked v1.20.0 updated by its own updater (ZIP route), candidate's setup run over it (the uninstall log then
+                holds the blanket rules of 1.20.0 for <app>.backup and <app>.update-staging). A file held open makes
+                the rename of the backup (A) or of the staging folder (B) impossible: the real uninstaller must stop
+                before removing anything. Then (C) unlocked: own files stay in the renamed folders.
 
 Every mode also places an unknown file of the user in the program folder: it must survive updates and the
 uninstallation (only program files are removed, by inventory + SHA-256 or by the installer's own log).
@@ -24,7 +28,7 @@ uninstallation (only program files are removed, by inventory + SHA-256 or by the
 Writes $Out\results.json; exit code 1 if any check failed.
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Heal', 'Rollback')][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Heal', 'Rollback', 'Blocked')][string]$Mode,
     [Parameter(Mandatory = $true)][string]$Package,
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Repository = 'PCTestAdmin/ECU-Studio-AI',
@@ -33,7 +37,7 @@ param(
     # Second QA package with a higher test version (built from the candidate in the QA workflow only).
     [string]$Next = ''
 )
-if (-not $OldTag) { $OldTag = @{ Update = 'v1.19.1'; InApp = 'v1.20.0'; Repair = 'v1.20.0'; Chain = 'v1.19.1'; Heal = 'v1.20.0' }[$Mode] }
+if (-not $OldTag) { $OldTag = @{ Update = 'v1.19.1'; InApp = 'v1.20.0'; Repair = 'v1.20.0'; Chain = 'v1.19.1'; Heal = 'v1.20.0'; Blocked = 'v1.20.0' }[$Mode] }
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory $Out -Force | Out-Null
 $qa = $PSScriptRoot
@@ -89,6 +93,21 @@ function Uninstall {
     # The uninstaller continues in a temporary copy; wait until it removed the program folder. From 1.20.1 it
     # first checks <app>.backup file by file (SHA-256), which takes longer on a slow runner: up to 4 minutes each.
     for ($i = 0; $i -lt 480 -and (Test-Path "$install\ECU-Studio-AI.exe"); $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 480 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 2
+    return $p.ExitCode
+}
+function Uninstall-Blocked([string]$Log) {
+    # An uninstallation that is expected to STOP (the program folder stays): wait for the uninstaller and its
+    # temporary copy to end, with a time limit, and return the exit code.
+    $p = Start-Process "$install\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+        ('/LOG="' + $Log + '"')) -PassThru
+    $null = $p.Handle                                   # keeps ExitCode available after the process ended
+    if (-not $p.WaitForExit(300000)) {
+        Check 'Deinstallation endet innerhalb von 5 Minuten' $false 'Zeitüberschreitung'
+        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+        return 'Zeitüberschreitung'
+    }
     for ($i = 0; $i -lt 480 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 2
     return $p.ExitCode
@@ -630,6 +649,77 @@ if ($Mode -eq 'Heal') {
     Check 'Heilung 3: Deinstallation' ((Uninstall) -eq 0)
     Check-Uninstalled 'Heilung 3'
     Check-UserFile 'Heilung 3'
+}
+
+if ($Mode -eq 'Blocked') {
+    # From 1.20.1 the uninstaller renames <app>.backup and <app>.update-staging to *.erhalten before anything else, so
+    # that the blanket rules of 1.20.0 that remain in unins000.dat find nothing. If a rename is impossible, it must
+    # STOP before removing anything; it must never continue with such a folder under its old name.
+    $old = Get-Release $OldTag @('*-setup.exe*')
+    Check "Installation $OldTag" ((Install (Get-ChildItem "$old\*-setup.exe").FullName "$Out\install-old.log") -eq 0)
+    New-UserFile "Blockiert ($OldTag)"
+    $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+    $code = Invoke-Updater @('-Archive', $zip, '-Sha256', $sha) "$Out\update-old-updater.log"
+    Check "ZIP-Update mit dem Updater von $OldTag" ($code -eq 0 -and (Get-Content "$install\VERSION.txt").Trim() -eq $version) "Exit $code"
+    Check 'Setup des Kandidaten über die aktualisierte Installation' ((Install $setup "$Out\install-candidate.log") -eq 0)
+    Check-Installed 'Blockiert'
+    Check 'Blockiert: Update-Sicherung des alten Updaters vorhanden' (Test-Path "$install.backup\VERSION.txt")
+    $staging = "$install.update-staging"
+    $relOwn = '_internal\qa-nur-in-der-sicherung.txt'; $relStaging = 'ECU-Studio-AI\_internal\qa-nur-im-staging.txt'
+    'nur in der Sicherung' | Set-Content -Encoding utf8 "$install.backup\$relOwn"
+    New-Item -ItemType Directory (Split-Path "$staging\$relStaging") -Force | Out-Null
+    'nur im Staging' | Set-Content -Encoding utf8 "$staging\$relStaging"
+    $ownHash = (Get-FileHash "$install.backup\$relOwn").Hash; $stagingHash = (Get-FileHash "$staging\$relStaging").Hash
+    $programBefore = Get-TreeHash $install
+    $backupBefore = Get-TreeHash "$install.backup"
+    $stagingBefore = Get-TreeHash $staging
+
+    $cases = @(
+        @{ Label = 'Blockiert A (Sicherung gesperrt)'; Folder = "$install.backup"; File = "$install.backup\VERSION.txt"; Log = 'uninstall-blocked-a.log' },
+        @{ Label = 'Blockiert B (Staging gesperrt, Sicherung schon umbenannt)'; Folder = $staging; File = "$staging\$relStaging"; Log = 'uninstall-blocked-b.log' })
+    foreach ($case in $cases) {
+        $label = $case.Label
+        $lock = [System.IO.File]::Open($case.File, 'Open', 'Read', 'Read')   # no FileShare.Delete: rename impossible
+        try {
+            $renamed = $true
+            try { [System.IO.Directory]::Move($case.Folder, "$($case.Folder)-probe") } catch { $renamed = $false }
+            if ($renamed) { [System.IO.Directory]::Move("$($case.Folder)-probe", $case.Folder) }
+            Check "$label`: Umbenennen nachweislich unmöglich (Probe)" (-not $renamed) $case.Folder
+            $code = Uninstall-Blocked "$Out\$($case.Log)"
+        } finally { $lock.Dispose() }
+        $log = if (Test-Path "$Out\$($case.Log)") { Get-Content "$Out\$($case.Log)" -Raw } else { '' }
+        Check "$label`: Deinstallation meldet Abbruch (Exit ungleich 0)" ($code -ne 0) "Exit $code"
+        Check "$label`: Abbruch im Deinstallationsprotokoll" ($log -match 'DEINSTALLATION ABGEBROCHEN, nichts entfernt') (
+            ($log -split "`n" | Where-Object { $_ -match 'umbenannt|ABGEBROCHEN|zur.{1,2}ckgenommen' }) -join ' | ')
+        Check "$label`: Programmordner unverändert (SHA-256 aller Dateien)" (-not (Compare-Object $programBefore (Get-TreeHash $install)))
+        Check "$label`: Sicherung unverändert unter ihrem Namen (SHA-256 aller Dateien)" (
+            (Test-Path "$install.backup") -and -not (Compare-Object $backupBefore (Get-TreeHash "$install.backup")))
+        Check "$label`: Staging unverändert unter seinem Namen" ((Test-Path $staging) -and -not (Compare-Object $stagingBefore (Get-TreeHash $staging)))
+        Check "$label`: kein umbenannter Ordner (*.erhalten) übrig" (-not (Test-Path "$install.backup.erhalten*") -and -not (Test-Path "$staging.erhalten*"))
+        Check-Installed $label
+        Check-UserFile $label
+        if ($case.Folder -eq $staging) {
+            Check "$label`: Umbenennung der Sicherung zurückgenommen" ($log -match 'Ordner umbenannt .*\.backup -> .*\.backup\.erhalten' -and
+                $log -match 'Umbenennung zur.{1,2}ckgenommen: .*\.backup\.erhalten -> .*\.backup')
+        }
+    }
+    Check-Running 'nach blockierter Deinstallation'
+
+    # Unlocked: the uninstallation runs. Own files stay, unchanged, in the renamed folders; nothing else of them.
+    Check 'Blockiert C: Deinstallation ohne Sperre' ((Uninstall) -eq 0)
+    $keptBackup = "$install.backup.erhalten"; $keptStaging = "$staging.erhalten"
+    $backupLeft = @(Get-ChildItem $keptBackup -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Substring($keptBackup.Length + 1) })
+    $stagingLeft = @(Get-ChildItem $keptStaging -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Substring($keptStaging.Length + 1) })
+    Check 'Blockiert C: in ECU-Studio-AI.backup.erhalten genau die eigene Datei und ihr Inventar' (
+        $backupLeft.Count -eq 2 -and -not (Compare-Object $backupLeft @('RUNTIME_INVENTORY.json', $relOwn)) -and
+        (Get-FileHash "$keptBackup\$relOwn").Hash -eq $ownHash) ("$($backupLeft.Count): " + ($backupLeft -join ', '))
+    Check 'Blockiert C: in ECU-Studio-AI.update-staging.erhalten genau die eigene Datei, unverändert' (
+        $stagingLeft.Count -eq 1 -and $stagingLeft[0] -eq $relStaging -and (Get-FileHash "$keptStaging\$relStaging").Hash -eq $stagingHash) (
+        "$($stagingLeft.Count): " + ($stagingLeft -join ', '))
+    # Disposable runner only: the test removes what the uninstaller rightly kept, then checks everything else.
+    foreach ($kept in @($keptBackup, $keptStaging)) { if (Test-Path -LiteralPath $kept) { Remove-Item -LiteralPath $kept -Recurse -Force } }
+    Check-Uninstalled 'Blockiert C'
+    Check-UserFile 'Blockiert C'
 }
 
 if ($Mode -eq 'Rollback') {
