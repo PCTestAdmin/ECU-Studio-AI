@@ -25,7 +25,7 @@ vollständige Checksummenabdeckung.
 | **Teilweise geprüft** | MED17/EDC17-Blöcke, EDC16-Bereiche | ja | gesperrt bis zum signierten OEM-Nachweis |
 | **Teilweise geprüft** (unveröffentlicht) | ME7: ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme, Hauptprogramm | ja | nein, nur Prüfung |
 | **Nicht unterstützt** | ME7: Hauptdaten-CRC32 und indirekte CRC-Blöcke; Siemens/Continental; MG1/MD1; übrige Familien | nein | nein |
-| **Nie** | digitale Herstellersignaturen | nicht verifiziert | nie verändert |
+| **Nie** | digitale Herstellersignaturen | nicht verifiziert (unveröffentlicht: nur mit vertrauenswürdigem Schlüssel, § 6) | nie verändert |
 
 Daraus folgt ausdrücklich:
 - Nicht alle Checksummen werden automatisch korrigiert.
@@ -378,6 +378,19 @@ Kein ME7-Verfahren schlägt auf einer Nicht-ME7-Datei an. Die Korrekturvorschau 
 nach. Dadurch dauert „Prüfung + Plan“ etwa doppelt so lange: ME7.5 139 → 305 ms, ME9 150 → 294 ms, MED9.1
 299 → 584 ms. Kopie und Übernahme bleiben unverändert.
 
+**Kennfelderkennung unverändert (12.11.2026).** `ecu_studio.tools.benchmark_suite` auf `main` (1.20.0) und auf
+dem Stand mit ME7-Prüfungen und Signaturstatus, gleicher Rechner, ein BLAS-Thread. Verglichen wurde jedes Feld außer
+Laufzeit, Speicher und Quell-Hash:
+
+| Benchmark | Fälle | Unterschiede | Kennzahlen (beide Stände gleich) |
+|---|---|---|---|
+| Reale Vergleichspaare | 15 | 0 | exakt 2D 1454, exakt 1D 3800, Achsen 1215 von 1229, Datentyp exakt 1250, Achsadressen 2406 |
+| Synthetische Fälle | 14 | 0 | exakt 2D 222, exakt 1D 1140, Achsen 175 von 181, Falsch-Positive 2D 155 |
+| Negativ-Benchmark (FOME, rusEFI, Speeduino) | 7 | 0 | 875 Funde, sicher falsch 0; Speicherspitze je Datei gleich (10,2–67,5 MB) |
+
+Laufzeit der Erkennung: 105 → 93 s (reale Paare), 18 → 17 s (synthetisch), Negativ-Benchmark je Datei ±2 s –
+Messrauschen; die Erkennung ruft die neuen Module nicht auf.
+
 Korrekturlauf (ein Wort in der Mitte des größten Multipoint-Bereichs geändert; Werte von 1.20.0):
 
 | Datei | betroffene Bereiche | geänderte Prüfbytes | Prüfung + Plan | Kopie mit Protokoll | Übernahme in Sitzung |
@@ -447,3 +460,54 @@ python -m pytest tests/test_integrity_reference.py
 
 Die Manifestdatei liegt außerhalb des Repositorys und enthält je Eintrag `name`, `bin`, `sha256`, `method`, `regions`
 und `unproven`.
+
+---
+
+## 6. Signaturen (Architektur, unveröffentlicht)
+
+Herstellersignaturen in der Firmware sind etwas anderes als Prüfsummen. Sie werden getrennt geführt
+(`core/firmware_signatures.py`). Drei Arten von Signaturen werden nie vermischt:
+
+| Art | Wo | Wer prüft |
+|---|---|---|
+| OEM-Firmwaresignatur | im Steuergeräte-Abbild, vom Hersteller | dieses Modul, nur mit vertrauenswürdigem Schlüssel |
+| Authenticode | auf den Windows-Programmdateien von ECU Studio AI | Windows; die EXE ist derzeit nicht code-signiert |
+| GitHub-Build-Attestation | Herkunft der Release-Dateien | `gh attestation verify` (Release-Workflow und Nutzer) |
+
+**Sechs Status je Firmwaresignatur:**
+
+| Status | Bedeutung |
+|---|---|
+| gültig | mit einem vertrauenswürdigen Schlüssel kryptographisch geprüft; die signierten Bytes sind unverändert |
+| ungültig | mit einem vertrauenswürdigen Schlüssel geprüft; Daten oder Signatur sind verändert |
+| Struktur erkannt, nicht geprüft | Ort und Verfahren bekannt, aber kein vertrauenswürdiger Schlüssel |
+| erwartet, nicht gefunden | die Familie trägt üblicherweise eine Signatur; in der Datei nicht lokalisiert |
+| nicht unterstützt | Signatur vorhanden, für ihr Verfahren gibt es keinen Prüfer |
+| unbekannt | nichts bekannt |
+
+**Regeln:**
+- „Gültig“ und „ungültig“ gibt es nur nach einer echten kryptographischen Prüfung mit einem Schlüssel aus dem vom
+  Nutzer ausdrücklich angegebenen Vertrauensspeicher. Jeder Schlüssel braucht eine angegebene Herkunft.
+- Ein Schlüssel, der in der Firmware selbst steht, ist kein Vertrauensanker. Wer die Firmware ändert, kann ihn
+  mit austauschen.
+- Prüfer ohne Fremdbibliothek:
+  - Ed25519 (RFC 8032, vorhandene Implementierung mit den RFC-Testvektoren);
+  - RSASSA-PKCS1-v1_5 mit SHA-256 (RFC 8017), Modul mindestens 2048 Bit.
+- Fehlerhafte Eingaben führen nie zu „gültig“, darunter falsche Länge, `s ≥ n`, gerader Exponent, kleiner Modul,
+  anderer Hash und Bereich außerhalb der Datei.
+- Eine Signatur ändert nie den Checksummenstatus. Eine gültige Signatur ist keine Flashfreigabe, eine
+  Prüfsummenkorrektur ersetzt keine Signatur.
+- Das Modul prüft nur. Es hat keine Funktion, die eine Signatur erzeugt, verändert, entfernt oder umgeht; ein Test
+  sichert die öffentliche Schnittstelle ab.
+
+**Stand der Familien:**
+- Für keine Steuergerätefamilie ist ein Ort der Herstellersignatur nachweisbar lokalisiert. Es gibt auch keinen
+  vertrauenswürdigen OEM-Schlüssel. Ergebnis wie bisher:
+  - ME7.x: RSA-Signatur „erwartet“;
+  - MED17/EDC17: „erwartet“, die Bosch-Blöcke *Tuning protection*, *Customer Tuning protection* und
+    *Application Attestation* „Struktur erkannt“;
+  - ME9/MED9 und EDC16: „unbekannt“.
+- ME7Sum prüft die ME7-RSA-Signatur mit einem Schlüssel aus der Firmware selbst. Nach der Regel oben ergibt das
+  höchstens „Struktur erkannt“, nie „gültig“. Deshalb ist es nicht übernommen.
+- Belegt ist die Architektur mit **synthetischen** Testschlüsseln (`tests/test_firmware_signatures.py`). Ed25519
+  aus einem festen Startwert; RSA mit 2048 Bit, im Test erzeugt und nirgends sonst verwendet.
