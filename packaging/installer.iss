@@ -60,6 +60,10 @@ Filename: "{app}\ECU-Studio-AI.exe"; Description: "ECU Studio AI starten"; Flags
 ; next to the program folder, {app}.backup and {app}.update-staging, were deleted here as a whole
 ; ("filesandordirs"). A backup can hold the only copy of a program file the user changed, or of an own file
 ; whose name a new version took. They are now cleaned file by file in [Code] below (-Mode Leftover).
+; Inno Setup keeps the entries of earlier installer runs in unins000.dat: an installation that was ever set up with
+; 1.20.0 or older still carries those two blanket rules, and the uninstaller would run them AFTER [Code]. So both
+; folders are first renamed to "<folder>.erhalten" (MoveAside): the old rules then find nothing, and whatever the
+; cleanup keeps stays there.
 
 [Code]
 // Program files by inventory (packaging/uninstall_cleanup.ps1, shipped in {app}\_internal):
@@ -124,6 +128,36 @@ begin
     RunCleanup(Folder, '-Mode Leftover -Reference "' + ExpandConstant('{app}') + '"');
 end;
 
+function MoveAside(Folder: String): String;
+// Renames Folder to a free name "<Folder>.erhalten[-N]" and returns it ('' if Folder does not exist). This moves it
+// out of reach of the blanket rules of 1.20.0 and older that remain in the uninstall log (see [UninstallDelete]).
+// Renaming changes no file. If it fails, the folder keeps its name and this is logged.
+var
+  Target: String;
+  N: Integer;
+begin
+  Result := '';
+  if not DirExists(Folder) then
+    Exit;
+  Target := Folder + '.erhalten';
+  N := 2;
+  while DirExists(Target) or FileExists(Target) do
+  begin
+    Target := Folder + '.erhalten-' + IntToStr(N);
+    N := N + 1;
+  end;
+  if RenameFile(Folder, Target) then
+  begin
+    Log('Ordner umbenannt (Schutz vor alter Löschregel): ' + Folder + ' -> ' + Target);
+    Result := Target;
+  end
+  else
+  begin
+    Log('WARNUNG: Ordner konnte nicht umbenannt werden, alte Löschregel kann ihn erfassen: ' + Folder);
+    Result := Folder;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
@@ -142,13 +176,21 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Backup, Staging: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
     // Backup and staging first: their copies are compared with {app}, which must still be complete.
-    RunLeftoverCleanup(ExpandConstant('{app}') + '.backup');
-    RunLeftoverCleanup(ExpandConstant('{app}') + '.update-staging\ECU-Studio-AI');
-    RemoveDir(ExpandConstant('{app}') + '.update-staging');   // only removes an EMPTY folder
+    Backup := MoveAside(ExpandConstant('{app}') + '.backup');
+    if Backup <> '' then
+      RunLeftoverCleanup(Backup);
+    Staging := MoveAside(ExpandConstant('{app}') + '.update-staging');
+    if Staging <> '' then
+    begin
+      RunLeftoverCleanup(Staging + '\ECU-Studio-AI');
+      RemoveDir(Staging);   // only removes an EMPTY folder
+    end;
     RunInventoryCleanup('-Mode Uninstall');
   end;
 end;

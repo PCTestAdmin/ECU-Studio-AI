@@ -20,7 +20,9 @@ es gibt keine Flashfreigabe. Release Notes Deutsch/Englisch: [RELEASE_NOTES_1.20
   `[UninstallDelete]`-Regel mehr. Beide Ordner werden vor dem Programmordner Datei für Datei bereinigt
   (`uninstall_cleanup.ps1 -Mode Leftover`). Entfernt werden nur unveränderte Inventardateien, byte-gleiche Kopien von
   Dateien im Programmordner und Deinstallationsprogramm/-protokoll dieser Anwendung (AppId geprüft). Alles andere
-  bleibt samt Ordner erhalten; Junctions werden nicht verfolgt.
+  bleibt erhalten; Junctions werden nicht verfolgt. Weil Inno Setup die alten Regeln im `unins000.dat` bestehender
+  Installationen behält und nach dem Code ausführt, werden beide Ordner vorher in `….erhalten` umbenannt; die alten
+  Regeln finden dann nichts mehr (in der Installer-QA, Modus Repair, gemessen).
 - **Grenze:** Updates, die noch der Updater von 1.20.0 oder älter ausführt (auch 1.20.0 → 1.20.1), laufen über den
   alten Weg und behalten den alten Deinstaller. Er lässt nach einer Deinstallation drei neue Dateien zurück:
   `_internal\app\ecu_studio\core\firmware_signatures.py`, `_internal\app\ecu_studio\core\me7_checksums.py` und

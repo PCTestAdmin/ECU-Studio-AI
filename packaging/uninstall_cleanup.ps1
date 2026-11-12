@@ -80,6 +80,20 @@ function Get-Sha256([string]$path) {
     } finally { $stream.Dispose() }
 }
 
+function Test-Twin([string]$file, [string]$relative) {
+    # True only if the program folder (-Reference) holds a byte-identical copy at the same relative path, without a
+    # reparse point on the way. A copy that cannot be read (e.g. {app}\unins000.dat, held open by the running
+    # uninstaller) proves nothing: $false, so the file is judged by the other rules or kept.
+    $twin = Join-Path $refRoot $relative
+    try {
+        if (-not (Test-Path -LiteralPath $twin -PathType Leaf) -or -not (Test-NoReparseBetween $refRoot $twin)) { return $false }
+        return (Get-Sha256 $twin) -eq (Get-Sha256 $file)
+    } catch {
+        Log "Kopie im Programmordner nicht lesbar, zählt nicht als gleich ($($_.Exception.Message)): $relative"
+        return $false
+    }
+}
+
 function Read-Inventory([string]$path) {
     # Returns @{ 'relative\path' (lower case) = @{ Path = 'relative\path'; Sha256 = '...' } } or $null.
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
@@ -228,7 +242,8 @@ if ($Mode -eq 'Leftover') {
         foreach ($file in $rest) {
             if ([System.IO.Path]::GetDirectoryName($file) -ieq $root -and [System.IO.Path]::GetFileName($file) -match '^unins(\d{3})\.dat$') {
                 $number = $Matches[1]
-                if (Test-InnoLog $file) { $innoLogs[$number] = $true }
+                try { if (Test-InnoLog $file) { $innoLogs[$number] = $true } }
+                catch { Log "Deinstallationsprotokoll nicht lesbar, gilt als fremd ($($_.Exception.Message)): $([System.IO.Path]::GetFileName($file))" }
             }
         }
         foreach ($file in $rest) {
@@ -238,9 +253,7 @@ if ($Mode -eq 'Leftover') {
                 $reason = ''
                 $name = [System.IO.Path]::GetFileName($file)
                 $atTop = [System.IO.Path]::GetDirectoryName($file) -ieq $root
-                $twin = Join-Path $refRoot $relative
-                if ((Test-Path -LiteralPath $twin -PathType Leaf) -and (Test-NoReparseBetween $refRoot $twin) -and
-                    (Get-Sha256 $twin) -eq (Get-Sha256 $file)) {
+                if (Test-Twin $file $relative) {
                     $reason = 'gleiche Kopie im Programmordner'
                 } elseif ($atTop -and $name -match '^unins(\d{3})\.dat$' -and $innoLogs.ContainsKey($Matches[1])) {
                     $reason = 'Deinstallationsprotokoll dieser Anwendung'

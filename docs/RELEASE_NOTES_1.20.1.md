@@ -25,8 +25,9 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
   - innerhalb des Programmordners;
   - unverändert (SHA-256).
 
-  Eigene, unbekannte und veränderte Dateien bleiben stehen, ebenso Verknüpfungen und Junctions. Sie werden im
-  Deinstallationsprotokoll genannt. Es gibt keine pauschale Löschregel.
+  Bei dieser zusätzlichen Bereinigung bleiben eigene, unbekannte und veränderte Dateien stehen, ebenso Verknüpfungen
+  und Junctions. Sie werden im Deinstallationsprotokoll genannt. Es gibt keine pauschale Löschregel. Dateien, die der
+  Installer selbst installiert hat, entfernt der Deinstaller wie bisher.
 - **Update-Sicherung beim Deinstallieren:** Bis 1.20.0 löschte der Deinstaller die Ordner `ECU-Studio-AI.backup`
   und `ECU-Studio-AI.update-staging` neben dem Programmordner vollständig. Dort kann aber die einzige Kopie einer
   veränderten oder eigenen Datei liegen. Ab 1.20.1 wird jede Datei einzeln geprüft. Entfernt werden nur:
@@ -34,7 +35,9 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
   - byte-gleiche Kopien (SHA-256) von Dateien im Programmordner;
   - Deinstallationsprogramm und -protokoll dieser Anwendung.
 
-  Alles andere bleibt samt Ordner erhalten und wird im Deinstallationsprotokoll genannt.
+  Alles andere bleibt erhalten und wird im Deinstallationsprotokoll genannt. Der Ordner heißt danach
+  `ECU-Studio-AI.backup.erhalten` (bzw. `ECU-Studio-AI.update-staging.erhalten`). So erfasst ihn auch die alte
+  Löschregel nicht, die das Deinstallationsprotokoll älterer Installationen weiter enthält.
 - **Update über den geprüften Installer:**
   - Installationen mit Installer laden bei „Jetzt nach Updates suchen“ den Installer
     `ECU-Studio-AI-<version>-setup.exe`. Die SHA-256-Prüfsumme wird gegen das Release geprüft.
@@ -125,8 +128,9 @@ coverage.** ECU Studio AI still never approves a file for flashing.
   - inside the program folder;
   - unchanged (SHA-256).
 
-  The user's own, unknown and changed files stay, and so do links and junctions. They are listed in the uninstall
-  log. There is no blanket delete rule.
+  In this additional cleanup the user's own, unknown and changed files stay, and so do links and junctions. They are
+  listed in the uninstall log. There is no blanket delete rule. Files the installer itself installed are removed by
+  the uninstaller as before.
 - **Update backup on uninstall:** up to 1.20.0 the uninstaller deleted the folders `ECU-Studio-AI.backup` and
   `ECU-Studio-AI.update-staging` next to the program folder completely. They can hold the only copy of a changed or
   own file, though. From 1.20.1 every file there is checked on its own. Only these are removed:
@@ -134,7 +138,9 @@ coverage.** ECU Studio AI still never approves a file for flashing.
   - byte-identical copies (SHA-256) of files in the program folder;
   - this application's uninstaller and uninstall log.
 
-  Everything else stays, together with its folder, and is listed in the uninstall log.
+  Everything else stays and is listed in the uninstall log. The folder is then named `ECU-Studio-AI.backup.erhalten`
+  (or `ECU-Studio-AI.update-staging.erhalten`), so that the old delete rule, which the uninstall log of older
+  installations still contains, does not reach it either.
 - **Update through the verified installer:**
   - Installations made with the installer download the installer `ECU-Studio-AI-<version>-setup.exe` on "Check for
     updates now". Its SHA-256 checksum is verified against the release.
