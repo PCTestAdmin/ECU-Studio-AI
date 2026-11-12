@@ -144,9 +144,12 @@ Die neuesten Funktionen stehen oben.
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_umgesetzt,_nicht_veröffentlicht-0969da?style=for-the-badge)
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_Release--Kandidat,_nicht_veröffentlicht-0969da?style=for-the-badge)
 
-**Deinstallation nach einem In-App-Update ohne Rückstände – umgesetzt und getestet, noch nicht veröffentlicht.**
+**Release-Kandidat 1.20.1, noch nicht veröffentlicht** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)). Enthalten sind die
+Behebung unten, weitere ME7-Prüfsummen (nur Prüfung) und der Signaturstatus (siehe „In Arbeit“).
+
+**Deinstallation nach einem In-App-Update ohne Rückstände.**
 Wurde eine Installation über „Jetzt nach Updates suchen“ aktualisiert, blieben nach der Deinstallation
 Programmdateien zurück, die erst mit der neuen Version hinzukamen (1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht
 betroffen). Der Fix kommt ohne pauschale Löschregel aus:
@@ -179,8 +182,8 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 |:--:|---|---|
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
-| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | Umgesetzt, noch nicht veröffentlicht ([PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
-| 🔏 | **Signaturstatus für Firmware** | Umgesetzt, noch nicht veröffentlicht ([PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
+| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | Im Release-Kandidaten 1.20.1, noch nicht veröffentlicht ([PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
+| 🔏 | **Signaturstatus für Firmware** | Im Release-Kandidaten 1.20.1, noch nicht veröffentlicht ([PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
 
 <br>
 

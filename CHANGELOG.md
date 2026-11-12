@@ -1,6 +1,8 @@
-## Unveröffentlicht
+## 1.20.1 (Release-Kandidat, noch nicht veröffentlicht)
 
-Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach ausdrücklicher Freigabe.
+Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –
+nur als Prüfung, ohne Korrektur. Keine untersuchte Originaldatei erreicht eine vollständige Checksummenabdeckung;
+es gibt keine Flashfreigabe. Release Notes Deutsch/Englisch: [RELEASE_NOTES_1.20.1.md](docs/RELEASE_NOTES_1.20.1.md).
 
 **Installation und Update (A5: Rückstände nach In-App-Update und Deinstallation)**
 
@@ -35,6 +37,15 @@ Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach aus
   bisher eine Signatur lokalisiert oder ein OEM-Schlüssel vorhanden; belegt ist die Architektur mit synthetischen
   Testschlüsseln.
 - Details: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
+**Release und Tests**
+
+- **Sichererer Release-Workflow:** Titel immer „ECU Studio AI vX.Y.Z“, Release-Text auf Deutsch und Englisch,
+  Versionsprüfung von EXE, ZIP und Installer, Installer-, Update- und Deinstallationstest auf Windows Server 2022 und
+  2025, Prüfung von Assets und SHA-256 vor und nach dem Veröffentlichen, Herkunftsnachweis, Firmware-Guard und
+  Modellsperre. Probeläufe (`release-dry-run/**`) veröffentlichen nie.
+- **Kennfelderkennung unverändert:** 15 reale Vergleichspaare, 14 synthetische Fälle und der Negativ-Benchmark ohne
+  Unterschied zu 1.20.0.
 
 
 ## 1.20.0 (11.11.2026)
