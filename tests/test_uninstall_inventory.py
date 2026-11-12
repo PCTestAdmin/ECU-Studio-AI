@@ -230,20 +230,42 @@ def test_installer_uses_inventory_cleanup_and_no_pattern_rule():
     # Backup and staging are cleaned file by file, compared with the still complete {app}, BEFORE {app} is cleaned.
     # First they are renamed: unins000.dat of installations set up with 1.20.0 or older still holds the old blanket
     # rules for exactly these two paths, and Inno runs them after [Code] (measured in the installer QA, Repair mode).
-    step = text.split('procedure CurUninstallStepChanged', 1)[1].split('\nend;', 1)[0]
-    order = [step.index(call) for call in ("Backup := MoveAside(ExpandConstant('{app}') + '.backup')",
+    def body(name):
+        part = text.split(name, 1)[1].split('\nend;\n', 1)[0]
+        return '\n'.join(line.split('//', 1)[0] for line in part.split('\nbegin\n', 1)[1].splitlines())
+
+    step = body('procedure CurUninstallStepChanged')
+    # Both renames come first; a folder that could not be renamed stops the uninstallation before ANY removal
+    # (forced in the real uninstaller: release.yml update-test and installer QA mode Blocked).
+    order = [step.index(call) for call in ("BackupFolder := ExpandConstant('{app}') + '.backup'",
+                                           "StagingFolder := ExpandConstant('{app}') + '.update-staging'",
+                                           'if not MoveAside(BackupFolder, Backup) then\n      StopUninstall(BackupFolder);',
+                                           'if not MoveAside(StagingFolder, Staging) then',
+                                           'PutBack(Backup, BackupFolder);',
+                                           'StopUninstall(StagingFolder);',
                                            'RunLeftoverCleanup(Backup)',
-                                           "Staging := MoveAside(ExpandConstant('{app}') + '.update-staging')",
                                            "RunLeftoverCleanup(Staging + '\\ECU-Studio-AI')",
                                            'RemoveDir(Staging)',
                                            "RunInventoryCleanup('-Mode Uninstall')")]
-    assert order == sorted(order) and 'usUninstall' in step
+    assert order == sorted(order) and 'if CurUninstallStep = usUninstall then' in step
+    assert step.count('MoveAside(') == 2 and step.count('StopUninstall(') == 2
     assert "'-Mode Leftover -Reference \"' + ExpandConstant('{app}') + '\"'" in text
-    move = text.split('function MoveAside', 1)[1].split('\nend;\n', 1)[0]
+    move = body('function MoveAside')
+    assert 'function MoveAside(Folder: String; var Target: String): Boolean;' in text
     assert "Folder + '.erhalten'" in move and 'RenameFile(Folder, Target)' in move
     assert 'DirExists(Target) or FileExists(Target)' in move    # never onto an existing folder or file
-    code = '\n'.join(line.split('//', 1)[0] for line in move.split('\nbegin\n', 1)[1].splitlines())
-    assert 'Delete' not in code and 'RemoveDir' not in code and 'Exec' not in code   # renames, nothing else
+    # Success means: nothing exists under the old name any more (checked AFTER the rename, never assumed).
+    assert move.rstrip().endswith('Result := not (DirExists(Folder) or FileExists(Folder));')
+    assert move.count('Result :=') == 1
+    put_back = body('procedure PutBack')
+    for code in (move, put_back):
+        assert 'Delete' not in code and 'RemoveDir' not in code and 'Exec' not in code   # renames, nothing else
+    assert 'RenameFile(Target, Folder)' in put_back
+    # The stop removes nothing and ends with Abort (documented to end the uninstaller in usUninstall).
+    stop = body('procedure StopUninstall')
+    assert stop.rstrip().endswith('Abort;') and 'Log(' in stop and 'SuppressibleMsgBox(' in stop
+    for call in ('Delete', 'RemoveDir', 'Exec', 'RunCleanup', 'Rename'):
+        assert call not in stop
     # The script recognises only THIS application's uninstaller files: same AppId, AppName and AppPublisher.
     script = CLEANUP.read_text(encoding='utf-8-sig')
     app_id = text.split('\nAppId={', 1)[1].split('\n', 1)[0]

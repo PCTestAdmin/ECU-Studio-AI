@@ -63,7 +63,8 @@ Filename: "{app}\ECU-Studio-AI.exe"; Description: "ECU Studio AI starten"; Flags
 ; Inno Setup keeps the entries of earlier installer runs in unins000.dat: an installation that was ever set up with
 ; 1.20.0 or older still carries those two blanket rules, and the uninstaller would run them AFTER [Code]. So both
 ; folders are first renamed to "<folder>.erhalten" (MoveAside): the old rules then find nothing, and whatever the
-; cleanup keeps stays there.
+; cleanup keeps stays there. If a folder cannot be renamed, the uninstallation stops before anything is removed
+; (StopUninstall); it never continues with such a folder under its old name.
 
 [Code]
 // Program files by inventory (packaging/uninstall_cleanup.ps1, shipped in {app}\_internal):
@@ -128,34 +129,60 @@ begin
     RunCleanup(Folder, '-Mode Leftover -Reference "' + ExpandConstant('{app}') + '"');
 end;
 
-function MoveAside(Folder: String): String;
-// Renames Folder to a free name "<Folder>.erhalten[-N]" and returns it ('' if Folder does not exist). This moves it
-// out of reach of the blanket rules of 1.20.0 and older that remain in the uninstall log (see [UninstallDelete]).
-// Renaming changes no file. If it fails, the folder keeps its name and this is logged.
+function MoveAside(Folder: String; var Target: String): Boolean;
+// Moves Folder out of reach of the blanket rules of 1.20.0 and older that remain in the uninstall log (see
+// [UninstallDelete]) by renaming it to a free name "<Folder>.erhalten[-N]" (Target; '' if nothing was renamed).
+// Renaming changes no file. Returns True only if NOTHING exists under the name Folder any more (it never existed or
+// was renamed); False if it is still there (rename failed: a file in it is open, no permission, ...).
 var
-  Target: String;
   N: Integer;
 begin
-  Result := '';
-  if not DirExists(Folder) then
+  Target := '';
+  if DirExists(Folder) or FileExists(Folder) then
+  begin
+    Target := Folder + '.erhalten';
+    N := 2;
+    while DirExists(Target) or FileExists(Target) do
+    begin
+      Target := Folder + '.erhalten-' + IntToStr(N);
+      N := N + 1;
+    end;
+    if RenameFile(Folder, Target) then
+      Log('Ordner umbenannt (Schutz vor alter Löschregel): ' + Folder + ' -> ' + Target)
+    else
+    begin
+      Log('Ordner konnte nicht umbenannt werden: ' + Folder);
+      Target := '';
+    end;
+  end;
+  Result := not (DirExists(Folder) or FileExists(Folder));
+end;
+
+procedure PutBack(Target, Folder: String);
+// Undoes a rename of MoveAside when the uninstallation is stopped: the program stays installed and its rollback
+// keeps finding the backup. If that fails, the folder stays under Target (out of reach of the old rules).
+begin
+  if Target = '' then
     Exit;
-  Target := Folder + '.erhalten';
-  N := 2;
-  while DirExists(Target) or FileExists(Target) do
-  begin
-    Target := Folder + '.erhalten-' + IntToStr(N);
-    N := N + 1;
-  end;
-  if RenameFile(Folder, Target) then
-  begin
-    Log('Ordner umbenannt (Schutz vor alter Löschregel): ' + Folder + ' -> ' + Target);
-    Result := Target;
-  end
+  if RenameFile(Target, Folder) then
+    Log('Umbenennung zurückgenommen: ' + Target + ' -> ' + Folder)
   else
-  begin
-    Log('WARNUNG: Ordner konnte nicht umbenannt werden, alte Löschregel kann ihn erfassen: ' + Folder);
-    Result := Folder;
-  end;
+    Log('Umbenennung nicht zurückgenommen, der Ordner bleibt unverändert unter ' + Target);
+end;
+
+procedure StopUninstall(Folder: String);
+// Called before anything was removed. Abort in CurUninstallStepChanged(usUninstall) ends the uninstaller before it
+// processes its log: neither the program files nor Folder are touched, and the old blanket rules never run.
+begin
+  Log('DEINSTALLATION ABGEBROCHEN, nichts entfernt: ' + Folder + ' konnte nicht umbenannt werden. Eine Löschregel ' +
+      'älterer Versionen im Deinstallationsprotokoll würde diesen Ordner sonst vollständig löschen.');
+  SuppressibleMsgBox('Die Deinstallation wurde abgebrochen. Es wurde nichts entfernt.' + #13#10#13#10 +
+    'Der Ordner' + #13#10 + Folder + #13#10 + 'konnte nicht umbenannt werden, vermutlich ist eine Datei darin ' +
+    'geöffnet. Ohne Umbenennung würde eine Löschregel älterer Versionen ihn vollständig löschen, auch eigene oder ' +
+    'veränderte Dateien darin.' + #13#10#13#10 +
+    'Bitte schließe alle Programme, die Dateien aus diesem Ordner verwenden, und starte die Deinstallation erneut.',
+    mbCriticalError, MB_OK, IDOK);
+  Abort;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -177,15 +204,24 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  Backup, Staging: String;
+  BackupFolder, StagingFolder, Backup, Staging: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
-    // Backup and staging first: their copies are compared with {app}, which must still be complete.
-    Backup := MoveAside(ExpandConstant('{app}') + '.backup');
+    // 1. Both folders out of reach of the old blanket rules BEFORE anything is removed. If one of them cannot be
+    //    renamed, the uninstallation stops here (StopUninstall): nothing has been removed yet.
+    BackupFolder := ExpandConstant('{app}') + '.backup';
+    StagingFolder := ExpandConstant('{app}') + '.update-staging';
+    if not MoveAside(BackupFolder, Backup) then
+      StopUninstall(BackupFolder);
+    if not MoveAside(StagingFolder, Staging) then
+    begin
+      PutBack(Backup, BackupFolder);
+      StopUninstall(StagingFolder);
+    end;
+    // 2. Backup and staging file by file: their copies are compared with {app}, which must still be complete.
     if Backup <> '' then
       RunLeftoverCleanup(Backup);
-    Staging := MoveAside(ExpandConstant('{app}') + '.update-staging');
     if Staging <> '' then
     begin
       RunLeftoverCleanup(Staging + '\ECU-Studio-AI');

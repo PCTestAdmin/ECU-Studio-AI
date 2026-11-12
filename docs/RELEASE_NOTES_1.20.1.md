@@ -38,6 +38,10 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
   Alles andere bleibt erhalten und wird im Deinstallationsprotokoll genannt. Der Ordner heißt danach
   `ECU-Studio-AI.backup.erhalten` (bzw. `ECU-Studio-AI.update-staging.erhalten`). So erfasst ihn auch die alte
   Löschregel nicht, die das Deinstallationsprotokoll älterer Installationen weiter enthält.
+
+  Lässt sich einer der beiden Ordner nicht umbenennen, zum Beispiel weil eine Datei darin geöffnet ist, bricht die
+  Deinstallation ab, bevor sie etwas entfernt, und meldet das. Schließe dann die Programme, die Dateien aus dem
+  Ordner verwenden, und deinstalliere erneut.
 - **Update über den geprüften Installer:**
   - Installationen mit Installer laden bei „Jetzt nach Updates suchen“ den Installer
     `ECU-Studio-AI-<version>-setup.exe`. Die SHA-256-Prüfsumme wird gegen das Release geprüft.
@@ -141,6 +145,9 @@ coverage.** ECU Studio AI still never approves a file for flashing.
   Everything else stays and is listed in the uninstall log. The folder is then named `ECU-Studio-AI.backup.erhalten`
   (or `ECU-Studio-AI.update-staging.erhalten`), so that the old delete rule, which the uninstall log of older
   installations still contains, does not reach it either.
+
+  If one of the two folders cannot be renamed, for example because a file in it is open, the uninstallation stops
+  before it removes anything and says so. Close the programs that use files from that folder, then uninstall again.
 - **Update through the verified installer:**
   - Installations made with the installer download the installer `ECU-Studio-AI-<version>-setup.exe` on "Check for
     updates now". Its SHA-256 checksum is verified against the release.
