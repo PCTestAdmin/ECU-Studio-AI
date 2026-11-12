@@ -1,0 +1,116 @@
+name: Installer QA (release candidate)
+
+# Install, start, update and uninstall test of a release candidate on fresh GitHub-hosted Windows runners.
+# Only for qa/** branches. It never creates a tag or a release and has read-only repository access;
+# the packages stay workflow artifacts (7 days).
+# Test versions: the runner's checkout gets the test version CANDIDATE (and later NEXT) before each build
+# (.github/qa/qa_version.py); nothing of that is committed and no tag/release exists for them. NEXT is the candidate
+# with one marker file dropped and one added, to prove updates between two versions that both contain the fix.
+# InApp/Chain: the installed version updates itself from its own menu; the release source is a staging server on
+# the runner (hosts file + throw-away test CA, removed afterwards). Nothing is published.
+on:
+  push:
+    branches: ['qa/**']
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE: '1.20.1'
+  NEXT: '1.20.2'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        id: py
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - name: Package metadata for the release tools (as in release.yml)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-deps -e .
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup 6 fehlt' }
+      - name: Candidate (test version on the runner only) with the official build script
+        shell: pwsh
+        run: |
+          python .github/qa/qa_version.py . $env:CANDIDATE --add qa_dropped_in_next
+          ./build_release.ps1 -SkipTests -Python313 "${{ steps.py.outputs.python-path }}"
+          ./.github/qa/collect_package.ps1 -Version $env:CANDIDATE -Destination pkg/candidate
+      - name: Next version derived from the candidate
+        shell: pwsh
+        run: |
+          python .github/qa/qa_version.py . $env:NEXT --remove qa_dropped_in_next --add qa_next_only
+          ./build_release.ps1 -SkipTests -Python313 "${{ steps.py.outputs.python-path }}"
+          ./.github/qa/collect_package.ps1 -Version $env:NEXT -Destination pkg/next
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rc-package
+          path: pkg/candidate
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-package
+          path: pkg/next
+          retention-days: 7
+
+  installer:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        mode: [Fresh, Update, InApp, Repair, Chain, Heal, Rollback]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/qa
+      - uses: actions/setup-python@v6
+        id: qapy
+        with:
+          python-version: '3.13'
+      - name: Test tools (runner only, not part of the package)
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check cryptography pywinauto pillow
+      - uses: actions/download-artifact@v4
+        with:
+          name: rc-package
+          path: rc
+      - uses: actions/download-artifact@v4
+        with:
+          name: next-package
+          path: next
+      - name: ${{ matrix.mode }} test
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/qa/installer_test.ps1 -Mode ${{ matrix.mode }} -Package rc -Out "$env:RUNNER_TEMP\qa" -Repository "${{ github.repository }}" -QaPython "${{ steps.qapy.outputs.python-path }}" -Next next
+      - name: Collect results
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory qa-out -Force | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\qa\results.json", "$env:RUNNER_TEMP\qa\*.png", "$env:RUNNER_TEMP\qa\*.log", "$env:RUNNER_TEMP\qa\python-*", "$env:RUNNER_TEMP\qa\*.out", "$env:RUNNER_TEMP\qa\*.err", "$env:RUNNER_TEMP\qa\staging\requests.log", "$env:RUNNER_TEMP\qa\*.txt" qa-out -ErrorAction SilentlyContinue
+          Get-ChildItem "$env:RUNNER_TEMP\qa" -Recurse -Include *.json, *.png -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\old\\' } | ForEach-Object {
+              $name = $_.FullName.Substring("$env:RUNNER_TEMP\qa\".Length).Replace('\', '__')
+              Copy-Item $_.FullName (Join-Path qa-out $name) }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-qa-${{ matrix.os }}-${{ matrix.mode }}
+          path: qa-out
+          retention-days: 14
