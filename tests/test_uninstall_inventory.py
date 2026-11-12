@@ -218,10 +218,29 @@ def test_obsolete_mode_removes_only_unchanged_files_the_new_version_dropped(tmp_
 
 
 def test_installer_uses_inventory_cleanup_and_no_pattern_rule():
-    text = ISS.read_text(encoding='utf-8-sig')
+    text = ISS.read_text(encoding='utf-8-sig').replace('\r\n', '\n')
+    # No [UninstallDelete] rule at all (from 1.20.1): up to 1.20.0 {app}.backup and {app}.update-staging were
+    # deleted as a whole ("filesandordirs"), including user files and changed program files kept only there.
     delete_section = text.split('\n[UninstallDelete]', 1)[1].split('\n[Code]', 1)[0]
     rules = [line for line in delete_section.splitlines() if line.strip() and not line.lstrip().startswith(';')]
-    assert rules == ['Type: filesandordirs; Name: "{app}.backup"', 'Type: filesandordirs; Name: "{app}.update-staging"']
+    assert rules == []
+    assert 'filesandordirs' not in text.replace(delete_section, '') and 'DelTree' not in text
+    for section in ('[InstallDelete]', '[Dirs]'):
+        assert section not in text
+    # Backup and staging are cleaned file by file, compared with the still complete {app}, BEFORE {app} is cleaned.
+    step = text.split('procedure CurUninstallStepChanged', 1)[1].split('\nend;', 1)[0]
+    order = [step.index(call) for call in ("RunLeftoverCleanup(ExpandConstant('{app}') + '.backup')",
+                                           "RunLeftoverCleanup(ExpandConstant('{app}') + '.update-staging\\ECU-Studio-AI')",
+                                           "RemoveDir(ExpandConstant('{app}') + '.update-staging')",
+                                           "RunInventoryCleanup('-Mode Uninstall')")]
+    assert order == sorted(order) and 'usUninstall' in step
+    assert "'-Mode Leftover -Reference \"' + ExpandConstant('{app}') + '\"'" in text
+    # The script recognises only THIS application's uninstaller files: same AppId, AppName and AppPublisher.
+    script = CLEANUP.read_text(encoding='utf-8-sig')
+    app_id = text.split('\nAppId={', 1)[1].split('\n', 1)[0]
+    assert app_id.startswith('{') and f"$AppId = '{app_id}'" in script
+    assert "$AppName = 'ECU Studio AI'" in script and '\nAppName=ECU Studio AI\n' in text
+    assert "$AppPublisher = 'PCTestAdmin'" in script and '\nAppPublisher=PCTestAdmin\n' in text
     assert "CleanupScript = '_internal\\uninstall_cleanup.ps1'" in text
     assert "RunInventoryCleanup('-Mode Uninstall')" in text and 'usUninstall' in text
     assert '-Mode Obsolete' in text and 'ssPostInstall' in text and 'ssInstall' in text
@@ -229,6 +248,204 @@ def test_installer_uses_inventory_cleanup_and_no_pattern_rule():
     assert "ExpandConstant('{tmp}\\uninstall_cleanup.ps1')" in text
     source = (ROOT / 'src' / 'ecu_studio' / 'tools' / 'build_portable_runtime.py').read_text(encoding='utf-8')
     assert "'uninstall_cleanup.ps1'" in source
+
+
+# ---- -Mode Leftover: <app>.backup and <app>.update-staging (from 1.20.1) -------------------------------
+# Up to 1.20.0 [UninstallDelete] removed both folders as a whole. Now only files of proven origin go.
+APP_ID = '{F8CD5330-FC90-4891-BFDA-58E6668C93A5}'
+
+
+def _inno_log(path: Path, app_id=APP_ID, app_name='ECU Studio AI', ident='Inno Setup Uninstall Log (b) 64-bit'):
+    def field(text, size):
+        return text.encode('ascii').ljust(size, b'\0')
+    path.write_bytes(field(ident, 64) + field(app_id, 128) + field(app_name, 128) + b'\0' * 64 + os.urandom(256))
+    return path
+
+
+def _files(folder: Path) -> list:
+    return sorted(p.relative_to(folder).as_posix() for p in folder.rglob('*') if p.is_file())
+
+
+def _leftover(folder: Path, app: Path, *args, check=True):
+    return _cleanup(folder, '-Mode', 'Leftover', '-Reference', str(app), *args, check=check)
+
+
+def _after_zip_update(tmp_path):
+    """In-app update 1.19.1 -> 1.20.0 (ZIP route): the old version is now <app>.backup; the updater carried
+    unins000.* and the user's own file over into the new program folder."""
+    app = _program(tmp_path / 'ECU-Studio-AI', '1.20.0', V2)
+    backup = _program(tmp_path / 'ECU-Studio-AI.backup', '1.19.1', V1)
+    _inno_log(backup / 'unins000.dat'); shutil.copy2(CMD, backup / 'unins000.exe')
+    (backup / '_internal' / 'meine_notizen.txt').write_text('vom Nutzer')
+    for name in ('unins000.dat', 'unins000.exe', '_internal/meine_notizen.txt'):
+        shutil.copy2(backup / name, app / name)
+    for folder in (app, backup):                       # the real program ships an empty folder (Inno createallsubdirs)
+        (folder / EMPTY_SHIPPED).mkdir(parents=True)
+    return app, backup
+
+
+EMPTY_SHIPPED = '_internal/python/Lib/site-packages/numpy/random/lib'
+
+
+@windows
+def test_leftover_backup_after_zip_update_is_removed_completely(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    app_before = {p: _sha(app / p) for p in _files(app)}
+    result = _leftover(backup, app)
+    assert not backup.exists(), result.stdout
+    assert {p: _sha(app / p) for p in _files(app)} == app_before          # the program folder is untouched
+    assert (app / EMPTY_SHIPPED).is_dir()
+    assert 'Entfernt (gleiche Kopie im Programmordner): _internal\\meine_notizen.txt' in result.stdout
+    assert 'Entfernt (Inventar, nichts sonst übrig): RUNTIME_INVENTORY.json' in result.stdout
+    assert 'Ordner entfernt' in result.stdout
+    # The user's file lives on in the program folder; the uninstall there keeps it (not in the inventory).
+    _cleanup(app, '-Mode', 'Uninstall')
+    assert (app / '_internal' / 'meine_notizen.txt').read_text() == 'vom Nutzer'
+
+
+@windows
+def test_leftover_keeps_changed_program_file_and_user_files_without_a_copy(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    core = backup / '_internal' / 'app' / 'ecu_studio' / 'core'
+    (core / 'updates.py').write_text('vom Nutzer geändert, nur hier')              # changed shipped file
+    (backup / '_internal' / 'eigenes_plugin.py').write_text('nur im Backup')       # own file, no copy in {app}
+    (backup / 'notiz.txt').write_text('Notiz A'); (app / 'notiz.txt').write_text('Notiz B')   # same name, other content
+    result = _leftover(backup, app)
+    assert (core / 'updates.py').read_text() == 'vom Nutzer geändert, nur hier'
+    assert (backup / '_internal' / 'eigenes_plugin.py').read_text() == 'nur im Backup'
+    assert (backup / 'notiz.txt').read_text() == 'Notiz A' and (app / 'notiz.txt').read_text() == 'Notiz B'
+    assert (backup / 'RUNTIME_INVENTORY.json').exists()                             # other files remain
+    assert _files(backup) == ['RUNTIME_INVENTORY.json', '_internal/app/ecu_studio/core/updates.py',
+                              '_internal/eigenes_plugin.py', 'notiz.txt']
+    assert 'Behalten (unbekannt oder verändert, keine gleiche Kopie im Programmordner): _internal\\eigenes_plugin.py' in result.stdout
+    assert 'Ordner bleibt (nicht leer)' in result.stdout
+
+
+@windows
+def test_leftover_own_file_whose_name_a_new_version_took_stays(tmp_path):
+    """The user had an own file at a path that only the new version ships. The updater does not overwrite the
+    new program file, so the backup holds the ONLY copy of the user's file: it must stay."""
+    app, backup = _after_zip_update(tmp_path)
+    (backup / '_internal' / 'app' / 'ecu_studio' / 'core' / 'integrity.py').write_text('eigene Version des Nutzers')
+    _leftover(backup, app)
+    assert (backup / '_internal' / 'app' / 'ecu_studio' / 'core' / 'integrity.py').read_text() == 'eigene Version des Nutzers'
+    assert backup.is_dir()
+
+
+@windows
+def test_leftover_inventory_listed_but_changed_file_with_identical_twin_is_a_copy(tmp_path):
+    """A changed shipped file whose identical copy is in {app} (the updater carried it over): the backup copy goes,
+    the program folder's copy stays (changed, so the uninstall there keeps it as well)."""
+    app = _program(tmp_path / 'ECU-Studio-AI', '1.20.0', V2)
+    backup = _program(tmp_path / 'ECU-Studio-AI.backup', '1.19.1', V1)
+    (backup / 'VERSION.txt').write_text('angepasst'); (app / 'VERSION.txt').write_text('angepasst')
+    _leftover(backup, app)
+    assert not backup.exists() and (app / 'VERSION.txt').read_text() == 'angepasst'
+
+
+@windows
+def test_leftover_uninstaller_files_need_this_applications_identity(tmp_path):
+    app = _program(tmp_path / 'ECU-Studio-AI', '1.20.0', V2)
+    _inno_log(app / 'unins000.dat'); (app / 'unins000.exe').write_text('neuer Deinstaller')   # differ from the backup's
+    cases = {'unins000.dat': _inno_log(tmp_path / 'ok.dat'),
+             'unins001.dat': _inno_log(tmp_path / 'fremd.dat', app_id='{00000000-0000-0000-0000-000000000000}'),
+             'unins002.dat': _inno_log(tmp_path / 'name.dat', app_name='Andere Anwendung'),
+             'unins003.dat': _inno_log(tmp_path / 'id.dat', ident='Kein Inno Setup Log'),
+             'unins004.dat': tmp_path / 'kurz.dat'}
+    cases['unins004.dat'].write_bytes(b'Inno Setup Uninstall Log (b)')                  # too short
+    backup = _program(tmp_path / 'ECU-Studio-AI.backup', '1.19.1', V1)
+    for name, source in cases.items():
+        shutil.copy2(source, backup / name)
+    shutil.copy2(CMD, backup / 'unins000.exe')   # a PE file, but not this application's uninstaller
+    (backup / 'unins001.exe').write_text('kein Programm')
+    (backup / 'sub').mkdir(); shutil.copy2(cases['unins000.dat'], backup / 'sub' / 'unins000.dat')   # not at top level
+    result = _leftover(backup, app)
+    assert _files(backup) == ['RUNTIME_INVENTORY.json', 'sub/unins000.dat', 'unins000.exe', 'unins001.dat',
+                              'unins001.exe', 'unins002.dat', 'unins003.dat', 'unins004.dat']
+    assert 'Entfernt (Deinstallationsprotokoll dieser Anwendung): unins000.dat' in result.stdout
+
+
+@windows
+def test_leftover_does_not_follow_junctions_and_keeps_the_folder(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    outside = tmp_path / 'Dokumente'; outside.mkdir(); (outside / 'projekt.bin').write_text('Projekt')
+    (app / 'daten').mkdir(); (app / 'daten' / 'projekt.bin').write_text('Projekt')    # identical twin in {app}
+    made = subprocess.run(['cmd', '/c', 'mklink', '/J', str(backup / 'daten'), str(outside)], capture_output=True, text=True)
+    if made.returncode != 0:
+        pytest.skip('Junction konnte nicht angelegt werden: ' + made.stdout + made.stderr)
+    result = _leftover(backup, app)
+    assert (outside / 'projekt.bin').read_text() == 'Projekt' and (backup / 'daten').is_dir()
+    assert 'Behalten (Verweis/Junction): daten' in result.stdout
+    assert _files(outside) == ['projekt.bin'] and (backup / 'RUNTIME_INVENTORY.json').exists()
+
+
+@windows
+def test_leftover_twin_behind_a_junction_in_the_program_folder_does_not_count(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    elsewhere = tmp_path / 'anderswo'; elsewhere.mkdir(); (elsewhere / 'notiz.txt').write_text('gleich')
+    made = subprocess.run(['cmd', '/c', 'mklink', '/J', str(app / 'extern'), str(elsewhere)], capture_output=True, text=True)
+    if made.returncode != 0:
+        pytest.skip('Junction konnte nicht angelegt werden: ' + made.stdout + made.stderr)
+    (backup / 'extern').mkdir(); (backup / 'extern' / 'notiz.txt').write_text('gleich')
+    _leftover(backup, app)
+    assert (backup / 'extern' / 'notiz.txt').read_text() == 'gleich'
+
+
+@windows
+def test_leftover_refuses_invalid_calls_and_deletes_nothing(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    before = _files(backup)
+    for args in ([], ['-Reference', 'relativ\\ordner'], ['-Reference', 'C:\\'], ['-Reference', str(tmp_path / 'fehlt')],
+                 ['-Reference', str(backup)], ['-Reference', str(tmp_path)], ['-Reference', str(backup / '_internal')]):
+        result = _cleanup(backup, '-Mode', 'Leftover', *args, check=False)
+        assert result.returncode == 2 and 'nichts gelöscht' in result.stdout, args
+    assert _files(backup) == before
+    link = tmp_path / 'ECU-Studio-AI.update-staging'
+    made = subprocess.run(['cmd', '/c', 'mklink', '/J', str(link), str(backup)], capture_output=True, text=True)
+    if made.returncode == 0:                                                       # the folder itself is a junction
+        assert _leftover(link, app, check=False).returncode == 2
+        assert _files(backup) == before
+
+
+@pytest.mark.parametrize('inventory', ['{kaputt', '{"format": 2, "files": []}', None])
+@windows
+def test_leftover_without_valid_inventory_removes_only_proven_copies(tmp_path, inventory):
+    app, backup = _after_zip_update(tmp_path)
+    (backup / 'nur_hier.txt').write_text('unbekannt')
+    if inventory is None:
+        (backup / 'RUNTIME_INVENTORY.json').unlink()
+    else:
+        (backup / 'RUNTIME_INVENTORY.json').write_text(inventory)
+    _leftover(backup, app)
+    left = _files(backup)
+    assert 'nur_hier.txt' in left
+    assert ('RUNTIME_INVENTORY.json' in left) == (inventory is not None)          # an invalid inventory stays
+    # V1 files differ from V2 and are not proven without the inventory; identical carried-over files are copies.
+    assert '_internal/app/ecu_studio/main.py' in left and '_internal/meine_notizen.txt' not in left
+
+
+@windows
+def test_leftover_whatif_removes_nothing(tmp_path):
+    app, backup = _after_zip_update(tmp_path)
+    before = {p: _sha(backup / p) for p in _files(backup)}
+    result = _leftover(backup, app, '-WhatIf')
+    assert {p: _sha(backup / p) for p in _files(backup)} == before
+    assert 'Entfernt (gleiche Kopie im Programmordner)' in result.stdout and 'Ordner entfernt' not in result.stdout
+
+
+@windows
+def test_leftover_interrupted_update_staging(tmp_path):
+    """A staging folder left by an interrupted update: an unchanged new version (own inventory) is removed;
+    any other file in the staging root keeps that folder (RemoveDir in installer.iss only removes empty ones)."""
+    app = _program(tmp_path / 'ECU-Studio-AI', '1.20.0', V2)
+    staging = tmp_path / 'ECU-Studio-AI.update-staging'
+    _program(staging / 'ECU-Studio-AI', '1.20.1', {**V2, 'VERSION.txt': '1.20.1'})
+    (staging / 'ECU-Studio-AI' / '_internal' / 'eigene.txt').write_text('fremd')
+    result = _leftover(staging / 'ECU-Studio-AI', app)
+    assert _files(staging) == ['ECU-Studio-AI/RUNTIME_INVENTORY.json', 'ECU-Studio-AI/_internal/eigene.txt']
+    (staging / 'ECU-Studio-AI' / '_internal' / 'eigene.txt').unlink()
+    result = _leftover(staging / 'ECU-Studio-AI', app)
+    assert not (staging / 'ECU-Studio-AI').exists() and staging.is_dir() and 'Ordner entfernt' in result.stdout
 
 
 # ---- updater.ps1 -Installer -------------------------------------------------------------------------
