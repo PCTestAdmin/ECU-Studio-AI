@@ -34,14 +34,15 @@ class DownloadWorker(QThread):
     progress = Signal(int)
     done = Signal(object, str, str)               # path | None, sha256, error
 
-    def __init__(self, release):
+    def __init__(self, release, installer: bool = False):
         super().__init__()
-        self.release, self.stop = release, False
+        self.release, self.installer, self.stop = release, installer, False
 
     def run(self):
         try:
             path, digest = updates.download(self.release, data_dir() / 'updates' / self.release.version,
-                                            progress=self.progress.emit, cancelled=lambda: self.stop)
+                                            progress=self.progress.emit, cancelled=lambda: self.stop,
+                                            installer=self.installer)
             self.done.emit(path, digest, '')
         except updates.UpdateError as exc:
             self.done.emit(None, '', str(exc))
@@ -91,7 +92,7 @@ class UpdateController:
     def __init__(self, window):
         self.window, self.settings = window, window.settings
         self.worker = self.download_worker = None
-        self.pending = None                       # (archive, sha256) to install after the window closed
+        self.pending = None                       # ('update', path, sha256, route, version) or ('restore',)
         self.timer = QTimer(window)
         self.timer.setInterval(3600 * 1000)       # re-evaluate hourly; check_due enforces once a day
         self.timer.timeout.connect(lambda: self.check(manual=False))
@@ -105,6 +106,7 @@ class UpdateController:
         self.settings.setValue(KEY_AUTO, 'true' if enabled else 'false')
 
     def start(self):
+        self.sync_installed_version()
         # No network from tests, CI, smoke and self-checks (headless) or when switched off.
         if os.environ.get('ECU_STUDIO_NO_UPDATE_CHECK') or os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
             return
@@ -148,30 +150,48 @@ class UpdateController:
             else:
                 QDesktopServices.openUrl(QUrl(release.page_url))
 
+    def sync_installed_version(self):
+        """Installed with the installer: "Apps & Features" shows the running version. In-app updates up to
+        1.20.0 replaced the files without updating that entry. Local registry only, never network."""
+        root = updates.install_root(sys.executable)
+        if root is None:
+            return
+        try:
+            updates.sync_uninstall_entry(root, __version__)
+        except OSError:
+            pass
+
     # -- download and hand-over -----------------------------------------------------------
     def _download(self, release):
+        route = updates.update_route(updates.install_root(sys.executable), release)
         progress = QProgressDialog(f'Lade ECU Studio AI {release.version} …', 'Abbrechen', 0, 100, self.window)
         progress.setWindowTitle('Update')
         progress.setMinimumDuration(0)
-        self.download_worker = DownloadWorker(release)
+        self.download_worker = DownloadWorker(release, installer=route == 'installer')
         self.download_worker.progress.connect(progress.setValue)
         progress.canceled.connect(lambda: setattr(self.download_worker, 'stop', True))
-        self.download_worker.done.connect(lambda path, digest, error: self._downloaded(progress, release, path, digest, error))
+        self.download_worker.done.connect(
+            lambda path, digest, error: self._downloaded(progress, release, path, digest, error, route))
         self.download_worker.start()
 
-    def _downloaded(self, progress, release, path, digest, error):
+    def _downloaded(self, progress, release, path, digest, error, route='archive'):
         progress.close()
         if error:
             QMessageBox.warning(self.window, 'Update nicht installiert', error)
             return
+        if route == 'installer':
+            text = (f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
+                    'Das Programm wird jetzt geschlossen, mit dem geprüften Installer aktualisiert und neu gestartet. '
+                    'Fortfahren?')
+        else:
+            text = (f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
+                    'Das Programm wird jetzt geschlossen, aktualisiert und neu gestartet. Fortfahren?')
         answer = QMessageBox.question(
-            self.window, 'Update bereit',
-            f'ECU Studio AI {release.version} ist geprüft (SHA-256 {digest[:16]}…).\n\n'
-            'Das Programm wird jetzt geschlossen, aktualisiert und neu gestartet. Fortfahren?',
+            self.window, 'Update bereit', text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.pending = ('update', path, digest)
+        self.pending = ('update', path, digest, route, release.version)
         self.window.close()          # closeEvent asks about unsaved work and calls launch_pending()
 
     # -- restore the previous version ---------------------------------------------------------
@@ -222,8 +242,12 @@ class UpdateController:
         if kind == 'restore':
             command.append('-Restore')
         else:
-            archive, digest = args
-            command += ['-Archive', str(archive), '-Sha256', digest]
+            path, digest, *rest = args
+            route, version = (rest + ['archive', ''])[:2]
+            if route == 'installer':
+                command += ['-Installer', str(path), '-Sha256', digest, '-ExpectedVersion', version]
+            else:
+                command += ['-Archive', str(path), '-Sha256', digest]
         # Windows PowerShell must not inherit a PowerShell 7 module path (see updater.ps1).
         env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
         # Keep PowerShell's current directory outside the installation. On Windows a

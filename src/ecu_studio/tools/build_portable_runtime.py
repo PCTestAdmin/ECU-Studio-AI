@@ -132,6 +132,9 @@ def build():
     shutil.copy2(root/'packaging'/'windows_launcher.cs',output/'windows_launcher.cs')
     # Separate updater: the app copies it out of the install folder and runs it after closing.
     shutil.copy2(root/'packaging'/'updater.ps1',output/'_internal'/'updater.ps1')
+    # Inventory cleanup for the installer/uninstaller (packaging/installer.iss [Code]): removes program files
+    # by RUNTIME_INVENTORY.json + SHA-256 only, so user files in the program folder survive (finding A5).
+    shutil.copy2(root/'packaging'/'uninstall_cleanup.ps1',output/'_internal'/'uninstall_cleanup.ps1')
     (output/'VERSION.txt').write_text(version+'\n',encoding='ascii')
     exe=output/EXE_NAME
     compile_launcher(root,exe,version)
