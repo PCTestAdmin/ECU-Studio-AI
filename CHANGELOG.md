@@ -1,4 +1,4 @@
-## 1.20.1 (Release-Kandidat, noch nicht veröffentlicht)
+## 1.20.1 (12.11.2026)
 
 Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –
 nur als Prüfung, ohne Korrektur. Keine untersuchte Originaldatei erreicht eine vollständige Checksummenabdeckung;
@@ -14,9 +14,20 @@ es gibt keine Flashfreigabe. Release Notes Deutsch/Englisch: [RELEASE_NOTES_1.20
   Installation mit Installer den geprüften `ECU-Studio-AI-<version>-setup.exe` (SHA-256 aus dem Release) und führt
   ihn mit Sicherung und automatischem Zurücksetzen aus. Portable ZIP-Kopien behalten den bisherigen Weg.
 - **Apps & Features** zeigt nach jedem Update die tatsächlich installierte Version.
+- **Update-Sicherung ohne pauschale Löschregel:** Bis 1.20.0 löschte der Deinstaller `ECU-Studio-AI.backup` und
+  `ECU-Studio-AI.update-staging` neben dem Programmordner vollständig (`[UninstallDelete]`, `filesandordirs`), auch
+  eine dort liegende einzige Kopie einer veränderten oder eigenen Datei. Ab 1.20.1 gibt es keine
+  `[UninstallDelete]`-Regel mehr. Beide Ordner werden vor dem Programmordner Datei für Datei bereinigt
+  (`uninstall_cleanup.ps1 -Mode Leftover`). Entfernt werden nur unveränderte Inventardateien, byte-gleiche Kopien von
+  Dateien im Programmordner und Deinstallationsprogramm/-protokoll dieser Anwendung (AppId geprüft). Alles andere
+  bleibt samt Ordner erhalten; Junctions werden nicht verfolgt.
 - **Grenze:** Updates, die noch der Updater von 1.20.0 oder älter ausführt (auch 1.20.0 → 1.20.1), laufen über den
-  alten Weg und behalten den alten Deinstaller. Deren Rückstände entfernt erst das nächste Update durch 1.20.1 oder
-  neuer oder ein Lauf des Installers ab 1.20.1. Nachweis auf Windows Server 2022 und 2025:
+  alten Weg und behalten den alten Deinstaller. Er lässt nach einer Deinstallation drei neue Dateien zurück:
+  `_internal\app\ecu_studio\core\firmware_signatures.py`, `_internal\app\ecu_studio\core\me7_checksums.py` und
+  `_internal\uninstall_cleanup.ps1`. Abhilfe ist eine Reparaturinstallation: den Installer
+  `ECU-Studio-AI-1.20.1-setup.exe` einmal über die Installation ausführen (nach einer Deinstallation: ausführen und
+  erneut deinstallieren). Das nächste Update durch 1.20.1 oder neuer behebt es ebenfalls. Den Programmordner nicht als
+  Ganzes von Hand löschen. Nachweis auf Windows Server 2022 und 2025:
   [Release-Checkliste 1.20.0, A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation).
 
 **Checksummen & Integrität**

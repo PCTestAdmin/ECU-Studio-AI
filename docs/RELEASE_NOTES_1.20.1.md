@@ -1,6 +1,6 @@
 # ECU Studio AI 1.20.1 – Release Notes
 
-**Release-Kandidat, noch nicht veröffentlicht. Release candidate, not yet published.**
+**Veröffentlicht am 12.11.2026. Released on 12 Nov 2026.**
 
 Inhalt: [PR #24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24) (Deinstallation und Update, A5),
 [PR #25](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/25) (Release-Workflow),
@@ -27,6 +27,14 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
 
   Eigene, unbekannte und veränderte Dateien bleiben stehen, ebenso Verknüpfungen und Junctions. Sie werden im
   Deinstallationsprotokoll genannt. Es gibt keine pauschale Löschregel.
+- **Update-Sicherung beim Deinstallieren:** Bis 1.20.0 löschte der Deinstaller die Ordner `ECU-Studio-AI.backup`
+  und `ECU-Studio-AI.update-staging` neben dem Programmordner vollständig. Dort kann aber die einzige Kopie einer
+  veränderten oder eigenen Datei liegen. Ab 1.20.1 wird jede Datei einzeln geprüft. Entfernt werden nur:
+  - unveränderte Programmdateien laut Inventar des Ordners;
+  - byte-gleiche Kopien (SHA-256) von Dateien im Programmordner;
+  - Deinstallationsprogramm und -protokoll dieser Anwendung.
+
+  Alles andere bleibt samt Ordner erhalten und wird im Deinstallationsprotokoll genannt.
 - **Update über den geprüften Installer:**
   - Installationen mit Installer laden bei „Jetzt nach Updates suchen“ den Installer
     `ECU-Studio-AI-<version>-setup.exe`. Die SHA-256-Prüfsumme wird gegen das Release geprüft.
@@ -80,11 +88,17 @@ vollständige Checksummenabdeckung.** ECU Studio AI erteilt weiterhin keine Flas
 
 - **Übergang bei alten In-App-Updates:** Das Update von 1.20.0 auf 1.20.1 über „Jetzt nach Updates suchen“ führt
   noch der Updater von 1.20.0 aus.
-  - Dieser alte Weg behält den alten Deinstaller.
-  - Seine Rückstände entfernt erst das nächste Update durch 1.20.1 oder neuer, oder ein Lauf des Installers ab
-    1.20.1.
-  - Bis dahin kann nach einer Deinstallation der Ordner `%LOCALAPPDATA%\Programs\ECU-Studio-AI` von Hand gelöscht
-    werden. Projekte und Einstellungen liegen außerhalb dieses Ordners.
+  - Dieser alte Weg behält den Deinstaller von 1.20.0. Er kennt drei neue Dateien nicht und lässt sie nach einer
+    Deinstallation im Programmordner `%LOCALAPPDATA%\Programs\ECU-Studio-AI` zurück:
+    - `_internal\app\ecu_studio\core\firmware_signatures.py`
+    - `_internal\app\ecu_studio\core\me7_checksums.py`
+    - `_internal\uninstall_cleanup.ps1`
+  - **Empfohlen: Reparaturinstallation.** Führe `ECU-Studio-AI-1.20.1-setup.exe` aus diesem Release einmal über die
+    bestehende Installation aus. Danach entfernt die Deinstallation alle Programmdateien. Projekte, Einstellungen und
+    eigene Dateien bleiben erhalten. Auch das nächste Update durch 1.20.1 oder neuer behebt den Übergang.
+  - Schon deinstalliert? Dann denselben Installer einmal ausführen und danach erneut deinstallieren. Die drei Dateien
+    werden dabei als unveränderte Programmdateien erkannt und entfernt.
+  - Lösche den Programmordner bitte nicht als Ganzes von Hand. Dort können eigene oder veränderte Dateien liegen.
 - **Keine vollständige Checksummenabdeckung:** Keine untersuchte Originaldatei erreicht „gültig“. ME7, EDC16 und
   EDC17 bleiben „unvollständig“. Eine erfolgreiche Teilprüfung bestätigt nicht die Unversehrtheit der ganzen Datei.
 - **Neue ME7-Verfahren nicht unabhängig validiert:** Gemessen an nur einem Original mit undokumentierter Herkunft.
@@ -113,6 +127,14 @@ coverage.** ECU Studio AI still never approves a file for flashing.
 
   The user's own, unknown and changed files stay, and so do links and junctions. They are listed in the uninstall
   log. There is no blanket delete rule.
+- **Update backup on uninstall:** up to 1.20.0 the uninstaller deleted the folders `ECU-Studio-AI.backup` and
+  `ECU-Studio-AI.update-staging` next to the program folder completely. They can hold the only copy of a changed or
+  own file, though. From 1.20.1 every file there is checked on its own. Only these are removed:
+  - unchanged program files according to the folder's inventory;
+  - byte-identical copies (SHA-256) of files in the program folder;
+  - this application's uninstaller and uninstall log.
+
+  Everything else stays, together with its folder, and is listed in the uninstall log.
 - **Update through the verified installer:**
   - Installations made with the installer download the installer `ECU-Studio-AI-<version>-setup.exe` on "Check for
     updates now". Its SHA-256 checksum is verified against the release.
@@ -163,11 +185,17 @@ coverage.** ECU Studio AI still never approves a file for flashing.
 
 - **Transition for old in-app updates:** the update from 1.20.0 to 1.20.1 via "Check for updates now" is still
   carried out by the 1.20.0 updater.
-  - This old path keeps the old uninstaller.
-  - Its leftovers are only removed by the next update carried out by 1.20.1 or later, or by running the installer
-    of 1.20.1 or later.
-  - Until then, the folder `%LOCALAPPDATA%\Programs\ECU-Studio-AI` can be deleted by hand after an uninstall.
-    Projects and settings are stored outside this folder.
+  - This old path keeps the 1.20.0 uninstaller. It does not know three new files and leaves them behind in the
+    program folder `%LOCALAPPDATA%\Programs\ECU-Studio-AI` after an uninstall:
+    - `_internal\app\ecu_studio\core\firmware_signatures.py`
+    - `_internal\app\ecu_studio\core\me7_checksums.py`
+    - `_internal\uninstall_cleanup.ps1`
+  - **Recommended: repair installation.** Run `ECU-Studio-AI-1.20.1-setup.exe` from this release once over the
+    existing installation. After that, uninstalling removes all program files. Projects, settings and your own files
+    are kept. The next update carried out by 1.20.1 or later also completes the transition.
+  - Already uninstalled? Run the same installer once and uninstall again. The three files are then recognised as
+    unchanged program files and removed.
+  - Please do not delete the program folder as a whole by hand. It may contain your own or changed files.
 - **No complete checksum coverage:** no original file examined reaches "valid". ME7, EDC16 and EDC17 stay
   "incomplete". A successful partial check does not confirm that the whole file is intact.
 - **New ME7 methods not independently validated:** measured on a single original of undocumented origin. The main

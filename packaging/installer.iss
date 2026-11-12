@@ -56,15 +56,18 @@ Name: "{userdesktop}\ECU Studio AI"; Filename: "{app}\ECU-Studio-AI.exe"; Workin
 Filename: "{app}\ECU-Studio-AI.exe"; Description: "ECU Studio AI starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Folders the updater creates next to the program folder. Program files themselves are removed by the
-; uninstall log and by the inventory cleanup in [Code] below, never by a pattern rule such as {app}\_internal.
-Type: filesandordirs; Name: "{app}.backup"
-Type: filesandordirs; Name: "{app}.update-staging"
+; Deliberately empty: no blanket or pattern rule (from 1.20.1). Up to 1.20.0 the folders the updater creates
+; next to the program folder, {app}.backup and {app}.update-staging, were deleted here as a whole
+; ("filesandordirs"). A backup can hold the only copy of a program file the user changed, or of an own file
+; whose name a new version took. They are now cleaned file by file in [Code] below (-Mode Leftover).
 
 [Code]
 // Program files by inventory (packaging/uninstall_cleanup.ps1, shipped in {app}\_internal):
-// - before uninstalling: every file of {app}\RUNTIME_INVENTORY.json that is unchanged (SHA-256), also
-//   files an in-app update added after the last installer run (finding A5 of 1.20.0);
+// - before uninstalling: first {app}.backup and {app}.update-staging\ECU-Studio-AI (-Mode Leftover, compared
+//   with the still complete {app}): only unchanged inventory files, byte-identical copies of files in {app}
+//   and this application's own uninstaller files; the folders go only when empty. Then every file of
+//   {app}\RUNTIME_INVENTORY.json that is unchanged (SHA-256), also files an in-app update added after the
+//   last installer run (finding A5 of 1.20.0);
 // - after installing over an existing version: unchanged files of the previous version that the new
 //   version no longer ships.
 // User files, changed files and anything outside the program folder or behind a junction/link stay.
@@ -81,7 +84,7 @@ begin
   Result := ExpandConstant('{localappdata}\ECUStudioAI\install-cleanup.log');
 end;
 
-procedure RunInventoryCleanup(Arguments: String);
+procedure RunCleanup(Folder, Arguments: String);
 var
   Shipped, Script: String;
   ResultCode: Integer;
@@ -102,11 +105,23 @@ begin
   ForceDirectories(ExtractFileDir(CleanupLogFile()));
   if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
           '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + Script + '" -InstallDir "' +
-          ExpandConstant('{app}') + '" ' + Arguments + ' -LogFile "' + CleanupLogFile() + '"',
+          Folder + '" ' + Arguments + ' -LogFile "' + CleanupLogFile() + '"',
           '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    Log('Inventarbereinigung beendet, Exit ' + IntToStr(ResultCode))
+    Log('Inventarbereinigung beendet (' + Folder + '), Exit ' + IntToStr(ResultCode))
   else
     Log('Inventarbereinigung nicht gestartet: ' + SysErrorMessage(ResultCode));
+end;
+
+procedure RunInventoryCleanup(Arguments: String);
+begin
+  RunCleanup(ExpandConstant('{app}'), Arguments);
+end;
+
+procedure RunLeftoverCleanup(Folder: String);
+begin
+  // The updater's backup or staging copy: nothing of it is deleted as a whole (see [UninstallDelete]).
+  if DirExists(Folder) then
+    RunCleanup(Folder, '-Mode Leftover -Reference "' + ExpandConstant('{app}') + '"');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -129,5 +144,11 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
+  begin
+    // Backup and staging first: their copies are compared with {app}, which must still be complete.
+    RunLeftoverCleanup(ExpandConstant('{app}') + '.backup');
+    RunLeftoverCleanup(ExpandConstant('{app}') + '.update-staging\ECU-Studio-AI');
+    RemoveDir(ExpandConstant('{app}') + '.update-staging');   // only removes an EMPTY folder
     RunInventoryCleanup('-Mode Uninstall');
+  end;
 end;
