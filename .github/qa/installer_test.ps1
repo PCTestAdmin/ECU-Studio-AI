@@ -198,6 +198,10 @@ function Check-Uninstalled([string]$Label, [string[]]$Expected = @($userFileRela
         "$($left.Count) Dateien übrig; Abweichung: " + (($diff | Select-Object -First 15) -join ', '))
     Check "$Label`: Update-Sicherung entfernt" (-not (Test-Path "$install.backup") -and -not (Test-Path "$install.update-staging") -and
         -not (Test-Path "$install.update-failed"))
+    # From 1.20.1 the uninstaller renames both folders to *.erhalten before checking them file by file: with nothing
+    # of the user's in them, the renamed folders must be gone as well (removed, not merely renamed).
+    Check "$Label`: keine umbenannte Update-Sicherung (*.erhalten) übrig" (
+        -not (Test-Path "$install.backup.erhalten*") -and -not (Test-Path "$install.update-staging.erhalten*"))
     $cleanupLog = "$env:LOCALAPPDATA\ECUStudioAI\install-cleanup.log"     # evidence: what the cleanup removed or kept
     if (Test-Path $cleanupLog) { Copy-Item $cleanupLog ("$Out\install-cleanup-" + ($Label -replace '\W', '') + '.log') -Force }
     Check "$Label`: Verknüpfungen entfernt" (-not (Test-Path $startMenuLink) -and -not (Test-Path $desktopLink))
@@ -541,23 +545,24 @@ if ($Mode -eq 'Repair') {
     Check-Running 'Reparatur'
     Check 'Reparatur: Update-Sicherung des alten Updaters vor der Deinstallation vorhanden' (Test-Path "$install.backup\VERSION.txt")
     # The backup can hold the ONLY copy of a user's file or of a program file the user changed. From 1.20.1 there is
-    # no blanket [UninstallDelete] rule: the real uninstaller must keep exactly these files (and their inventory).
-    $ownBackup = "$install.backup\_internal\qa-nur-in-der-sicherung.txt"
-    'nur in der Sicherung' | Set-Content -Encoding utf8 $ownBackup
-    $changedBackup = "$install.backup\_internal\app\ecu_studio\main.py"
-    Add-Content -Encoding utf8 $changedBackup '# vom Benutzer geaendert, nur in der Sicherung'
-    $keptBefore = @($ownBackup, $changedBackup) | ForEach-Object { (Get-FileHash $_).Hash }
+    # no blanket [UninstallDelete] rule, and the old rules of 1.20.0 that remain in unins000.dat must not reach the
+    # folder either: the real uninstaller must keep exactly these files (and their inventory) in <app>.backup.erhalten.
+    $relOwn = '_internal\qa-nur-in-der-sicherung.txt'; $relChanged = '_internal\app\ecu_studio\main.py'
+    'nur in der Sicherung' | Set-Content -Encoding utf8 "$install.backup\$relOwn"
+    Add-Content -Encoding utf8 "$install.backup\$relChanged" '# vom Benutzer geaendert, nur in der Sicherung'
+    $keptBefore = @($relOwn, $relChanged) | ForEach-Object { (Get-FileHash "$install.backup\$_").Hash }
     Check 'Deinstallation nach Reparatur' ((Uninstall) -eq 0)
-    $keptAfter = @($ownBackup, $changedBackup) | ForEach-Object { if (Test-Path $_) { (Get-FileHash $_).Hash } else { 'fehlt' } }
+    $kept = "$install.backup.erhalten"
+    $keptAfter = @($relOwn, $relChanged) | ForEach-Object { if (Test-Path "$kept\$_") { (Get-FileHash "$kept\$_").Hash } else { 'fehlt' } }
     Check 'Deinstallation nach Reparatur: eigene und veränderte Datei der Update-Sicherung unverändert erhalten' (
         -not (Compare-Object $keptBefore $keptAfter)) ($keptAfter -join ', ')
-    $backupLeft = @(Get-ChildItem "$install.backup" -Recurse -File -Force -ErrorAction SilentlyContinue |
-        ForEach-Object { $_.FullName.Substring("$install.backup".Length + 1) })
-    Check 'Deinstallation nach Reparatur: in der Update-Sicherung bleiben genau diese zwei Dateien und ihr Inventar' (
-        $backupLeft.Count -eq 3 -and -not (Compare-Object $backupLeft @('RUNTIME_INVENTORY.json', '_internal\app\ecu_studio\main.py',
-        '_internal\qa-nur-in-der-sicherung.txt'))) ("$($backupLeft.Count): " + (($backupLeft | Select-Object -First 15) -join ', '))
+    $backupLeft = @(Get-ChildItem $kept -Recurse -File -Force -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName.Substring($kept.Length + 1) })
+    Check 'Deinstallation nach Reparatur: in ECU-Studio-AI.backup.erhalten bleiben genau diese zwei Dateien und ihr Inventar' (
+        $backupLeft.Count -eq 3 -and -not (Compare-Object $backupLeft @('RUNTIME_INVENTORY.json', $relChanged, $relOwn))) (
+        "$($backupLeft.Count): " + (($backupLeft | Select-Object -First 15) -join ', '))
     # Disposable runner only: the test removes what the uninstaller rightly kept, then checks everything else.
-    Remove-Item -LiteralPath "$install.backup" -Recurse -Force
+    if (Test-Path -LiteralPath $kept) { Remove-Item -LiteralPath $kept -Recurse -Force }
     Check-Uninstalled 'Deinstallation nach Reparatur'
     Check-UserFile 'Deinstallation nach Reparatur'
 }
