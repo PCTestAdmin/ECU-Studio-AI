@@ -21,6 +21,10 @@ it installs, starts, uninstalls and changes per-user settings).
                 holds the blanket rules of 1.20.0 for <app>.backup and <app>.update-staging). A file held open makes
                 the rename of the backup (A) or of the staging folder (B) impossible: the real uninstaller must stop
                 before removing anything. Then (C) unlocked: own files stay in the renamed folders.
+  -Mode Existing candidate installed; folders an earlier update or the user left next to it (a backup with an own and
+                a changed file, an .update-failed and an interrupted .update-staging). The candidate's updater: locked
+                backup (installer and ZIP route: stops, nothing changed), rollback (everything as before), installer
+                update and ZIP update (old backup cleaned file by file, own/changed files kept), uninstall.
 
 Every mode also places an unknown file of the user in the program folder: it must survive updates and the
 uninstallation (only program files are removed, by inventory + SHA-256 or by the installer's own log).
@@ -28,7 +32,7 @@ uninstallation (only program files are removed, by inventory + SHA-256 or by the
 Writes $Out\results.json; exit code 1 if any check failed.
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Heal', 'Rollback', 'Blocked')][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'Repair', 'Chain', 'Heal', 'Rollback', 'Blocked', 'Existing')][string]$Mode,
     [Parameter(Mandatory = $true)][string]$Package,
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Repository = 'PCTestAdmin/ECU-Studio-AI',
@@ -720,6 +724,102 @@ if ($Mode -eq 'Blocked') {
     foreach ($kept in @($keptBackup, $keptStaging)) { if (Test-Path -LiteralPath $kept) { Remove-Item -LiteralPath $kept -Recurse -Force } }
     Check-Uninstalled 'Blockiert C'
     Check-UserFile 'Blockiert C'
+}
+
+if ($Mode -eq 'Existing') {
+    # From 1.20.1 the updater never deletes an existing folder as a whole: a backup, staging or failed folder that is
+    # already there can hold the only copy of a file the user changed or added.
+    if (-not $Next) { throw '-Next fehlt' }
+    Check 'Installation Kandidat' ((Install $setup "$Out\install.log") -eq 0)
+    Check-Installed 'Bestand'
+    New-UserFile 'Bestand'
+    $old = "$install.backup"; $failedOld = "$install.update-failed"; $stagingOld = "$install.update-staging"
+    Copy-Item -LiteralPath $install -Destination $old -Recurse
+    $relOwn = 'qa-nur-in-der-sicherung.txt'; $relChanged = '_internal\app\ecu_studio\main.py'
+    'nur in der Sicherung' | Set-Content -Encoding utf8 "$old\$relOwn"
+    Add-Content -Encoding utf8 "$old\$relChanged" '# vom Benutzer geaendert, nur in der Sicherung'
+    $keptHashes = @($relOwn, $relChanged) | ForEach-Object { (Get-FileHash "$old\$_").Hash }
+    New-Item -ItemType Directory $failedOld | Out-Null
+    'nicht von diesem Updater' | Set-Content -Encoding utf8 "$failedOld\qa-fremd.txt"
+    New-Item -ItemType Directory "$stagingOld\ECU-Studio-AI" -Force | Out-Null
+    'aus einem abgebrochenen Update' | Set-Content -Encoding utf8 "$stagingOld\ECU-Studio-AI\qa-staging.txt"
+    function Get-State { [ordered]@{ install = @(Get-TreeHash $install); backup = @(Get-TreeHash $old)
+                                     failed = @(Get-TreeHash $failedOld); staging = @(Get-TreeHash $stagingOld) } }
+    function Get-Changed($a, $b) { @($a.Keys | Where-Object { Compare-Object $a[$_] $b[$_] }) }
+    function Get-Extra {
+        # Folders next to the program folder other than the ones placed above (*.erhalten, *-2, staging copies ...).
+        @(Get-ChildItem (Split-Path $install) -Force | Where-Object { $_.Name -like 'ECU-Studio-AI.*' -and
+            $_.Name -notin @('ECU-Studio-AI.backup', 'ECU-Studio-AI.update-failed', 'ECU-Studio-AI.update-staging') } |
+            ForEach-Object { $_.Name })
+    }
+    $before = Get-State
+    $nextSha = (Get-FileHash $nextSetup -Algorithm SHA256).Hash.ToLower()
+    $nextZipSha = (Get-FileHash $nextZip -Algorithm SHA256).Hash.ToLower()
+
+    # 1. A file in the existing backup is open (no FileShare.Delete): the rename is impossible, so both routes must
+    #    stop before changing anything.
+    $lock = [System.IO.File]::Open("$old\$relOwn", 'Open', 'Read', 'Read')
+    try {
+        $codeInstaller = Invoke-Updater @('-Installer', $nextSetup, '-Sha256', $nextSha, '-ExpectedVersion', $nextVersion) "$Out\existing-1-installer.log"
+        $codeZip = Invoke-Updater @('-Archive', $nextZip, '-Sha256', $nextZipSha) "$Out\existing-1-zip.log"
+    } finally { $lock.Dispose() }
+    foreach ($route in @(@('Installer', $codeInstaller, "$Out\existing-1-installer.log"), @('ZIP', $codeZip, "$Out\existing-1-zip.log"))) {
+        $log = Get-Content $route[2] -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+        Check "1. Sicherung gesperrt, $($route[0])-Weg: Abbruch vor jeder Änderung (Exit 2)" ($route[1] -eq 2 -and $log -match 'beiseitelegen') "Exit $($route[1])"
+    }
+    $changed = Get-Changed $before (Get-State)
+    Check '1. Programmordner, Sicherung, Fehler- und Staging-Ordner unverändert (SHA-256 aller Dateien)' ($changed.Count -eq 0) ($changed -join ', ')
+    Check '1. nichts beiseitegelegt oder angelegt' ((Get-Extra).Count -eq 0) ((Get-Extra) -join ', ')
+    Check '1. Apps & Features unverändert' ((Get-DisplayVersion) -eq $version) (Get-DisplayVersion)
+
+    # 2. Installer route, failure after the setup (wrong version): rollback, everything as before.
+    $code = Invoke-Updater @('-Installer', $nextSetup, '-Sha256', $nextSha, '-ExpectedVersion', '9.9.9') "$Out\existing-2.log"
+    Check '2. Fehler nach dem Setup: Rollback (Exit 3)' ($code -eq 3) "Exit $code"
+    $changed = Get-Changed $before (Get-State)
+    Check '2. Programmordner wie vorher, vorhandene Sicherung zurückbenannt, Fehler- und Staging-Ordner unverändert' ($changed.Count -eq 0) ($changed -join ', ')
+    Check '2. gescheiterte Version Datei für Datei bereinigt, nichts beiseitegelegt' ((Get-Extra).Count -eq 0) ((Get-Extra) -join ', ')
+    Check '2. Apps & Features zeigt wieder die installierte Version' ((Get-DisplayVersion) -eq $version) (Get-DisplayVersion)
+
+    # 3. Installer route succeeds: the old backup is cleaned file by file, its own and changed file stay.
+    $code = Invoke-Updater @('-Installer', $nextSetup, '-Sha256', $nextSha, '-ExpectedVersion', $nextVersion) "$Out\existing-3.log"
+    Check '3. Update per Installer' ($code -eq 0) "Exit $code"
+    Check-Installed '3. Update per Installer' $nextVersion
+    Check-PackageInstalled '3. Update per Installer' $nextZip
+    Check '3. neue Sicherung = Kandidat vor dem Update (SHA-256 aller Dateien)' (-not (Compare-Object $before.install @(Get-TreeHash $old)))
+    $kept = "$install.backup.erhalten"
+    $keptFiles = @(Get-ChildItem $kept -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Substring($kept.Length + 1) })
+    $keptNow = @($relOwn, $relChanged) | ForEach-Object { if (Test-Path "$kept\$_") { (Get-FileHash "$kept\$_").Hash } else { 'fehlt' } }
+    Check '3. alte Sicherung: genau eigene und veränderte Datei samt Inventar erhalten, unverändert' (
+        $keptFiles.Count -eq 3 -and -not (Compare-Object $keptFiles @('RUNTIME_INVENTORY.json', $relChanged, $relOwn)) -and
+        -not (Compare-Object $keptHashes $keptNow)) ("$($keptFiles.Count): " + ($keptFiles -join ', '))
+    Check '3. Fehler- und Staging-Ordner unverändert' (-not (Compare-Object $before.failed @(Get-TreeHash $failedOld)) -and
+        -not (Compare-Object $before.staging @(Get-TreeHash $stagingOld)))
+    Check-UserFile '3. Update per Installer'
+    $keptTree = @(Get-TreeHash $kept)
+    $nextTree = @(Get-TreeHash $install)
+
+    # 4. ZIP route (back to the candidate): the interrupted staging and the previous backup are cleaned file by file.
+    $code = Invoke-Updater @('-Archive', $zip, '-Sha256', (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()) "$Out\existing-4.log"
+    Check '4. ZIP-Update' ($code -eq 0 -and (Get-Content "$install\VERSION.txt").Trim() -eq $version) "Exit $code"
+    Check-PackageInstalled '4. ZIP-Update' $zip
+    Check '4. neue Sicherung = Version vor dem Update (SHA-256 aller Dateien)' (-not (Compare-Object $nextTree @(Get-TreeHash $old)))
+    $stagingKept = "$stagingOld.erhalten"
+    $stagingFiles = @(Get-ChildItem $stagingKept -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Substring($stagingKept.Length + 1) })
+    Check '4. abgebrochenes Staging: genau die fremde Datei erhalten, sonst nichts' (
+        -not (Test-Path $stagingOld) -and $stagingFiles.Count -eq 1 -and $stagingFiles[0] -eq 'ECU-Studio-AI\qa-staging.txt') ($stagingFiles -join ', ')
+    Check '4. vorherige Sicherung (nur Programmbestand) vollständig bereinigt' (-not (Test-Path "$install.backup.erhalten-2"))
+    Check '4. erste erhaltene Sicherung und Fehler-Ordner unverändert' (-not (Compare-Object $keptTree @(Get-TreeHash $kept)) -and
+        -not (Compare-Object $before.failed @(Get-TreeHash $failedOld)))
+    Check-UserFile '4. ZIP-Update'
+    Check-Running '4. ZIP-Update'
+
+    # 5. Uninstall: what the updater kept stays; then (disposable runner only) it is removed and the rest checked.
+    Check '5. Deinstallation' ((Uninstall) -eq 0)
+    Check '5. erhaltene Ordner nach der Deinstallation unverändert' (-not (Compare-Object $keptTree @(Get-TreeHash $kept)) -and
+        -not (Compare-Object $before.failed @(Get-TreeHash $failedOld)) -and (Test-Path "$stagingKept\ECU-Studio-AI\qa-staging.txt"))
+    foreach ($folder in @($kept, $stagingKept, $failedOld)) { if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force } }
+    Check-Uninstalled '5. Deinstallation'
+    Check-UserFile '5. Deinstallation'
 }
 
 if ($Mode -eq 'Rollback') {
