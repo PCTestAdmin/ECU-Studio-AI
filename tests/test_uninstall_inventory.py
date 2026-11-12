@@ -228,13 +228,22 @@ def test_installer_uses_inventory_cleanup_and_no_pattern_rule():
     for section in ('[InstallDelete]', '[Dirs]'):
         assert section not in text
     # Backup and staging are cleaned file by file, compared with the still complete {app}, BEFORE {app} is cleaned.
+    # First they are renamed: unins000.dat of installations set up with 1.20.0 or older still holds the old blanket
+    # rules for exactly these two paths, and Inno runs them after [Code] (measured in the installer QA, Repair mode).
     step = text.split('procedure CurUninstallStepChanged', 1)[1].split('\nend;', 1)[0]
-    order = [step.index(call) for call in ("RunLeftoverCleanup(ExpandConstant('{app}') + '.backup')",
-                                           "RunLeftoverCleanup(ExpandConstant('{app}') + '.update-staging\\ECU-Studio-AI')",
-                                           "RemoveDir(ExpandConstant('{app}') + '.update-staging')",
+    order = [step.index(call) for call in ("Backup := MoveAside(ExpandConstant('{app}') + '.backup')",
+                                           'RunLeftoverCleanup(Backup)',
+                                           "Staging := MoveAside(ExpandConstant('{app}') + '.update-staging')",
+                                           "RunLeftoverCleanup(Staging + '\\ECU-Studio-AI')",
+                                           'RemoveDir(Staging)',
                                            "RunInventoryCleanup('-Mode Uninstall')")]
     assert order == sorted(order) and 'usUninstall' in step
     assert "'-Mode Leftover -Reference \"' + ExpandConstant('{app}') + '\"'" in text
+    move = text.split('function MoveAside', 1)[1].split('\nend;\n', 1)[0]
+    assert "Folder + '.erhalten'" in move and 'RenameFile(Folder, Target)' in move
+    assert 'DirExists(Target) or FileExists(Target)' in move    # never onto an existing folder or file
+    code = '\n'.join(line.split('//', 1)[0] for line in move.split('\nbegin\n', 1)[1].splitlines())
+    assert 'Delete' not in code and 'RemoveDir' not in code and 'Exec' not in code   # renames, nothing else
     # The script recognises only THIS application's uninstaller files: same AppId, AppName and AppPublisher.
     script = CLEANUP.read_text(encoding='utf-8-sig')
     app_id = text.split('\nAppId={', 1)[1].split('\n', 1)[0]
@@ -363,6 +372,20 @@ def test_leftover_uninstaller_files_need_this_applications_identity(tmp_path):
     assert _files(backup) == ['RUNTIME_INVENTORY.json', 'sub/unins000.dat', 'unins000.exe', 'unins001.dat',
                               'unins001.exe', 'unins002.dat', 'unins003.dat', 'unins004.dat']
     assert 'Entfernt (Deinstallationsprotokoll dieser Anwendung): unins000.dat' in result.stdout
+
+
+@windows
+def test_leftover_twin_held_open_by_the_uninstaller_is_judged_by_the_other_rules(tmp_path):
+    """Installer QA, Rollback mode: {app}\\unins000.dat is held open by the running uninstaller. An unreadable copy
+    proves nothing; the backup's own uninstall log is then recognised by its header (this application) instead."""
+    app, backup = _after_zip_update(tmp_path)
+    _inno_log(backup / 'unins000.dat'); shutil.copy2(backup / 'unins000.dat', app / 'unins000.dat')
+    (backup / '_internal' / 'fremd.txt').write_text('gleich'); (app / '_internal' / 'fremd.txt').write_text('gleich')
+    with open(app / 'unins000.dat', 'ab'), open(app / '_internal' / 'fremd.txt', 'ab'):   # write handles, as Inno
+        result = _leftover(backup, app)
+    assert 'Entfernt (Deinstallationsprotokoll dieser Anwendung): unins000.dat' in result.stdout
+    assert 'zählt nicht als gleich' in result.stdout
+    assert _files(backup) == ['RUNTIME_INVENTORY.json', '_internal/fremd.txt']    # no other proof: kept
 
 
 @windows
