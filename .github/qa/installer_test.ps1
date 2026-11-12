@@ -86,9 +86,10 @@ function Install([string]$Installer, [string]$Log) {
 }
 function Uninstall {
     $p = Start-Process "$install\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -PassThru -Wait
-    # The uninstaller continues in a temporary copy; wait until it removed the program folder.
-    for ($i = 0; $i -lt 120 -and (Test-Path "$install\ECU-Studio-AI.exe"); $i++) { Start-Sleep -Milliseconds 500 }
-    for ($i = 0; $i -lt 60 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+    # The uninstaller continues in a temporary copy; wait until it removed the program folder. From 1.20.1 it
+    # first checks <app>.backup file by file (SHA-256), which takes longer on a slow runner: up to 4 minutes each.
+    for ($i = 0; $i -lt 480 -and (Test-Path "$install\ECU-Studio-AI.exe"); $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 480 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 2
     return $p.ExitCode
 }
@@ -197,6 +198,8 @@ function Check-Uninstalled([string]$Label, [string[]]$Expected = @($userFileRela
         "$($left.Count) Dateien übrig; Abweichung: " + (($diff | Select-Object -First 15) -join ', '))
     Check "$Label`: Update-Sicherung entfernt" (-not (Test-Path "$install.backup") -and -not (Test-Path "$install.update-staging") -and
         -not (Test-Path "$install.update-failed"))
+    $cleanupLog = "$env:LOCALAPPDATA\ECUStudioAI\install-cleanup.log"     # evidence: what the cleanup removed or kept
+    if (Test-Path $cleanupLog) { Copy-Item $cleanupLog ("$Out\install-cleanup-" + ($Label -replace '\W', '') + '.log') -Force }
     Check "$Label`: Verknüpfungen entfernt" (-not (Test-Path $startMenuLink) -and -not (Test-Path $desktopLink))
     Check "$Label`: Eintrag in Apps & Features entfernt" (-not (Get-ItemProperty $uninstallKey -ErrorAction SilentlyContinue))
 }
@@ -508,6 +511,16 @@ if ($Mode -eq 'InApp') {
     Check 'Update-Sicherung entfernt' (-not (Test-Path "$install.backup"))
     Check 'Eintrag in Apps & Features entfernt' (-not (Get-ItemProperty $uninstallKey -ErrorAction SilentlyContinue))
     Check 'Benutzerdaten nach Deinstallation erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
+
+    # Remedy from the release notes for users who ALREADY uninstalled with the old uninstaller: run the candidate's
+    # setup once more and uninstall again. Nothing but the user's file may remain (the leftovers are inventory files).
+    Check 'Nachträgliche Reparatur: Setup des Kandidaten über die Restdateien' ((Install $setup "$Out\install-after-old-uninstall.log") -eq 0)
+    Check-Installed 'Nachträgliche Reparatur'
+    Check-UserFile 'Nachträgliche Reparatur'
+    Check 'Nachträgliche Reparatur: Deinstallation' ((Uninstall) -eq 0)
+    Check-Uninstalled 'Nachträgliche Reparatur'
+    Check-UserFile 'Nachträgliche Reparatur, nach Deinstallation'
+    Check 'Nachträgliche Reparatur: Benutzerdaten erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
 }
 
 if ($Mode -eq 'Repair') {
@@ -526,7 +539,25 @@ if ($Mode -eq 'Repair') {
     Check-PackageInstalled 'Reparatur' $zip
     Check-UserFile 'Reparatur'
     Check-Running 'Reparatur'
+    Check 'Reparatur: Update-Sicherung des alten Updaters vor der Deinstallation vorhanden' (Test-Path "$install.backup\VERSION.txt")
+    # The backup can hold the ONLY copy of a user's file or of a program file the user changed. From 1.20.1 there is
+    # no blanket [UninstallDelete] rule: the real uninstaller must keep exactly these files (and their inventory).
+    $ownBackup = "$install.backup\_internal\qa-nur-in-der-sicherung.txt"
+    'nur in der Sicherung' | Set-Content -Encoding utf8 $ownBackup
+    $changedBackup = "$install.backup\_internal\app\ecu_studio\main.py"
+    Add-Content -Encoding utf8 $changedBackup '# vom Benutzer geaendert, nur in der Sicherung'
+    $keptBefore = @($ownBackup, $changedBackup) | ForEach-Object { (Get-FileHash $_).Hash }
     Check 'Deinstallation nach Reparatur' ((Uninstall) -eq 0)
+    $keptAfter = @($ownBackup, $changedBackup) | ForEach-Object { if (Test-Path $_) { (Get-FileHash $_).Hash } else { 'fehlt' } }
+    Check 'Deinstallation nach Reparatur: eigene und veränderte Datei der Update-Sicherung unverändert erhalten' (
+        -not (Compare-Object $keptBefore $keptAfter)) ($keptAfter -join ', ')
+    $backupLeft = @(Get-ChildItem "$install.backup" -Recurse -File -Force -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName.Substring("$install.backup".Length + 1) })
+    Check 'Deinstallation nach Reparatur: in der Update-Sicherung bleiben genau diese zwei Dateien und ihr Inventar' (
+        $backupLeft.Count -eq 3 -and -not (Compare-Object $backupLeft @('RUNTIME_INVENTORY.json', '_internal\app\ecu_studio\main.py',
+        '_internal\qa-nur-in-der-sicherung.txt'))) ("$($backupLeft.Count): " + (($backupLeft | Select-Object -First 15) -join ', '))
+    # Disposable runner only: the test removes what the uninstaller rightly kept, then checks everything else.
+    Remove-Item -LiteralPath "$install.backup" -Recurse -Force
     Check-Uninstalled 'Deinstallation nach Reparatur'
     Check-UserFile 'Deinstallation nach Reparatur'
 }
@@ -590,6 +621,7 @@ if ($Mode -eq 'Heal') {
     Check-PackageInstalled 'Heilung 2' $nextZip
     Check-UserFile 'Heilung 2'
     Check-Running 'Heilung 2'
+    Check 'Heilung 2: Update-Sicherung vor der Deinstallation vorhanden (wird Datei für Datei bereinigt)' (Test-Path "$install.backup\VERSION.txt")
     Check 'Heilung 3: Deinstallation' ((Uninstall) -eq 0)
     Check-Uninstalled 'Heilung 3'
     Check-UserFile 'Heilung 3'
