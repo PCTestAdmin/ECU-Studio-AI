@@ -203,6 +203,34 @@ jobs:
           if ($entry.DisplayVersion -ne $version -or $entry.DisplayName -ne "ECU Studio AI $version") { throw "Apps & Features: $($entry.DisplayName) / $($entry.DisplayVersion)" }
           $c = Start-Process "$dir\ECU-Studio-AI.exe" -ArgumentList '--self-check' -PassThru -Wait
           if ($c.ExitCode -ne 0) { throw 'Selbsttest der installierten EXE fehlgeschlagen' }
+          # Regression (1.20.1): the uninstaller renames <app>.backup out of reach of the blanket rules of 1.20.0 and
+          # older that remain in unins000.dat. If that rename FAILS, it must stop before removing anything.
+          # Forced here with a file held open in the backup (the probe proves the rename really is impossible).
+          $tree = { param($root) Get-ChildItem $root -Recurse -File -Force | ForEach-Object {
+                    $_.FullName.Substring($root.Length) + '=' + (Get-FileHash $_.FullName).Hash } | Sort-Object }
+          $own = "$dir.backup\_internal\release-test-backup-file.txt"
+          New-Item -ItemType Directory (Split-Path $own) -Force | Out-Null
+          'nur in der Sicherung' | Set-Content -Encoding utf8 $own
+          $ownHash = (Get-FileHash $own).Hash
+          $before = & $tree $dir
+          $blockedLog = Join-Path $env:RUNNER_TEMP 'uninstall-blocked.log'
+          $lock = [System.IO.File]::Open($own, 'Open', 'Read', 'Read')
+          try {
+            $renamed = $true
+            try { [System.IO.Directory]::Move("$dir.backup", "$dir.backup-probe") } catch { $renamed = $false }
+            if ($renamed) { [System.IO.Directory]::Move("$dir.backup-probe", "$dir.backup"); throw 'Vorbedingung: Umbenennen der Sicherung ließ sich nicht verhindern' }
+            $b = Start-Process "$dir\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$blockedLog`"") -PassThru
+            if (-not $b.WaitForExit(300000)) { throw 'Blockierte Deinstallation endet nicht' }
+            for ($i = 0; $i -lt 240 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Seconds 2
+          } finally { $lock.Dispose() }
+          Get-Content $blockedLog -ErrorAction SilentlyContinue | Select-String 'umbenannt|ABGEBROCHEN'
+          if ($b.ExitCode -eq 0) { throw 'Blockierte Deinstallation meldet Erfolg (Exit 0)' }
+          if (-not (Select-String -Path $blockedLog -Pattern 'DEINSTALLATION ABGEBROCHEN' -SimpleMatch -Quiet)) { throw 'Abbruch nicht im Deinstallationsprotokoll' }
+          if (Compare-Object $before (& $tree $dir)) { throw 'Blockierte Deinstallation hat den Programmordner verändert' }
+          if (-not (Get-ItemProperty $key -ErrorAction SilentlyContinue)) { throw 'Blockierte Deinstallation hat den Eintrag in Apps & Features entfernt' }
+          if ((Get-FileHash $own).Hash -ne $ownHash -or (Test-Path "$dir.backup.erhalten*")) { throw 'Sicherung bei blockierter Deinstallation verändert' }
+          "Blockierte Deinstallation: abgebrochen, nichts entfernt (Exit $($b.ExitCode))."
           $u = Start-Process "$dir\unins000.exe" -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -PassThru -Wait
           for ($i = 0; $i -lt 120 -and (Test-Path "$dir\ECU-Studio-AI.exe"); $i++) { Start-Sleep -Milliseconds 500 }
           for ($i = 0; $i -lt 60 -and (Get-Process -Name '_iu*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
@@ -212,6 +240,11 @@ jobs:
           if ($u.ExitCode -ne 0) { throw "Deinstallation: Exit $($u.ExitCode)" }
           if ($left.Count -ne 1 -or $left[0] -ne '_internal\release-test-user-file.txt') { throw "Deinstallation: unerwartete Dateien: $($left -join ', ')" }
           if (Get-ItemProperty $key -ErrorAction SilentlyContinue) { throw 'Eintrag in Apps & Features nicht entfernt' }
+          # Unlocked, the uninstallation runs: the own file of the backup stays, unchanged, in <app>.backup.erhalten.
+          $keptOwn = "$dir.backup.erhalten\_internal\release-test-backup-file.txt"
+          $keptAll = @(Get-ChildItem "$dir.backup.erhalten" -Recurse -File -Force -ErrorAction SilentlyContinue)
+          if ((Test-Path "$dir.backup") -or $keptAll.Count -ne 1 -or -not (Test-Path $keptOwn) -or (Get-FileHash $keptOwn).Hash -ne $ownHash) {
+            throw "Eigene Datei der Sicherung nicht unverändert erhalten: $($keptAll.FullName -join ', ')" }
           "Installer-Test auf ${{ matrix.os }} bestanden (von $old)."
 
   publish:
