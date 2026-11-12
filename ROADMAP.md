@@ -144,14 +144,19 @@ Die neuesten Funktionen stehen oben.
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_geplant-0969da?style=for-the-badge)
+## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_umgesetzt,_nicht_veröffentlicht-0969da?style=for-the-badge)
 
-**Deinstallation nach einem In-App-Update ohne Rückstände.** Wurde eine Installation über „Jetzt nach Updates suchen“
-aktualisiert, bleiben nach der Deinstallation Programmdateien zurück, die erst mit der neuen Version hinzukamen
-(1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht betroffen). Geplanter Fix ohne pauschale Löschregel: Der
-Deinstaller entfernt genau die Dateien, die laut `RUNTIME_INVENTORY.json` ausgeliefert und unverändert sind, und
-Installationen mit Installer werden künftig über den geprüften Installer aktualisiert
-([Plan](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation)).
+**Deinstallation nach einem In-App-Update ohne Rückstände – umgesetzt und getestet, noch nicht veröffentlicht.**
+Wurde eine Installation über „Jetzt nach Updates suchen“ aktualisiert, blieben nach der Deinstallation
+Programmdateien zurück, die erst mit der neuen Version hinzukamen (1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht
+betroffen). Der Fix kommt ohne pauschale Löschregel aus:
+- Der Deinstaller entfernt genau die Dateien, die laut `RUNTIME_INVENTORY.json` ausgeliefert und unverändert sind.
+- Installationen mit Installer werden über den geprüften Installer aktualisiert.
+- „Apps & Features“ zeigt die installierte Version.
+
+Grenze: Ein Update, das noch der Updater von 1.20.0 ausführt, läuft über den alten Weg. Dessen Rückstände entfernt
+das nächste Update. Nachweis auf Windows Server 2022 und 2025
+([A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation)).
 
 <br>
 

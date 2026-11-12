@@ -170,6 +170,40 @@ bestehenden Installationen nicht.
    - eine veränderte ausgelieferte Datei (muss bleiben) und
    - die Erwartung „keine weiteren Rückstände“.
 
+**Behebung (1.20.1, umgesetzt, noch nicht veröffentlicht):** Branch `fix/1.20.1-uninstall-update`.
+
+- Punkt 1 und 2 wie geplant umgesetzt:
+  - `packaging/uninstall_cleanup.ps1` arbeitet nach Inventar und SHA-256. Pfade außerhalb des Programmordners,
+    Verknüpfungen, Junctions und ein unlesbares Inventar führen dazu, dass nichts gelöscht wird.
+  - Der Installer ruft das Skript bei der Deinstallation auf und nach einem Update im Modus „veraltet“: nur
+    unveränderte Dateien, die die neue Version nicht mehr ausliefert. Das Skript läuft aus einer temporären Kopie,
+    weil es selbst im Inventar steht.
+  - Das In-App-Update einer Installer-Installation führt den geprüften Installer aus, mit Sicherung und
+    Zurücksetzen.
+  - `DisplayVersion` in „Apps & Features“ wird vom Updater und beim Programmstart nachgeführt.
+- Unit-Tests: `tests/test_uninstall_inventory.py`. Sie decken unter anderem ab:
+  - veränderte ausgelieferte Dateien bleiben;
+  - Pfade außerhalb des Programmordners werden nie entfernt;
+  - Junctions und symbolische Links werden nicht verfolgt;
+  - ein falscher SHA-256 und ein fehlgeschlagener Installer setzen zurück.
+- Installer-QA auf frischen Runnern Windows Server 2022 und 2025 (Branch `qa/1.20.1-a5`, Kandidat als QA-Version
+  1.20.1 und Folgeversion 1.20.2 gebaut, nichts veröffentlicht). Alle Jobs grün:
+
+  | Modus | Ablauf | Ergebnis je System |
+  |---|---|---|
+  | Fresh | Installation, Benutzerdatei, Deinstallation, zweiter Durchgang | 78/78 ([Lauf 43061015894](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/43061015894)) |
+  | Update | Installer v1.19.1 → Installer Kandidat | 51/51, keine veralteten Dateien, nach Deinstallation bleibt genau die Benutzerdatei |
+  | InApp | v1.20.0 aktualisiert sich mit seinem eigenen Updater | 60/60. Die gemessene Grenze: Der alte Deinstaller lässt genau die neuen Dateien zurück |
+  | Repair | wie InApp, danach Installer des Kandidaten, Deinstallation | 24/24, bleibt nur die Benutzerdatei |
+  | Chain | v1.19.1 → Kandidat → 1.20.2 über die Oberfläche (Installer-Weg) | 68/68, `DisplayVersion` 1.20.2, Deinstallation lässt nur die Benutzerdatei |
+  | Heal | v1.20.0 → Kandidat mit dem Updater von 1.20.0 (ZIP-Weg), danach Kandidat → 1.20.2 (Installer-Weg) | 22/22 ([Lauf 43062362942](https://github.com/PCTestAdmin/ECU-Studio-AI/actions/runs/43062362942)), keine Rückstände, bleibt nur die Benutzerdatei |
+  | Rollback | falscher SHA-256, falsche erwartete Version, Installer-Update, Wiederherstellen | 37/37, Ordner nach Fehlern bytegleich, `DisplayVersion` zurückgesetzt |
+
+  Lauf 43062362942 wiederholt alle Modi zusätzlich mit Heal: 14 von 14 Jobs grün.
+- Nicht auf den Runnern geprüft, nur in Unit-Tests: eine veränderte ausgelieferte Datei bei der echten Deinstallation.
+- Grenze wie in Punkt 3: Alte Installationen erhalten den neuen Deinstaller erst mit einem Installer-Lauf ab 1.20.1
+  oder dem ersten Update, das 1.20.1 selbst ausführt. Bis dahin hilft das manuelle Löschen des Programmordners.
+
 ### A7. Prüfung der veröffentlichten Dateien (11.11.2026)
 
 Die SHA-256-Werte des Release-Kandidaten gelten nicht für das Release. Alle Werte hier stammen aus den
