@@ -182,8 +182,18 @@ def infer_relocation(data: bytes, calls) -> tuple:
         return ()
     inside = [a for a in flash if lo <= a < hi]
     positions = list(range(0, size - (hi - lo) + 1, RELOC_PAGE))
-    axes = [sum(axis_at(data, a - lo + f0) is not None for a in inside) for f0 in positions]
-    records = [sum(bool(record_at(data, a - lo + f0)) for a in inside) for f0 in positions]
+    # Both parsers start with a count in [2, 32] (8 bit, or the low byte of a 16-bit
+    # little-endian count): headers whose first byte cannot be one are skipped unparsed.
+    from .axis_arrays import MIN_POINTS, MAX_POINTS
+    low, high = min(MIN_POINTS, MIN_RECORD_POINTS), max(MAX_POINTS, 32)
+    raw = np.frombuffer(data, np.uint8)
+    rel = np.asarray(inside, np.int64) - lo
+    axes, records = [], []
+    for f0 in positions:
+        heads = rel + f0
+        heads = heads[(raw[heads] >= low) & (raw[heads] <= high)].tolist()
+        axes.append(sum(axis_at(data, a) is not None for a in heads))
+        records.append(sum(bool(record_at(data, a)) for a in heads))
 
     def decisive(scores):
         order = sorted(range(len(scores)), key=scores.__getitem__, reverse=True)
@@ -249,7 +259,51 @@ class Sites(list):
         return out
 
 
-def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True, reloc: tuple = ()):
+# Opcodes _walk acts on; every other instruction leaves the register state untouched
+# (ret is matched on the whole halfword 0x9000).
+_ACT16 = frozenset({0x3C, 0x5C, 0x40, 0xD8, 0xF8, 0x78, 0x20, 0xD4, 0xC4, 0xC8, 0xA0, 0x60, 0xB0, 0x30, 0xCC})
+_ACT32 = frozenset({0x91, 0x11, 0x09, 0x29, 0x89, 0xA9, 0x01, 0x6D, 0x1D}) | frozenset(_BOL)
+
+
+def _stream(data: bytes, branches: bool = True):
+    """The instructions _walk acts on, from one linear sweep (as _sweep decodes it).
+
+    Returns (offsets, lengths, words, all instruction offsets). On TriCore images about
+    60 % of the instructions never change the walk state; skipping them makes each walk
+    about twice as fast with identical results (1.21.0). The sweep is decoded once per
+    image and shared by its walks.
+    """
+    from array import array
+    hw = np.frombuffer(data[:len(data) // 2 * 2], '<u2')
+    n = len(hw)
+    # Typed arrays, not lists: a 10-MB image has ~4 million instructions (4 bytes each
+    # here instead of ~36 for a list of ints).
+    odd = (hw & 1).astype(np.uint8).tobytes()
+    starts, i = array('i'), 0
+    append = starts.append
+    while i < n:
+        append(i)
+        i += 2 if odd[i] and i + 1 < n else 1
+    del odd
+    s = np.frombuffer(starts, dtype=np.int32).astype(np.int64) if len(starts) else np.zeros(0, np.int64)
+    del starts
+    wide = (hw[s] & 1).astype(bool) & (s + 1 < n)
+    w = hw[s].astype(np.uint32)
+    w[wide] |= hw[s[wide] + 1].astype(np.uint32) << 16
+    op = w & 0xFF
+    act16 = set(_ACT16) | ((_COND16_DISP4 | _COND16_DISP8) if branches else set())
+    act32 = set(_ACT32) | (_COND32 if branches else set())
+    keep = np.where(wide, np.isin(op, sorted(act32)), np.isin(op, sorted(act16)) | (w == 0x9000))
+    def typed(code, values):
+        out = array(code)
+        out.frombytes(np.ascontiguousarray(values, dtype={'i': np.int32, 'B': np.uint8, 'I': np.uint32}[code]).tobytes())
+        return out
+    return (typed('i', s[keep] * 2), typed('B', np.where(wide[keep], 4, 2)), typed('I', w[keep]),
+            s * 2)   # int64: searchsorted with Python ints would copy an int32 array per call
+
+
+def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True, reloc: tuple = (),
+          stream=None):
     """One linear sweep. Returns (call sites, stack stores, sp events, call targets).
 
     With ``branches`` the register state also reaches the targets of forward
@@ -260,8 +314,17 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
     ``sp events`` are addresses where sp is changed or copied, or a slot address
     is taken. With ``slots`` ({function entry: {slot: [(at, value), ...]}}) a
     pointer loaded from a slot takes the value of the nearest preceding store.
+
+    Only the instructions in ``stream`` (_stream) are visited. Between two of them the
+    full sweep would only merge the states pending at branch targets and replace an
+    empty state list by one empty state; both are replayed below in address order.
     """
     import bisect
+    import heapq
+    if stream is None:
+        stream = _stream(np.asarray(h, dtype='<u2').tobytes(), branches)
+    ats, lens, words, all_starts = stream
+    n_half = len(h)
     states: list[dict] = [{}]
     pending: dict[int, list[dict]] = {}
     out, stores, sp_events, targets = Sites(), [], [], set()
@@ -290,28 +353,49 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
             v = defs[k][1] if k >= 0 else None
         setreg(dst, ('full', v) if v is not None else None)
 
-    for at, length, w in _sweep(h):
+    keys: list[int] = []    # pending branch targets, smallest first
+    last_end = 0            # end of the last instruction visited (or joined)
+
+    def defer(target, from_states):
+        group = pending.get(target)
+        if group is None:
+            group = pending[target] = []
+            heapq.heappush(keys, target)
+        group.extend({**s} for s in from_states)
+
+    for at, length, w in zip(ats, lens, words):
         if slots is not None:
             k = bisect.bisect_right(entries, at) - 1
             if k != k_entry:
                 k_entry = k
                 func_slots = slots.get(entries[k], {}) if k >= 0 else {}
-        if at in pending:
-            states = states + pending.pop(at)
+        while keys and keys[0] <= at:
+            key = heapq.heappop(keys)
+            group = pending.pop(key)
+            j = int(np.searchsorted(all_starts, key))
+            if j >= len(all_starts) or all_starts[j] != key:
+                continue            # inside an instruction: the sweep never visits it
+            if key > last_end and not states:
+                states = [{}]       # an instruction in between replaced the empty list
+            states = states + group
             uniq = []
             for s in states:
                 if s not in uniq:
                     uniq.append(s)
             states = uniq[:MAX_STATES] or [{}]
+            if key < at:
+                i = key // 2
+                last_end = key + (4 if h[i] & 1 and i + 1 < n_half else 2)
         if not states:
             states = [{}]
+        last_end = at + length
         op = w & 0xFF
         if branches:
             target = cond_target(at, length, w)
             if target is not None:
                 # Both ways continue: fall-through here, the taken branch at a nearby forward target.
                 if 0 < target - at <= MAX_JOIN:
-                    pending.setdefault(target, []).extend({**s} for s in states)
+                    defer(target, states)
                 continue
         jump = None
         if length == 2:
@@ -457,7 +541,7 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
                 continue
         # unconditional jump: the state continues at a nearby forward target only
         if jump is not None and 0 < jump - at <= MAX_JOIN:
-            pending.setdefault(jump, []).extend({**s} for s in states)
+            defer(jump, states)
         states = []
     return out, stores, sp_events, targets
 
@@ -494,6 +578,11 @@ def stack_slots(entries: list[int], stores, sp_events) -> dict:
 
 
 FOLLOW_BRANCHES = True
+# With relocation the stack pass follows anyway; it reuses the stack stores, frame events
+# and call targets of the first pass instead of a second full pass (1.21.0). They are
+# absolute values, independent of the file mapping (checked on all 77 TriCore images of
+# the reference data: identical results).
+REUSE_STORES = True
 FIND_RECORDS = True
 LEARN_ROLES = True
 
@@ -502,15 +591,20 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
     """(call sites, halfwords, function entries) of one image."""
     h = _halfwords(data)
     bases = global_bases(h)
-    sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES)
+    stream = _stream(data, FOLLOW_BRANCHES)
+    sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, stream=stream)
     reloc = infer_relocation(data, sites.unmapped) if RELOCATE else ()
-    if reloc:
-        sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, reloc=reloc)
     entries = sorted(targets)
+    slots = stack_slots(entries, stores, sp_events) if stack else None
+    if reloc and not (slots and REUSE_STORES):
+        sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, reloc=reloc,
+                                                  stream=stream)
+        entries = sorted(targets)
+        slots = stack_slots(entries, stores, sp_events) if stack else None
     if stack:
-        slots = stack_slots(entries, stores, sp_events)
         if slots:
-            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc)[0]
+            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc,
+                          stream=stream)[0]
     sites.relocation = reloc
     return sites, h, entries
 

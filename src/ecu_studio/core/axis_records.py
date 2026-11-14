@@ -41,6 +41,14 @@ def _sign_rank(image: BinaryImage, m: MapDefinition) -> int:
     return int(m.dtype.startswith('s')!=top)
 
 
+def _top_bit(image: BinaryImage, m: MapDefinition) -> bool:
+    """Some cell has its top bit set: signed and unsigned readings then give different values."""
+    if m.width not in (1,2):
+        return False
+    raw=np.frombuffer(image.read(m.offset,m.length),np.uint8)
+    return bool(np.any((raw if m.width==1 else raw[0::2] if m.endian=='big' else raw[1::2])>=0x80))
+
+
 def _strict(values) -> bool:
     return _monotone(_steps(values))
 
@@ -199,6 +207,85 @@ def _width_by_next_header(found: list) -> list:
     return out
 
 
+# Value width from the record boundary (1.21.0). Packed record lists put the next record
+# (count, then a strictly rising axis) right behind a table. A 16-bit reading whose end
+# meets no such start, while the 8-bit reading of the same shape ends exactly at one, is
+# the byte table read twice as long (into the next record). Development data
+# (MEVD17.2/MSD80 calibrations): 315 such readings were byte tables, 19 were 16-bit tables.
+WIDTH_BY_BOUNDARY = True
+BOUNDARY_MIN_COUNT = 3     # count of the following record (2 matched rising pairs in table data too often)
+BOUNDARY_PAD = 3           # alignment bytes before the following record
+
+
+def _rising(values) -> bool:
+    return len(values) >= 2 and all(b > a for a, b in zip(values, values[1:]))
+
+
+def _record_start(buf: bytes, at: int, order: str) -> bool:
+    """A count-prefixed record (1-D or 2-D, 8/16-bit counts and axes) starts at ``at`` or
+    up to BOUNDARY_PAD bytes later; 16-bit fields only at even offsets."""
+    for q in range(at, at + BOUNDARY_PAD + 1):
+        for cw in (1, 2):
+            if cw == 2 and q % 2:
+                continue
+            for dims in (1, 2):
+                if q + cw * dims > len(buf):
+                    continue
+                counts = [int.from_bytes(buf[q + i * cw:q + (i + 1) * cw], order) for i in range(dims)]
+                if not all(BOUNDARY_MIN_COUNT <= c <= 32 for c in counts):
+                    continue
+                a, n = q + cw * dims, counts[0]
+                if _rising(list(buf[a:a + n])) and a + n <= len(buf):
+                    return True
+                if a % 2 == 0 and a + 2 * n <= len(buf):
+                    for kind in ('u', 'i'):
+                        v = np.frombuffer(buf[a:a + 2 * n], ('<' if order == 'little' else '>') + kind + '2').tolist()
+                        if _rising(v):
+                            return True
+    return False
+
+
+def _width_by_boundary(buf: bytes, found: list) -> list:
+    """16-bit header-record readings that are byte tables by the record boundary (WIDTH_BY_BOUNDARY)."""
+    import dataclasses
+    have = {(m.offset, m.rows, m.cols, m.width) for _, m in found}
+    out = []
+    for sc, m in found:
+        n = m.rows * m.cols
+        if (m.width == 2 and m.record_layout == 'candidate:nx,ny,x,y,z'
+                and not _record_start(buf, m.offset + 2 * n, m.endian)
+                and _record_start(buf, m.offset + n, m.endian)):
+            if (m.offset, m.rows, m.cols, 1) not in have:
+                have.add((m.offset, m.rows, m.cols, 1))
+                note = (' Wertebreite 1 Byte: hinter der 8-Bit-Lesart beginnt der nächste Datensatz '
+                        '(Anzahl + steigende Achse), hinter der 16-Bit-Lesart nicht (ungeprüft).')
+                for dtype in ('u8', 's8'):
+                    out.append((FLAT_SCORE, dataclasses.replace(m, dtype=dtype, endian='big', notes=m.notes + note)))
+            continue
+        out.append((sc, m))
+    return out
+
+
+# 16-bit fields on even addresses (1.21.0). TriCore and C16x store halfwords aligned; every
+# 16-bit A2L object of the reference data (8 ECU lines) starts at an even address. The
+# image decides: records whose 16-bit counts or axes fix it vote with their header parity.
+# Development data: 520:15 and 273:7 (MEVD17.2/MSD80 calibrations); readings in the
+# minority parity were never a reference table.
+ALIGNED_16 = True
+ALIGN_MIN = 20
+ALIGN_RATIO = 4.
+
+
+def _image_parity(found: list, fixed: dict) -> int | None:
+    votes = [m.candidate_region_start % 2 for _, m in found if id(m) in fixed]
+    even, odd = votes.count(0), votes.count(1)
+    best, other = (0, 1) if even >= odd else (1, 0)
+    count = {0: even, 1: odd}
+    if count[best] >= ALIGN_MIN and count[best] >= ALIGN_RATIO * count[other]:
+        return best
+    return None
+
+
 FLAT_REASON='Konstant/zu wenig Dynamik'
 ROUGH_REASON='Zu verrauscht oder eindimensional'
 FLAT_SCORE=.05   # ranked after every table with a coherent surface
@@ -281,6 +368,27 @@ ORDER_RATIO = 2.   # majority needed: one CPU, one byte order (1.21.0)
 BYTE_ORDER = True
 
 
+# Only records whose 16-bit fields decide the byte order vote (1.21.0). 8-bit counts with
+# 16-bit axes whose values all stay below 256 read as strictly monotone in both orders
+# (v and v*256): such a record does not tell the order. Development data (MSD80 and
+# MEVD17.2 calibrations): 51-70 % of the big-endian votes in these little-endian images
+# came from such records; 16-bit counts always decide (c and c*256 cannot both be counts).
+# Off: on the development data the image order is the same with and without these votes
+# (no measurable effect), so the rule is not validated; it waits for new development data.
+DECISIVE_VOTES = False
+
+
+def _both_orders(buf: bytes, at: int, cols: int, rows: int, xw: int, yw: int, order: str) -> bool:
+    """The 16-bit axes of an 8-bit-count record are strictly monotone in the other byte order too."""
+    other = 'little' if order == 'big' else 'big'
+    for kind in ('u', 'i'):
+        x = _axis_values(buf, at, cols, xw, other, kind)
+        y = _axis_values(buf, at + cols * xw, rows, yw, other, kind)
+        if _strict(x) and _strict(y):
+            return True
+    return False
+
+
 def _image_order(orders: list[str]) -> str | None:
     """Byte order of the image from records whose 16-bit counts or axes fix it, or None.
 
@@ -348,6 +456,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
     fixed={}   # id(record) -> (byte order its 16-bit counts or axes fix, record)
+    ambiguous=set()   # ids in fixed whose axes read as strictly monotone in both byte orders (no vote)
     flat_other=[]   # flat values of another width than the axes: kept when the next header fixes it
     for count_width in (1,2):
         for endian in (['big'] if count_width==1 else ['big','little']):
@@ -410,11 +519,13 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         continue
                                     if count_width==2 or wide:   # the reference keeps the id unique
                                         fixed[id(m)]=(order if wide else endian,m)
+                                        if count_width==1 and DECISIVE_VOTES and _both_orders(buf,axis_start,cols,rows,xw,yw,order):
+                                            ambiguous.add(id(m))
                     if len(found)>max_results*30:
                         found=sorted(found,key=lambda item:-item[0])[:max_results*10]
     found.extend((FLAT_SCORE,m) for m in _chained(rough,[m for _,m in found]))
     found.extend((FLAT_SCORE,m) for m in _bounded_by_next_header(flat_other,[m for _,m in found]))
-    order=_image_order([fixed[id(m)][0] for _,m in found if id(m) in fixed]) if BYTE_ORDER else None
+    order=_image_order([fixed[id(m)][0] for _,m in found if id(m) in fixed and id(m) not in ambiguous]) if BYTE_ORDER else None
     if order:
         # Counts/axes fixed in the other byte order: a coincidence, dropped. Values alone in
         # the other order: the same record in the image order (small values stored in 16 bit
@@ -431,7 +542,13 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                           '(Zähler/Achsen mit 16 Bit), nicht aus den Werten.')
             kept.append((sc,m))
         found=kept
+    parity=_image_parity(found,fixed) if ALIGNED_16 else None
+    if parity is not None:
+        found=[(sc,m) for sc,m in found
+               if not (id(m) in fixed and m.candidate_region_start%2!=parity)
+               and not (m.width>=2 and m.offset%2!=parity)]
     found=_width_by_next_header(found) if NEXT_HEADER_WIDTH else found
+    found=_width_by_boundary(buf,found) if WIDTH_BY_BOUNDARY else found
     found=_sign_by_wraps(image,found) if SIGN_BY_WRAPS else found
     found=_drop_nested_headers(found) if NESTED_HEADERS else found
     # One hypothesis per span: u16/s16 readings of the same bytes must not use
@@ -441,7 +558,10 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     found.sort(key=lambda item:(-item[0],_sign_rank(image,item[1])))
     unique={}
     for _,m in found:
-        unique.setdefault((m.offset,m.rows,m.cols,m.width,m.endian),m)
+        kept=unique.setdefault((m.offset,m.rows,m.cols,m.width,m.endian),m)
+        if (kept is not m and m.dtype!=kept.dtype and m.dtype not in kept.dtype_alternatives
+                and _top_bit(image,kept)):
+            kept.dtype_alternatives=kept.dtype_alternatives+[m.dtype]   # the bytes did not decide the sign
     return list(unique.values())[:max_results]
 
 
