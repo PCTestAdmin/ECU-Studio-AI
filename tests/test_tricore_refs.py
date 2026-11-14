@@ -557,7 +557,8 @@ def test_record_routine_without_cell_loads_leaves_the_type_open():
     assert all(widths[s] == 2 for s in starts[:-1])
     maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
-    assert called and all('Vorzeichen aus der glatteren Lesart (ungeprüft)' in m.label_evidence for m in called)
+    assert called and all('Vorzeichen aus der Lesart ohne Überlauf benachbarter Zellen, sonst vorzeichenlos (ungeprüft)'
+                          in m.label_evidence for m in called)
 
 
 def test_mixed_loads_give_no_record_cell_type():
