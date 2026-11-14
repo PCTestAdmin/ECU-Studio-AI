@@ -822,8 +822,11 @@ def role_sites(generic, roles) -> list[CallSite]:
 
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
-    in a4 to one of the descriptors' routines, with or without resolved axes."""
+    in a4 to one of the descriptors' routines, with or without resolved axes.
+    ``addressed`` holds every address any routine call passes in an argument register
+    (data, axis headers, records): objects the code reads one by one (1.21.0)."""
     named: frozenset = frozenset()
+    addressed: frozenset = frozenset()
 
 
 def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
@@ -902,6 +905,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
     out.named = frozenset(c.data for c in sites if c.callee in cells and lo <= c.data < hi)
+    out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
+                              if lo <= v < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:

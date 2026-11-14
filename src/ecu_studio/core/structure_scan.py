@@ -715,12 +715,19 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         return []
     pitched = [c for part in parts for c in part]
     generic_sorted = sorted(generic_only)
+    # Objects TriCore code passes to routines one by one (data, axis headers, records):
+    # a smooth run across one of them spans several objects and is dropped (1.21.0; MSD80
+    # development data: 140 of 161 such pitch readings were confusions or partials, none exact).
+    addressed = sorted(set(getattr(calls, 'addressed', ())) - set(anchors))
     for score, off, rows, c, dtype, endian, w in pitched:
         k = bisect.bisect_left(generic_sorted, off - 2)
         if k < len(generic_sorted) and generic_sorted[k] <= off + 2 and generic_sorted[k] % w == 0:
             # A code load of (almost) this start confirms the table and fixes its start.
             off, score = generic_sorted[k], score + 1.
             generic_confirmed.add(off)
+        i = bisect.bisect_right(addressed, off)
+        if i < len(addressed) and addressed[i] < off + rows * c * w:
+            continue
         i = bisect.bisect_right(anchors, off)
         if i < len(anchors) and anchors[i] < off + rows * c * w:
             # A referenced address inside the run usually starts the next table.
