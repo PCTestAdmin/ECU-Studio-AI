@@ -10,7 +10,9 @@ confirms it:
 - ``gleicher Kopf``: a stored header (counts and axes) is equal, values changed,
 - ``ähnliche Werte``: same shape, values correlate (>= MIN_CORR),
 - ``gleiche Umgebung``: a flat block (zeros, one value) equal at the shifted
-  place; only the neighbouring anchors place it - weakest.
+  place; only the neighbouring anchors place it - weakest. Both anchors around
+  the block must agree on the shift, or the bytes right before or after the
+  block (not flat themselves) must be equal at the shifted place (1.21.0).
 
 Independently of the source, ``confirm_by_detection`` marks a proposal whose
 target place holds a table the target's own scan found (same start, size, cell
@@ -37,6 +39,19 @@ WINDOW = 32
 STEP = 16           # source window spacing
 MIN_CORR = .95
 MIN_DISTINCT_BYTES = 4   # fewer distinct bytes: a flat block, location not provable
+FLAT_CONTEXT = 16        # bytes before/after a flat block that confirm its place when anchors disagree
+FLAT_NEEDS_PLACE = True  # 1.21.0: MSD80/MEVD17.2 sister versions (development): wrong flat transfers 9 % -> 2 %
+
+
+def _same_context(src: bytes, dst: bytes, s: int, t: int, n: int) -> bool:
+    """Non-flat bytes directly before or after a block are equal in both images."""
+    for a0, b0 in ((s - FLAT_CONTEXT, t - FLAT_CONTEXT), (s + n, t + n)):
+        if a0 < 0 or b0 < 0:
+            continue
+        a, b = src[a0:a0 + FLAT_CONTEXT], dst[b0:b0 + FLAT_CONTEXT]
+        if len(a) == FLAT_CONTEXT and a == b and len(set(a)) > 1:
+            return True
+    return False
 EVIDENCE = ('identisch', 'gleicher Kopf', 'ähnliche Werte', 'gleiche Umgebung')
 
 
@@ -113,6 +128,7 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
             if 0 <= j < len(chain):
                 options.append(chain[j][1] - chain[j][0])
         best = None
+        agree = len(set(options)) == 1
         for shift in dict.fromkeys(options):
             t = m.offset + shift
             if t < 0 or t + m.length > len(dst):
@@ -120,8 +136,10 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
             a, b = src[m.offset:m.offset + m.length], dst[t:t + m.length]
             if len(set(a)) < MIN_DISTINCT_BYTES:
                 # Flat blocks (zeros, one value) match anywhere: only the neighbouring
-                # anchors place them - the weakest class.
-                if a == b:
+                # anchors place them - the weakest class. Anchors that disagree mean
+                # an insertion near the block: then its own neighbourhood must decide.
+                if a == b and (agree or not FLAT_NEEDS_PLACE
+                               or _same_context(src, dst, m.offset, t, m.length)):
                     best = best or ('gleiche Umgebung', shift)
                 continue
             if a == b:
