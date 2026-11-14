@@ -170,7 +170,7 @@ bestehenden Installationen nicht.
    - eine veränderte ausgelieferte Datei (muss bleiben) und
    - die Erwartung „keine weiteren Rückstände“.
 
-**Behebung (1.20.1, umgesetzt, noch nicht veröffentlicht):** Branch `fix/1.20.1-uninstall-update`.
+**Behebung (1.20.1, veröffentlicht am 14.11.2026):** Branch `fix/1.20.1-uninstall-update`.
 
 - Punkt 1 und 2 wie geplant umgesetzt:
   - `packaging/uninstall_cleanup.ps1` arbeitet nach Inventar und SHA-256. Pfade außerhalb des Programmordners,
