@@ -6,10 +6,11 @@ No physical units or functional names can be inferred from this layout alone.
 """
 from __future__ import annotations
 from functools import lru_cache
+import bisect
 import numpy as np
 from .model import BinaryImage, MapDefinition
 from .axis_inference import _plausibility
-from .precision import surface_evidence, narrower_storage_alias
+from .precision import surface_evidence, narrower_storage_alias, preferred_sign
 
 
 def _steps(values) -> list:
@@ -33,11 +34,19 @@ def _record_axis(values):
 
 def _sign_rank(image: BinaryImage, m: MapDefinition) -> int:
     """0 for the preferred reading of equally scored u16/s16 hypotheses."""
-    if m.width!=2:
+    if m.width not in (1,2):
         return 0
     raw=np.frombuffer(image.read(m.offset,m.length),np.uint8)
-    top=bool(np.any((raw[0::2] if m.endian=='big' else raw[1::2])>=0x80))
+    top=bool(np.any((raw if m.width==1 else raw[0::2] if m.endian=='big' else raw[1::2])>=0x80))
     return int(m.dtype.startswith('s')!=top)
+
+
+def _top_bit(image: BinaryImage, m: MapDefinition) -> bool:
+    """Some cell has its top bit set: signed and unsigned readings then give different values."""
+    if m.width not in (1,2):
+        return False
+    raw=np.frombuffer(image.read(m.offset,m.length),np.uint8)
+    return bool(np.any((raw if m.width==1 else raw[0::2] if m.endian=='big' else raw[1::2])>=0x80))
 
 
 def _strict(values) -> bool:
@@ -77,6 +86,206 @@ def _chained(rough: list[MapDefinition], accepted: list[MapDefinition]) -> list[
             or near(ends,m.candidate_region_start-CHAIN_GAP,m.candidate_region_start)]
 
 
+def _bounded_by_next_header(flat: list[MapDefinition], accepted: list[MapDefinition]) -> list[MapDefinition]:
+    """Flat records whose value width differs from the axes, kept where it is fixed.
+
+    Flat values do not show their width; the next accepted record header does when it
+    starts exactly at the end of this reading (up to HEADER_PAD alignment bytes) and at no
+    other width's end. MSD80 (development data) stores byte tables behind 16-bit axes
+    (``_REC_MAP_52_u1_s2_s2``), packed in record lists (1.21.0).
+    """
+    gap=_header_gaps([(0,m) for m in accepted])
+    out=[]
+    for m in flat:
+        mine=gap(m.offset+m.length)
+        other=gap(m.offset+m.rows*m.cols*(3-m.width))     # the other width's reading
+        if mine is not None and (other is None or mine<other):
+            m.label_origin=SHAPE_ONLY_ORIGIN
+            m.notes+=(f' Werte ohne glatte Oberfläche: Wertebreite {m.width} Byte, weil der nächste '
+                      'Datensatzkopf genau danach beginnt (ungeprüft).')
+            out.append(m)
+    return out
+
+
+SIGN_BY_WRAPS = True
+
+
+def _sign_by_wraps(image: BinaryImage, found: list) -> list:
+    """Of unsigned and signed readings of the same bytes, keep the one preferred_sign names.
+
+    Before 1.21.0 the smoother (range-normalised) surface decided, which reads a
+    signed byte table with values around zero as unsigned with a wrap. Readings
+    whose bytes do not decide the sign stay as before.
+    """
+    groups={}
+    for sc,m in found:
+        groups.setdefault((m.offset,m.rows,m.cols,m.width,m.endian),[]).append((sc,m))
+    out=[]
+    for (off,rows,cols,width,endian),items in groups.items():
+        signs={m.dtype[0] for _,m in items}
+        if len(signs)>1:
+            pick=preferred_sign(image.read(off,rows*cols*width),rows,cols,width,endian)
+            if pick is not None:
+                chosen=[(sc,m) for sc,m in items if m.dtype[0]==pick]
+                if chosen:
+                    items=chosen
+                    for _,m in items:
+                        m.notes+=(' Vorzeichen: Lesart ohne Überlauf benachbarter Zellen'
+                                  + (' (vorzeichenbehaftet).' if pick=='s' else ' (vorzeichenlos).'))
+        out.extend(items)
+    return out
+
+
+NESTED_HEADERS = True
+
+
+def _drop_nested_headers(found: list) -> list:
+    """Drop readings whose header lies inside the counts/axes of another reading.
+
+    Axis points of a real record read as counts plus shorter axes (8-bit or mixed
+    widths) as well. Such a reading starts strictly between another reading's header
+    and its data; outer readings that are themselves nested do not count. Development
+    data (MEVD17.2, MSD80, 6 images): 569 such readings off the reference, 8 on it
+    (1.21.0).
+    """
+    def span(m):
+        return (m.candidate_region_start if m.candidate_region_start is not None else m.offset), m.offset
+    spans = sorted({span(m) for _, m in found if span(m)[0] < span(m)[1]})
+    starts = [h for h, _ in spans]
+
+    def inside(h, d, pool, keys):
+        # any (h2, d2) in pool with h2 < h < d2, other than (h, d) itself
+        i = bisect.bisect_left(keys, h)
+        return any(h2 < h < d2 for h2, d2 in pool[max(0, i - 64):i] if (h2, d2) != (h, d))
+    outer = [x for x in spans if not inside(x[0], x[1], spans, starts)]
+    keys = [h for h, _ in outer]
+    return [(sc, m) for sc, m in found if not inside(*span(m), outer, keys)]
+
+
+NEXT_HEADER_WIDTH = True
+HEADER_PAD = 3     # alignment bytes before the next header (MSD80 aligns records to 4 bytes)
+
+
+def _header_gaps(found: list):
+    """gap(end) -> bytes from ``end`` to the next accepted header (0..HEADER_PAD), or None."""
+    heads=np.array(sorted({m.candidate_region_start for _,m in found}),dtype=np.int64)
+    def gap(end):
+        if not len(heads):
+            return None
+        k=np.searchsorted(heads,end)
+        return int(heads[k]-end) if k<len(heads) and heads[k]-end<=HEADER_PAD else None
+    return gap
+
+
+def _width_by_next_header(found: list) -> list:
+    """Of the value widths read behind one header, keep the one the next header confirms.
+
+    Byte values often read as a valid 16-bit table too (and the reverse). In packed
+    record lists the next accepted header starts right behind the true table, after
+    at most HEADER_PAD alignment bytes. The width whose end lies closest before a
+    header wins when no other width is as close; otherwise all widths stay. MSD80
+    (development data): 36 byte tables read as 16 bit, each pushing the next record
+    out as an overlap; records there are 4-byte aligned (1.21.0).
+    """
+    gap=_header_gaps(found)
+    groups={}
+    for sc,m in found:
+        groups.setdefault((m.candidate_region_start,m.offset,m.rows,m.cols),[]).append((sc,m))
+    out=[]
+    for items in groups.values():
+        widths={m.width for _,m in items}
+        if len(widths)>1:
+            m0=items[0][1]
+            gaps={w:gap(m0.offset+m0.rows*m0.cols*w) for w in widths}
+            close=sorted((g,w) for w,g in gaps.items() if g is not None)
+            if close and (len(close)==1 or close[0][0]<close[1][0]):
+                w=close[0][1]
+                items=[(sc,m) for sc,m in items if m.width==w]
+                for _,m in items:
+                    m.notes+=f' Wertebreite {w} Byte: der nächste Datensatzkopf beginnt genau danach.'
+        out.extend(items)
+    return out
+
+
+# Value width from the record boundary (1.21.0). Packed record lists put the next record
+# (count, then a strictly rising axis) right behind a table. A 16-bit reading whose end
+# meets no such start, while the 8-bit reading of the same shape ends exactly at one, is
+# the byte table read twice as long (into the next record). Development data
+# (MEVD17.2/MSD80 calibrations): 315 such readings were byte tables, 19 were 16-bit tables.
+WIDTH_BY_BOUNDARY = True
+BOUNDARY_MIN_COUNT = 3     # count of the following record (2 matched rising pairs in table data too often)
+BOUNDARY_PAD = 3           # alignment bytes before the following record
+
+
+def _rising(values) -> bool:
+    return len(values) >= 2 and all(b > a for a, b in zip(values, values[1:]))
+
+
+def _record_start(buf: bytes, at: int, order: str) -> bool:
+    """A count-prefixed record (1-D or 2-D, 8/16-bit counts and axes) starts at ``at`` or
+    up to BOUNDARY_PAD bytes later; 16-bit fields only at even offsets."""
+    for q in range(at, at + BOUNDARY_PAD + 1):
+        for cw in (1, 2):
+            if cw == 2 and q % 2:
+                continue
+            for dims in (1, 2):
+                if q + cw * dims > len(buf):
+                    continue
+                counts = [int.from_bytes(buf[q + i * cw:q + (i + 1) * cw], order) for i in range(dims)]
+                if not all(BOUNDARY_MIN_COUNT <= c <= 32 for c in counts):
+                    continue
+                a, n = q + cw * dims, counts[0]
+                if _rising(list(buf[a:a + n])) and a + n <= len(buf):
+                    return True
+                if a % 2 == 0 and a + 2 * n <= len(buf):
+                    for kind in ('u', 'i'):
+                        v = np.frombuffer(buf[a:a + 2 * n], ('<' if order == 'little' else '>') + kind + '2').tolist()
+                        if _rising(v):
+                            return True
+    return False
+
+
+def _width_by_boundary(buf: bytes, found: list) -> list:
+    """16-bit header-record readings that are byte tables by the record boundary (WIDTH_BY_BOUNDARY)."""
+    import dataclasses
+    have = {(m.offset, m.rows, m.cols, m.width) for _, m in found}
+    out = []
+    for sc, m in found:
+        n = m.rows * m.cols
+        if (m.width == 2 and m.record_layout == 'candidate:nx,ny,x,y,z'
+                and not _record_start(buf, m.offset + 2 * n, m.endian)
+                and _record_start(buf, m.offset + n, m.endian)):
+            if (m.offset, m.rows, m.cols, 1) not in have:
+                have.add((m.offset, m.rows, m.cols, 1))
+                note = (' Wertebreite 1 Byte: hinter der 8-Bit-Lesart beginnt der nächste Datensatz '
+                        '(Anzahl + steigende Achse), hinter der 16-Bit-Lesart nicht (ungeprüft).')
+                for dtype in ('u8', 's8'):
+                    out.append((FLAT_SCORE, dataclasses.replace(m, dtype=dtype, endian='big', notes=m.notes + note)))
+            continue
+        out.append((sc, m))
+    return out
+
+
+# 16-bit fields on even addresses (1.21.0). TriCore and C16x store halfwords aligned; every
+# 16-bit A2L object of the reference data (8 ECU lines) starts at an even address. The
+# image decides: records whose 16-bit counts or axes fix it vote with their header parity.
+# Development data: 520:15 and 273:7 (MEVD17.2/MSD80 calibrations); readings in the
+# minority parity were never a reference table.
+ALIGNED_16 = True
+ALIGN_MIN = 20
+ALIGN_RATIO = 4.
+
+
+def _image_parity(found: list, fixed: dict) -> int | None:
+    votes = [m.candidate_region_start % 2 for _, m in found if id(m) in fixed]
+    even, odd = votes.count(0), votes.count(1)
+    best, other = (0, 1) if even >= odd else (1, 0)
+    count = {0: even, 1: odd}
+    if count[best] >= ALIGN_MIN and count[best] >= ALIGN_RATIO * count[other]:
+        return best
+    return None
+
+
 FLAT_REASON='Konstant/zu wenig Dynamik'
 ROUGH_REASON='Zu verrauscht oder eindimensional'
 FLAT_SCORE=.05   # ranked after every table with a coherent surface
@@ -95,7 +304,7 @@ def _flat_record(m: MapDefinition, axis_width: int, kind: str, image: BinaryImag
     complete EDC17CP09 A2L (development): 257 of 443 headed records with valid
     axes were flat and had been dropped.
     """
-    if m.width!=axis_width or m.dtype=='u32':
+    if m.width!=axis_width or m.dtype in ('u32','s8'):
         return False
     if axis_width==2:
         raw=np.frombuffer(image.read(m.offset,m.length),('<' if m.endian=='little' else '>')+'u2')
@@ -141,6 +350,83 @@ def _x_axis_possible(buf: bytes, counts: np.ndarray, starts: np.ndarray, phase: 
     return keep
 
 
+# Axis widths (X, Y): MSD80 records mix them (16-bit X with 8-bit Y and the reverse; 1.21.0).
+AXIS_WIDTHS = ((1, 1), (2, 2), (1, 2), (2, 1))
+# Value types; s8 since 1.21.0 (signed byte tables, e.g. MSD80 _REC_MAP_52_UBYTE_s1_s2_s2).
+DATA_TYPES = ('u8', 's8', 'u16', 's16', 'u32')
+
+
+def _axis_values(buf: bytes, at: int, n: int, width: int, order: str, kind: str) -> list:
+    """n axis points; 8-bit axes are read unsigned, 16-bit ones in ``order`` and ``kind``."""
+    if width == 1:
+        return list(buf[at:at + n])
+    return np.frombuffer(buf[at:at + 2 * n], ('>' if order == 'big' else '<') + kind + '2').tolist()
+
+
+ORDER_MIN = 20     # records whose 16-bit counts or axes fix the byte order, before the image votes
+ORDER_RATIO = 2.   # majority needed: one CPU, one byte order (1.21.0)
+BYTE_ORDER = True
+
+
+# Only records whose 16-bit fields decide the byte order vote (1.21.0). 8-bit counts with
+# 16-bit axes whose values all stay below 256 read as strictly monotone in both orders
+# (v and v*256): such a record does not tell the order. Development data (MSD80 and
+# MEVD17.2 calibrations): 51-70 % of the big-endian votes in these little-endian images
+# came from such records; 16-bit counts always decide (c and c*256 cannot both be counts).
+# Off: on the development data the image order is the same with and without these votes
+# (no measurable effect), so the rule is not validated; it waits for new development data.
+DECISIVE_VOTES = False
+
+
+def _both_orders(buf: bytes, at: int, cols: int, rows: int, xw: int, yw: int, order: str) -> bool:
+    """The 16-bit axes of an 8-bit-count record are strictly monotone in the other byte order too."""
+    other = 'little' if order == 'big' else 'big'
+    for kind in ('u', 'i'):
+        x = _axis_values(buf, at, cols, xw, other, kind)
+        y = _axis_values(buf, at + cols * xw, rows, yw, other, kind)
+        if _strict(x) and _strict(y):
+            return True
+    return False
+
+
+def _image_order(orders: list[str]) -> str | None:
+    """Byte order of the image from records whose 16-bit counts or axes fix it, or None.
+
+    One CPU stores all records in one byte order; readings in the other order that
+    pass anyway are coincidences. Development data (MEVD17.2 and MSD80 calibrations,
+    TriCore): 412-469 records read little endian, 120-177 big endian by chance.
+    """
+    votes = {o: orders.count(o) for o in ('big', 'little')}
+    best, other = sorted(votes, key=votes.get, reverse=True)
+    if votes[best] >= ORDER_MIN and votes[best] >= ORDER_RATIO * votes[other]:
+        return best
+    return None
+
+
+def _reorder_axes(image: BinaryImage, m: MapDefinition, order: str) -> bool:
+    """Re-read the 16-bit axes of an 8-bit-count record in the image byte order.
+
+    Index axes (0, 1, 2 ...) fail the plausibility rule and pass byte-swapped (0, 256,
+    512 ...): the header found the record, only the axis byte order was wrong. Kept
+    when both axes are strictly monotone in the image order; 16-bit counts in the other
+    order are not re-read (their values change, so does the shape).
+    """
+    n=m.cols+m.rows
+    if m.candidate_region_start is None or m.axis_x_offset is None:
+        return False
+    if m.axis_x_offset-m.candidate_region_start!=2 or m.offset-m.axis_x_offset!=2*n:
+        return False
+    for kind in ('u','i'):
+        v=np.frombuffer(image.read(m.axis_x_offset,2*n),('<' if order=='little' else '>')+kind+'2').tolist()
+        x,y=v[:m.cols],v[m.cols:]
+        if _strict(x) and _strict(y):
+            m.axes_x,m.axes_y=x,y
+            m.notes+=(f' Achsen in Byte-Reihenfolge {order} gelesen (Mehrheit der Datensätze dieses Abbilds); '
+                      'Stützstellen ohne Plausibilitätsprüfung (z. B. Indexachse).')
+            return True
+    return False
+
+
 def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, include_u32=False,
                       evidence_cache_size=512):
     if type(evidence_cache_size) is not int or not 0 <= evidence_cache_size <= 512:
@@ -169,6 +455,9 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     buf=image.read(0,min(image.size,2*1024*1024))
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
+    fixed={}   # id(record) -> (byte order its 16-bit counts or axes fix, record)
+    ambiguous=set()   # ids in fixed whose axes read as strictly monotone in both byte orders (no vote)
+    flat_other=[]   # flat values of another width than the axes: kept when the next header fixes it
     for count_width in (1,2):
         for endian in (['big'] if count_width==1 else ['big','little']):
             for phase in range(count_width):
@@ -183,36 +472,39 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                     cols,rows=int(counts[index]),int(counts[index+1])
                     header=phase+int(index)*count_width
                     axis_start=header+2*count_width
-                    for axis_width in (1,2):
-                        end=axis_start+(cols+rows)*axis_width
+                    for xw,yw in AXIS_WIDTHS:
+                        end=axis_start+cols*xw+rows*yw
                         if end+rows*cols>len(buf):continue
-                        for order in (['big'] if axis_width==1 else ['big','little']):
-                            if count_width==2 and axis_width==2 and order!=endian:continue
+                        wide=xw==2 or yw==2
+                        for order in (['big','little'] if wide else ['big']):
+                            if count_width==2 and wide and order!=endian:continue
                             # Signed 16-bit axes (temperatures, Bosch EDC17 SWORD layouts) only
                             # rise when read signed; unsigned reading is tried first.
-                            for kind in (('u','i') if axis_width==2 else ('u',)):
-                                axes=np.frombuffer(buf[axis_start:end],dtype=('>' if order=='big' else '<')+kind+str(axis_width))
-                                x,y=axes[:cols].tolist(),axes[cols:].tolist()
-                                if kind=='i' and min(x+y)>=0:continue      # same reading as unsigned
-                                if _axis_pair(x,y,count_width==2 and axis_width==2,record_axis):break
+                            for kind in (('u','i') if wide else ('u',)):
+                                x=_axis_values(buf,axis_start,cols,xw,order,kind)
+                                y=_axis_values(buf,axis_start+cols*xw,rows,yw,order,kind)
+                                if kind=='i' and min((x if xw==2 else [])+(y if yw==2 else []))>=0:continue
+                                if _axis_pair(x,y,count_width==2 and xw==yw==2,record_axis):break
                             else:
                                 continue
-                            for dtype in ('u8','u16','s16','u32'):
+                            for dtype in DATA_TYPES:
                                 if dtype=='u32' and not include_u32:continue
-                                for storage in (['big'] if dtype=='u8' else ['big','little']):
-                                    if dtype!='u8' and ((axis_width==2 and storage!=order) or
-                                                       (count_width==2 and storage!=endian)):continue
+                                for storage in (['big'] if dtype[1:]=='8' else ['big','little']):
+                                    if dtype[1:]!='8' and ((wide and storage!=order) or
+                                                          (count_width==2 and storage!=endian)):continue
+                                    axes_note=(f'{xw*8}-Bit Achsen' if xw==yw else f'{xw*8}-Bit X-/{yw*8}-Bit Y-Achse')
                                     m=MapDefinition(f'Achsen-/Header-Kandidat @ 0x{end:08X}',end,rows,cols,
                                         dtype,storage,source='heuristic',confidence=.44,
                                         axes_x=x,axes_y=y,
-                                        axis_x_offset=axis_start,axis_y_offset=axis_start+cols*axis_width,
+                                        axis_x_offset=axis_start,axis_y_offset=axis_start+cols*xw,
                                         record_layout='candidate:nx,ny,x,y,z',
                                         candidate_region_start=header,
                                         axes_info='Rohachsen aus Count/Axis-Hypothese; Einheiten und Orientierung ungeprüft',
                                         label_origin='Dimensionsheader + zwei monotone Rohachsen (ungeprüft)',
-                                        notes=f'Layout-Hypothese: {count_width*8}-Bit nx/ny, {axis_width*8}-Bit Achsen ({order}); keine physikalische Skalierung.')
+                                        notes=f'Layout-Hypothese: {count_width*8}-Bit nx/ny, {axes_note} ({order}); keine physikalische Skalierung.')
                                     if end+m.length>len(buf):continue
                                     ev,alias=value_evidence(m.rows,m.cols,m.dtype,m.endian,image.read(m.offset,m.length))
+                                    axis_width=xw if xw==yw else 0     # flat values: width only from equal axes
                                     if ev['valid'] and not alias:
                                         found.append((ev['score'],m))
                                     elif ev['reason']==FLAT_REASON and _flat_record(m,axis_width,kind,image):
@@ -220,9 +512,45 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                     elif (ev['reason']==ROUGH_REASON and record_axis(x) and record_axis(y)
                                           and _flat_record(m,axis_width,kind,image)):
                                         rough.append(m)
+                                    elif ev['reason']==FLAT_REASON and m.dtype in ('u8','u16') and m.width!=axis_width:
+                                        flat_other.append(m)
+                                        continue
+                                    else:
+                                        continue
+                                    if count_width==2 or wide:   # the reference keeps the id unique
+                                        fixed[id(m)]=(order if wide else endian,m)
+                                        if count_width==1 and DECISIVE_VOTES and _both_orders(buf,axis_start,cols,rows,xw,yw,order):
+                                            ambiguous.add(id(m))
                     if len(found)>max_results*30:
                         found=sorted(found,key=lambda item:-item[0])[:max_results*10]
     found.extend((FLAT_SCORE,m) for m in _chained(rough,[m for _,m in found]))
+    found.extend((FLAT_SCORE,m) for m in _bounded_by_next_header(flat_other,[m for _,m in found]))
+    order=_image_order([fixed[id(m)][0] for _,m in found if id(m) in fixed and id(m) not in ambiguous]) if BYTE_ORDER else None
+    if order:
+        # Counts/axes fixed in the other byte order: a coincidence, dropped. Values alone in
+        # the other order: the same record in the image order (small values stored in 16 bit
+        # read smoother byte-swapped, and their own reading counts as a narrower alias).
+        kept=[]
+        for sc,m in found:
+            if fixed.get(id(m),(order,))[0]!=order and not _reorder_axes(image,m,order):
+                continue
+            if m.width==2 and m.endian!=order:
+                raw=np.frombuffer(image.read(m.offset,m.length),('<' if order=='little' else '>')+'u2')
+                m.endian=order
+                m.dtype='s16' if bool(np.any(raw>=0x8000)) and m.dtype=='s16' else 'u16'
+                m.notes+=(f' Byte-Reihenfolge {order} aus der Mehrheit der Datensätze dieses Abbilds '
+                          '(Zähler/Achsen mit 16 Bit), nicht aus den Werten.')
+            kept.append((sc,m))
+        found=kept
+    parity=_image_parity(found,fixed) if ALIGNED_16 else None
+    if parity is not None:
+        found=[(sc,m) for sc,m in found
+               if not (id(m) in fixed and m.candidate_region_start%2!=parity)
+               and not (m.width>=2 and m.offset%2!=parity)]
+    found=_width_by_next_header(found) if NEXT_HEADER_WIDTH else found
+    found=_width_by_boundary(buf,found) if WIDTH_BY_BOUNDARY else found
+    found=_sign_by_wraps(image,found) if SIGN_BY_WRAPS else found
+    found=_drop_nested_headers(found) if NESTED_HEADERS else found
     # One hypothesis per span: u16/s16 readings of the same bytes must not use
     # up the result limit. The better surface wins; on a tie (e.g. all values
     # negative, both readings equally smooth) the signed reading is kept, and
@@ -230,7 +558,10 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     found.sort(key=lambda item:(-item[0],_sign_rank(image,item[1])))
     unique={}
     for _,m in found:
-        unique.setdefault((m.offset,m.rows,m.cols,m.width,m.endian),m)
+        kept=unique.setdefault((m.offset,m.rows,m.cols,m.width,m.endian),m)
+        if (kept is not m and m.dtype!=kept.dtype and m.dtype not in kept.dtype_alternatives
+                and _top_bit(image,kept)):
+            kept.dtype_alternatives=kept.dtype_alternatives+[m.dtype]   # the bytes did not decide the sign
     return list(unique.values())[:max_results]
 
 
@@ -246,24 +577,25 @@ def record_axes(image: BinaryImage, m: MapDefinition) -> list[MapDefinition]:
     """
     if m.record_layout != 'candidate:nx,ny,x,y,z' or m.candidate_region_start is None or not m.axes_x:
         return []
-    header, n = m.candidate_region_start, m.cols + m.rows
+    header = m.candidate_region_start
     for cw in (1, 2):
-        for aw in (1, 2):
-            if header + 2 * cw + n * aw != m.offset:
-                continue
+        for xw, yw in AXIS_WIDTHS:
             start = header + 2 * cw
+            if start + m.cols * xw + m.rows * yw != m.offset:
+                continue
             for order in ('little', 'big'):
                 for kind in ('u', 'i'):
-                    dt = np.dtype(kind + '1') if aw == 1 else np.dtype(('<' if order == 'little' else '>') + kind + '2')
-                    v = np.frombuffer(image.read(start, n * aw), dt).tolist()
-                    if v[:m.cols] == list(m.axes_x) and v[m.cols:] == list(m.axes_y):
-                        dtype = ('s' if kind == 'i' else 'u') + str(8 * aw)
-                        return [MapDefinition(f'Achse {label} von 0x{m.offset:08X}', off, 1, count, dtype, order,
+                    x = _axis_values(image.read(start, m.cols * xw), 0, m.cols, xw, order, kind)
+                    y = _axis_values(image.read(start + m.cols * xw, m.rows * yw), 0, m.rows, yw, order, kind)
+                    if x == list(m.axes_x) and y == list(m.axes_y):
+                        def dtype(w):
+                            return ('s' if kind == 'i' and w == 2 else 'u') + str(8 * w)
+                        return [MapDefinition(f'Achse {label} von 0x{m.offset:08X}', off, 1, count, dtype(w), order,
                                               source='heuristic', confidence=.44, record_layout=RECORD_AXIS_LAYOUT,
                                               candidate_region_start=header,
                                               label_origin='Stützstellen eines Kopf-Datensatzes (ungeprüft)',
                                               label_evidence=f'{label}-Achse des Datensatzes @ 0x{header:X} mit Anzahl-Kopf.',
                                               notes='Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.')
-                                for label, off, count in (('X', start, m.cols), ('Y', start + m.cols * aw, m.rows))]
+                                for label, off, count, w in (('X', start, m.cols, xw), ('Y', start + m.cols * xw, m.rows, yw))]
     return []
 

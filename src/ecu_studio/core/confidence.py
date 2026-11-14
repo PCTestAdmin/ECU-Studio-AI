@@ -81,6 +81,28 @@ def is_experimental(m: MapDefinition) -> bool:
     return m.source == 'heuristic' and evidence_class(m).startswith(EXPERIMENTAL_CLASSES)
 
 
+# Notes the record scan writes when the value width was not read from a smooth surface.
+_WIDTH_GUESSED = ('Wertebreite = Achsenbreite (ungeprüft)', 'Wertebreite 1 Byte: hinter der 8-Bit-Lesart',
+                  'weil der nächste Datensatzkopf genau danach beginnt (ungeprüft)')
+
+
+def dtype_doubt(m: MapDefinition) -> str:
+    """Why the data type of an unchecked candidate is not established ('' when it is).
+
+    Shown next to the type in the list (1.21.0): a tuner must not edit a table in a
+    width or sign the evidence does not fix. Definitions and checked maps carry no doubt.
+    """
+    if m.source != 'heuristic' or m.verified:
+        return ''
+    if m.dtype_alternatives:
+        return 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'
+    if evidence_level(m) == DATA_PATTERN:
+        return 'Datentyp nur aus der Glätte der Werte geschätzt'
+    if any(text in (m.notes or '') for text in _WIDTH_GUESSED):
+        return 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'
+    return ''
+
+
 def describe(m: MapDefinition) -> str:
     """One line for tooltips and notes, never a percentage."""
     level = evidence_level(m)

@@ -116,13 +116,100 @@ def global_bases(h: list[int]) -> dict[int, int]:
     return {r: c.most_common(1)[0][0] for r, c in seen.items() if c}
 
 
-def _file(address: int | None, size: int) -> int | None:
+def _file(address: int | None, size: int, reloc: tuple = ()) -> int | None:
     if address is None:
         return None
+    for lo, hi, delta in reloc:
+        if lo <= address < hi:
+            return address - delta
     for seg in SEGMENTS:
         if seg <= address < seg + size:
             return address - seg
     return None
+
+
+# Calibration addressed outside the image (1.21.0). Development builds of MSD80/MSV90 link
+# the calibration at its own address (e.g. 0xA0800000) while the full flash image carries it
+# at a different file offset; every table, axis and record address of the code then lies
+# beyond the image and the old mapping dropped all of them (development data: 2 of 2587
+# routine calls left). The placement is inferred from the image itself (infer_relocation).
+RELOC_PAGE = 0x10000      # placements tried in 64 KiB steps (flash sector granularity)
+RELOC_GAP = 1             # a page without references between referenced pages still joins the window
+RELOC_MIN_HITS = 20       # parsable axis headers the chosen placement must yield (as MIN_CALLS)
+RELOC_MARGIN = 3.0        # ... and at least this many times more than any other placement
+RELOCATE = True
+
+
+def _flash(address: int) -> bool:
+    return address >> 28 in (0x8, 0xA)
+
+
+def infer_relocation(data: bytes, calls) -> tuple:
+    """Windows ((lo, hi, delta), ...) mapping a referenced flash window into the image, or ().
+
+    ``calls`` holds, per routine call, the argument addresses the code builds as
+    absolute flash addresses that fall outside the image under the plain segment
+    mapping. Their densest window (64 KiB pages, small gaps joined) is tried at
+    every page-aligned file position. Two independent kinds of evidence score a
+    position: distinct addresses that then parse as count-prefixed axis headers
+    (axis_at) and as self-describing 2-D records (record_at). A position is used
+    only when one kind yields at least RELOC_MIN_HITS there and RELOC_MARGIN times
+    more than at any other position, and the other kind does not prefer another
+    position. Otherwise nothing is relocated. The cached (0x8) and uncached (0xA)
+    alias of the window are both mapped.
+
+    Development data (MSD80 N53/N54, three builds): the chosen position scores
+    342-793 axis headers and 367-592 records; the best other position 24-152
+    headers and 0-35 records.
+    """
+    import bisect
+    size = len(data)
+    flash = sorted({a & ~0x20000000 for c in calls for a in c if _flash(a)})
+    if len(flash) < RELOC_MIN_HITS:
+        return ()
+    pages = sorted({a // RELOC_PAGE for a in flash})
+    clusters, start = [], pages[0]
+    for prev, cur in zip(pages, pages[1:] + [None]):
+        if cur is None or cur - prev > RELOC_GAP + 1:
+            clusters.append((start, prev))
+            start = cur
+
+    def count(c):
+        return bisect.bisect_left(flash, (c[1] + 1) * RELOC_PAGE) - bisect.bisect_left(flash, c[0] * RELOC_PAGE)
+    first, last = max(clusters, key=count)
+    lo, hi = first * RELOC_PAGE, (last + 1) * RELOC_PAGE
+    if hi - lo > size:
+        return ()
+    inside = [a for a in flash if lo <= a < hi]
+    positions = list(range(0, size - (hi - lo) + 1, RELOC_PAGE))
+    # Both parsers start with a count in [2, 32] (8 bit, or the low byte of a 16-bit
+    # little-endian count): headers whose first byte cannot be one are skipped unparsed.
+    from .axis_arrays import MIN_POINTS, MAX_POINTS
+    low, high = min(MIN_POINTS, MIN_RECORD_POINTS), max(MAX_POINTS, 32)
+    raw = np.frombuffer(data, np.uint8)
+    rel = np.asarray(inside, np.int64) - lo
+    axes, records = [], []
+    for f0 in positions:
+        heads = rel + f0
+        heads = heads[(raw[heads] >= low) & (raw[heads] <= high)].tolist()
+        axes.append(sum(axis_at(data, a) is not None for a in heads))
+        records.append(sum(bool(record_at(data, a)) for a in heads))
+
+    def decisive(scores):
+        order = sorted(range(len(scores)), key=scores.__getitem__, reverse=True)
+        best = scores[order[0]]
+        runner_up = scores[order[1]] if len(order) > 1 else 0
+        return order[0], best >= RELOC_MIN_HITS and best >= RELOC_MARGIN * max(runner_up, 1)
+    k_axes, ok_axes = decisive(axes)
+    k_rec, ok_rec = decisive(records)
+    if ok_axes and (ok_rec or records[k_axes] == max(records)):
+        k = k_axes
+    elif ok_rec and axes[k_rec] == max(axes):
+        k = k_rec
+    else:
+        return ()
+    f0 = positions[k]
+    return tuple((base | lo, base | hi, (base | lo) - f0) for base in (0x00000000, 0x20000000))
 
 
 def _bo_off(w: int) -> int:
@@ -163,14 +250,60 @@ class Sites(list):
     """Call sites with a resolved a4; ``generic`` lists every call with at least two resolved
     argument registers as (site, callee, ((register, file offset), ...))."""
     generic: tuple = ()     # set per instance by _walk; never shared between images
+    unmapped: frozenset = frozenset()   # per call: flash argument addresses outside the image
+    relocation: tuple = ()  # windows inferred by infer_relocation (empty: plain segments)
 
     def extended(self, more) -> 'Sites':
         out = Sites(list(self) + list(more))
-        out.generic = self.generic
+        out.generic, out.unmapped, out.relocation = self.generic, self.unmapped, self.relocation
         return out
 
 
-def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True):
+# Opcodes _walk acts on; every other instruction leaves the register state untouched
+# (ret is matched on the whole halfword 0x9000).
+_ACT16 = frozenset({0x3C, 0x5C, 0x40, 0xD8, 0xF8, 0x78, 0x20, 0xD4, 0xC4, 0xC8, 0xA0, 0x60, 0xB0, 0x30, 0xCC})
+_ACT32 = frozenset({0x91, 0x11, 0x09, 0x29, 0x89, 0xA9, 0x01, 0x6D, 0x1D}) | frozenset(_BOL)
+
+
+def _stream(data: bytes, branches: bool = True):
+    """The instructions _walk acts on, from one linear sweep (as _sweep decodes it).
+
+    Returns (offsets, lengths, words, all instruction offsets). On TriCore images about
+    60 % of the instructions never change the walk state; skipping them makes each walk
+    about twice as fast with identical results (1.21.0). The sweep is decoded once per
+    image and shared by its walks.
+    """
+    from array import array
+    hw = np.frombuffer(data[:len(data) // 2 * 2], '<u2')
+    n = len(hw)
+    # Typed arrays, not lists: a 10-MB image has ~4 million instructions (4 bytes each
+    # here instead of ~36 for a list of ints).
+    odd = (hw & 1).astype(np.uint8).tobytes()
+    starts, i = array('i'), 0
+    append = starts.append
+    while i < n:
+        append(i)
+        i += 2 if odd[i] and i + 1 < n else 1
+    del odd
+    s = np.frombuffer(starts, dtype=np.int32).astype(np.int64) if len(starts) else np.zeros(0, np.int64)
+    del starts
+    wide = (hw[s] & 1).astype(bool) & (s + 1 < n)
+    w = hw[s].astype(np.uint32)
+    w[wide] |= hw[s[wide] + 1].astype(np.uint32) << 16
+    op = w & 0xFF
+    act16 = set(_ACT16) | ((_COND16_DISP4 | _COND16_DISP8) if branches else set())
+    act32 = set(_ACT32) | (_COND32 if branches else set())
+    keep = np.where(wide, np.isin(op, sorted(act32)), np.isin(op, sorted(act16)) | (w == 0x9000))
+    def typed(code, values):
+        out = array(code)
+        out.frombytes(np.ascontiguousarray(values, dtype={'i': np.int32, 'B': np.uint8, 'I': np.uint32}[code]).tobytes())
+        return out
+    return (typed('i', s[keep] * 2), typed('B', np.where(wide[keep], 4, 2)), typed('I', w[keep]),
+            s * 2)   # int64: searchsorted with Python ints would copy an int32 array per call
+
+
+def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True, reloc: tuple = (),
+          stream=None):
     """One linear sweep. Returns (call sites, stack stores, sp events, call targets).
 
     With ``branches`` the register state also reaches the targets of forward
@@ -181,12 +314,22 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
     ``sp events`` are addresses where sp is changed or copied, or a slot address
     is taken. With ``slots`` ({function entry: {slot: [(at, value), ...]}}) a
     pointer loaded from a slot takes the value of the nearest preceding store.
+
+    Only the instructions in ``stream`` (_stream) are visited. Between two of them the
+    full sweep would only merge the states pending at branch targets and replace an
+    empty state list by one empty state; both are replayed below in address order.
     """
     import bisect
+    import heapq
+    if stream is None:
+        stream = _stream(np.asarray(h, dtype='<u2').tobytes(), branches)
+    ats, lens, words, all_starts = stream
+    n_half = len(h)
     states: list[dict] = [{}]
     pending: dict[int, list[dict]] = {}
     out, stores, sp_events, targets = Sites(), [], [], set()
     generic = out.generic = []
+    unmapped = out.unmapped = set()
     func_slots: dict = {}
     k_entry = -1
 
@@ -210,28 +353,49 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
             v = defs[k][1] if k >= 0 else None
         setreg(dst, ('full', v) if v is not None else None)
 
-    for at, length, w in _sweep(h):
+    keys: list[int] = []    # pending branch targets, smallest first
+    last_end = 0            # end of the last instruction visited (or joined)
+
+    def defer(target, from_states):
+        group = pending.get(target)
+        if group is None:
+            group = pending[target] = []
+            heapq.heappush(keys, target)
+        group.extend({**s} for s in from_states)
+
+    for at, length, w in zip(ats, lens, words):
         if slots is not None:
             k = bisect.bisect_right(entries, at) - 1
             if k != k_entry:
                 k_entry = k
                 func_slots = slots.get(entries[k], {}) if k >= 0 else {}
-        if at in pending:
-            states = states + pending.pop(at)
+        while keys and keys[0] <= at:
+            key = heapq.heappop(keys)
+            group = pending.pop(key)
+            j = int(np.searchsorted(all_starts, key))
+            if j >= len(all_starts) or all_starts[j] != key:
+                continue            # inside an instruction: the sweep never visits it
+            if key > last_end and not states:
+                states = [{}]       # an instruction in between replaced the empty list
+            states = states + group
             uniq = []
             for s in states:
                 if s not in uniq:
                     uniq.append(s)
             states = uniq[:MAX_STATES] or [{}]
+            if key < at:
+                i = key // 2
+                last_end = key + (4 if h[i] & 1 and i + 1 < n_half else 2)
         if not states:
             states = [{}]
+        last_end = at + length
         op = w & 0xFF
         if branches:
             target = cond_target(at, length, w)
             if target is not None:
                 # Both ways continue: fall-through here, the taken branch at a nearby forward target.
                 if 0 < target - at <= MAX_JOIN:
-                    pending.setdefault(target, []).extend({**s} for s in states)
+                    defer(target, states)
                 continue
         jump = None
         if length == 2:
@@ -343,12 +507,22 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
                 if 0 <= callee < size:
                     targets.add(callee)
                 for s in states:
+                    outside = []
+
                     def val(r):
                         v = s.get(r)
-                        return _file(v[1], size) if v and v[0] == 'full' else None
+                        if not v or v[0] != 'full':
+                            return None
+                        f = _file(v[1], size, reloc)
+                        if f is None and r in ARG_REGS and _flash(v[1]):
+                            outside.append(v[1])
+                        return f
                     dat, x = val(4), val(5)
                     if 0 <= callee < size:
+                        outside.clear()
                         regs = tuple((r, v) for r in ARG_REGS if (v := val(r)) is not None)
+                        if outside:
+                            unmapped.add(tuple(sorted(set(outside))))
                         if len(regs) >= 2:
                             generic.append((at, callee, regs))
                     if dat is not None and 0 <= callee < size:
@@ -367,7 +541,7 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
                 continue
         # unconditional jump: the state continues at a nearby forward target only
         if jump is not None and 0 < jump - at <= MAX_JOIN:
-            pending.setdefault(jump, []).extend({**s} for s in states)
+            defer(jump, states)
         states = []
     return out, stores, sp_events, targets
 
@@ -404,6 +578,11 @@ def stack_slots(entries: list[int], stores, sp_events) -> dict:
 
 
 FOLLOW_BRANCHES = True
+# With relocation the stack pass follows anyway; it reuses the stack stores, frame events
+# and call targets of the first pass instead of a second full pass (1.21.0). They are
+# absolute values, independent of the file mapping (checked on all 77 TriCore images of
+# the reference data: identical results).
+REUSE_STORES = True
 FIND_RECORDS = True
 LEARN_ROLES = True
 
@@ -412,12 +591,21 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
     """(call sites, halfwords, function entries) of one image."""
     h = _halfwords(data)
     bases = global_bases(h)
-    sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES)
+    stream = _stream(data, FOLLOW_BRANCHES)
+    sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, stream=stream)
+    reloc = infer_relocation(data, sites.unmapped) if RELOCATE else ()
     entries = sorted(targets)
+    slots = stack_slots(entries, stores, sp_events) if stack else None
+    if reloc and not (slots and REUSE_STORES):
+        sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, reloc=reloc,
+                                                  stream=stream)
+        entries = sorted(targets)
+        slots = stack_slots(entries, stores, sp_events) if stack else None
     if stack:
-        slots = stack_slots(entries, stores, sp_events)
         if slots:
-            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES)[0]
+            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc,
+                          stream=stream)[0]
+    sites.relocation = reloc
     return sites, h, entries
 
 
@@ -527,6 +715,7 @@ class CallDescriptor:
     cell_signed: bool | None = None
     record: bool = False      # the call passes a record header (counts + axes) in front of the data
     registers: tuple = (4, (5, 6))   # (data register, axis registers) of the calls
+    pointer: bool = False     # named by a pointer triple (data, X, Y) in memory, not by a call (1.21.0)
 
 
 MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
@@ -535,6 +724,32 @@ MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table afte
 # table-routine shares run continuously (0.30 ... 0.71), hence the extra code check in call_descriptors.
 PRELOOKUP_SHARE = .6     # a4-only calls of a prelookup routine naming a parsable axis header
 POSTLOOKUP_SHARE = .6    # a4-only calls of a table routine with two prelookups on the path
+
+
+BLANK_AXES = True
+BLANK_REAL_SHARE = .25   # real axes needed before blank ones count (development: genuine >= 33 %, others 0 %)
+
+
+def blank_axis(data: bytes, header: int) -> bool:
+    """A count-prefixed axis whose points are all equal (unapplied, e.g. all zero).
+
+    Such axes fail axis_at (strictly increasing). Only role learning uses them: the
+    routine is an axis lookup either way. Some MSD80 development builds (private reference data): half
+    of the axis-lookup calls name all-zero axes; with axis_at alone the routine's share
+    (51 %) stayed below PRELOOKUP_SHARE and the split interpolations were lost (1.21.0).
+    """
+    if not 0 <= header < len(data):
+        return False
+    for width in (2, 1):
+        if header % width or header + width > len(data):
+            continue
+        n = int.from_bytes(data[header:header + width], 'little')
+        a = header + width
+        if not 2 <= n <= 32 or a + n * width > len(data):
+            continue
+        if len(set(data[a + k * width:a + (k + 1) * width] for k in range(n))) == 1:
+            return True
+    return False
 
 
 def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[int]]:
@@ -553,10 +768,15 @@ def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[i
             continue
         if c.data not in is_axis:
             is_axis[c.data] = axis_at(data, c.data) is not None
-        st = stats.setdefault(c.callee, [0, 0])
+        st = stats.setdefault(c.callee, [0, 0, 0])
         st[0] += 1
         st[1] += is_axis[c.data]
-    pre = {r for r, (n, ax) in stats.items() if n >= MIN_ROLE_CALLS and ax >= PRELOOKUP_SHARE * n}
+        st[2] += BLANK_AXES and not is_axis[c.data] and blank_axis(data, c.data)
+    # Unapplied axes (count header, all points equal, e.g. zero) name an axis as well,
+    # but only for routines that also read real axes: a zero block after a small
+    # byte reads as a blank axis too (table routines on MSD80 and MEVD17.2 data).
+    pre = {r for r, (n, ax, blank) in stats.items() if n >= MIN_ROLE_CALLS
+           and (ax >= PRELOOKUP_SHARE * n or (ax >= BLANK_REAL_SHARE * n and ax + blank >= PRELOOKUP_SHARE * n))}
     post_stats: dict[int, list[int]] = {}
     for c in sites:
         if c.x_header is not None or c.callee in pre or is_axis.get(c.data):
@@ -726,10 +946,77 @@ def role_sites(generic, roles) -> list[CallSite]:
     return out
 
 
+POINTER_TRIPLES = True
+MIN_TRIPLES = MIN_CALLS   # fewer triples: chance words, not a descriptor table
+TRIPLE_SIZE = 12
+
+
+def pointer_triples(data: bytes, reloc: tuple = (), lo: int = 0, hi: int | None = None) -> dict[int, tuple]:
+    """{data offset: (X axis, Y axis, triple position)} from 32-bit pointer triples in memory.
+
+    Some builds pass a table to its interpolation through a descriptor in memory
+    instead of immediate loads: three aligned little-endian addresses (data, X axis
+    header, Y axis header). A triple counts when all three point into the image
+    (plain segments or the inferred relocation), both axes parse as count-prefixed
+    headers (axis_at) and the data lies outside both axes; one data address must
+    always name the same axes, the data must not itself be an axis (arrays of axis
+    pointers) and a neighbouring triple must sit 12 bytes before or after (descriptor
+    arrays). Fewer than MIN_TRIPLES such triples are no evidence.
+    Some MSD80 development builds (private reference data) reference most tables no call names like
+    this (162 named on one build, all matching the reference); on the Bosch and
+    other Siemens development images no triple survives these rules. The order
+    (data, X, Y) is the one found there (1.21.0).
+    """
+    hi = len(data) if hi is None else hi
+    n = len(data) // 4
+    if n < 3:
+        return {}
+    w = np.frombuffer(data[:n * 4], '<u4').astype(np.int64)
+    f = np.full(n, -1, np.int64)
+    for a, b, delta in reloc:
+        m = (w >= a) & (w < b)
+        f[m] = w[m] - delta
+    for seg in SEGMENTS:
+        m = (f < 0) & (w >= seg) & (w < seg + len(data))
+        f[m] = w[m] - seg
+    ok = f >= 0
+    idx = np.flatnonzero(ok[:-2] & ok[1:-1] & ok[2:])
+    axes: dict[int, CountAxis | None] = {}
+
+    def axis(o):
+        if o not in axes:
+            axes[o] = axis_at(data, o)
+        return axes[o]
+    readings: dict[int, set] = {}
+    for i in idx.tolist():
+        d, xh, yh = int(f[i]), int(f[i + 1]), int(f[i + 2])
+        if not lo <= d < hi or len({d, xh, yh}) < 3:
+            continue
+        x = axis(xh)
+        y = axis(yh) if x is not None else None
+        if y is None or any(a.header <= d < a.end for a in (x, y)):
+            continue
+        if axis(d) is not None or blank_axis(data, d):
+            continue        # arrays of axis pointers: three of them read like a triple
+        readings.setdefault(d, set()).add((x, y, i * 4))
+    out = {}
+    for d, rs in readings.items():
+        if len({(x.header, y.header) for x, y, _ in rs}) == 1:
+            out[d] = min(rs, key=lambda r: r[2])
+    # Descriptor tables are arrays of 12-byte entries: a lone triple (or one only
+    # 4 / 8 bytes from another, i.e. an overlapping reading) is chance words.
+    pos = {r[2] for r in out.values()}
+    out = {d: r for d, r in out.items() if r[2] - TRIPLE_SIZE in pos or r[2] + TRIPLE_SIZE in pos}
+    return out if len(out) >= MIN_TRIPLES else {}
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
-    in a4 to one of the descriptors' routines, with or without resolved axes."""
+    in a4 to one of the descriptors' routines, with or without resolved axes.
+    ``addressed`` holds every address any routine call passes in an argument register
+    (data, axis headers, records): objects the code reads one by one (1.21.0)."""
     named: frozenset = frozenset()
+    addressed: frozenset = frozenset()
 
 
 def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
@@ -795,8 +1082,11 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         if via and y is None:
             continue
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
+    triples = pointer_triples(data, sites.relocation, lo, hi) if POINTER_TRIPLES else {}
     if len({d for d in found}) < MIN_CALLS:
-        return {}
+        if not triples:
+            return {}
+        found = {}
     cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings if not r[5]},
                           {r: v[0] for r, v in roles.items()})
     count_width: dict[int, Counter] = {}
@@ -807,7 +1097,9 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     rec_cells = record_cells(h, entries, {r: c.most_common(1)[0][0] for r, c in count_width.items()})
     cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
-    out.named = frozenset(c.data for c in sites if c.callee in cells and lo <= c.data < hi)
+    out.named = frozenset({c.data for c in sites if c.callee in cells and lo <= c.data < hi} | set(triples))
+    out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
+                              if lo <= v < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:
@@ -820,6 +1112,11 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
                                 all(r[4] for r in readings), *cell, record=rec,
                                 registers=roles.get(callee, DEFAULT_ROLES))
+    for d, (x, y, at) in triples.items():
+        if d not in out:
+            # No routine: the cell width comes from the gap to the next object (cell_widths);
+            # a callee of its own keeps the routine vote out.
+            out[d] = CallDescriptor(d, x, y, -1 - at, (at,), pointer=True)
     return out
 
 

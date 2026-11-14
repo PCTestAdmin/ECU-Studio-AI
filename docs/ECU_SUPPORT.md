@@ -4,6 +4,16 @@ Diese Seite und das Fenster **Hilfe → Unterstützte Steuergeräte …** in der
 (`src/ecu_studio/recognition/data/ecu_support.json`, erzeugt mit `python -m ecu_studio.tools.support_matrix`
 aus Ergebnissen von `benchmark_suite`). Die Messwerte der Tabelle stammen aus diesen Läufen.
 
+**Ergänzt am 14.11.2026 (1.21.0, in Entwicklung, nicht veröffentlicht):** Matrixwerte unverändert. Zusätzlich gemessen
+mit privaten Hersteller-A2L eines Datengebers: 163 Abbilder aus BMW-Linien (Bosch ME9, MEVD17.2, MEVD17.2.3;
+Siemens MSD80, MSV90). Die Referenzen bleiben lokal. Auf dem vorher abgetrennten Holdout (105 Abbilder, sechs Linien)
+steigt der Anteil exakt gefundener 2D-Kennfelder von 38,7 % auf 54,7 % (Vollflashs bis 89 %, Kalibrierabbilder
+25–46 %). Der Datentyp stimmt bei 93,3 % statt 80,5 % der exakten Funde. Eine Präzision ist nicht ausgewiesen, weil
+die A2L nicht jede Tabelle beschreibt. Diese Messung ist kein `support_matrix`-Lauf (anderes Verfahren, 2D ab 2 × 2).
+Die betroffenen Familien behalten ihren Status (MEVD17.2.x weiter „nicht validiert“, MSV90 ohne eigene Zeile), bis
+eine Referenz vorliegt, deren Messung veröffentlicht werden darf. TriCore-Codeerkennung weiter **experimentell**. Details:
+[Entwicklungsbericht 1.21.0](ENTWICKLUNG_1.21.0.md).
+
 **Ergänzt am 08.11.2026 (1.19.1):** Matrixwerte unverändert. MSD80-Vollflash (Entwicklungsdaten) 84 → 86 von 99;
 TriCore-Codeerkennung weiter **experimentell**. Architekturprüfung und Fehlfund-Filter: [Entwicklungsbericht 1.19.1](ENTWICKLUNG_1.19.1.md).
 

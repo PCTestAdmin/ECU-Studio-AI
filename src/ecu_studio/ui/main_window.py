@@ -41,7 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
-from ..core.confidence import LEVELS as EVIDENCE_LEVELS, evidence_level
+from ..core.confidence import LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -1217,6 +1217,8 @@ class Window(QMainWindow):
         if m.dtype_alternatives:
             alt += ('\nDatentyp NICHT belegt: ' + m.dtype + ' ist die glattere Lesart, ebenfalls möglich: '
                     + ', '.join(m.dtype_alternatives))
+        elif dtype_doubt(m):
+            alt += '\nDatentyp NICHT belegt: ' + dtype_doubt(m)
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(
