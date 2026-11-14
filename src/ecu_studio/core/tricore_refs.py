@@ -116,13 +116,90 @@ def global_bases(h: list[int]) -> dict[int, int]:
     return {r: c.most_common(1)[0][0] for r, c in seen.items() if c}
 
 
-def _file(address: int | None, size: int) -> int | None:
+def _file(address: int | None, size: int, reloc: tuple = ()) -> int | None:
     if address is None:
         return None
+    for lo, hi, delta in reloc:
+        if lo <= address < hi:
+            return address - delta
     for seg in SEGMENTS:
         if seg <= address < seg + size:
             return address - seg
     return None
+
+
+# Calibration addressed outside the image (1.21.0). Development builds of MSD80/MSV90 link
+# the calibration at its own address (e.g. 0xA0800000) while the full flash image carries it
+# at a different file offset; every table, axis and record address of the code then lies
+# beyond the image and the old mapping dropped all of them (development data: 2 of 2587
+# routine calls left). The placement is inferred from the image itself (infer_relocation).
+RELOC_PAGE = 0x10000      # placements tried in 64 KiB steps (flash sector granularity)
+RELOC_GAP = 1             # a page without references between referenced pages still joins the window
+RELOC_MIN_HITS = 20       # parsable axis headers the chosen placement must yield (as MIN_CALLS)
+RELOC_MARGIN = 3.0        # ... and at least this many times more than any other placement
+RELOCATE = True
+
+
+def _flash(address: int) -> bool:
+    return address >> 28 in (0x8, 0xA)
+
+
+def infer_relocation(data: bytes, calls) -> tuple:
+    """Windows ((lo, hi, delta), ...) mapping a referenced flash window into the image, or ().
+
+    ``calls`` holds, per routine call, the argument addresses the code builds as
+    absolute flash addresses that fall outside the image under the plain segment
+    mapping. Their densest window (64 KiB pages, small gaps joined) is tried at
+    every page-aligned file position. Two independent kinds of evidence score a
+    position: distinct addresses that then parse as count-prefixed axis headers
+    (axis_at) and as self-describing 2-D records (record_at). A position is used
+    only when one kind yields at least RELOC_MIN_HITS there and RELOC_MARGIN times
+    more than at any other position, and the other kind does not prefer another
+    position. Otherwise nothing is relocated. The cached (0x8) and uncached (0xA)
+    alias of the window are both mapped.
+
+    Development data (MSD80 N53/N54, three builds): the chosen position scores
+    342-793 axis headers and 367-592 records; the best other position 24-152
+    headers and 0-35 records.
+    """
+    import bisect
+    size = len(data)
+    flash = sorted({a & ~0x20000000 for c in calls for a in c if _flash(a)})
+    if len(flash) < RELOC_MIN_HITS:
+        return ()
+    pages = sorted({a // RELOC_PAGE for a in flash})
+    clusters, start = [], pages[0]
+    for prev, cur in zip(pages, pages[1:] + [None]):
+        if cur is None or cur - prev > RELOC_GAP + 1:
+            clusters.append((start, prev))
+            start = cur
+
+    def count(c):
+        return bisect.bisect_left(flash, (c[1] + 1) * RELOC_PAGE) - bisect.bisect_left(flash, c[0] * RELOC_PAGE)
+    first, last = max(clusters, key=count)
+    lo, hi = first * RELOC_PAGE, (last + 1) * RELOC_PAGE
+    if hi - lo > size:
+        return ()
+    inside = [a for a in flash if lo <= a < hi]
+    positions = list(range(0, size - (hi - lo) + 1, RELOC_PAGE))
+    axes = [sum(axis_at(data, a - lo + f0) is not None for a in inside) for f0 in positions]
+    records = [sum(bool(record_at(data, a - lo + f0)) for a in inside) for f0 in positions]
+
+    def decisive(scores):
+        order = sorted(range(len(scores)), key=scores.__getitem__, reverse=True)
+        best = scores[order[0]]
+        runner_up = scores[order[1]] if len(order) > 1 else 0
+        return order[0], best >= RELOC_MIN_HITS and best >= RELOC_MARGIN * max(runner_up, 1)
+    k_axes, ok_axes = decisive(axes)
+    k_rec, ok_rec = decisive(records)
+    if ok_axes and (ok_rec or records[k_axes] == max(records)):
+        k = k_axes
+    elif ok_rec and axes[k_rec] == max(axes):
+        k = k_rec
+    else:
+        return ()
+    f0 = positions[k]
+    return tuple((base | lo, base | hi, (base | lo) - f0) for base in (0x00000000, 0x20000000))
 
 
 def _bo_off(w: int) -> int:
@@ -163,14 +240,16 @@ class Sites(list):
     """Call sites with a resolved a4; ``generic`` lists every call with at least two resolved
     argument registers as (site, callee, ((register, file offset), ...))."""
     generic: tuple = ()     # set per instance by _walk; never shared between images
+    unmapped: frozenset = frozenset()   # per call: flash argument addresses outside the image
+    relocation: tuple = ()  # windows inferred by infer_relocation (empty: plain segments)
 
     def extended(self, more) -> 'Sites':
         out = Sites(list(self) + list(more))
-        out.generic = self.generic
+        out.generic, out.unmapped, out.relocation = self.generic, self.unmapped, self.relocation
         return out
 
 
-def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True):
+def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches=True, reloc: tuple = ()):
     """One linear sweep. Returns (call sites, stack stores, sp events, call targets).
 
     With ``branches`` the register state also reaches the targets of forward
@@ -187,6 +266,7 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
     pending: dict[int, list[dict]] = {}
     out, stores, sp_events, targets = Sites(), [], [], set()
     generic = out.generic = []
+    unmapped = out.unmapped = set()
     func_slots: dict = {}
     k_entry = -1
 
@@ -343,12 +423,22 @@ def _walk(h: list[int], bases: dict, size: int, slots=None, entries=(), branches
                 if 0 <= callee < size:
                     targets.add(callee)
                 for s in states:
+                    outside = []
+
                     def val(r):
                         v = s.get(r)
-                        return _file(v[1], size) if v and v[0] == 'full' else None
+                        if not v or v[0] != 'full':
+                            return None
+                        f = _file(v[1], size, reloc)
+                        if f is None and r in ARG_REGS and _flash(v[1]):
+                            outside.append(v[1])
+                        return f
                     dat, x = val(4), val(5)
                     if 0 <= callee < size:
+                        outside.clear()
                         regs = tuple((r, v) for r in ARG_REGS if (v := val(r)) is not None)
+                        if outside:
+                            unmapped.add(tuple(sorted(set(outside))))
                         if len(regs) >= 2:
                             generic.append((at, callee, regs))
                     if dat is not None and 0 <= callee < size:
@@ -413,11 +503,15 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
     h = _halfwords(data)
     bases = global_bases(h)
     sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES)
+    reloc = infer_relocation(data, sites.unmapped) if RELOCATE else ()
+    if reloc:
+        sites, stores, sp_events, targets = _walk(h, bases, len(data), branches=FOLLOW_BRANCHES, reloc=reloc)
     entries = sorted(targets)
     if stack:
         slots = stack_slots(entries, stores, sp_events)
         if slots:
-            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES)[0]
+            sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc)[0]
+    sites.relocation = reloc
     return sites, h, entries
 
 
