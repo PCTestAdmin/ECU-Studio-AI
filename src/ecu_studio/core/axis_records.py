@@ -141,6 +141,49 @@ def _x_axis_possible(buf: bytes, counts: np.ndarray, starts: np.ndarray, phase: 
     return keep
 
 
+ORDER_MIN = 20     # records whose 16-bit counts or axes fix the byte order, before the image votes
+ORDER_RATIO = 2.   # majority needed: one CPU, one byte order (1.21.0)
+BYTE_ORDER = True
+
+
+def _image_order(orders: list[str]) -> str | None:
+    """Byte order of the image from records whose 16-bit counts or axes fix it, or None.
+
+    One CPU stores all records in one byte order; readings in the other order that
+    pass anyway are coincidences. Development data (MEVD17.2 and MSD80 calibrations,
+    TriCore): 412-469 records read little endian, 120-177 big endian by chance.
+    """
+    votes = {o: orders.count(o) for o in ('big', 'little')}
+    best, other = sorted(votes, key=votes.get, reverse=True)
+    if votes[best] >= ORDER_MIN and votes[best] >= ORDER_RATIO * votes[other]:
+        return best
+    return None
+
+
+def _reorder_axes(image: BinaryImage, m: MapDefinition, order: str) -> bool:
+    """Re-read the 16-bit axes of an 8-bit-count record in the image byte order.
+
+    Index axes (0, 1, 2 ...) fail the plausibility rule and pass byte-swapped (0, 256,
+    512 ...): the header found the record, only the axis byte order was wrong. Kept
+    when both axes are strictly monotone in the image order; 16-bit counts in the other
+    order are not re-read (their values change, so does the shape).
+    """
+    n=m.cols+m.rows
+    if m.candidate_region_start is None or m.axis_x_offset is None:
+        return False
+    if m.axis_x_offset-m.candidate_region_start!=2 or m.offset-m.axis_x_offset!=2*n:
+        return False
+    for kind in ('u','i'):
+        v=np.frombuffer(image.read(m.axis_x_offset,2*n),('<' if order=='little' else '>')+kind+'2').tolist()
+        x,y=v[:m.cols],v[m.cols:]
+        if _strict(x) and _strict(y):
+            m.axes_x,m.axes_y=x,y
+            m.notes+=(f' Achsen in Byte-Reihenfolge {order} gelesen (Mehrheit der Datensätze dieses Abbilds); '
+                      'Stützstellen ohne Plausibilitätsprüfung (z. B. Indexachse).')
+            return True
+    return False
+
+
 def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, include_u32=False,
                       evidence_cache_size=512):
     if type(evidence_cache_size) is not int or not 0 <= evidence_cache_size <= 512:
@@ -169,6 +212,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     buf=image.read(0,min(image.size,2*1024*1024))
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
+    fixed={}   # id(record) -> (byte order its 16-bit counts or axes fix, record)
     for count_width in (1,2):
         for endian in (['big'] if count_width==1 else ['big','little']):
             for phase in range(count_width):
@@ -220,9 +264,30 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                     elif (ev['reason']==ROUGH_REASON and record_axis(x) and record_axis(y)
                                           and _flat_record(m,axis_width,kind,image)):
                                         rough.append(m)
+                                    else:
+                                        continue
+                                    if count_width==2 or axis_width==2:   # the reference keeps the id unique
+                                        fixed[id(m)]=(order if axis_width==2 else endian,m)
                     if len(found)>max_results*30:
                         found=sorted(found,key=lambda item:-item[0])[:max_results*10]
     found.extend((FLAT_SCORE,m) for m in _chained(rough,[m for _,m in found]))
+    order=_image_order([fixed[id(m)][0] for _,m in found if id(m) in fixed]) if BYTE_ORDER else None
+    if order:
+        # Counts/axes fixed in the other byte order: a coincidence, dropped. Values alone in
+        # the other order: the same record in the image order (small values stored in 16 bit
+        # read smoother byte-swapped, and their own reading counts as a narrower alias).
+        kept=[]
+        for sc,m in found:
+            if fixed.get(id(m),(order,))[0]!=order and not _reorder_axes(image,m,order):
+                continue
+            if m.width==2 and m.endian!=order:
+                raw=np.frombuffer(image.read(m.offset,m.length),('<' if order=='little' else '>')+'u2')
+                m.endian=order
+                m.dtype='s16' if bool(np.any(raw>=0x8000)) and m.dtype=='s16' else 'u16'
+                m.notes+=(f' Byte-Reihenfolge {order} aus der Mehrheit der Datensätze dieses Abbilds '
+                          '(Zähler/Achsen mit 16 Bit), nicht aus den Werten.')
+            kept.append((sc,m))
+        found=kept
     # One hypothesis per span: u16/s16 readings of the same bytes must not use
     # up the result limit. The better surface wins; on a tie (e.g. all values
     # negative, both readings equally smooth) the signed reading is kept, and
