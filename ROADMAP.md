@@ -17,13 +17,15 @@
 
 <br>
 
-## ![Aktuell: 1.20.0](https://img.shields.io/badge/🎉_AKTUELL-1.20.0_·_veröffentlicht_11.11.2026-1a7f37?style=for-the-badge)
+## ![Aktuell: 1.20.1](https://img.shields.io/badge/🎉_AKTUELL-1.20.1_·_veröffentlicht_14.11.2026-1a7f37?style=for-the-badge)
 
 [Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest). Die automatische Update-Suche
 ist seit 1.18.0 ab Werk aus („Offline zuerst“) und lässt sich in den Einstellungen einschalten.
 
-**1.20.0** bringt die **erste validierte Ausbaustufe** des Checksummen- und Integritätssystems
-([Release Notes](docs/RELEASE_NOTES_1.20.0.md)). Keine untersuchte Originaldatei erreicht bisher eine vollständige
+**1.20.1** baut auf der **ersten validierten Ausbaustufe** des Checksummen- und Integritätssystems aus 1.20.0 auf
+([Release Notes 1.20.1](docs/RELEASE_NOTES_1.20.1.md), [1.20.0](docs/RELEASE_NOTES_1.20.0.md)): weitere
+ME7-Prüfsummen (nur Prüfung, nicht unabhängig validiert), Signaturstatus und sicherere Updates und Deinstallationen
+(siehe „Neu in 1.20.1“). Keine untersuchte Originaldatei erreicht bisher eine vollständige
 Checksummenabdeckung; eine erfolgreiche Teilprüfung ist keine vollständige Integritätsbestätigung, und es gibt keine
 Flashfreigabe. Die Clips sind echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 Die neuesten Funktionen stehen oben.
@@ -144,9 +146,12 @@ Die neuesten Funktionen stehen oben.
 
 <br>
 
-## ![Nächstes Update](https://img.shields.io/badge/🚀_NÄCHSTES_UPDATE-1.20.1_umgesetzt,_nicht_veröffentlicht-0969da?style=for-the-badge)
+## ![Neu in 1.20.1](https://img.shields.io/badge/🚀_NEU_IN-1.20.1_·_veröffentlicht_14.11.2026-0969da?style=for-the-badge)
 
-**Deinstallation nach einem In-App-Update ohne Rückstände – umgesetzt und getestet, noch nicht veröffentlicht.**
+**1.20.1, veröffentlicht am 14.11.2026** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)). Enthalten sind die
+Behebung unten, weitere ME7-Prüfsummen (nur Prüfung) und der Signaturstatus (siehe „In Arbeit“).
+
+**Deinstallation nach einem In-App-Update ohne Rückstände.**
 Wurde eine Installation über „Jetzt nach Updates suchen“ aktualisiert, blieben nach der Deinstallation
 Programmdateien zurück, die erst mit der neuen Version hinzukamen (1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht
 betroffen). Der Fix kommt ohne pauschale Löschregel aus:
@@ -154,8 +159,15 @@ betroffen). Der Fix kommt ohne pauschale Löschregel aus:
 - Installationen mit Installer werden über den geprüften Installer aktualisiert.
 - „Apps & Features“ zeigt die installierte Version.
 
-Grenze: Ein Update, das noch der Updater von 1.20.0 ausführt, läuft über den alten Weg. Dessen Rückstände entfernt
-das nächste Update. Nachweis auf Windows Server 2022 und 2025
+Die Update-Sicherung neben dem Programmordner wird beim Deinstallieren nicht mehr pauschal gelöscht, sondern Datei für
+Datei geprüft; eigene und veränderte Dateien bleiben. Auch der Updater löscht vorhandene Sicherungs- und
+Arbeitsordner nicht mehr als Ganzes: Sie werden umbenannt, nach einem Fehler zurückbenannt und nach Erfolg Datei für
+Datei bereinigt.
+
+Grenze: Ein Update, das noch der Updater von 1.20.0 ausführt, läuft über den alten Weg. Nach einer Deinstallation
+bleiben dann drei neue Programmdateien zurück, und eine bereits vorhandene Update-Sicherung wird dabei noch
+vollständig ersetzt. Abhilfe: Reparaturinstallation mit dem Installer von 1.20.1 (siehe
+[Release Notes](docs/RELEASE_NOTES_1.20.1.md)); auch das nächste Update behebt es. Nachweis auf Windows Server 2022 und 2025
 ([A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation)).
 
 <br>
@@ -179,8 +191,8 @@ Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md)
 |:--:|---|---|
 | 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
 | 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
-| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | Umgesetzt, noch nicht veröffentlicht ([PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
-| 🔏 | **Signaturstatus für Firmware** | Umgesetzt, noch nicht veröffentlicht ([PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
+| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | In 1.20.1 (14.11.2026, [PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
+| 🔏 | **Signaturstatus für Firmware** | In 1.20.1 (14.11.2026, [PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
 
 <br>
 
@@ -239,6 +251,8 @@ Bitte keine Firmware hochladen.
 <details>
 <summary><b>✅ Frühere Versionen</b></summary>
 <br>
+
+**1.20.1** · 14.11.2026 – Deinstallation nach In-App-Update ohne Rückstände, Update-Sicherung ohne pauschale Löschregel, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus
 
 **1.20.0** · 11.11.2026 – Checksummen & Integrität (erste validierte Ausbaustufe), sichere Prüfsummenkorrektur, getrennte Preflight-Stufen, stabiler Definitionseditor
 

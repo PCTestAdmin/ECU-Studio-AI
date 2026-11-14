@@ -1,7 +1,6 @@
 # Checksummen und Integrität
 
-Stand: 08.11.2026, Version 1.20.0. Ergänzt am 11.11.2026 um die weiteren ME7-Prüfsummen (§ 3, unveröffentlicht,
-Branch `feat/me7-checksums`). Diese Seite
+Stand: 08.11.2026, Version 1.20.0. Ergänzt am 11.11.2026 um die weiteren ME7-Prüfsummen (§ 3; veröffentlicht mit 1.20.1 am 14.11.2026). Diese Seite
 dokumentiert die Bestandsaufnahme, die Architektur, die Nachweise je Verfahren und die Grenzen. Firmwaredateien
 liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 
@@ -10,9 +9,10 @@ liegen **nicht** im Repository. Hier stehen nur Zählwerte und Teilenummern.
 - Unabhängig belegt ist ein Verfahren: die Bosch-Multipoint-Prüfsummentabelle (ME7.x, ME9, MED9).
 - MED17/EDC17 und EDC16 sind am Original gemessen. Ihre Korrektur bleibt bis zu einem signierten OEM-Nachweis
   gesperrt.
-- **Unveröffentlicht (nach 1.20.0):** Die weiteren ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme,
+- **Ab 1.20.1 (veröffentlicht am 14.11.2026):** Die weiteren ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme,
   Hauptprogramm) werden **geprüft, nicht korrigiert**. Sie sind am Original gemessen und nicht unabhängig validiert.
-- Signaturen werden getrennt ausgewiesen und nie geprüft, erzeugt oder verändert.
+- Signaturen werden getrennt ausgewiesen und nie erzeugt, entfernt oder verändert. „Gültig“ gilt ab 1.20.1 nur nach
+  einer echten kryptografischen Prüfung mit vertrauenswürdigem Schlüssel; für keine Familie liegt ein solcher vor.
 - Kein Ergebnis ist eine Flashfreigabe.
 
 **Einordnung für 1.20.0 – erste validierte Ausbaustufe.** Keine untersuchte Originaldatei erreicht eine
@@ -23,9 +23,9 @@ vollständige Checksummenabdeckung.
 | **Unterstützt** (unabhängig belegt) | Bosch-Multipoint-Tabellen (ME7.x, ME9, MED9) | ja | ja, nur unter Regel A oder B (§ 2) |
 | **Unterstützt** (vom Nutzer belegt) | geprüftes, SHA-256-gebundenes Profil | nur deklarierte Prüffelder | ja |
 | **Teilweise geprüft** | MED17/EDC17-Blöcke, EDC16-Bereiche | ja | gesperrt bis zum signierten OEM-Nachweis |
-| **Teilweise geprüft** (unveröffentlicht) | ME7: ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme, Hauptprogramm | ja | nein, nur Prüfung |
+| **Teilweise geprüft** (ab 1.20.1) | ME7: ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme, Hauptprogramm | ja | nein, nur Prüfung |
 | **Nicht unterstützt** | ME7: Hauptdaten-CRC32 und indirekte CRC-Blöcke; Siemens/Continental; MG1/MD1; übrige Familien | nein | nein |
-| **Nie** | digitale Herstellersignaturen | nicht verifiziert (unveröffentlicht: nur mit vertrauenswürdigem Schlüssel, § 6) | nie verändert |
+| **Nie** | digitale Herstellersignaturen | nicht verifiziert (ab 1.20.1: nur mit vertrauenswürdigem Schlüssel, § 6) | nie verändert |
 
 Daraus folgt ausdrücklich:
 - Nicht alle Checksummen werden automatisch korrigiert.
@@ -209,7 +209,7 @@ Generische Tabelleneinträge laufen als „experimentell“. Sie werden geprüft
 | Verfahren | Familien | Stufe | Korrektur |
 |---|---|---|---|
 | Bosch-Multipoint-Prüfsummentabelle | ME7.x (C16x, LE), ME9 und MED9 (PowerPC, BE) | **unabhängig belegt** | ja |
-| Bosch ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten, Hauptprogramm), unveröffentlicht | ME7.x (C16x, 512 KiB/1 MiB) | am Original gemessen | nein, nur Prüfung |
+| Bosch ME7-Prüfsummen (ROMSYS, CRC-Tabelle, Hauptdaten, Hauptprogramm), ab 1.20.1 | ME7.x (C16x, 512 KiB/1 MiB) | am Original gemessen | nein, nur Prüfung |
 | Bosch MED17/EDC17-Blöcke | MED17, EDC17 | am Original gemessen | gesperrt (OEM-Nachweis) |
 | Bosch EDC16-Bereiche | EDC16 (MPC5xx) | am Original gemessen | gesperrt (OEM-Nachweis) |
 | Geprüftes Profil | beliebig | manuell geprüft | ja |
@@ -250,7 +250,7 @@ Programmseiten, Hintergrund- und Hauptprogrammprüfsummen sowie die RSA-Signatur
 „Unvollständige Prüfung“, und die Vorschau sagt, dass die Datei dadurch nicht flashbereit ist. Für ME9/MED9 ist nicht
 dokumentiert, welche weiteren Prüfungen es gibt.
 
-### Bosch ME7 – weitere Prüfsummen (am Original gemessen, nur Prüfung; unveröffentlicht)
+### Bosch ME7 – weitere Prüfsummen (am Original gemessen, nur Prüfung; ab 1.20.1)
 
 `core/me7_checksums.py` ist eine eigene Python-Umsetzung der Verfahren, die das quelloffene ME7Sum beschreibt.
 - **Quelle:** github.com/nyetlabs/ME7Sum (früher nyetwurk), Datei `me7sum.c`, Commit `7095f930` vom 09.11.2026.
@@ -358,7 +358,7 @@ Die Firmwaredateien selbst liegen nicht im Repository.
 „Unvollständig“ bedeutet hier: Alle erkannten Bereiche stimmen, aber die Familie hat weitere Prüfungen
 (z. B. ME7-ROMSYS/CRC-Tabellen, RSA-Signatur), die dieses Programm nicht abdeckt.
 
-**Nach der ME7-Ergänzung (unveröffentlicht, 11.11.2026)**, gleiche Methode, Vergleich mit `main` (1.20.0) auf
+**Nach der ME7-Ergänzung (11.11.2026, veröffentlicht mit 1.20.1)**, gleiche Methode, Vergleich mit `main` (1.20.0) auf
 demselben Rechner:
 
 | Datei | ME7-Prüfungen | Status | Prüfung vorher → nachher | Speicherspitze |
@@ -409,7 +409,7 @@ die numpy-Wortsummen.
 
 - Kein Verfahren erreicht heute „Unterstützt und gültig“ ohne geprüftes Profil mit `"complete": true`. Das ist
   beabsichtigt, solange weitere Prüfsummen der Familie ungeprüft sind.
-- ME7.x (unveröffentlicht): ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme und Hauptprogramm werden geprüft, aber nur
+- ME7.x (ab 1.20.1): ROMSYS, CRC-Tabelle, Hauptdaten-Prüfsumme und Hauptprogramm werden geprüft, aber nur
   am Original gemessen, nicht korrigiert. Es fehlen:
   - die Hauptdaten-CRC32 (kein Original mit diesem Feld);
   - indirekte CRC-Blöcke;
@@ -463,7 +463,7 @@ und `unproven`.
 
 ---
 
-## 6. Signaturen (Architektur, unveröffentlicht)
+## 6. Signaturen (Architektur, ab 1.20.1)
 
 Herstellersignaturen in der Firmware sind etwas anderes als Prüfsummen. Sie werden getrennt geführt
 (`core/firmware_signatures.py`). Drei Arten von Signaturen werden nie vermischt:

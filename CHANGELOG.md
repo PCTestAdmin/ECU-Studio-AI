@@ -1,6 +1,8 @@
-## Unveröffentlicht
+## 1.20.1 (14.11.2026)
 
-Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach ausdrücklicher Freigabe.
+Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –
+nur als Prüfung, ohne Korrektur. Keine untersuchte Originaldatei erreicht eine vollständige Checksummenabdeckung;
+es gibt keine Flashfreigabe. Release Notes Deutsch/Englisch: [RELEASE_NOTES_1.20.1.md](docs/RELEASE_NOTES_1.20.1.md).
 
 **Installation und Update (A5: Rückstände nach In-App-Update und Deinstallation)**
 
@@ -12,9 +14,44 @@ Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach aus
   Installation mit Installer den geprüften `ECU-Studio-AI-<version>-setup.exe` (SHA-256 aus dem Release) und führt
   ihn mit Sicherung und automatischem Zurücksetzen aus. Portable ZIP-Kopien behalten den bisherigen Weg.
 - **Apps & Features** zeigt nach jedem Update die tatsächlich installierte Version.
+- **Update-Sicherung ohne pauschale Löschregel:** Bis 1.20.0 löschte der Deinstaller `ECU-Studio-AI.backup` und
+  `ECU-Studio-AI.update-staging` neben dem Programmordner vollständig (`[UninstallDelete]`, `filesandordirs`), auch
+  eine dort liegende einzige Kopie einer veränderten oder eigenen Datei. Ab 1.20.1 gibt es keine
+  `[UninstallDelete]`-Regel mehr. Beide Ordner werden vor dem Programmordner Datei für Datei bereinigt
+  (`uninstall_cleanup.ps1 -Mode Leftover`). Entfernt werden nur unveränderte Inventardateien, byte-gleiche Kopien von
+  Dateien im Programmordner und Deinstallationsprogramm/-protokoll dieser Anwendung (AppId geprüft). Alles andere
+  bleibt erhalten; Junctions werden nicht verfolgt. Weil Inno Setup die alten Regeln im `unins000.dat` bestehender
+  Installationen behält und nach dem Code ausführt, werden beide Ordner vorher in `….erhalten` umbenannt; die alten
+  Regeln finden dann nichts mehr (in der Installer-QA, Modus Repair, gemessen). Scheitert eine Umbenennung (z. B.
+  Datei darin geöffnet), bricht die Deinstallation ab, bevor sie etwas entfernt; eine bereits erfolgte Umbenennung
+  wird zurückgenommen. Erzwungen geprüft im Release-Workflow und in der Installer-QA (Modus Blocked).
+- **Updater ohne pauschales Löschen:** Bis 1.20.0 löschte der Updater (`updater.ps1`) eine vorhandene
+  `ECU-Studio-AI.backup`, `ECU-Studio-AI.update-staging`, `ECU-Studio-AI.update-failed` und
+  `ECU-Studio-AI.restore-swap` vollständig, bevor er sie neu anlegte. Ab 1.20.1 wird kein bereits vorhandener Ordner
+  mehr als Ganzes gelöscht:
+  - Sicherung und Staging werden in einen freien Namen `….erhalten[-N]` umbenannt. Nach einem Fehler oder Rollback
+    werden sie zurückbenannt. Nach Erfolg werden sie mit denselben Regeln wie beim Deinstallieren Datei für Datei
+    bereinigt (`uninstall_cleanup.ps1 -Mode Leftover`, vorher per SHA-256 gegen das Inventar geprüft). Eigene und
+    veränderte Dateien bleiben in `….erhalten`.
+  - Die gescheiterte neue Version eines Rollbacks kommt in einen freien Ordner `….update-failed[-N]` und wird gegen
+    die wiederhergestellte Installation ebenso Datei für Datei bereinigt. Vorhandene `.update-failed`- und
+    `.restore-swap`-Ordner werden nie wiederverwendet oder entfernt.
+  - Ganz entfernt werden nur Ordner, die derselbe Lauf selbst angelegt hat (entpacktes Update, unvollständige
+    Sicherungskopie). Verknüpfungen und Junctions werden dabei nicht verfolgt.
+  - Lässt sich eine vorhandene Sicherung nicht umbenennen (z. B. Datei darin geöffnet), bricht das Update ab, bevor
+    es etwas verändert (Exit 2).
+  - Geprüft unter anderem für Installer- und ZIP-Weg, vorhandene Sicherung, gesperrte Datei und Rollback.
+- **Grenze:** Das In-App-Update **von 1.20.0** auf 1.20.1 führt noch der Updater von 1.20.0 aus. Er ersetzt eine
+  bereits vorhandene `ECU-Studio-AI.backup` vollständig. Liegen dort eigene oder veränderte Dateien, installiere
+  1.20.1 stattdessen mit dem Installer `ECU-Studio-AI-1.20.1-setup.exe`; er fasst die Sicherung nicht an. Ab 1.20.1
+  gilt der neue Updater.
 - **Grenze:** Updates, die noch der Updater von 1.20.0 oder älter ausführt (auch 1.20.0 → 1.20.1), laufen über den
-  alten Weg und behalten den alten Deinstaller. Deren Rückstände entfernt erst das nächste Update durch 1.20.1 oder
-  neuer oder ein Lauf des Installers ab 1.20.1. Nachweis auf Windows Server 2022 und 2025:
+  alten Weg und behalten den alten Deinstaller. Er lässt nach einer Deinstallation drei neue Dateien zurück:
+  `_internal\app\ecu_studio\core\firmware_signatures.py`, `_internal\app\ecu_studio\core\me7_checksums.py` und
+  `_internal\uninstall_cleanup.ps1`. Abhilfe ist eine Reparaturinstallation: den Installer
+  `ECU-Studio-AI-1.20.1-setup.exe` einmal über die Installation ausführen (nach einer Deinstallation: ausführen und
+  erneut deinstallieren). Das nächste Update durch 1.20.1 oder neuer behebt es ebenfalls. Den Programmordner nicht als
+  Ganzes von Hand löschen. Nachweis auf Windows Server 2022 und 2025:
   [Release-Checkliste 1.20.0, A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation).
 
 **Checksummen & Integrität**
@@ -35,6 +72,15 @@ Noch nicht veröffentlicht. Versionsnummer, Tag und Release folgen erst nach aus
   bisher eine Signatur lokalisiert oder ein OEM-Schlüssel vorhanden; belegt ist die Architektur mit synthetischen
   Testschlüsseln.
 - Details: [Checksummen und Integrität](docs/CHECKSUMMEN.md).
+
+**Release und Tests**
+
+- **Sichererer Release-Workflow:** Titel immer „ECU Studio AI vX.Y.Z“, Release-Text auf Deutsch und Englisch,
+  Versionsprüfung von EXE, ZIP und Installer, Installer-, Update- und Deinstallationstest auf Windows Server 2022 und
+  2025, Prüfung von Assets und SHA-256 vor und nach dem Veröffentlichen, Herkunftsnachweis, Firmware-Guard und
+  Modellsperre. Probeläufe (`release-dry-run/**`) veröffentlichen nie.
+- **Kennfelderkennung unverändert:** 15 reale Vergleichspaare, 14 synthetische Fälle und der Negativ-Benchmark ohne
+  Unterschied zu 1.20.0.
 
 
 ## 1.20.0 (11.11.2026)

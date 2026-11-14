@@ -31,6 +31,21 @@ self-check fails, that copy is put back (exit 3).
 After a ZIP update, a restore or a rollback the version in "Apps & Features"
 (DisplayVersion/DisplayName of the Inno uninstall entry) is set to the installed
 version, but only when that entry's InstallLocation is exactly this folder.
+
+No folder is ever deleted as a whole unless THIS run created it and it is still
+disposable (the unpacked staging folder, an incomplete backup copy); even then
+links/junctions are not followed. A folder that already exists (<folder>.backup,
+<folder>.update-staging) can hold the only copy of a file the user changed or
+added. It is renamed to a free name "<name>.erhalten[-N]" first (no file changes):
+- after a failure it is renamed back, so the old state is complete again;
+- after success it is cleaned file by file by the installation's own
+  _internal\uninstall_cleanup.ps1 -Mode Leftover (only unchanged inventory files,
+  byte-identical copies and this application's uninstaller files go). What stays
+  remains in "<name>.erhalten" and is logged. Without that script (or if it was
+  changed) nothing is removed.
+The failed new version of a rollback is moved to a free "<folder>.update-failed[-N]"
+and cleaned the same way against the restored installation. An existing
+.update-failed or .restore-swap folder is never reused or removed.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
@@ -80,15 +95,27 @@ function Log([string]$text) {
     Write-Host $line
 }
 
+$script:aside = [System.Collections.Generic.List[object]]::new()   # folders renamed by Move-Aside in this run
+$script:own = [System.Collections.Generic.List[string]]::new()      # folders this run created and may still discard
+$script:cleanupScript = ''                                          # verified copy of uninstall_cleanup.ps1
+
+function Exit-Updater([int]$code) {
+    if ($script:cleanupScript) { Remove-Item -LiteralPath $script:cleanupScript -Force -ErrorAction SilentlyContinue }
+    exit $code
+}
+
 function Fail([int]$code, [string]$text) {
     Log ('FEHLER: ' + $text)
+    # Only what this run created and is still disposable goes; renamed folders get their names back.
+    foreach ($folder in @($script:own)) { Remove-OwnFolder $folder }
+    Undo-Aside
     if ($code -ne 0 -and -not $env:ECU_UPDATER_QUIET) {
         try {
             Add-Type -AssemblyName System.Windows.Forms
             [System.Windows.Forms.MessageBox]::Show($text, 'ECU Studio AI – Update', 'OK', 'Error') | Out-Null
         } catch { }
     }
-    exit $code
+    Exit-Updater $code
 }
 
 function Rename-WithRetry([string]$path, [string]$newName, [int]$timeoutSeconds = 30) {
@@ -104,6 +131,134 @@ function Rename-WithRetry([string]$path, [string]$newName, [int]$timeoutSeconds 
         }
     } while ((Get-Date) -lt $deadline)
     throw $last
+}
+
+function Get-FreeName([string]$path) {
+    # $path itself if nothing exists there, else the first free "$path-N". Existing folders are never reused.
+    if (-not (Test-Path -LiteralPath $path)) { return $path }
+    for ($n = 2; $n -lt 1000; $n++) { if (-not (Test-Path -LiteralPath "$path-$n")) { return "$path-$n" } }
+    throw "Kein freier Name für $path"
+}
+
+function Move-Aside([string]$path) {
+    # A folder this run did not create is never deleted as a whole: it is renamed to a free name "<path>.erhalten[-N]"
+    # (no file changes). Fail puts it back (Undo-Aside), success cleans it file by file (Clear-Aside). Throws if it
+    # cannot be renamed (a file in it is open, no permission); it is then unchanged.
+    if (-not (Test-Path -LiteralPath $path)) { return }
+    $target = Get-FreeName ($path + '.erhalten')
+    Rename-WithRetry $path (Split-Path $target -Leaf) 10
+    if (Test-Path -LiteralPath $path) { throw "$path besteht nach dem Umbenennen weiter" }
+    $script:aside.Add([pscustomobject]@{ Original = $path; Aside = $target })
+    Log "Beiseitegelegt (nichts gelöscht): $path -> $target"
+}
+
+function Undo-Aside {
+    # After a failure: renamed folders get their old names back (if free again), so the previous state is complete.
+    for ($i = $script:aside.Count - 1; $i -ge 0; $i--) {
+        $entry = $script:aside[$i]
+        if ((Test-Path -LiteralPath $entry.Aside) -and -not (Test-Path -LiteralPath $entry.Original)) {
+            try {
+                Rename-WithRetry $entry.Aside (Split-Path $entry.Original -Leaf) 10
+                Log "Zurückbenannt: $($entry.Aside) -> $($entry.Original)"
+            } catch { Log "Bleibt unverändert unter $($entry.Aside): $($_.Exception.Message)" }
+        } else { Log "Bleibt unverändert unter $($entry.Aside)" }
+    }
+    $script:aside.Clear()
+}
+
+function Remove-PlainTree([string]$folder) {
+    foreach ($child in @(Get-ChildItem -LiteralPath $folder -Force)) {
+        if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { Log "Behalten (Verweis/Junction): $($child.FullName)"; continue }
+        if ($child.PSIsContainer) { Remove-PlainTree $child.FullName }
+        else { Remove-Item -LiteralPath $child.FullName -Force -ErrorAction Stop }
+    }
+    if (@(Get-ChildItem -LiteralPath $folder -Force).Count -eq 0) { Remove-Item -LiteralPath $folder -Force -ErrorAction Stop }
+}
+
+function Remove-OwnFolder([string]$path) {
+    # Only a folder THIS run created and registered in $script:own while it is still disposable: unpacked archive
+    # content or copies of files that still exist in the installation. Links/junctions are neither followed nor removed.
+    if (-not $script:own.Contains($path)) { Log "Nicht entfernt (nicht von diesem Lauf angelegt): $path"; return }
+    [void]$script:own.Remove($path)
+    if (-not (Test-Path -LiteralPath $path)) { return }
+    try {
+        if ((Get-Item -LiteralPath $path -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) { Log "Nicht entfernt (Verweis): $path"; return }
+        Remove-PlainTree $path
+    } catch { Log "Ordner bleibt ($($_.Exception.Message)): $path" }
+}
+
+function Initialize-Cleanup {
+    # The installation's own cleanup script (the uninstaller's rules), verified against the installation's inventory
+    # and copied out, because the installation folder is renamed during the update. Missing or changed: no cleanup.
+    $shipped = Join-Path $InstallDir '_internal\uninstall_cleanup.ps1'
+    try {
+        if (-not (Test-Path -LiteralPath $shipped -PathType Leaf)) { Log 'Bereinigungsskript fehlt: beiseitegelegte Ordner bleiben vollständig erhalten.'; return }
+        $inventory = Get-Content -LiteralPath (Join-Path $InstallDir 'RUNTIME_INVENTORY.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $entry = @($inventory.files | Where-Object { $_.path -eq '_internal/uninstall_cleanup.ps1' }) | Select-Object -First 1
+        $copy = Join-Path ([System.IO.Path]::GetTempPath()) ('ecu-studio-cleanup-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+        Copy-Item -LiteralPath $shipped -Destination $copy -ErrorAction Stop
+        if (-not $entry -or (Get-Sha256 $copy) -ne ([string]$entry.sha256).ToLowerInvariant()) {
+            Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue
+            Log 'Bereinigungsskript nicht im Inventar oder verändert: beiseitegelegte Ordner bleiben vollständig erhalten.'
+            return
+        }
+        $script:cleanupScript = $copy
+    } catch { Log ('Bereinigungsskript nicht nutzbar (' + $_.Exception.Message + '): beiseitegelegte Ordner bleiben vollständig erhalten.') }
+}
+
+function Invoke-Leftover([string]$folder, [string]$reference) {
+    # File by file (uninstall_cleanup.ps1 -Mode Leftover): only unchanged inventory files, byte-identical copies of the
+    # file at the same path in $reference and this application's uninstaller files go; the folder only when empty.
+    if (-not (Test-Path -LiteralPath $folder -PathType Container)) { return }
+    if (-not $script:cleanupScript) { Log "Nicht Datei für Datei geprüft, bleibt vollständig erhalten: $folder"; return }
+    $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $script:cleanupScript,
+                   '-InstallDir', $folder, '-Mode', 'Leftover', '-Reference', $reference)
+    if ($LogFile) { $arguments += @('-LogFile', $LogFile) }
+    $ErrorActionPreference = 'Continue'      # stderr of the child must not end this script
+    try {
+        & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @arguments 2>&1 |
+            ForEach-Object { if (-not $LogFile) { Write-Host "  $_" } }
+        if ($LASTEXITCODE -ne 0) { Log "Bereinigung beendet mit Exit $LASTEXITCODE (nichts gelöscht): $folder" }
+    } catch { Log "Bereinigung nicht ausgeführt ($($_.Exception.Message)): $folder" }
+}
+
+function Report-Kept([string]$folder) {
+    if (Test-Path -LiteralPath $folder) {
+        $count = @(Get-ChildItem -LiteralPath $folder -Recurse -File -Force -ErrorAction SilentlyContinue).Count
+        Log "Erhalten (unbekannte oder veränderte Dateien, nichts davon gelöscht): $folder ($count Dateien)"
+    }
+}
+
+function Clear-Aside {
+    # After success: renamed folders are cleaned file by file; what stays is the user's and keeps its folder.
+    foreach ($entry in @($script:aside)) {
+        if ($entry.Original -eq $staging) {
+            Invoke-Leftover (Join-Path $entry.Aside $PackageFolder) $InstallDir
+            if ((Test-Path -LiteralPath $entry.Aside) -and @(Get-ChildItem -LiteralPath $entry.Aside -Force).Count -eq 0) {
+                Remove-Item -LiteralPath $entry.Aside -Force      # empty folder only
+            }
+        } else {
+            $reference = if (Test-Path -LiteralPath $backup) { $backup } else { $InstallDir }
+            Invoke-Leftover $entry.Aside $reference
+        }
+        Report-Kept $entry.Aside
+    }
+    $script:aside.Clear()
+}
+
+function Restore-Previous {
+    # Rollback: the failed new version moves to a FREE "<folder>.update-failed[-N]", the backup takes its place again,
+    # then the failed folder is cleaned file by file against the restored installation (its user files are copies).
+    $failed = Get-FreeName ($InstallDir + '.update-failed')
+    $moved = $false
+    try {
+        if (Test-Path -LiteralPath $InstallDir) { Rename-WithRetry $InstallDir (Split-Path $failed -Leaf); $moved = $true }
+        Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
+    } catch {
+        if ($moved -and -not (Test-Path -LiteralPath $InstallDir)) { try { Rename-WithRetry $failed (Split-Path $InstallDir -Leaf) } catch { } }
+        Fail 4 ('Rollback fehlgeschlagen; vorherige Version liegt in ' + $backup)
+    }
+    if ($moved) { Invoke-Leftover $failed $InstallDir; Report-Kept $failed }
 }
 
 function Get-UninstallEntry {
@@ -170,8 +325,8 @@ function Test-Start([string]$folder) {
 
 if ($Restore) {
     if (-not (Test-Path -LiteralPath (Join-Path $backup $ExeName))) { Fail 2 'Keine Sicherung einer vorherigen Version vorhanden.' }
-    $swap = $InstallDir + '.restore-swap'
-    if (Test-Path -LiteralPath $swap) { Remove-Item -LiteralPath $swap -Recurse -Force }
+    try { $swap = Get-FreeName ($InstallDir + '.restore-swap') }     # an existing one is never reused or removed
+    catch { Fail 2 ('Wiederherstellung nicht möglich: ' + $_.Exception.Message) }
     try {
         Rename-WithRetry $InstallDir (Split-Path $swap -Leaf)
         Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
@@ -193,8 +348,10 @@ if ($Restore) {
     Log "Vorherige Version wiederhergestellt; die ersetzte Version liegt jetzt in $backup."
     Sync-UninstallEntry
     if ($Relaunch) { Start-Process -FilePath (Join-Path $InstallDir $ExeName) -WorkingDirectory $InstallDir | Out-Null }
-    exit 0
+    Exit-Updater 0
 }
+
+Initialize-Cleanup
 
 if ($Installer) {
     # Installer route: only for an installation registered by the installer for exactly this folder.
@@ -207,17 +364,21 @@ if ($Installer) {
     elseif ($installerSignature -eq 'NotSigned') { Log 'Installer ist nicht signiert (Integrität per SHA-256 geprüft).' }
     else { Fail 2 ('Signatur des Installers ungültig: ' + $installerSignature) }
 
-    # Backup copy: the setup needs the folder in place, so copy instead of renaming.
-    if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
+    # Backup copy: the setup needs the folder in place, so copy instead of renaming. An existing backup is moved
+    # aside, never deleted; the new copy is this run's own and disposable until it is complete.
+    try { Move-Aside $backup }
+    catch { Fail 2 ('Vorhandene Sicherung ' + $backup + ' lässt sich nicht beiseitelegen (Datei geöffnet?) – nichts wurde verändert: ' + $_.Exception.Message) }
+    if (Test-Path -LiteralPath $backup) { Fail 2 "Sicherungsordner $backup ist belegt – nichts wurde verändert." }
+    $script:own.Add($backup)
     try {
         Copy-Item -LiteralPath $InstallDir -Destination $backup -Recurse -Force -ErrorAction Stop
         $before = @(Get-ChildItem -LiteralPath $InstallDir -Recurse -File -Force).Count
         $copied = @(Get-ChildItem -LiteralPath $backup -Recurse -File -Force).Count
         if ($before -ne $copied) { throw "Sicherung unvollständig ($copied von $before Dateien)" }
     } catch {
-        if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue }
         Fail 2 ('Sicherung der Installation nicht möglich – nichts wurde verändert: ' + $_.Exception.Message)
     }
+    [void]$script:own.Remove($backup)                   # complete: from now on the copy is the way back, never discarded
     Log "Sicherung angelegt: $backup"
 
     $setupLog = if ($LogFile) { [System.IO.Path]::ChangeExtension($LogFile, '.setup.log') } else { Join-Path ([System.IO.Path]::GetTempPath()) 'ECU-Studio-AI-setup.log' }
@@ -235,27 +396,26 @@ if ($Installer) {
     if (-not $problem -and -not (Test-Start $InstallDir)) { $problem = 'Selbsttest der neuen Version fehlgeschlagen' }
     if ($problem) {
         Log ($problem + ' – Rollback.')
-        $failed = $InstallDir + '.update-failed'
-        try {
-            if (Test-Path -LiteralPath $failed) { Remove-Item -LiteralPath $failed -Recurse -Force }
-            Rename-WithRetry $InstallDir (Split-Path $failed -Leaf)
-            Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
-            Remove-Item -LiteralPath $failed -Recurse -Force -ErrorAction SilentlyContinue
-        } catch { Fail 4 ('Rollback fehlgeschlagen; vorherige Version liegt in ' + $backup) }
+        Restore-Previous
         Sync-UninstallEntry
         Fail 3 ('Das Update wurde nicht installiert – die vorherige Version wurde wiederhergestellt. ' + $problem)
     }
     Log "Update per Installer installiert; vorherige Version bleibt als Sicherung in $backup."
+    Clear-Aside
     if ($Relaunch) { Start-Process -FilePath (Join-Path $InstallDir $ExeName) -WorkingDirectory $InstallDir | Out-Null }
-    exit 0
+    Exit-Updater 0
 }
 
 # 2. Archive integrity.
 $actual = Get-Sha256 $Archive
 if ($actual -ne $Sha256.ToLowerInvariant()) { Fail 2 'Prüfsumme des Update-Pakets stimmt nicht – nichts wurde verändert.' }
 
-# 3. Unpack into staging.
-if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+# 3. Unpack into staging: an existing staging folder (interrupted update) is moved aside, never deleted; the new one
+#    is this run's own and disposable until the new version is in place.
+try { Move-Aside $staging }
+catch { Fail 2 ('Vorhandener Ordner ' + $staging + ' lässt sich nicht beiseitelegen (Datei geöffnet?) – nichts wurde verändert: ' + $_.Exception.Message) }
+if (Test-Path -LiteralPath $staging) { Fail 2 "Ordner $staging ist belegt – nichts wurde verändert." }
+$script:own.Add($staging)
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($Archive, $staging)
@@ -263,7 +423,6 @@ try {
 $new = Join-Path $staging $PackageFolder
 $inventoryPath = Join-Path $new 'RUNTIME_INVENTORY.json'
 if (-not (Test-Path -LiteralPath (Join-Path $new $ExeName)) -or -not (Test-Path -LiteralPath $inventoryPath)) {
-    Remove-Item -LiteralPath $staging -Recurse -Force
     Fail 2 'Update-Paket hat nicht den erwarteten Aufbau.'
 }
 
@@ -271,15 +430,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $new $ExeName)) -or -not (Test-Path 
 $inventory = Get-Content -LiteralPath $inventoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
 foreach ($entry in $inventory.files) {
     $file = Join-Path $new ($entry.path -replace '/', '\')
-    if (-not (Test-Path -LiteralPath $file)) { Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 "Datei fehlt im Update: $($entry.path)" }
-    if ((Get-Sha256 $file) -ne $entry.sha256) {
-        Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 "Datei im Update beschädigt: $($entry.path)"
-    }
+    if (-not (Test-Path -LiteralPath $file)) { Fail 2 "Datei fehlt im Update: $($entry.path)" }
+    if ((Get-Sha256 $file) -ne $entry.sha256) { Fail 2 "Datei im Update beschädigt: $($entry.path)" }
 }
 $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $new $ExeName)
 if ($signature.Status -eq 'Valid') { Log ('Signatur gültig: ' + $signature.SignerCertificate.Subject) }
 elseif ($signature.Status -eq 'NotSigned') { Log 'EXE ist nicht signiert (Integrität per SHA-256 geprüft).' }
-else { Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 ('Signatur der neuen EXE ungültig: ' + $signature.Status) }
+else { Fail 2 ('Signatur der neuen EXE ungültig: ' + $signature.Status) }
 
 # 5. Keep files the user added to the old installation.
 $oldInventoryPath = Join-Path $InstallDir 'RUNTIME_INVENTORY.json'
@@ -299,33 +456,31 @@ Get-ChildItem -LiteralPath $InstallDir -Recurse -File | ForEach-Object {
     }
 }
 
-# 6. Swap with backup.
-if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force }
+# 6. Swap with backup: an existing backup is moved aside, never deleted (it is put back if the update fails).
+try { Move-Aside $backup }
+catch { Fail 2 ('Vorhandene Sicherung ' + $backup + ' lässt sich nicht beiseitelegen (Datei geöffnet?) – nichts wurde verändert: ' + $_.Exception.Message) }
 try { Rename-WithRetry $InstallDir (Split-Path $backup -Leaf) }
-catch { Remove-Item -LiteralPath $staging -Recurse -Force; Fail 2 ('Installation ist in Benutzung oder schreibgeschützt: ' + $_.Exception.Message) }
+catch { Fail 2 ('Installation ist in Benutzung oder schreibgeschützt: ' + $_.Exception.Message) }
 try {
     Move-Item -LiteralPath $new -Destination $InstallDir
-    Remove-Item -LiteralPath $staging -Recurse -Force
 } catch {
     Log ('Einsetzen fehlgeschlagen: ' + $_.Exception.Message)
-    if (Test-Path -LiteralPath $InstallDir) { Remove-Item -LiteralPath $InstallDir -Recurse -Force }
-    Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
+    Restore-Previous
     Fail 3 'Update konnte nicht eingesetzt werden – die vorherige Version wurde wiederhergestellt.'
 }
+Remove-OwnFolder $staging                               # now empty: the new version was moved out of it
 
 # 7. Self-check of the new version; roll back on failure.
 $exe = Join-Path $InstallDir $ExeName
 if (-not (Test-Start $InstallDir)) {
     Log 'Selbsttest der neuen Version fehlgeschlagen – Rollback.'
-    try {
-        Remove-Item -LiteralPath $InstallDir -Recurse -Force
-        Rename-WithRetry $backup (Split-Path $InstallDir -Leaf)
-    } catch { Fail 4 ('Rollback fehlgeschlagen; vorherige Version liegt in ' + $backup) }
+    Restore-Previous
     Fail 3 'Die neue Version startete nicht korrekt – die vorherige Version wurde wiederhergestellt.'
 }
 Log "Update installiert; vorherige Version bleibt als Sicherung in $backup."
+Clear-Aside
 Sync-UninstallEntry
 
 # 8. Start the new version.
 if ($Relaunch) { Start-Process -FilePath $exe -WorkingDirectory $InstallDir | Out-Null }
-exit 0
+Exit-Updater 0

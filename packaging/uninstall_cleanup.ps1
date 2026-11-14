@@ -10,6 +10,23 @@ Used by the Inno Setup installer/uninstaller (packaging/installer.iss, from 1.20
   -Mode Obsolete   after an installation over an existing one: removes files of the
                    PREVIOUS inventory (-Inventory) that the new version no longer ships
                    (-Keep = the new inventory).
+  -Mode Leftover   (from 1.20.1) the updater's folders next to the program folder,
+                   <app>.backup and <app>.update-staging\ECU-Studio-AI, before the program
+                   folder (-Reference) is touched. They replace the former blanket
+                   [UninstallDelete] rules: a backup can hold the ONLY copy of a program
+                   file the user changed, or of an own file whose name a new version took.
+                   Removed are only files whose origin is proven:
+                     a) listed in the folder's own inventory and unchanged (rules below),
+                     b) byte-identical (SHA-256) to the file at the same relative path in
+                        the program folder (a copy; the original is handled there),
+                     c) unins###.dat in the folder itself whose header is the uninstall log
+                        of THIS application (Inno Setup, AppId, AppName), and the matching
+                        unins###.exe with this application's version information,
+                     d) the folder's RUNTIME_INVENTORY.json, only if it was read as a valid
+                        inventory and nothing else is left.
+                   Everything else stays and keeps the folder; it is logged. Reparse points
+                   inside are neither followed nor removed. Empty ordinary sub-folders are
+                   removed (they hold no data); the folder itself only when it is empty.
 
 A file is removed only if ALL of this holds:
   - it is listed in the inventory with a relative path (no drive, no root, no '..' or '.'
@@ -26,9 +43,10 @@ Exit code 0 also when files were kept; 2 = invalid call, nothing deleted.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
-    [ValidateSet('Uninstall', 'Obsolete')][string]$Mode = 'Uninstall',
+    [ValidateSet('Uninstall', 'Obsolete', 'Leftover')][string]$Mode = 'Uninstall',
     [string]$Inventory = '',
     [string]$Keep = '',
+    [string]$Reference = '',
     [string]$LogFile = '',
     [switch]$WhatIf
 )
@@ -41,6 +59,10 @@ try { Set-Location -LiteralPath ([System.IO.Path]::GetTempPath()) } catch { }
 
 $ReparsePoint = [System.IO.FileAttributes]::ReparsePoint
 $script:removed = 0; $script:kept = 0
+# Identity of this application's installer (packaging/installer.iss AppId, AppName, AppPublisher).
+$AppId = '{F8CD5330-FC90-4891-BFDA-58E6668C93A5}'
+$AppName = 'ECU Studio AI'
+$AppPublisher = 'PCTestAdmin'
 
 function Log([string]$text) {
     $line = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $text
@@ -56,6 +78,20 @@ function Get-Sha256([string]$path) {
         $sha = [System.Security.Cryptography.SHA256]::Create()
         return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
     } finally { $stream.Dispose() }
+}
+
+function Test-Twin([string]$file, [string]$relative) {
+    # True only if the program folder (-Reference) holds a byte-identical copy at the same relative path, without a
+    # reparse point on the way. A copy that cannot be read (e.g. {app}\unins000.dat, held open by the running
+    # uninstaller) proves nothing: $false, so the file is judged by the other rules or kept.
+    $twin = Join-Path $refRoot $relative
+    try {
+        if (-not (Test-Path -LiteralPath $twin -PathType Leaf) -or -not (Test-NoReparseBetween $refRoot $twin)) { return $false }
+        return (Get-Sha256 $twin) -eq (Get-Sha256 $file)
+    } catch {
+        Log "Kopie im Programmordner nicht lesbar, zählt nicht als gleich ($($_.Exception.Message)): $relative"
+        return $false
+    }
 }
 
 function Read-Inventory([string]$path) {
@@ -91,15 +127,75 @@ function Test-NoReparseBetween([string]$root, [string]$path) {
     return $true
 }
 
+function Test-InnoLog([string]$path) {
+    # Inno Setup uninstall log header: ID (64 bytes), AppId (128), AppName (128), zero padded.
+    $stream = [System.IO.File]::Open($path, 'Open', 'Read', 'Read')
+    try {
+        $buffer = New-Object byte[] 320
+        if ($stream.Read($buffer, 0, 320) -ne 320) { return $false }
+    } finally { $stream.Dispose() }
+    $ascii = [System.Text.Encoding]::ASCII
+    $id = $ascii.GetString($buffer, 0, 64).TrimEnd([char]0)
+    $logAppId = $ascii.GetString($buffer, 64, 128).TrimEnd([char]0)
+    $logAppName = $ascii.GetString($buffer, 192, 128).TrimEnd([char]0)
+    return ($id -cmatch '^Inno Setup Uninstall Log \([bu]\)( 64-bit)?$') -and $logAppId -ceq $AppId -and $logAppName -ceq $AppName
+}
+
+function Test-InnoUninstaller([string]$path) {
+    # The uninstaller Inno Setup wrote for THIS application: a PE file with its version information.
+    $stream = [System.IO.File]::Open($path, 'Open', 'Read', 'Read')
+    try { $magic = $stream.ReadByte() * 256 + $stream.ReadByte() } finally { $stream.Dispose() }
+    if ($magic -ne 0x4D5A) { return $false }
+    $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+    return ([string]$info.FileDescription).Trim() -ceq 'Setup/Uninstall' -and ([string]$info.ProductName).Trim() -ceq $AppName -and
+           ([string]$info.CompanyName).Trim() -ceq $AppPublisher
+}
+
+function Get-PlainFiles([string]$start) {
+    # All files below $start without following or listing reparse points (each one found is logged and counted).
+    $files = [System.Collections.Generic.List[string]]::new()
+    $pending = [System.Collections.Generic.Stack[string]]::new()
+    $pending.Push($start)
+    while ($pending.Count -gt 0) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $pending.Pop() -Force -ErrorAction Stop)) {
+            if ($item.Attributes -band $ReparsePoint) {
+                Log "Behalten (Verweis/Junction): $($item.FullName.Substring($start.Length + 1))"
+                $script:kept++; $script:reparse++
+            } elseif ($item.PSIsContainer) { $pending.Push($item.FullName); $script:plainFolders.Add($item.FullName) }
+            else { $files.Add($item.FullName) }
+        }
+    }
+    return , $files
+}
+
 # ---- validate the call ------------------------------------------------------------------
 if (-not [System.IO.Path]::IsPathRooted($InstallDir)) { Stop-Invalid "Programmordner ist kein absoluter Pfad: $InstallDir" }
 $root = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
 if ($root.Length -le 3) { Stop-Invalid "Laufwerkswurzel als Programmordner: $root" }
 if (-not (Test-Path -LiteralPath $root -PathType Container)) { Stop-Invalid "Programmordner fehlt: $root" }
 if ((Get-Item -LiteralPath $root -Force).Attributes -band $ReparsePoint) { Stop-Invalid "Programmordner ist ein Verweis (Junction/Link): $root" }
+$refRoot = ''
+if ($Mode -eq 'Leftover') {
+    if (-not $Reference -or -not [System.IO.Path]::IsPathRooted($Reference)) { Stop-Invalid "Programmordner (-Reference) fehlt oder ist kein absoluter Pfad: $Reference" }
+    $refRoot = [System.IO.Path]::GetFullPath($Reference).TrimEnd('\')
+    if ($refRoot.Length -le 3) { Stop-Invalid "Laufwerkswurzel als Programmordner: $refRoot" }
+    if (-not (Test-Path -LiteralPath $refRoot -PathType Container)) { Stop-Invalid "Programmordner fehlt: $refRoot" }
+    if ((Get-Item -LiteralPath $refRoot -Force).Attributes -band $ReparsePoint) { Stop-Invalid "Programmordner ist ein Verweis (Junction/Link): $refRoot" }
+    if ($refRoot -ieq $root -or $root.StartsWith($refRoot + '\', [System.StringComparison]::OrdinalIgnoreCase) -or
+        $refRoot.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        Stop-Invalid "Ordner und Programmordner überschneiden sich: $root / $refRoot"
+    }
+}
+$script:reparse = 0
+$script:plainFolders = [System.Collections.Generic.List[string]]::new()   # Leftover: ordinary sub-folders found
 if (-not $Inventory) { $Inventory = Join-Path $root 'RUNTIME_INVENTORY.json' }
 $entries = Read-Inventory $Inventory
-if ($null -eq $entries) { Log "Inventar fehlt oder ist unlesbar ($Inventory) – nichts gelöscht."; exit 0 }
+$inventoryRead = $null -ne $entries
+if (-not $inventoryRead) {
+    if ($Mode -ne 'Leftover') { Log "Inventar fehlt oder ist unlesbar ($Inventory) – nichts gelöscht."; exit 0 }
+    Log "Inventar fehlt oder ist unlesbar ($Inventory) – nur gleiche Kopien und Deinstallerdateien werden entfernt."
+    $entries = @{}
+}
 $keepSet = @{}
 if ($Mode -eq 'Obsolete') {
     $keepEntries = Read-Inventory $Keep
@@ -110,6 +206,7 @@ Log "Bereinigung nach Inventar ($Mode): $root, $($entries.Count) Einträge$(if (
 
 # ---- files ------------------------------------------------------------------------------
 $folders = @{}
+$gone = @{}             # full paths removed (or, with -WhatIf, that would be removed)
 foreach ($relativeRaw in $entries.Keys) {
     $entry = $entries[$relativeRaw]
     $relative = ([string]$relativeRaw) -replace '/', '\'
@@ -128,10 +225,68 @@ foreach ($relativeRaw in $entries.Keys) {
         if (-not $WhatIf) { Remove-Item -LiteralPath $full -Force -ErrorAction Stop }
         Log "Entfernt: $relative"
         $script:removed++
+        $gone[$full.ToLowerInvariant()] = $true
         $folder = [System.IO.Path]::GetDirectoryName($full)
         while ($folder.Length -gt $root.Length) { $folders[$folder] = $true; $folder = [System.IO.Path]::GetDirectoryName($folder) }
     } catch {
         Log "Behalten (Fehler: $($_.Exception.Message)): $relative"; $script:kept++
+    }
+}
+
+# ---- Leftover: proven copies and this application's uninstaller files ---------------------
+if ($Mode -eq 'Leftover') {
+    $inventoryFile = Join-Path $root 'RUNTIME_INVENTORY.json'
+    try {
+        $rest = @((Get-PlainFiles $root) | Where-Object { -not $gone.ContainsKey($_.ToLowerInvariant()) })
+        $innoLogs = @{}
+        foreach ($file in $rest) {
+            if ([System.IO.Path]::GetDirectoryName($file) -ieq $root -and [System.IO.Path]::GetFileName($file) -match '^unins(\d{3})\.dat$') {
+                $number = $Matches[1]
+                try { if (Test-InnoLog $file) { $innoLogs[$number] = $true } }
+                catch { Log "Deinstallationsprotokoll nicht lesbar, gilt als fremd ($($_.Exception.Message)): $([System.IO.Path]::GetFileName($file))" }
+            }
+        }
+        foreach ($file in $rest) {
+            $relative = $file.Substring($root.Length + 1)
+            if ($relative -ieq 'RUNTIME_INVENTORY.json') { continue }               # decided below
+            try {
+                $reason = ''
+                $name = [System.IO.Path]::GetFileName($file)
+                $atTop = [System.IO.Path]::GetDirectoryName($file) -ieq $root
+                if (Test-Twin $file $relative) {
+                    $reason = 'gleiche Kopie im Programmordner'
+                } elseif ($atTop -and $name -match '^unins(\d{3})\.dat$' -and $innoLogs.ContainsKey($Matches[1])) {
+                    $reason = 'Deinstallationsprotokoll dieser Anwendung'
+                } elseif ($atTop -and $name -match '^unins(\d{3})\.exe$' -and $innoLogs.ContainsKey($Matches[1]) -and (Test-InnoUninstaller $file)) {
+                    $reason = 'Deinstallationsprogramm dieser Anwendung'
+                }
+                if (-not $reason) { Log "Behalten (unbekannt oder verändert, keine gleiche Kopie im Programmordner): $relative"; $script:kept++; continue }
+                if (-not $WhatIf) { Remove-Item -LiteralPath $file -Force -ErrorAction Stop }
+                Log "Entfernt ($reason): $relative"
+                $script:removed++
+                $gone[$file.ToLowerInvariant()] = $true
+                $folder = [System.IO.Path]::GetDirectoryName($file)
+                while ($folder.Length -gt $root.Length) { $folders[$folder] = $true; $folder = [System.IO.Path]::GetDirectoryName($folder) }
+            } catch {
+                Log "Behalten (Fehler: $($_.Exception.Message)): $relative"; $script:kept++
+            }
+        }
+        # The inventory itself: only if it was valid and is the very last entry (no file, no reparse point left).
+        if (Test-Path -LiteralPath $inventoryFile -PathType Leaf) {
+            $others = @($rest | Where-Object { -not $gone.ContainsKey($_.ToLowerInvariant()) -and $_ -ine $inventoryFile })
+            if ($inventoryRead -and $Inventory -ieq $inventoryFile -and $others.Count -eq 0 -and $script:reparse -eq 0) {
+                if (-not $WhatIf) { Remove-Item -LiteralPath $inventoryFile -Force -ErrorAction Stop }
+                Log 'Entfernt (Inventar, nichts sonst übrig): RUNTIME_INVENTORY.json'
+                $script:removed++
+            } else {
+                Log 'Behalten (Inventar: andere Dateien bleiben oder Inventar ungültig): RUNTIME_INVENTORY.json'; $script:kept++
+            }
+        }
+        # Sub-folders that are (or become) empty hold no data, e.g. an empty folder the program ships
+        # (numpy\random\lib). They are removed below like emptied ones: deepest first, only when empty.
+        foreach ($folder in $script:plainFolders) { $folders[$folder] = $true }
+    } catch {
+        Log "Bereinigung abgebrochen, der Rest bleibt ($($_.Exception.Message))"
     }
 }
 
@@ -145,6 +300,13 @@ if (-not $WhatIf) {
                 Remove-Item -LiteralPath $folder -Force -ErrorAction Stop
             }
         } catch { Log "Ordner bleibt ($($_.Exception.Message)): $folder" }
+    }
+    # Leftover: the backup/staging folder itself, only when it is completely empty.
+    if ($Mode -eq 'Leftover') {
+        try {
+            if (@(Get-ChildItem -LiteralPath $root -Force).Count -eq 0) { Remove-Item -LiteralPath $root -Force -ErrorAction Stop; Log "Ordner entfernt: $root" }
+            else { Log "Ordner bleibt (nicht leer): $root" }
+        } catch { Log "Ordner bleibt ($($_.Exception.Message)): $root" }
     }
 }
 Log "Fertig: $($script:removed) Dateien entfernt, $($script:kept) behalten."
