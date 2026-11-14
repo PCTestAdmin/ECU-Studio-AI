@@ -104,3 +104,28 @@ def test_sign_rule_prefers_the_reading_without_wrapping_neighbours():
     # Known limit: 0/255 flag tables read as -1/0.
     sentinel = np.array([[0, 255, 0, 255, 0, 255]] * 4, 'u1').tobytes()
     assert preferred_sign(sentinel, 4, 6, 1) == 's'
+
+
+def test_readings_starting_inside_another_records_axes_are_dropped(monkeypatch):
+    """Axis points of a record also read as counts plus shorter axes: such a nested reading yields."""
+    from ecu_studio.core.model import MapDefinition
+    from ecu_studio.core.axis_records import _drop_nested_headers
+
+    def rec(header, data, name):
+        return MapDefinition(name, data, 4, 4, 'u8', 'big', candidate_region_start=header,
+                             record_layout='candidate:nx,ny,x,y,z')
+    outer = rec(0x100, 0x12C, 'outer')            # header 0x100, axes up to the data at 0x12C
+    nested = rec(0x104, 0x120, 'nested')          # starts inside the outer counts/axes
+    inner_of_nested = rec(0x108, 0x110, 'deeper')  # nested in both
+    beside = rec(0x200, 0x20C, 'beside')          # no overlap: untouched
+    in_data = rec(0x130, 0x140, 'in data')        # inside the outer values, not its axes: untouched
+    found = [(1., m) for m in (outer, nested, inner_of_nested, beside, in_data)]
+    assert [m.name for _, m in _drop_nested_headers(found)] == ['outer', 'beside', 'in data']
+
+
+def test_records_in_a_row_are_not_nested():
+    z = surface(5, 6)
+    recs = [record([5 + i, 9 + i, 20 + i, 40 + i, 60 + i, 90 + i], [10, 20, 40, 60, 80], 1, 1, z + i) for i in range(4)]
+    img, starts = image(*recs)
+    found = {m.offset for m in scan_axis_records(img, max_results=200)}
+    assert all(h + 2 + 11 in found for h in starts)

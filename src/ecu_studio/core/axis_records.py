@@ -6,6 +6,7 @@ No physical units or functional names can be inferred from this layout alone.
 """
 from __future__ import annotations
 from functools import lru_cache
+import bisect
 import numpy as np
 from .model import BinaryImage, MapDefinition
 from .axis_inference import _plausibility
@@ -125,6 +126,32 @@ def _sign_by_wraps(image: BinaryImage, found: list) -> list:
                                   + (' (vorzeichenbehaftet).' if pick=='s' else ' (vorzeichenlos).'))
         out.extend(items)
     return out
+
+
+NESTED_HEADERS = True
+
+
+def _drop_nested_headers(found: list) -> list:
+    """Drop readings whose header lies inside the counts/axes of another reading.
+
+    Axis points of a real record read as counts plus shorter axes (8-bit or mixed
+    widths) as well. Such a reading starts strictly between another reading's header
+    and its data; outer readings that are themselves nested do not count. Development
+    data (MEVD17.2, MSD80, 6 images): 569 such readings off the reference, 8 on it
+    (1.21.0).
+    """
+    def span(m):
+        return (m.candidate_region_start if m.candidate_region_start is not None else m.offset), m.offset
+    spans = sorted({span(m) for _, m in found if span(m)[0] < span(m)[1]})
+    starts = [h for h, _ in spans]
+
+    def inside(h, d, pool, keys):
+        # any (h2, d2) in pool with h2 < h < d2, other than (h, d) itself
+        i = bisect.bisect_left(keys, h)
+        return any(h2 < h < d2 for h2, d2 in pool[max(0, i - 64):i] if (h2, d2) != (h, d))
+    outer = [x for x in spans if not inside(x[0], x[1], spans, starts)]
+    keys = [h for h, _ in outer]
+    return [(sc, m) for sc, m in found if not inside(*span(m), outer, keys)]
 
 
 NEXT_HEADER_WIDTH = True
@@ -406,6 +433,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
         found=kept
     found=_width_by_next_header(found) if NEXT_HEADER_WIDTH else found
     found=_sign_by_wraps(image,found) if SIGN_BY_WRAPS else found
+    found=_drop_nested_headers(found) if NESTED_HEADERS else found
     # One hypothesis per span: u16/s16 readings of the same bytes must not use
     # up the result limit. The better surface wins; on a tie (e.g. all values
     # negative, both readings equally smooth) the signed reading is kept, and

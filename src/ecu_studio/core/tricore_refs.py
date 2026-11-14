@@ -633,6 +633,7 @@ POSTLOOKUP_SHARE = .6    # a4-only calls of a table routine with two prelookups 
 
 
 BLANK_AXES = True
+BLANK_REAL_SHARE = .25   # real axes needed before blank ones count (development: genuine >= 33 %, others 0 %)
 
 
 def blank_axis(data: bytes, header: int) -> bool:
@@ -673,11 +674,15 @@ def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[i
             continue
         if c.data not in is_axis:
             is_axis[c.data] = axis_at(data, c.data) is not None
-        st = stats.setdefault(c.callee, [0, 0])
+        st = stats.setdefault(c.callee, [0, 0, 0])
         st[0] += 1
-        # Unapplied axes (count header, all points equal, e.g. zero) name an axis as well.
-        st[1] += is_axis[c.data] or (BLANK_AXES and blank_axis(data, c.data))
-    pre = {r for r, (n, ax) in stats.items() if n >= MIN_ROLE_CALLS and ax >= PRELOOKUP_SHARE * n}
+        st[1] += is_axis[c.data]
+        st[2] += BLANK_AXES and not is_axis[c.data] and blank_axis(data, c.data)
+    # Unapplied axes (count header, all points equal, e.g. zero) name an axis as well,
+    # but only for routines that also read real axes: a zero block after a small
+    # byte reads as a blank axis too (table routines on MSD80 and MEVD17.2 data).
+    pre = {r for r, (n, ax, blank) in stats.items() if n >= MIN_ROLE_CALLS
+           and (ax >= PRELOOKUP_SHARE * n or (ax >= BLANK_REAL_SHARE * n and ax + blank >= PRELOOKUP_SHARE * n))}
     post_stats: dict[int, list[int]] = {}
     for c in sites:
         if c.x_header is not None or c.callee in pre or is_axis.get(c.data):

@@ -125,3 +125,23 @@ def test_plain_prelookups_are_unchanged_by_blank_axes(monkeypatch):
     before = call_descriptors(data)
     monkeypatch.setattr(tricore_refs, 'BLANK_AXES', False)
     assert set(call_descriptors(data)) == set(before) == set(tables)
+
+
+def only_blank_prelookups(tables, base):
+    """X lookups that only ever name blank axes: a zero block after a small byte, nothing more."""
+    code = bytearray()
+    for t in tables:
+        code += load(4, BLANK) + call(base + len(code) + 8, 0x7100)
+        code += load(4, Y) + call(base + len(code) + 8, 0x7200)
+        code += load(4, t) + call(base + len(code) + 8, 0x7300) + RET
+    return bytes(code)
+
+
+def test_routines_naming_only_blank_axes_stay_unknown():
+    data, tables = image_with(only_blank_prelookups, n_tables=40, routines=U8_TABLE)
+    img = bytearray(data)
+    img[BLANK:BLANK + 7] = bytes([6]) + bytes(6)
+    sites = tricore_refs._analyse(bytes(img))[0]
+    pre, _ = tricore_refs.prelookup_roles(bytes(img), sites)
+    assert 0x7100 not in pre and 0x7200 in pre
+    assert call_descriptors(bytes(img)) == {}

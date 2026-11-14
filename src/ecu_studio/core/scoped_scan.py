@@ -24,7 +24,7 @@ from .architecture import detect_architecture, TRICORE, C16X
 from .region_classes import text_spans, pointer_spans, address_word_spans, classify, POINTER_COVERAGE
 from . import parallel
 
-RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
+RECORD_LIMIT=2000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000 -> 2000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09; 1.21.0: MEVD17.2 full images with mixed widths exceed 1000); MS4x unchanged
 AXIS_RECORD_LAYOUTS=('candidate:record-axis','candidate:count-axis','candidate:curve-record')
 
 
