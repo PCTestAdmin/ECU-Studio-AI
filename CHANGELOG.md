@@ -22,6 +22,26 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
   verworfen.
 - **Namensübertragung zwischen Softwareständen:** Flache Blöcke (Nullen, ein Wert) werden nur noch übertragen, wenn
   beide Nachbaranker dieselbe Verschiebung zeigen oder die angrenzenden Bytes übereinstimmen.
+- **Wertebreite aus der Datensatzgrenze:** Eine 16-Bit-Lesart, hinter der kein Datensatz beginnt, während hinter der
+  8-Bit-Lesart gleicher Form der nächste Datensatz (Anzahl + steigende Achse) anfängt, wird als Byte-Tabelle gemeldet.
+  Gekennzeichnet als „Wertebreite nur aus dem Datensatzaufbau abgeleitet“.
+- **16-Bit-Felder auf geraden Adressen:** Ist die Ausrichtung eines Abbilds durch genügend Datensätze mit 16-Bit-Zählern
+  oder -Achsen eindeutig, werden 16-Bit-Lesarten auf der anderen Adressparität verworfen.
+- **Byte-Reihenfolge (vorbereitet, aus):** Datensätze mit 8-Bit-Zählern und kleinen 16-Bit-Achsen, die in beiden
+  Byte-Reihenfolgen steigen, können von der Abstimmung ausgenommen werden. Ohne messbare Wirkung auf den
+  Entwicklungsdaten und daher nicht eingeschaltet.
+
+**Anzeige**
+
+- Datentyp mit „?“, wenn er nicht belegt ist (Vorzeichen offen, nur aus der Glätte geschätzt oder Wertebreite nur aus
+  dem Datensatzaufbau). Der Grund steht im Tooltip und in der Detailansicht.
+- Übertragene Namen sind als „Name übertragen (ungeprüft)“ markiert.
+
+**Geschwindigkeit**
+
+- TriCore-Codeanalyse: Der Durchlauf besucht nur Befehle, die den verfolgten Zustand ändern (Sprungziele werden in
+  Adressreihenfolge zusammengeführt, Ergebnis bitgleich). Speicherbefehle werden zwischen den Durchläufen
+  wiederverwendet, und die Suche nach verschobenen Kalibrierbereichen prüft nur Bytes, die eine Anzahl sein können.
 
 **Identifikation**
 

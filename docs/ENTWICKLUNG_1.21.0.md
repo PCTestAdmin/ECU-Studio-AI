@@ -2,7 +2,10 @@
 
 Stand: 14.11.2026, **in Entwicklung, nicht veröffentlicht**. Ausgangspunkt `v1.20.1` (8cca756), Branch
 `feat/1.21.0-map-detection`. Die Referenzdaten (HEX-Abbilder und A2L-Dateien) sind private Daten eines Datengebers.
-Sie bleiben lokal und wurden an keinen externen Dienst übertragen. Dieser Bericht enthält nur zusammengefasste
+Sie bleiben lokal. Firmwarebytes und A2L-Inhalte wurden an keinen externen Dienst übertragen; in der
+Sitzung des KI-Entwicklungsassistenten erschienen nur Dateinamen, Zählwerte, Lage und Größe einzelner
+Kandidaten (Strukturmetadaten) und einmal drei gekürzte Abbild-Hashes aus einem Prüfprotokoll (das Werkzeug gibt
+sie seitdem nicht mehr aus). Dieser Bericht enthält nur zusammengefasste
 Zählwerte: keine Kennfeldnamen, keine Adressen, keine Softwarestände, keine Hashes. Der Detailbericht mit
 Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
 
@@ -10,14 +13,18 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
 
 - **Daten:** 74 Referenzsätze, 163 Abbilder, 80 A2L aus acht Steuergerätelinien (Bosch ME9, MEVD17.2, MEVD17.2.3;
   Siemens MSD80, MSV90). Getrennt **vor** der Entwicklung: 58 Abbilder Entwicklung (2 Linien), 105 Holdout (6 Linien).
-- **Holdout, einmal gemessen:** exakt gefundene verifizierbare 2D-Kennfelder **35 382 → 49 958** von 91 370
-  (Recall 0,387 → 0,547). Datentyp richtig unter den exakten Funden 80,5 % → 93,3 %, Achsen 99,8 % → 99,8 %.
-  113 vorher exakte Kennfelder gehen verloren, 14 689 kommen hinzu.
+- **Holdout, erste Messung (Runde 1, unabhängig):** exakt gefundene verifizierbare 2D-Kennfelder
+  **35 382 → 49 958** von 91 370 (Recall 0,387 → 0,547). Datentyp richtig unter den exakten Funden 80,5 % → 93,3 %,
+  Achsen 99,8 % → 99,8 %. 113 vorher exakte Kennfelder gehen verloren, 14 689 kommen hinzu.
+- **Runde 2 (§ 6a), nur an Entwicklungsdaten entwickelt:** Entwicklung 30 735 → 31 142 exakt, teilweise
+  2 774 → 2 449. Zweite Holdout-Messung (nicht mehr unabhängig): 49 958 → 51 016 exakt, teilweise 4 837 → 4 074,
+  Verwechslungen 15 518 → 15 459, Vorzeichenfehler 2 017 → 2 281. Eine neue unabhängige Testgruppe gibt es nicht.
 - **Am stärksten:** TriCore-Vollflashs, deren Kalibrierung anders gelinkt ist oder über Zeigertripel angesprochen
   wird. MSV90 0,219 → 0,793, MSD80 N43 0,650 → 0,893 (Holdout).
 - **Wiedererkennung über Versionen:** falsche Namensübertragungen auf dem Holdout 1 832 → 210 bei 0,7 % weniger
   richtigen.
-- **Keine Regression** im Regressionssatz (15 Fälle). Alle Tests grün. Laufzeit +6 %, Speicher gleich.
+- **Keine Regression** im Regressionssatz (15 Fälle). Alle Tests grün. Laufzeit insgesamt −2 % gegenüber 1.20.1
+  (Runde 2), Spitzenspeicher gleich.
 - **Offen:** mehr Verwechslungen auf MEVD17.2.3-Vollflashs; Byte-Reihenfolge der MSV90-Kalibrierabbilder (§ 9).
   Kein Modelltraining.
 
@@ -193,6 +200,134 @@ Datensatzname allein belegt keine Familie.
   TriCore-Auswertung jetzt viele Tabellen mehr); Kalibrierabbilder unverändert oder schneller. Spitzenspeicher unverändert (höchstens 431 MB beim
   10-MB-Vollflash). Regressionssatz 29,8 → 31,0 s; die synthetische Rampen-Datei 8,0 → 10,6 s und 96 → 101 MB.
 
+## 6a. Zweite Runde: Fehlzuordnungen, Datentypen, Laufzeit
+
+Nach der ersten Holdout-Messung (§ 6.1) wurde weiterentwickelt, **nur an den Entwicklungsdaten** (58 Abbilder).
+Der Holdout wurde nicht zur Abstimmung benutzt. Er wurde danach ein zweites Mal gemessen. Diese zweite Messung ist
+**keine unabhängige Prüfung** mehr: Die Testlinien sind seit der ersten Messung bekannt. Sie zeigt nur, ob die
+Änderungen dort schaden. Eine neue, unbenutzte Testgruppe gibt es nicht (§ 6a.7).
+
+### 6a.1 Bestätigte Ursachen (Entwicklungsdaten)
+
+- **Byte-Tabellen als 16-Bit gelesen:** Datensätze mit 16-Bit-Achsen und 8-Bit-Werten wurden als 16-Bit-Tabelle
+  gelesen. Die 8-Bit-Lesart wird als zu flach verworfen; die 16-Bit-Lesart reicht dann doppelt so weit, bis in den
+  nächsten Datensatz. Ergebnis: „teilweise“ (richtiger Start, falsche Breite) oder Verwechslung.
+- **16-Bit-Lesarten auf ungeraden Adressen:** In keinem Abbild der acht Linien beginnt ein 16-Bit-A2L-Objekt auf
+  einer ungeraden Adresse. Solche Lesarten sind Zufallstreffer aus Zählern und Achsen anderer Datensätze.
+- **Mehrdeutige Stimmen zur Byte-Reihenfolge:** Datensätze mit 8-Bit-Zählern und 16-Bit-Achsen unter 256 steigen in
+  beiden Reihenfolgen. Sie stellten 51–70 % der Gegenstimmen, änderten auf den Entwicklungsdaten aber die gewählte
+  Reihenfolge nie (§ 6a.2).
+
+### 6a.2 Neue Regeln und ihre Wirkung (Ablation, 27 Kalibrierabbilder der Entwicklung)
+
+| Regel | Schalter | exakt | teilweise | Verwechslung | Vorzeichenfehler | Stand |
+|---|---|---:|---:|---:|---:|---|
+| Wertebreite aus der Datensatzgrenze: 16-Bit-Lesart ohne nachfolgenden Datensatz, 8-Bit-Lesart gleicher Form mit nachfolgendem Datensatz (Anzahl 3–32 + streng steigende Achse, bis 3 Füllbytes) → Byte-Tabelle | `WIDTH_BY_BOUNDARY` | +366 | −290 | +75 | +27 | an |
+| 16-Bit-Felder nur auf der Adressparität des Abbilds (≥ 20 Datensätze mit 16-Bit-Zählern/Achsen, ≥ 4 : 1) | `ALIGNED_16` | ±0 | ±0 | −62 | ±0 | an |
+| Nur entscheidende Stimmen zur Byte-Reihenfolge | `DECISIVE_VOTES` | ±0 | ±0 | ±0 | ±0 | **aus** |
+
+`DECISIVE_VOTES` ist technisch begründet, hat auf den Entwicklungsdaten aber keine messbare Wirkung. Ihre einzige
+erwartbare Wirkung beträfe die MSV90-Byte-Reihenfolge, die nur aus dem Holdout bekannt ist. Eingeschaltet wäre sie
+eine am Holdout ausgerichtete Regel; sie bleibt deshalb aus, bis neue Entwicklungsdaten sie prüfen.
+
+Die Breitenregel irrt in 18 Fällen (16-Bit-Tabellen 16×16, 12×12, 10×10, deren Bytes zufällig wie ein Datensatz
+weitergehen). In 31 weiteren Fällen geht ein Kennfeld ganz verloren: Die falsch verkürzte Lesart hat eine schwächere
+Oberfläche, eine früher beginnende Zeilenabstands-Lesart gewinnt die Überlappung und verdrängt auch benachbarte
+Datensätze. Alle Lesarten dieser Regel sind als „Wertebreite nur aus dem Datensatzaufbau abgeleitet“ gekennzeichnet.
+
+### 6a.3 Ergebnisse
+
+| Daten | exakt 1.20.1 → 1.21 (Runde 1) → 1.21 (Runde 2) | teilweise | Verwechslung | Vorzeichenfehler | Byte-Reihenfolge falsch |
+|---|---|---|---|---|---|
+| Entwicklung (58) | 20 517 → 30 735 → **31 142** | 3 812 → 2 774 → 2 449 | 9 020 → 7 912 → 7 908 | 1 890 → 1 128 → 1 158 | 2 829 → 21 → 21 |
+| Holdout (105), zweite Messung | 35 382 → 49 958 → **51 016** | 7 181 → 4 837 → 4 074 | 16 820 → 15 518 → 15 459 | 2 639 → 2 017 → 2 281 | 4 270 → 1 336 → 1 336 |
+
+- Entwicklung Runde 1 → 2: 65 exakte Kennfelder verloren, 472 gewonnen. Holdout: 113 verloren, 1 171 gewonnen.
+- Holdout je Linie (Runde 1 → 2, exakt): Kalibrierabbilder ME9 365 → 378, MEVD17.2.3 B38 5 416 → 5 734,
+  B38 I12 1 355 → 1 447, B48 3 938 → 4 169, MSD80 N43 3 870 → 4 007, MSV90 3 368 → 3 531. Vollflashs nahezu gleich
+  (MEVD17.2.3 +108, MSD80 N43 ±0, MSV90 −4): Dort lagen die Tabellen schon über den Code fest.
+- **Datentyp richtig** unter den exakten Funden sinkt leicht (Holdout 93,3 % → 92,9 %): Die neuen Byte-Tabellen
+  haben öfter ein Vorzeichen, das die Bytes zwar entscheiden, die Erkennung aber nicht kennt. Sie sind als
+  ungeprüft markiert (§ 6a.5).
+- **Nicht gelöst:** Verwechslungen auf MEVD17.2.3-Vollflashs (1.20.1 3 042 → Runde 1 3 719 → Runde 2 3 744) und die
+  Byte-Reihenfolge der MSV90-Kalibrierabbilder (unverändert 1 046). Beide sind nur aus dem Holdout bekannt; eine
+  Abhilfe ohne neue Entwicklungsdaten wäre eine Anpassung an die Testdaten.
+
+### 6a.4 Nicht bewertbare Kandidaten
+
+Kandidaten der Vollflashs außerhalb aller A2L-Objekte, automatisch eingeordnet (erste zutreffende Klasse):
+nachweislich falsch (≥ 90 % Füllbytes, ≥ 80 % Text, vom eigenen Datenmaskenmodell als Code erkannt), plausibel
+(der TriCore-Code bildet die Startadresse mit `movh.a` + `lea`; oder die ersten 64 Byte stehen im A2L-Datenbereich,
+vermutlich eine inaktive Kopie), sonst nicht bewertbar. „Plausibel“ ist **nicht verifiziert**; bestätigt ist keiner.
+
+| Daten | gesamt | nachweislich falsch | plausibel, nicht verifiziert | nicht bewertbar |
+|---|---:|---:|---:|---:|
+| Entwicklung (Stand Runde 1) | 3 248 | 66 (Füllbytes 44, Text 22) | 57 (Code-Bezug 36, Kopie 21) | 3 125 |
+| Holdout (Diagnose, Runde 2) | 6 235 | 176 (Füllbytes 104, Text 48, Code 24) | 150 (Code-Bezug 122, Kopie 28) | 5 909 |
+
+Stichprobe (fester Seed, je Linie 40): Entwicklung 78 von 80 nicht bewertbar, Holdout 182 von 200.
+
+**Unabhängige Gegenprobe an einem Entwicklungsstand mit ELF-Symboltabelle** (Linkersymbole mit Adresse und Größe,
+nicht aus der A2L): Von 1 087 Kandidaten des Vollflashs (Stand Runde 1) liegen 258 exakte Funde genau auf einem ELF-Objekt und 568
+innerhalb eines größeren Objekts (Struktur). **Keiner der 136 nicht bewertbaren Kandidaten liegt in einem
+ELF-Objekt.** Das spricht dort gegen echte, nur undokumentierte Tabellen, ist aber kein Beweis (nicht jeder Bereich
+trägt Symbole) und gilt für einen einzelnen Stand.
+
+Fazit: Der größte Teil lässt sich mit den vorhandenen Daten weder bestätigen noch widerlegen. Er bleibt als
+„Datenmuster-Vermutung“ ungeprüft und wird nicht als sicher erkannt ausgegeben.
+
+### 6a.5 Anzeige
+
+- Datentyp mit „?“ und Grund (Tooltip, Detailansicht), wenn er nicht belegt ist: Vorzeichen offen (mit Alternative),
+  nur aus der Glätte geschätzt (Datenmuster-Funde) oder Wertebreite nur aus dem Datensatzaufbau abgeleitet.
+- Übertragene Namen: „Name übertragen (ungeprüft)“.
+- Belegstärke (Code-Beleg / Strukturbeleg / Datenmuster-Vermutung) und Herkunft wurden schon angezeigt.
+  Überlappende Kandidaten werden weiterhin vor der Ausgabe aufgelöst; es erscheint immer nur eine Lesart je Bereich.
+
+### 6a.6 Laufzeit und Speicher
+
+Zuerst ein reproduzierbares Profil (seriell, je Linie ein Kalibrier- und ein Vollabbild): Den größten Einzelanteil
+auf TriCore-Vollflashs hat der Code-Durchlauf (`_walk`, 30–40 % der seriellen Zeit), danach die Datensatzsuche.
+Geändert, jeweils mit Gleichheitsprüfung aller Durchlauf-Ergebnisse auf 77 TriCore-Abbildern (0 Unterschiede):
+
+- Der Durchlauf besucht nur Befehle, die seinen Zustand ändern (≈ 40 % der Befehle). Sprungziele werden in
+  Adressreihenfolge zusammengeführt. Der Befehlsstrom wird einmal je Abbild dekodiert, in kompakten Feldern
+  (4 Byte je Befehl).
+- Stack-Speicherbefehle werden zwischen den Durchläufen wiederverwendet; die Lagesuche verlagerter Kalibrierung prüft
+  nur Bytes, die eine Anzahl sein können.
+
+Leistungssatz, 15 Abbilder, nacheinander ohne Last, 1.20.1 → 1.21 Runde 1 → Runde 2:
+
+| Linie | Abbild | Laufzeit (s) | Spitzenspeicher (MB) | exakt |
+|---|---|---|---|---|
+| ME9 | Kalibrierung | 4,8 → 5,0 → 5,1 | 19 → 19 → 19 | 101 → 123 → 127 |
+| MEVD17.2 | Kalibrierung / Vollflash | 8,0 / 12,1 → 7,7 / 11,9 → 7,7 / 10,7 | 38 / 173 → gleich → gleich | 940 → 1 053 → 1 077 |
+| MEVD17.2.3 (3 Linien) | Kalibrierung | 17,3 → 15,6 → 15,9 | 22 → 22 → 22 | 1 001 → 1 319 → 1 398 |
+| MEVD17.2.3 (3 Linien) | Vollflash (10 MB) | 61,9 → 57,6 → 55,9 | 431 → 431 → 431 | 1 553 → 1 869 → 1 880 |
+| MSD80 (2 Linien) | Kalibrierung | 16,4 → 15,7 → 15,8 | 45 → 45 → 45 | 528 → 601 → 621 |
+| MSD80 (2 Linien) | Vollflash | 19,5 → 26,8 → 23,5 | 88 → 87 → 86 | 630 → 1 462 → 1 462 |
+| MSV90 | Kalibrierung / Vollflash | 7,3 / 12,2 → 7,1 / 15,8 → 7,2 / 14,1 | 36 / 86 → gleich → gleich | 296 → 697 → 702 |
+| **Summe** | | **159,5 → 163,1 → 155,9** | **431 → 431 → 431** | **5 049 → 7 124 → 7 267** |
+
+Gegenüber 1.20.1 insgesamt 2 % schneller bei 44 % mehr exakten Funden. Langsamer bleiben die Siemens-Vollflashs
+(MSD80 +21 %, MSV90 +16 %), wo die TriCore-Auswertung jetzt ein Vielfaches an Tabellen findet. Eine erste Fassung
+des Befehlsstroms in Python-Listen brauchte auf 10-MB-Vollflashs 200 MB mehr Speicher; mit kompakten Feldern ist der
+Spitzenspeicher wieder wie in 1.20.1. Regressionssatz: alle 15 Fälle unverändert, keine neuen Funde in den
+synthetischen Negativdateien.
+
+**Prüfungen Runde 2:** pytest 1 154 bestanden, 22 übersprungen, 0 fehlgeschlagen (inkl. GUI, Firmware-Guard,
+Modellsperre; Registry-Einstellungen vorher/nachher identisch). GUI-Smoke 10/10, Übersetzungsprüfung 2 256 Texte
+ohne Lücke, Firmware-Guard über den ganzen Baum ohne Befund.
+
+### 6a.7 Referenzdaten, die fehlen
+
+- **Neue unabhängige Testgruppe:** Keine. Alle lokal vorhandenen Referenzsätze mit A2L sind bereits Entwicklung
+  oder Holdout. Die Ergebnisse dieser Runde sind deshalb nicht unabhängig bestätigt.
+- **Reale Paare früherer Berichte (15) und Negativbestand offener Firmware (7):** In den zulässigen lokalen
+  Verzeichnissen nicht vorhanden. Wiederholbar sind nur der Regressionssatz (synthetische Fälle, synthetische
+  Negativdateien, MS42, MS43, MSD80 mit Community-XDF).
+- Für die offenen Punkte (MSV90-Byte-Reihenfolge, MEVD17.2.3-Vollflashs) fehlen Entwicklungsdaten derselben Linien.
+
 ## 7. Ghidra und REA (nur extern)
 
 Ghidra 12.1.4 und REA wurden ausschließlich als externe Werkzeuge an Entwicklungsabbildern benutzt. Nichts davon
@@ -222,14 +357,19 @@ trainierte Strukturmodell ist unverändert; Modellsperre und Firmware-Guard sind
   den Entwicklungsdaten gewählte Schwelle ist 2 : 1. Deshalb gilt keine Reihenfolge für das ganze Abbild, und
   1 046 exakte Funde haben die falsche Reihenfolge. Eine Änderung der Schwelle anhand des Holdouts wäre eine
   Anpassung an die Testdaten und unterbleibt; sie braucht neue Entwicklungsdaten.
-- **Verwechslungen auf MEVD17.2.3-Vollflashs** steigen (§ 6.1). Ursache und Abhilfe sind offen.
+- **Verwechslungen auf MEVD17.2.3-Vollflashs** steigen (§ 6.1, § 6a.3: 3 042 → 3 744). Ursache und Abhilfe sind
+  offen; sie sind nur aus dem Holdout bekannt und brauchen Entwicklungsdaten derselben Linie.
+- **Breitenregel** (§ 6a.2): 18 16-Bit-Tabellen werden als Byte-Tabelle gelesen, 31 Kennfelder gehen durch
+  verdrängende Zeilenabstands-Lesarten verloren (Entwicklung). Vorzeichenfehler steigen, weil die neuen
+  Byte-Tabellen ihr Vorzeichen nicht kennen; sie sind als „Datentyp nicht belegt“ markiert.
+- **Unabhängige Bestätigung fehlt** für Runde 2: keine neue Testgruppe (§ 6a.7).
 - **Vorzeichen:** Bosch-Hüllroutinen springen in gemeinsame Kernroutinen; das Vorzeichen ist dort aus dem Code nicht
   ablesbar. Die Lesart ohne Überlauf irrt bei Kennfeldern mit wenigen Werten nahe 0/255 (Flags). Rest: 2 017
   Vorzeichenfehler unter 49 958 exakten Funden auf dem Holdout.
 - **Gemeinsame Achsen ohne eigenen Kopf** und Bosch-Festachsen (FIX_AXIS) sind im reinen Kalibrierabbild ohne Code
   nicht auffindbar; Kalibrierabbilder bleiben deutlich unter Vollflashs (Recall 0,25–0,46 gegenüber 0,63–0,89).
 - **Präzision** ist nicht ausgewiesen: Funde außerhalb der A2L-Objekte sind nicht automatisch falsch.
-- **Laufzeit** auf TriCore-Vollflashs mit Zeigertripeln/Verlagerung bis +63 %.
+- **Laufzeit** auf Siemens-TriCore-Vollflashs +16 bis +21 % gegenüber 1.20.1 (§ 6a.6); insgesamt 2 % schneller.
 - **Nicht wiederholbar:** die realen Paare früherer Berichte und der Negativbestand offener Firmware lagen nicht vor.
 - Ghidra/REA nur extern; REA öffnet keine TriCore-ELF. Kein Modelltraining (§ 8).
 - Die Ergebnisse gelten für BMW-Steuergeräte von Bosch und Siemens auf TriCore bzw. PowerPC (ME9). Andere
