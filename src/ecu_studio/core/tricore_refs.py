@@ -621,6 +621,7 @@ class CallDescriptor:
     cell_signed: bool | None = None
     record: bool = False      # the call passes a record header (counts + axes) in front of the data
     registers: tuple = (4, (5, 6))   # (data register, axis registers) of the calls
+    pointer: bool = False     # named by a pointer triple (data, X, Y) in memory, not by a call (1.21.0)
 
 
 MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
@@ -629,6 +630,31 @@ MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table afte
 # table-routine shares run continuously (0.30 ... 0.71), hence the extra code check in call_descriptors.
 PRELOOKUP_SHARE = .6     # a4-only calls of a prelookup routine naming a parsable axis header
 POSTLOOKUP_SHARE = .6    # a4-only calls of a table routine with two prelookups on the path
+
+
+BLANK_AXES = True
+
+
+def blank_axis(data: bytes, header: int) -> bool:
+    """A count-prefixed axis whose points are all equal (unapplied, e.g. all zero).
+
+    Such axes fail axis_at (strictly increasing). Only role learning uses them: the
+    routine is an axis lookup either way. MSD80 80B37 builds (development data): half
+    of the axis-lookup calls name all-zero axes; with axis_at alone the routine's share
+    (51 %) stayed below PRELOOKUP_SHARE and the split interpolations were lost (1.21.0).
+    """
+    if not 0 <= header < len(data):
+        return False
+    for width in (2, 1):
+        if header % width or header + width > len(data):
+            continue
+        n = int.from_bytes(data[header:header + width], 'little')
+        a = header + width
+        if not 2 <= n <= 32 or a + n * width > len(data):
+            continue
+        if len(set(data[a + k * width:a + (k + 1) * width] for k in range(n))) == 1:
+            return True
+    return False
 
 
 def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[int]]:
@@ -649,7 +675,8 @@ def prelookup_roles(data: bytes, sites: list[CallSite]) -> tuple[set[int], set[i
             is_axis[c.data] = axis_at(data, c.data) is not None
         st = stats.setdefault(c.callee, [0, 0])
         st[0] += 1
-        st[1] += is_axis[c.data]
+        # Unapplied axes (count header, all points equal, e.g. zero) name an axis as well.
+        st[1] += is_axis[c.data] or (BLANK_AXES and blank_axis(data, c.data))
     pre = {r for r, (n, ax) in stats.items() if n >= MIN_ROLE_CALLS and ax >= PRELOOKUP_SHARE * n}
     post_stats: dict[int, list[int]] = {}
     for c in sites:
@@ -820,6 +847,70 @@ def role_sites(generic, roles) -> list[CallSite]:
     return out
 
 
+POINTER_TRIPLES = True
+MIN_TRIPLES = MIN_CALLS   # fewer triples: chance words, not a descriptor table
+TRIPLE_SIZE = 12
+
+
+def pointer_triples(data: bytes, reloc: tuple = (), lo: int = 0, hi: int | None = None) -> dict[int, tuple]:
+    """{data offset: (X axis, Y axis, triple position)} from 32-bit pointer triples in memory.
+
+    Some builds pass a table to its interpolation through a descriptor in memory
+    instead of immediate loads: three aligned little-endian addresses (data, X axis
+    header, Y axis header). A triple counts when all three point into the image
+    (plain segments or the inferred relocation), both axes parse as count-prefixed
+    headers (axis_at) and the data lies outside both axes; one data address must
+    always name the same axes, the data must not itself be an axis (arrays of axis
+    pointers) and a neighbouring triple must sit 12 bytes before or after (descriptor
+    arrays). Fewer than MIN_TRIPLES such triples are no evidence.
+    MSD80 80B37 builds (development data) reference most tables no call names like
+    this (162 named on one build, all matching the reference); on the Bosch and
+    other Siemens development images no triple survives these rules. The order
+    (data, X, Y) is the one found there (1.21.0).
+    """
+    hi = len(data) if hi is None else hi
+    n = len(data) // 4
+    if n < 3:
+        return {}
+    w = np.frombuffer(data[:n * 4], '<u4').astype(np.int64)
+    f = np.full(n, -1, np.int64)
+    for a, b, delta in reloc:
+        m = (w >= a) & (w < b)
+        f[m] = w[m] - delta
+    for seg in SEGMENTS:
+        m = (f < 0) & (w >= seg) & (w < seg + len(data))
+        f[m] = w[m] - seg
+    ok = f >= 0
+    idx = np.flatnonzero(ok[:-2] & ok[1:-1] & ok[2:])
+    axes: dict[int, CountAxis | None] = {}
+
+    def axis(o):
+        if o not in axes:
+            axes[o] = axis_at(data, o)
+        return axes[o]
+    readings: dict[int, set] = {}
+    for i in idx.tolist():
+        d, xh, yh = int(f[i]), int(f[i + 1]), int(f[i + 2])
+        if not lo <= d < hi or len({d, xh, yh}) < 3:
+            continue
+        x = axis(xh)
+        y = axis(yh) if x is not None else None
+        if y is None or any(a.header <= d < a.end for a in (x, y)):
+            continue
+        if axis(d) is not None or blank_axis(data, d):
+            continue        # arrays of axis pointers: three of them read like a triple
+        readings.setdefault(d, set()).add((x, y, i * 4))
+    out = {}
+    for d, rs in readings.items():
+        if len({(x.header, y.header) for x, y, _ in rs}) == 1:
+            out[d] = min(rs, key=lambda r: r[2])
+    # Descriptor tables are arrays of 12-byte entries: a lone triple (or one only
+    # 4 / 8 bytes from another, i.e. an overlapping reading) is chance words.
+    pos = {r[2] for r in out.values()}
+    out = {d: r for d, r in out.items() if r[2] - TRIPLE_SIZE in pos or r[2] + TRIPLE_SIZE in pos}
+    return out if len(out) >= MIN_TRIPLES else {}
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
     in a4 to one of the descriptors' routines, with or without resolved axes.
@@ -892,8 +983,11 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         if via and y is None:
             continue
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
+    triples = pointer_triples(data, sites.relocation, lo, hi) if POINTER_TRIPLES else {}
     if len({d for d in found}) < MIN_CALLS:
-        return {}
+        if not triples:
+            return {}
+        found = {}
     cells = routine_cells(h, entries, {r[2] for readings in found.values() for r in readings if not r[5]},
                           {r: v[0] for r, v in roles.items()})
     count_width: dict[int, Counter] = {}
@@ -904,7 +998,7 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     rec_cells = record_cells(h, entries, {r: c.most_common(1)[0][0] for r, c in count_width.items()})
     cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
-    out.named = frozenset(c.data for c in sites if c.callee in cells and lo <= c.data < hi)
+    out.named = frozenset({c.data for c in sites if c.callee in cells and lo <= c.data < hi} | set(triples))
     out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
                               if lo <= v < hi)
     for d, readings in found.items():
@@ -919,6 +1013,11 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
                                 all(r[4] for r in readings), *cell, record=rec,
                                 registers=roles.get(callee, DEFAULT_ROLES))
+    for d, (x, y, at) in triples.items():
+        if d not in out:
+            # No routine: the cell width comes from the gap to the next object (cell_widths);
+            # a callee of its own keeps the routine vote out.
+            out[d] = CallDescriptor(d, x, y, -1 - at, (at,), pointer=True)
     return out
 
 

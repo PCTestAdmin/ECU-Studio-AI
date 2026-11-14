@@ -50,6 +50,7 @@ POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
+POINTER_TRIPLE_ORIGIN = 'TriCore-Zeigertripel + Achsen (ungeprüft)'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -769,6 +770,12 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                         f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
             evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
+        elif called and getattr(calls[off], 'pointer', False):
+            evidence = (f'Zeigertripel im Programmspeicher @ 0x{calls[off].sites[0]:X} nennt Datenstart und Achsen: '
+                        f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
+                        f'({pair[1].count} Punkte); Zellbreite {w} Byte aus dem nächsten benannten Objekt.')
+            evidence += _cell_type_note(calls[off], dtype)
+            origin = POINTER_TRIPLE_ORIGIN
         elif called and calls[off].record:
             n = len(calls[off].sites)
             evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt einen '
