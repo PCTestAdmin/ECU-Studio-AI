@@ -1,3 +1,44 @@
+## 1.21.0 (in Entwicklung, nicht veröffentlicht)
+
+Bessere Kennfelderkennung ohne Definition, gemessen an privaten Referenzdaten (A2L + HEX) eines Datengebers.
+Die Daten bleiben lokal; öffentlich sind nur zusammengefasste Zahlen. Entwicklung und Holdout wurden vor der Arbeit
+nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICKLUNG_1.21.0.md). Kein Modelltraining.
+
+**Kennfelderkennung (alles weiter ungeprüft und als Strukturhinweis gekennzeichnet)**
+
+- **Kalibrierung außerhalb des Abbilds:** TriCore-Entwicklungsstände, deren Code den Datenbereich an einer anderen
+  Flash-Adresse erwartet (z. B. 0xA0800000), werden über Achsköpfe und Datensätze platziert. Zwei unabhängige
+  Belege müssen übereinstimmen; mehrdeutige Lagen werden verworfen.
+- **Zeigertripel:** Tabellen, die der Code über Deskriptor-Arrays (Daten, X-Achse, Y-Achse) im Speicher übergibt,
+  werden mit eigener Herkunftsangabe gemeldet. Nur in Arrays aus 12-Byte-Einträgen mit lesbaren Achsen.
+- **Achssuche mit unbelegten Achsen:** Achsen, deren Stützstellen alle gleich sind, zählen bei der Rollenerkennung
+  der Achssuch-Routinen mit, aber nur bei Routinen, die auch echte Achsen lesen.
+- **Datensätze:** gemischte Achsbreiten (8/16 Bit), vorzeichenbehaftete Bytes, Wertebreite aus dem Abstand zum
+  nächsten Datensatzkopf, eine Byte-Reihenfolge je Abbild (Mehrheit der Datensätze mit 16-Bit-Zählern/Achsen).
+  Höchstzahl der Datensatzköpfe 1000 → 2000.
+- **Vorzeichen:** Wo der Code es nicht festlegt, gilt die Lesart ohne Überlauf zwischen Nachbarzellen; bei Gleichstand
+  bleibt es vorzeichenlos. Als ungeprüft gekennzeichnet.
+- **Weniger Fehlfunde:** Glatte Zeilenabstands-Läufe, in denen der Programmcode einzelne Objekte adressiert, werden
+  verworfen.
+- **Namensübertragung zwischen Softwareständen:** Flache Blöcke (Nullen, ein Wert) werden nur noch übertragen, wenn
+  beide Nachbaranker dieselbe Verschiebung zeigen oder die angrenzenden Bytes übereinstimmen.
+
+**Identifikation**
+
+- EPK-Projektname verfeinert eine Plattformfamilie, wenn er genau eine Klartextfamilie nennt (z. B. MED17 → MEVD17.2).
+- Siemens-Datensatzname (`CA…….DAT`) wird als Software-Merkmal angezeigt. Die Familie bleibt ohne Klartext unbekannt.
+
+**A2L**
+
+- Objekte mit verdoppelten Anführungszeichen in Zeichenketten gehen nicht mehr verloren; VAL_BLK mit `NUMBER` hat die
+  richtige Größe. Label-Lexikon wird einmal statt je Objekt normalisiert (schneller).
+
+**Grenzen**
+
+- Ghidra und REA wurden nur extern zur Analyse benutzt; sie sind weder Teil des Programms noch Abhängigkeit.
+- Kein Modell trainiert: Nutzungsrechte der Referenzdaten für Training sind nicht geklärt.
+- Weitere Grenzen und alle Zahlen: [ENTWICKLUNG_1.21.0.md](docs/ENTWICKLUNG_1.21.0.md).
+
 ## 1.20.1 (14.11.2026)
 
 Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –

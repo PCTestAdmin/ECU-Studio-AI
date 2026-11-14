@@ -640,7 +640,7 @@ def blank_axis(data: bytes, header: int) -> bool:
     """A count-prefixed axis whose points are all equal (unapplied, e.g. all zero).
 
     Such axes fail axis_at (strictly increasing). Only role learning uses them: the
-    routine is an axis lookup either way. MSD80 80B37 builds (development data): half
+    routine is an axis lookup either way. Some MSD80 development builds (private reference data): half
     of the axis-lookup calls name all-zero axes; with axis_at alone the routine's share
     (51 %) stayed below PRELOOKUP_SHARE and the split interpolations were lost (1.21.0).
     """
@@ -868,7 +868,7 @@ def pointer_triples(data: bytes, reloc: tuple = (), lo: int = 0, hi: int | None 
     always name the same axes, the data must not itself be an axis (arrays of axis
     pointers) and a neighbouring triple must sit 12 bytes before or after (descriptor
     arrays). Fewer than MIN_TRIPLES such triples are no evidence.
-    MSD80 80B37 builds (development data) reference most tables no call names like
+    Some MSD80 development builds (private reference data) reference most tables no call names like
     this (162 named on one build, all matching the reference); on the Bosch and
     other Siemens development images no triple survives these rules. The order
     (data, X, Y) is the one found there (1.21.0).
