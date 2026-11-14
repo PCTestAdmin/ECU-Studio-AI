@@ -1,4 +1,4 @@
-## 1.20.1 (12.11.2026)
+## 1.20.1 (14.11.2026)
 
 Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –
 nur als Prüfung, ohne Korrektur. Keine untersuchte Originaldatei erreicht eine vollständige Checksummenabdeckung;

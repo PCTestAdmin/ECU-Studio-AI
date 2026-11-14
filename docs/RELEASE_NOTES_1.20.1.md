@@ -1,6 +1,6 @@
 # ECU Studio AI 1.20.1 – Release Notes
 
-**Veröffentlicht am 12.11.2026. Released on 12 Nov 2026.**
+**Veröffentlicht am 14.11.2026. Released on 14 Nov 2026.**
 
 Inhalt: [PR #24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24) (Deinstallation und Update, A5),
 [PR #25](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/25) (Release-Workflow),
