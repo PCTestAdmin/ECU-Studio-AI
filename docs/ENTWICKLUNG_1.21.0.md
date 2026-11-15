@@ -23,14 +23,20 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
   wird. MSV90 0,219 → 0,793, MSD80 N43 0,650 → 0,893 (Holdout).
 - **Wiedererkennung über Versionen:** falsche Namensübertragungen auf dem Holdout 1 832 → 210 bei 0,7 % weniger
   richtigen.
-- **Regressionssatz** (15 Fälle): exakte Funde gleich außer MS43 197 → 196 (§ 6b.4). Alle Tests grün. Laufzeit
-  insgesamt −5 % gegenüber 1.20.1 (Runde 3), Spitzenspeicher gleich.
+- **Regressionssatz** (15 Fälle): nach Phase 4 exakte Funde in allen Fällen wie 1.20.1 oder besser; die
+  MS43-Regression aus Runde 3 (197 → 196) ist behoben (§ 6c.2). Alle Tests grün. Laufzeit insgesamt −5 % gegenüber
+  1.20.1 (Runde 3), Spitzenspeicher gleich.
 - **Runde 3 (§ 6b), nur an Entwicklungsdaten entwickelt:** Entwicklung 31 142 → 32 058 exakt, Verwechslungen
   7 908 → 5 316, nicht bewertbare Kandidaten 3 252 → 1 743. Die Fehler der Breitenregel aus Runde 2 sind weitgehend
   behoben; eine schwach belegte 8-Bit-Lesart verdrängt die 16-Bit-Lesart nicht mehr. Fehlfunde auf offener
   Firmware ohne Kennfelder (wiederhergestellter Negativbestand, 7 Stände) 875 → 549. Holdout als Regressionsprüfung
   (nicht unabhängig): 51 016 → 52 701 exakt, Verwechslungen 15 459 → 10 743 (1.20.1: 16 820).
-- **Nicht unabhängig bestätigt:** Für Runde 2 und 3 gibt es keine neue, unbenutzte Testgruppe.
+- **Phase 4 (§ 6c):** Tests, Selbsttest und GUI-Smoke verändern die Registry nicht mehr (der Selbsttest nach einem
+  Update überschrieb das Fensterlayout des Nutzers). Ein Datensatzkopf, dem ein Code-Beleg widerspricht, verdrängt
+  keine Lesart mehr (MS43 wieder 197). Nicht belegte Vorzeichen bleiben als Alternative sichtbar: falsche Datentypen
+  ohne „?“ auf den Entwicklungsdaten 235 → 0. Funde und Zahlen sonst unverändert.
+- **Nicht unabhängig bestätigt:** Für Runde 2, 3 und Phase 4 gibt es keine neue, unbenutzte Testgruppe; lokal und
+  öffentlich wurden keine geeigneten Referenzen gefunden (§ 6c.4).
 - **Offen:** mehr Verwechslungen auf MEVD17.2.3-Vollflashs; Byte-Reihenfolge der MSV90-Kalibrierabbilder (§ 9).
   Kein Modelltraining.
 
@@ -507,6 +513,110 @@ Firmware-Guard über den ganzen Baum ohne Befund.
 - **Nicht bewertbare Kandidaten:** stark verringert (Entwicklung 3 252 → 1 743), aber weiter ungeprüft und als
   Datenmuster-Vermutung gekennzeichnet; bestätigt ist keiner.
 
+## 6c. Qualitätsphase 4: Testisolierung, MS43, Datentypen, Referenzen
+
+Stand 15.11.2026. Alle Regeln wurden nur an den Entwicklungsdaten und am Regressionssatz geprüft. Der Holdout wurde
+einmal nach dem Einfrieren der Erkennungsregeln als Regressionsprüfung gemessen.
+
+### 6c.1 Registry und Testisolierung
+
+- **Befund:** Der Selbsttest, den der Updater nach dem Installieren startet (`--self-check`), öffnete das
+  Hauptfenster mit den echten Einstellungen. Beim Schließen speichert das Fenster sein Layout. So ersetzte nach jedem
+  Update das Layout des unsichtbaren Prüffensters Fensterposition und Dock-Anordnung des Nutzers. Zusätzlich schrieb
+  jeder Programmstart das Farbschema neu, auch unverändert.
+- **Behoben:** Der Selbsttest arbeitet mit eigenen, danach gelöschten Einstellungen und ohne Update-Suche. Der
+  Programmstart schreibt keine Einstellungen mehr; erst das Schließen (Layout) oder eine Auswahl des Nutzers.
+- **Ein Einstellungsort** (`app_settings`): Registry für das installierte Programm wie bisher. `ECU_STUDIO_SETTINGS_DIR`
+  leitet in eine INI-Datei um, auch für Prozesse, die ein Test startet. Im Testprofil (`ECU_STUDIO_TEST_PROFILE`)
+  verweigert das Programm ohne Umleitung jeden Zugriff, statt auf die Registry zurückzufallen, und schreibt nie den
+  Deinstallationseintrag („Apps & Features“).
+- **Testlauf:** eigener Einstellungsordner je Test und je Lauf (am Ende gelöscht, auch nach Fehlern), keine
+  Update-Suche, keine sichtbaren Fenster. Vor jedem Test wird die Umleitung geprüft, sonst wird der Test nicht
+  ausgeführt. Die Registry-Schlüssel des Programms werden vor dem Lauf und nach jedem Test nur **gelesen**; eine
+  Änderung lässt den Lauf fehlschlagen und nennt den Test. Ein statischer Test lässt Registry-Schreibzugriffe nur an
+  der einen bekannten Stelle (Deinstallationseintrag) zu.
+- **Prüfung:** voller Testlauf und GUI-Smoke ohne Änderung an den Registry-Werten (Vergleich vorher/nachher, nur
+  lesend). Die produktive Registry wurde in dieser Phase nicht verändert. Die Änderung, die nach dem ersten Testlauf
+  von Runde 3 auffiel, lässt sich nachträglich keinem Test zuordnen; die Tests schreiben nachweislich nicht.
+  Wahrscheinlicher ist eine gleichzeitig laufende Sitzung des installierten Programms.
+
+### 6c.2 MS43-Regression aus Runde 3
+
+Der verlorene MS43-Fund war eine Glätte-Lesart (8 × 8 Byte), in deren Bereich ein Datensatzkopf lag. Dessen Datensatz
+überdeckt aber ein Kennfeld, das der Programmcode mit beiden Achsen adressiert; im Ranking unterliegt er ohnehin.
+Ein solcher Kopf ist ein unbestätigter Beleg und durfte die Lesart nicht vorab verdrängen.
+
+**Regel (allgemein, Schalter `HEADS_CODE_CHECKED`):** Ein Datensatzkopf widerspricht einer Glätte-Lesart nur, wenn
+kein Code-Beleg (Code-Verweis, Aufruf, Zeigertripel) mit anderem Start seinen Datensatz überdeckt. Keine Sonderregel
+für eine Familie oder Adresse; synthetischer Test in `tests/test_record_boundaries.py`.
+
+| | Runde 3 | Phase 4 |
+|---|---:|---:|
+| MS43 exakt | 196 | **197** (Präzision 78 % → 78 %) |
+| MS42 / MSD80 exakt | 22 / 86 | 22 / 86 |
+| Entwicklung exakt / Verwechslungen | 32 058 / 5 316 | 32 058 / 5 316 |
+| Negativbestand (Funde / sicher falsch) | 549 / 0 | 549 / 0 |
+
+Auf den Entwicklungsdaten liegt unter 483 Glätte-Lesarten mit Kopf im Bereich genau eine exakte (431 Verwechslungen);
+die Regel ändert dort nichts. Die synthetischen Fälle und Negativdateien des Regressionssatzes sind unverändert.
+
+### 6c.3 Datentypen
+
+Die Lesart „ohne Überlauf benachbarter Zellen“ wählt das Vorzeichen, belegt es aber nicht. Bei Flag-Tabellen nahe
+0/255 irrt sie; bei flachen Tabellen (alle Zellen gleich, oberstes Bit gesetzt) entscheidet sie gar nicht, und es
+entstand bisher nur eine Lesart ohne Alternative.
+
+**Regel (Schalter `SIGN_KEEPS_ALTERNATIVE`):** Bei Datensatz-Tabellen legt kein Code das Vorzeichen fest. Ist das
+oberste Bit gesetzt, bleibt die andere Lesart als Alternative erhalten. Die Anzeige zeigt den Typ mit „?“ und
+nennt den Grund; die Prüfliste führt ihn als Prüfgrund. Datentyp und Funde ändern sich nicht. 8/16-Bit-Breite:
+`BOUNDARY_STRONG_ONLY` bleibt an, offene Breiten bleiben wie in Runde 3 mit „?“ markiert.
+
+| Entwicklung (58 Abbilder) | Runde 3 | Phase 4 |
+|---|---:|---:|
+| Datentyp richtig unter exakten | 95,8 % | 95,8 % |
+| falscher Datentyp **ohne** „?“ | 235 ¹ | **0** |
+| exakte Funde mit „?“ | 9 234 ¹ | 13 318 |
+
+¹ Abgeleitet: Runde 3 hat dieselben Funde und Typen; abgezogen sind die Funde, deren „?“ erst die neuen Regeln setzen.
+
+Die Kennzeichnung kostet Übersicht: 41 % der exakten Funde tragen ein „?“. Das entspricht dem Stand der Belege.
+
+### 6c.4 Neue Referenzdaten und unabhängige Validierung
+
+- **Lokal:** Im Referenzordner liegt außer den bekannten Linien nur ein Satz „MED17.1.1“ (4 Abbilder, 2 A2L). Alle
+  sechs Dateien sind bytegleich mit dem MEVD17.2-Entwicklungssatz und damit nicht unabhängig. Neue Dateien seit der
+  ersten Bestandsaufnahme: keine. Andere persönliche Verzeichnisse wurden nicht durchsucht.
+- **Öffentlich:** Gesucht wurden frei lizenzierte A2L-/HEX-Paare (MEVD17, MSV90, andere Familien). Gefunden wurden nur
+  ein Demonstrationsarchiv des Standardisierungsgremiums ASAM (Beispiel-A2L mit HEX-Datei; Nutzungslizenz nicht
+  angegeben, kein reales Steuergerät), Beispiel-A2L ohne Abbild und Abstimmungen offener Steuergeräte (rusEFI:
+  Lizenz der Abstimmungen nicht angegeben; Speeduino: CC BY-NC 4.0, bereits als Teilreferenz gemessen). Keines davon
+  ist eine geeignete, rechtlich klare Referenz für die BMW-Familien; nichts wurde heruntergeladen.
+- **Folge:** Eine neue, vor der ersten Auswertung festgelegte Testgruppe ließ sich nicht bilden. **Runde 2, 3 und
+  Phase 4 sind nicht unabhängig validiert.** Die einzige unabhängige Messung bleibt Runde 1 (§ 6.1).
+
+### 6c.5 Holdout als Regressionsprüfung (nicht unabhängig)
+
+Phase 4 gegen Runde 3: exakt 52 701 → 52 701, Verwechslungen 10 743 → 10 743, Datentyp richtig 92,6 % → 92,6 %,
+Vorzeichen- / Byte-Reihenfolge-Fehler 2 486 / 1 436 unverändert, MEVD17.2.3-Vollflashs 3 297 Verwechslungen
+(unverändert, weiterhin über 1.20.1). Die „?“-Zählung des Holdouts stammt aus einem Zwischenstand ohne die Regel für
+flache Tabellen und wird nicht ausgewiesen.
+
+### 6c.6 Laufzeit und Speicher
+
+Leistungssatz (15 Abbilder, nacheinander ohne Last). Runde 3 wurde am selben Tag unter gleichen Bedingungen neu
+gemessen, weil der Wert vom Vortag (152,2 s) davon abweicht:
+
+| | 1.20.1 | Runde 3 (neu gemessen) | Phase 4 |
+|---|---:|---:|---:|
+| Laufzeit gesamt | 160,3 s | 141,8 s | 144,4 s |
+| Spitzenspeicher | 431 MB | 431 MB | 431 MB |
+| MSD80-Vollflash / MSV90-Vollflash | 20,3 / 13,3 s | 21,5 / 12,8 s | 20,7 / 13,1 s |
+| exakte Funde, Funde gesamt | – | gleich | gleich |
+
+Phase 4 enthält keine Laufzeitänderung. Die neue Kopfprüfung kostet höchstens 3 ms je Abbild (einzeln gemessen an
+allen sieben Vollflash-Linien); die Abweichungen von 1–5 % je Linie sind Messstreuung. Die Ziele (höchstens
+152,2 s und 431 MB) sind eingehalten.
+
 ## 7. Ghidra und REA (nur extern)
 
 Ghidra 12.1.4 und REA wurden ausschließlich als externe Werkzeuge an Entwicklungsabbildern benutzt. Nichts davon
@@ -545,14 +655,16 @@ trainierte Strukturmodell ist unverändert; Modellsperre und Firmware-Guard sind
   belegt und als ungeprüft markiert.
 - **Kennfeldvorschläge** sind nie eine geprüfte Grundlage für Änderungen oder Flashfreigaben: Änderungen in ihnen
   ergeben in der Prüfung vor dem Speichern immer einen gelben Befund (§ 6b.5).
-- **Unabhängige Bestätigung fehlt** für Runde 2 und 3: keine neue Testgruppe (§ 6a.7, § 6b.6).
+- **Unabhängige Bestätigung fehlt** für Runde 2, 3 und Phase 4: keine neue Testgruppe (§ 6a.7, § 6b.6, § 6c.4).
 - **Vorzeichen:** Bosch-Hüllroutinen springen in gemeinsame Kernroutinen; das Vorzeichen ist dort aus dem Code nicht
   ablesbar. Die Lesart ohne Überlauf irrt bei Kennfeldern mit wenigen Werten nahe 0/255 (Flags). Rest: 2 017
-  Vorzeichenfehler unter 49 958 exakten Funden auf dem Holdout.
+  Vorzeichenfehler unter 49 958 exakten Funden auf dem Holdout. Seit Phase 4 tragen solche Tabellen die andere
+  Lesart als Alternative („?“); auf den Entwicklungsdaten ist jeder falsche Datentyp so gekennzeichnet (§ 6c.3).
 - **Gemeinsame Achsen ohne eigenen Kopf** und Bosch-Festachsen (FIX_AXIS) sind im reinen Kalibrierabbild ohne Code
   nicht auffindbar; Kalibrierabbilder bleiben deutlich unter Vollflashs (Recall 0,25–0,46 gegenüber 0,63–0,89).
 - **Präzision** ist nicht ausgewiesen: Funde außerhalb der A2L-Objekte sind nicht automatisch falsch.
-- **Laufzeit** auf MSD80-Vollflashs +15 % gegenüber 1.20.1 (§ 6b.8); insgesamt 5 % schneller.
+- **Laufzeit:** insgesamt schneller als 1.20.1 (§ 6b.8, § 6c.6). MSD80-Vollflashs lagen in Runde 3 um 15 % darüber,
+  bei der Messung von Phase 4 auf dem Stand von 1.20.1; die Streuung zwischen Messtagen beträgt bis 7 %.
 - **Nicht wiederholbar:** die realen Paare früherer Berichte lagen nicht vor. Der Negativbestand offener Firmware
   wurde aus den offiziellen Quellen wiederhergestellt (§ 6b.4).
 - Ghidra/REA nur extern; REA öffnet keine TriCore-ELF. Kein Modelltraining (§ 8).

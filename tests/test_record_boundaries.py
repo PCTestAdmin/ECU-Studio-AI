@@ -219,3 +219,63 @@ def test_sixteen_bit_fields_lie_on_their_records_alignment(monkeypatch):
     assert not _has_record(odd, 0x100, 7, 6)
     monkeypatch.setattr(ar, 'RECORD_ALIGNED_16', False)
     assert _has_record(odd, 0x100, 7, 6)                           # the switch alone decides
+
+
+def test_header_contradicted_by_code_does_not_displace_a_pattern_reading():
+    """Phase 4 (MS43 regression of round 3, synthetic layout): three 8x8 byte tables in a row, the outer two
+    addressed by program code. Bytes inside the middle table and the next one also read as a header record;
+    that record overlaps a code-referenced table with another start, so it is no evidence against the middle
+    reading. A header that no code contradicts still removes the pattern reading."""
+    from ecu_studio.core import scoped_scan as ss
+    code = lambda off: MapDefinition('', off, 8, 8, 'u8', source='heuristic', record_layout='candidate:code-reference')
+    pitch = MapDefinition('', 0x140, 8, 8, 'u8', source='heuristic', record_layout='candidate:row-pitch')
+    left, right = code(0x100), code(0x180)
+    weak = reading(0x186, 6, 8, 'u8')                       # header at 0x176 inside the pitch, data in the right table
+    weak.candidate_region_start = 0x176
+    kept = ss._contradicted_patterns([left, pitch, right, weak])
+    assert pitch in kept and weak in kept                     # nothing removed here; the ranking decides overlaps
+    confirmed = reading(0x186, 6, 8, 'u8')
+    confirmed.candidate_region_start = 0x176
+    assert pitch not in ss._contradicted_patterns([left, pitch, confirmed])   # no code against the header
+    same = code(0x186)                                        # code addresses the record itself: confirms it
+    assert pitch not in ss._contradicted_patterns([left, pitch, same, weak])
+    old = ss.HEADS_CODE_CHECKED
+    try:
+        ss.HEADS_CODE_CHECKED = False
+        assert pitch not in ss._contradicted_patterns([left, pitch, right, weak])
+    finally:
+        ss.HEADS_CODE_CHECKED = old
+
+
+def test_sign_chosen_without_evidence_keeps_the_other_reading_open():
+    """Phase 4: a 0/255 flag table reads smooth as -1/0; the wrap rule may pick signed, but the
+    unsigned reading stays as an alternative and the type is shown as not established."""
+    flags = bytes([0x00, 0xFF] * 8 + [0xFF, 0x00] * 8)          # 4 x 8 cells
+    image = BinaryImage(bytes(64) + flags + bytes(64))
+    readings = [(1., reading(64, 4, 8, 'u8')), (1., reading(64, 4, 8, 's8'))]
+    out = ar._sign_by_wraps(image, readings)
+    assert len(out) == 1
+    m = out[0][1]
+    other = 'u8' if m.dtype == 's8' else 's8'
+    assert m.dtype_alternatives == [other]
+    assert dtype_doubt(m).startswith('Vorzeichen nicht belegt')
+    old = ar.SIGN_KEEPS_ALTERNATIVE
+    try:
+        ar.SIGN_KEEPS_ALTERNATIVE = False
+        assert ar._sign_by_wraps(image, [(1., reading(64, 4, 8, 'u8')), (1., reading(64, 4, 8, 's8'))])[0][1].dtype_alternatives == []
+    finally:
+        ar.SIGN_KEEPS_ALTERNATIVE = old
+    plain = BinaryImage(bytes(64) + bytes(range(32)) + bytes(64))  # no top bit: nothing to decide, nothing flagged
+    assert all(not m.dtype_alternatives for _, m in ar._sign_by_wraps(plain, [(1., reading(64, 4, 8, 'u8'))]))
+
+
+def test_flat_record_table_with_top_bit_keeps_both_signs_open():
+    """Phase 4: a flat record table (every cell 0x8000) reads equally smooth in both signs; no code fixes
+    the sign of a record, so the other sign stays open."""
+    import numpy as np
+    x, y = [100, 200, 400, 800], [10, 20, 30, 40]
+    rec = np.array([4, 4] + x + y + [0x8000] * 16, '<u2').tobytes()
+    image = BinaryImage(bytes(64) + rec + bytes(64))
+    found = [m for m in ar.scan_axis_records(image, max_results=50) if m.offset == 64 + 20 and m.width == 2]
+    assert found
+    assert all(m.dtype_alternatives and dtype_doubt(m).startswith('Vorzeichen nicht belegt') for m in found)

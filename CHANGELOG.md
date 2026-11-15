@@ -31,6 +31,10 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 - **Widersprochene Datenmuster:** Glätte-Kandidaten (Zeilenabstand), in deren Bereich ein angenommener Datensatzkopf
   liegt, und rein vorzeichenbehaftete Glätte-Lesarten werden verworfen. Datensatzbelege gehen vor bloßen Mustern.
   Entwicklungsdaten: Verwechslungen 7 878 → 5 316, exakte Funde +940.
+- **Datensatzkopf gegen Code-Beleg:** Ein Datensatzkopf verwirft eine Glätte-Lesart nur noch, wenn kein Kennfeld
+  aus dem Programmcode seinen Datensatz mit anderem Start überdeckt. Ein so widersprochener Kopf ist unbestätigt.
+  Behebt die MS43-Regression aus Runde 3 (196 → 197 exakt); Entwicklungsdaten, MS42, MSD80 und Negativbestand
+  unverändert.
 - **16-Bit-Felder im Datensatz ausgerichtet:** Auch wo ein Abbild zu wenige Datensätze für eine eigene Ausrichtung
   hat, liegen 16-Bit-Achsen und -Werte eines Datensatzes in geradem Abstand zu dessen Kopf. Auf offener Firmware ohne
   Kennfelder (Negativbestand) waren solche Lesarten die einzigen neuen Strukturfunde.
@@ -44,6 +48,10 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 
 - Datentyp mit „?“, wenn er nicht belegt ist (Vorzeichen offen, nur aus der Glätte geschätzt oder Wertebreite nur aus
   dem Datensatzaufbau). Der Grund steht im Tooltip und in der Detailansicht.
+- Vorzeichen von Datensatz-Tabellen: Kein Code legt es fest. Ist das oberste Bit gesetzt, bleibt die andere Lesart
+  als Alternative stehen („?“, Prüflistengrund), auch wenn die Lesart ohne Überlauf eine Seite bevorzugt oder eine
+  flache Tabelle gar nichts entscheidet. Entwicklungsdaten: falsche Datentypen ohne „?“ 235 → 0; 41 % der exakten
+  Funde tragen ein „?“.
 - Übertragene Namen sind als „Name übertragen (ungeprüft)“ markiert.
 - Die Detailansicht nennt alle Einträge, die sich Bytes mit dem gewählten Kennfeld teilen, mit ihrem Status
   (ungeprüfter Vorschlag oder Definition/geprüft).
@@ -72,6 +80,24 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 
 - Objekte mit verdoppelten Anführungszeichen in Zeichenketten gehen nicht mehr verloren; VAL_BLK mit `NUMBER` hat die
   richtige Größe. Label-Lexikon wird einmal statt je Objekt normalisiert (schneller).
+
+**Einstellungen, Selbsttest und Tests (Registry)**
+
+- **Selbsttest nach einem Update behält das Fensterlayout:** Der Selbsttest, den der Updater nach dem Installieren
+  startet, öffnete das Hauptfenster mit den echten Einstellungen. Beim Schließen speicherte es das Layout des
+  unsichtbaren Prüffensters und ersetzte so nach jedem Update Fensterposition und Dock-Anordnung des Nutzers. Der
+  Selbsttest arbeitet jetzt mit eigenen, danach gelöschten Einstellungen und ohne Update-Suche.
+- **Einstellungsort an einer Stelle** (`app_settings`): Registry für das installierte Programm wie bisher;
+  `ECU_STUDIO_SETTINGS_DIR` leitet in eine INI-Datei um, auch für Prozesse, die ein Test startet.
+  `ECU_STUDIO_TEST_PROFILE` (vom Testlauf gesetzt) verweigert ohne Umleitung jeden Zugriff auf die echten
+  Einstellungen, statt auf die Registry zurückzufallen.
+- **Testlauf isoliert und überwacht:** eigener Einstellungsordner je Test und je Lauf (am Ende gelöscht, auch nach
+  Fehlern), keine Update-Suche, keine sichtbaren Fenster. Vor jedem Test wird die Umleitung geprüft; ist sie nicht
+  nachweisbar, wird der Test übersprungen. Die Registry-Schlüssel des installierten Programms werden nur gelesen,
+  vor dem Lauf und nach jedem Test; eine Änderung lässt den Lauf fehlschlagen und nennt den Test.
+- **Deinstallationseintrag:** Im Testprofil schreibt das Programm den Eintrag in „Apps & Features“ nie
+  (Abgleich übersprungen, Schreibfunktion verweigert). Ein statischer Test erlaubt Registry-Schreibzugriffe nur an
+  dieser einen Stelle.
 
 **Grenzen**
 

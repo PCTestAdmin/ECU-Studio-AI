@@ -2491,6 +2491,7 @@
   "• Quell-BIN und A2L/DAMOS exakt auf denselben Softwarestand prüfen.": "• Check that the source BIN and A2L/DAMOS belong exactly to the same software version.",
   "… weitere {0} Blöcke; CSV exportieren für vollständiges Audit": "… {0} more blocks; export CSV for a complete audit",
   "… weitere {0} Hinweise (alle per Export)": "… {0} more hints (all via export)",
-  "⚪ nicht validiert": "⚪ not validated"
+  "⚪ nicht validiert": "⚪ not validated",
+  "Testprofil: Deinstallationseintrag wird nicht geschrieben.": "Test profile: the uninstall entry is not written."
  }
 }

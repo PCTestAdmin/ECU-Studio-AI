@@ -290,7 +290,11 @@ def _read_uninstall_entry() -> dict | None:
 
 
 def _write_uninstall_entry(values: dict) -> None:
+    import os
     import winreg
+    from ..app_settings import TEST_PROFILE, SettingsIsolationError
+    if os.environ.get(TEST_PROFILE):     # 1.21.0: a test run never writes the real uninstall entry
+        raise SettingsIsolationError('Testprofil: Deinstallationseintrag wird nicht geschrieben.')
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY, 0, winreg.KEY_SET_VALUE) as key:
         for name, value in values.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)

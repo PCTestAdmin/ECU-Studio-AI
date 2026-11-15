@@ -41,6 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
+from ..app_settings import app_settings
 from ..core.confidence import LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, overlap_note
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
@@ -279,10 +280,10 @@ class Window(QMainWindow):
         self.map_editors = []
         self.project_store = ProjectStore()
         self.setWindowTitle(f"ECU Studio AI v{__version__}  |  Calibration Workbench")
-        # defaultFormat(): the program uses the registry as before; tests, the smoke test and the screenshot tools
-        # switch to an INI file with setDefaultFormat/setPath. The two-argument constructor ignores that switch and
-        # always wrote into the user's real settings (the installed program's window layout, theme, update check).
-        self.settings=QSettings(QSettings.defaultFormat(),QSettings.Scope.UserScope,"ECU Studio","ECU Studio AI")
+        # app_settings(): the program uses the registry as before; tests (also in child processes), the smoke test
+        # and the screenshot tools use an INI file. The two-argument QSettings constructor ignored that switch and
+        # wrote into the user's real settings until 1.19.1 (window layout, theme, update check).
+        self.settings=app_settings()
         self.theme=self.settings.value("ui/theme", "dark")
         if self.theme not in ("light","dark"): self.theme="light"
         self.actions={}
@@ -730,7 +731,8 @@ class Window(QMainWindow):
         self.view3d.update()
         self.memory_atlas.dark=(theme=='dark')
         self.memory_atlas.update()
-        self.settings.setValue('ui/theme',theme)
+        if self.settings.value('ui/theme')!=theme:   # starting the program writes nothing (1.21.0)
+            self.settings.setValue('ui/theme',theme)
         for name,act in self.theme_actions.items():act.setChecked(name==theme)
 
     def reset_workspace(self):

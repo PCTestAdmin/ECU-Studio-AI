@@ -108,6 +108,7 @@ def _bounded_by_next_header(flat: list[MapDefinition], accepted: list[MapDefinit
 
 
 SIGN_BY_WRAPS = True
+SIGN_KEEPS_ALTERNATIVE = True    # Phase 4: the wrap rule chooses, the other sign stays an open alternative ("?")
 
 
 def _sign_by_wraps(image: BinaryImage, found: list) -> list:
@@ -128,10 +129,14 @@ def _sign_by_wraps(image: BinaryImage, found: list) -> list:
             if pick is not None:
                 chosen=[(sc,m) for sc,m in items if m.dtype[0]==pick]
                 if chosen:
+                    other=sorted({m.dtype for _,m in items if m.dtype[0]!=pick})
                     items=chosen
                     for _,m in items:
                         m.notes+=(' Vorzeichen: Lesart ohne Überlauf benachbarter Zellen'
                                   + (' (vorzeichenbehaftet).' if pick=='s' else ' (vorzeichenlos).'))
+                        if SIGN_KEEPS_ALTERNATIVE and _top_bit(image,m):
+                            # a preference, not evidence: flag tables near 0/255 read smooth either way
+                            m.dtype_alternatives=m.dtype_alternatives+[d for d in other if d not in m.dtype_alternatives]
         out.extend(items)
     return out
 
@@ -586,6 +591,11 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                 raw=np.frombuffer(image.read(m.offset,m.length),('<' if order=='little' else '>')+'u2')
                 m.endian=order
                 m.dtype='s16' if bool(np.any(raw>=0x8000)) and m.dtype=='s16' else 'u16'
+                if SIGN_KEEPS_ALTERNATIVE and bool(np.any(raw>=0x8000)):
+                    # the sign was judged in the other byte order: nothing decides it in this one
+                    other='u16' if m.dtype=='s16' else 's16'
+                    if other not in m.dtype_alternatives:
+                        m.dtype_alternatives=m.dtype_alternatives+[other]
                 m.notes+=(f' Byte-Reihenfolge {order} aus der Mehrheit der Datensätze dieses Abbilds '
                           '(Zähler/Achsen mit 16 Bit), nicht aus den Werten.')
             kept.append((sc,m))
@@ -610,7 +620,16 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
         if (kept is not m and m.dtype!=kept.dtype and m.dtype not in kept.dtype_alternatives
                 and _top_bit(image,kept)):
             kept.dtype_alternatives=kept.dtype_alternatives+[m.dtype]   # the bytes did not decide the sign
-    return list(unique.values())[:max_results]
+    out=list(unique.values())[:max_results]
+    if SIGN_KEEPS_ALTERNATIVE:
+        # No code fixes the sign of a record table. With a top bit set the other reading stays open even
+        # when only one reading was produced (e.g. a flat table of 0x8000: both readings equally smooth).
+        for m in out:
+            if m.dtype[1:] in ('8','16') and _top_bit(image,m):
+                other=('u' if m.dtype[0]=='s' else 's')+m.dtype[1:]
+                if other not in m.dtype_alternatives:
+                    m.dtype_alternatives=m.dtype_alternatives+[other]
+    return out
 
 
 RECORD_AXIS_LAYOUT = 'candidate:record-axis'

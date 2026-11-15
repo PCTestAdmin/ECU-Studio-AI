@@ -82,7 +82,7 @@ Lernmodell/Konfidenz daran kalibriert. Die Referenzdateien und die Firmware lieg
 | Bosch EDC17C46 / C64 / C74 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | **Benötigt:** Original-BIN + passende A2L, je 2 Softwarestände. |
 | Bosch EDC17CP02 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | Nur A2L vorhanden (4P1C2558), keine Firmware. **Benötigt:** Firmware zum Softwarestand 4P1C2558. |
 | Bosch MED17.5 / 17.5.5 / 17.5.25 / 17.7 / 17.7.2 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | **Benötigt:** Original-BIN + passende A2L. |
-| Bosch MEVD17.2.x / MEVD17.4.6 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | MEVD17.4.6: nur WinOLS-Projekt (.ols), Inhalt nicht verifizierbar lesbar. **Benötigt:** Original-BIN + A2L. |
+| Bosch MEVD17.2.x / MEVD17.4.6 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | MEVD17.4.6: nur WinOLS-Projekt (.ols), Inhalt nicht verifizierbar lesbar. **Benötigt:** Original-BIN + A2L. Im Entwicklungsstand 1.21.0 (nicht veröffentlicht) an privaten A2L gemessen, ebenso Siemens MSV90: [Roadmap B](../ROADMAP.md#b-erkennungsgüte-1201--1210-in-entwicklung); diese Zeile ändert sich erst mit einem Release. |
 | Bosch MD1 (MD1CS001, MD1CS004, MD1CP002) | Infineon AURIX | ⚪ nicht validiert | 0 | offen | offen | **Benötigt:** Original-BIN + passende A2L (DAMOS) mit EPK. |
 | Bosch MG1 (MG1CS001, MG1CS002, MG1CS011, MG1CS201) | Infineon AURIX | ⚪ nicht validiert | 0 | offen | offen | **Benötigt:** Original-BIN + passende A2L mit EPK. |
 | Continental Simos 8 / 10 / 12 / 18.1 / 18.2 / 18.10 / 19 | Infineon TriCore | ⚪ nicht validiert | 0 | offen | offen | **Benötigt:** Original-BIN + A2L. |

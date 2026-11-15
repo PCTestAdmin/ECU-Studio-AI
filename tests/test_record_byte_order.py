@@ -57,3 +57,23 @@ def test_without_a_majority_the_old_readings_stay(monkeypatch):
     img, z = image(4)                       # too few records to vote: unchanged
     few = [m for m in scan_axis_records(img, max_results=200) if m.offset == z]
     assert few and all(m.axes_x == [256 * k for k in range(8)] for m in few)
+
+
+def test_sign_stays_open_after_the_byte_order_is_turned():
+    """Phase 4: a record read in the other byte order gets the image order; the sign judged in the old order
+    says nothing about the new one, so with a top bit set the other sign stays an open alternative."""
+    yy, xx = np.mgrid[:6, :8]
+    z_values = (0x8010 + 9 * yy + 5 * xx).astype('<u2')
+    record = bytes([8, 6]) + np.arange(8, dtype='<u2').tobytes() + np.arange(6, dtype='<u2').tobytes() + z_values.tobytes()
+    buf = bytearray(0x200)
+    for p in [wide_record(i) for i in range(24)] + [record]:
+        buf += p + bytes(8)
+    buf += bytes(0x200)
+    z = len(buf) - 0x200 - 8 - len(record) + 2 + 2 * 14
+    img = BinaryImage(bytes(buf))
+
+    def at_z():
+        return [m for m in scan_axis_records(img, max_results=200) if m.offset == z]
+    found = at_z()
+    assert found and found[0].endian == 'little' and 'Mehrheit' in found[0].notes
+    assert found[0].dtype_alternatives == ['u16' if found[0].dtype == 's16' else 's16']

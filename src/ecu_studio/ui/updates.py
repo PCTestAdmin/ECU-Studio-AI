@@ -154,7 +154,7 @@ class UpdateController:
         """Installed with the installer: "Apps & Features" shows the running version. In-app updates up to
         1.20.0 replaced the files without updating that entry. Local registry only, never network."""
         root = updates.install_root(sys.executable)
-        if root is None:
+        if root is None or os.environ.get('ECU_STUDIO_TEST_PROFILE'):
             return
         try:
             updates.sync_uninstall_entry(root, __version__)

@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
-  <img alt="ECU Studio AI Roadmap: veröffentlicht, nächstes Update, in Arbeit, als Nächstes" src="docs/images/roadmap-light.svg" width="100%">
+  <img alt="ECU Studio AI Roadmap: veröffentlicht 1.20.1, in Entwicklung 1.21.0, danach geplant" src="docs/images/roadmap-light.svg" width="100%">
 </picture>
 
 <br><br>
@@ -15,299 +15,225 @@
 
 </div>
 
-<br>
+# Roadmap
 
-## ![Aktuell: 1.20.1](https://img.shields.io/badge/🎉_AKTUELL-1.20.1_·_veröffentlicht_14.11.2026-1a7f37?style=for-the-badge)
+Stand: 15.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
+Prüfberichte.
 
-[Jetzt herunterladen](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/latest). Die automatische Update-Suche
-ist seit 1.18.0 ab Werk aus („Offline zuerst“) und lässt sich in den Einstellungen einschalten.
+| | Version | Status |
+|---|---|---|
+| 🟢 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** · 14.11.2026 | **aktuelle Version** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)) |
+| 🟠 | **1.21.0** | **in Entwicklung, nicht veröffentlicht** (Draft-[PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
 
-**1.20.1** baut auf der **ersten validierten Ausbaustufe** des Checksummen- und Integritätssystems aus 1.20.0 auf
-([Release Notes 1.20.1](docs/RELEASE_NOTES_1.20.1.md), [1.20.0](docs/RELEASE_NOTES_1.20.0.md)): weitere
-ME7-Prüfsummen (nur Prüfung, nicht unabhängig validiert), Signaturstatus und sicherere Updates und Deinstallationen
-(siehe „Neu in 1.20.1“). Keine untersuchte Originaldatei erreicht bisher eine vollständige
-Checksummenabdeckung; eine erfolgreiche Teilprüfung ist keine vollständige Integritätsbestätigung, und es gibt keine
-Flashfreigabe. Die Clips sind echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
-Die neuesten Funktionen stehen oben.
+Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
+gemessen und veröffentlicht ist.
 
-<table>
-<tr><th align="left">Neu</th><th>Version</th></tr>
-<tr><td>
+**Inhalt:** [Statusbegriffe](#statusbegriffe) · [A. Versionen](#a-versionen) ·
+[B. Erkennungsgüte 1.20.1 → 1.21.0](#b-erkennungsgüte-1201--1210-in-entwicklung) ·
+[C. Funktionen und Stand](#c-funktionen-und-stand) · [D. Plan](#d-plan) ·
+[E. Nicht geplant, fehlende Daten](#e-bewusst-nicht-geplant-und-fehlende-daten)
 
-**Checksummen & Integrität** – Ein gemeinsamer Bereich mit fünf klaren Status: gültig, ungültig, unvollständig, nicht unterstützt, unbekannt. Ein zufällig passendes Verfahren macht eine Datei nie gültig. Bosch-Multipoint (ME7.x, ME9, MED9) ist unabhängig belegt: 199 von 199 Herstellerwerten. Die Prüfung läuft im Hintergrund mit Fortschritt und Abbrechen ([Details](docs/CHECKSUMMEN.md)).
+## Statusbegriffe
 
-</td><td align="center"><b>1.20.0</b></td></tr>
-<tr><td>
+| Status | Bedeutung |
+|---|---|
+| ✅ **veröffentlicht** | In einem GitHub-Release enthalten |
+| 🟠 **implementiert, nicht veröffentlicht** | Im Entwicklungszweig umgesetzt und getestet, aber in keinem Release (derzeit: 1.21.0, PR #29) |
+| 🧪 **experimentell** | Veröffentlicht oder implementiert, aber ausdrücklich als ungeprüft/experimentell gekennzeichnet; Ergebnisse sind Vorschläge |
+| 🟡 **teilweise** | Veröffentlicht, deckt aber nur einen Teil ab (welcher, steht in der Zeile) |
+| 📋 **geplant** | Noch nicht begonnen oder ohne lauffähigen Stand |
+| 🚫 **nicht unterstützt** | Nicht vorhanden; bei 🚫 in [E](#e-bewusst-nicht-geplant-und-fehlende-daten) bewusst ausgeschlossen |
 
-**Sichere Prüfsummenkorrektur** – Vorschau mit jedem Byte, ausdrückliche Bestätigung, unabhängige Nachprüfung vor dem Schreiben. Korrigierte Kopie und Änderungsprotokoll bleiben auch bei Schreibfehlern konsistent. Korrektur nur, wenn Steuergerät oder Datei das Verfahren ausreichend belegen.
+---
 
-</td><td align="center"><b>1.20.0</b></td></tr>
-<tr><td>
+## A. Versionen
 
-**Ehrlicher Preflight** – Profil-Prüffelder, bekannte Prüfsummen, vollständige Abdeckung, Signaturen und Flashfreigabe werden getrennt angezeigt. Ein Teilprofil oder eine unvollständige Prüfung ergibt nie einen sauberen Preflight.
+Die GitHub-Releases beginnen mit 1.15.0. Ältere Stände wurden lokal entwickelt und nicht als Release
+veröffentlicht; sie stehen nur im [CHANGELOG](CHANGELOG.md).
 
-</td><td align="center"><b>1.20.0</b></td></tr>
-<tr><td>
+| Version | Datum | Status | Schwerpunkte | Belege |
+|---|---|---|---|---|
+| **1.21.0** | – | 🟠 in Entwicklung | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
+| **1.20.1** | 14.11.2026 | ✅ veröffentlicht | Deinstallation nach In-App-Update ohne Rückstände (Inventar), Updates von Installer-Installationen über den geprüften Installer, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus mit sechs Zuständen, Release-Prüfungen | [Notes](docs/RELEASE_NOTES_1.20.1.md), PR [#24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24)–[#28](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/28) |
+| **1.20.0** | 11.11.2026 | ✅ veröffentlicht | Checksummen & Integrität mit fünf Status, Bosch-Multipoint unabhängig belegt (199/199), sichere Korrektur, getrennte Preflight-Stufen, stabiler Definitionseditor | [Notes](docs/RELEASE_NOTES_1.20.0.md), PR [#19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)–[#22](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/22) |
+| **1.19.1** | 08.11.2026 | ✅ veröffentlicht | Architektur nur mit zwei Merkmalen, weniger Fehlfunde (offene Firmware: nachweislich falsche Funde 921 → 0), A2L-Zwischenspeicher, Dateiversion | [Notes](docs/RELEASE_NOTES_1.19.1.md), PR [#16](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/16)–[#18](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/18) |
+| **1.19.0** | 04.11.2026 | ✅ veröffentlicht | Drei Erkennungsebenen, Art des Belegs statt Prozentzahl, TriCore-Programmcode (experimentell), Identifikation mit Stufe, Prüfliste, Lernmodelle ohne Freigabe entfernt | [Notes](docs/RELEASE_NOTES_1.19.0.md), [Validierung](docs/VALIDIERUNG_1.19.0.md), PR [#14](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/14) |
+| **1.18.2** | 01.11.2026 | ✅ veröffentlicht | Sicherheitskorrektur der Bildprüfung im Firmware-Schutz, Programmsymbol in kleinen Größen | PR [#12](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/12), [#13](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/13) |
+| **1.18.1** | 31.10.2026 | ✅ veröffentlicht | Programmsymbol, Firmware-Schutz prüft Bilder strukturell | [CHANGELOG](CHANGELOG.md) |
+| **1.18.0** | 31.10.2026 | ✅ veröffentlicht | Offline zuerst (Update-Suche ab Werk aus), lokale Referenzsuche, Definition bearbeiten, XDF-Export, Firmware-Schutz als Git-Hooks, TriCore-Interpolationsaufrufe (MSD80) | [Analyse](docs/ANALYSE_2026-10-31.md), PR [#9](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/9)–[#11](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/11) |
+| **1.17.0** | 24.10.2026 | ✅ veröffentlicht | Offenes Kennfeldpaket v2 mit Vorschau, Herkunft und Undo; reproduzierbare Referenzvalidierung | [Kennfeldpaket](docs/MAP_PACK.md), PR [#6](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/6), [#7](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/7) |
+| **1.16.4** | 23.10.2026 | ✅ veröffentlicht | Gemeinsame Achsen, Softwarestand-Vergleich mit Werteübernahme, Projektbibliothek, Fehlfundanalyse, neuere Projekte verlustfrei laden | [Analyse](docs/ANALYSE_2026-10-23.md), PR [#2](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/2), [#3](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/3) |
+| **1.16.3** | 22.10.2026 | ✅ veröffentlicht | Updater-Arbeitsordner, Wiederholen bei Dateisperren | [CHANGELOG](CHANGELOG.md) |
+| **1.16.2** | 22.10.2026 | ✅ veröffentlicht | EDC16/EDC17-Prüfsummenblöcke (Prüfung; Korrektur nur mit OEM-Nachweis) | PR [#1](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/1) |
+| **1.16.1** | 22.10.2026 | ✅ veröffentlicht | Update aus der App repariert | [CHANGELOG](CHANGELOG.md) |
+| **1.16.0** | 22.10.2026 | ✅ veröffentlicht | Kopf-Datensätze und Datensatzketten, parallele Suche (2–4× schneller), englische Oberfläche, ORI/MOD-Vergleich, Namensübertragung, Prüfsummen ME7/MED9/ME9, Unterstützungsmatrix, vorherige Version wiederherstellen | [Analyse](docs/PROGRESS.md) |
+| **1.15.0** | 21.10.2026 | ✅ veröffentlicht | Erstes Release: Kennfeldsuche ohne Raster, A2L mit Achsen und EPK-Prüfung, Flash-Vorabprüfung, Windows-Paket ohne Python, Installer, Updates mit Rücksicherung | [CHANGELOG](CHANGELOG.md) |
+| 1.9.0 – 1.11.0 | 16.–17.10.2026 | kein Release | Lokale Entwicklungsstände: 3D-Ansicht, TCU-Kurvenscanner, Projektwerkzeuge, synthetisch trainiertes Modell (seit 1.19.0 entfernt) | [CHANGELOG](CHANGELOG.md) |
 
-**Stabiler Definitionseditor** – Nach dem Öffnen einer anderen Firmware zeigt der Editor keine Werte der vorherigen Datei mehr; ohne Kennfeldauswahl sind die Bearbeitungsfunktionen gesperrt.
+---
 
-</td><td align="center"><b>1.20.0</b></td></tr>
-<tr><td>
+## B. Erkennungsgüte 1.20.1 → 1.21.0 (in Entwicklung)
 
-**Zuverlässigere Erkennung** – Prozessorarchitektur nur mit zwei unabhängigen Merkmalen. Keine Code-Belege auf fremden Architekturen, weniger Fehlfunde auf Text und Zeigertabellen. Auf sieben offenen Firmwareständen: nachweislich falsche Funde 921 → 0.
+> [!IMPORTANT]
+> **Nichts aus dieser Tabelle ist veröffentlicht.** Die Zahlen beschreiben den Entwicklungszweig von 1.21.0
+> (PR #29), gemessen an privaten A2L-/HEX-Referenzdaten eines Datengebers (163 Abbilder, 80 A2L, BMW-Linien der
+> Familien ME9, MEVD17.2, MEVD17.2.3, MSD80, MSV90). Sie gelten **nur für diese Daten** und nur für
+> **verifizierbare 2D-Kennfelder** (A2L-Objekte, deren Lage und Form sich am Abbild prüfen lassen). Die Daten
+> bleiben lokal; mit ihnen wurde **kein Modell trainiert** (Nutzungsrechte dafür ungeklärt).
 
-</td><td align="center"><b>1.19.1</b></td></tr>
-<tr><td>
+**Exakt** = richtiger Start, richtige Form und Zellbreite. **Verwechslung** = Fund überdeckt ein Referenzkennfeld,
+ohne es zu treffen. Die **Präzision** ist nicht allgemein bestimmbar: Funde außerhalb der A2L lassen sich nicht
+bewerten („nicht bewertbar“), und die A2L beschreibt nicht jede Tabelle.
 
-**Kennfelder aus TriCore-Programmcode** – Bei Siemens-MSD80-Vollflashs liest die Suche die Interpolationsaufrufe: Datenstart, beide Achsen und Zelltyp kommen direkt aus dem Code. MSD80 mit Community-XDF: 39 → 86 von 99 Kennfeldern exakt (Entwicklungsdaten).
+### Entwicklungsdaten (58 Abbilder, 52 508 verifizierbare Kennfelder; alle Regeln nur hier abgestimmt)
 
-</td><td align="center"><b>1.19</b></td></tr>
-<tr><td>
+| | 1.20.1 | Runde 1 | Runde 3 | Phase 4 |
+|---|---:|---:|---:|---:|
+| exakt | 20 517 | 30 735 | 32 058 | 32 058 |
+| Verwechslungen | 9 020 | 7 912 | 5 316 | 5 316 |
+| Datentyp richtig unter exakten | 77,0 % | 96,3 % | 95,8 % | 95,8 % |
+| Vorzeichenfehler / Byte-Reihenfolge falsch | 1 890 / 2 829 | 1 128 / 21 | 1 326 / 20 | 1 326 / 20 |
+| falscher Typ **ohne** „?“-Kennzeichnung | – | – | 235 ¹ | **0** |
 
-**Drei Erkennungsebenen** – Definitionen, dann Code- und Strukturfunde, erst danach Datenmuster. Die App zeigt die Art des Belegs statt Prozentwerten. Eine falsche Definition (anderer Softwarestand) wird erkannt.
+¹ Abgeleitet: gleiche Funde und Typen wie Phase 4, ohne die „?“-Regeln von Phase 4. Phase 4 ändert keine Funde;
+sie hält nicht belegte Vorzeichen als Alternative offen (41 % der exakten Funde tragen ein „?“).
 
-</td><td align="center"><b>1.19.0</b></td></tr>
-<tr><td>
+### Holdout (105 Abbilder, 91 370 verifizierbare Kennfelder; vor der Arbeit nach Linien getrennt)
 
-**Kennfelddefinition bearbeiten / prüfen** – <i>Strg+E</i>: Name, Adresse, Größe, Datentyp, Faktor, Einheit und Achsen ändern. <i>Prüfen</i> zeigt jede Änderung und eine Vorschau aus den echten Dateibytes, <i>Übernehmen</i> erst danach – rückgängig machbar, die BIN bleibt unverändert.<br><img src="docs/clips/definition.gif" width="720" alt="Kennfelddefinition bearbeiten">
+| | 1.20.1 | Runde 1 | Runde 3 |
+|---|---:|---:|---:|
+| exakt | 35 382 | **49 958** | 52 701 |
+| Verwechslungen | 16 820 | **15 518** | 10 743 |
+| Datentyp richtig unter exakten | 80,5 % | **93,3 %** | 92,6 % |
+| Vorzeichenfehler / Byte-Reihenfolge falsch | 2 639 / 4 270 | **2 017 / 1 336** | 2 486 / 1 436 |
 
-</td><td align="center"><b>1.18</b></td></tr>
-<tr><td>
+- **Runde 1 war die erste und einzige unabhängige Holdout-Messung.** Danach waren die Holdout-Linien bekannt;
+  Runde 3 ist nur eine **Regressionsprüfung** (nichts wurde am Holdout abgestimmt), keine Bestätigung. Phase 4
+  wurde ebenso einmal geprüft: alle Werte wie Runde 3. Eine neue unabhängige Testgruppe gibt es nicht (siehe
+  [E](#e-bewusst-nicht-geplant-und-fehlende-daten)).
+- **Wiedererkennung über Versionen** (Namensübertragung, Holdout, Runde 1): falsch übertragene Namen 1 832 → 210,
+  richtig übertragene 91,4 % → 90,7 %. Übertragene Namen bleiben ungeprüfte Vorschläge.
+- **Negativbestand** (7 offene FOME-/rusEFI-/Speeduino-Stände ohne Kennfelder, jeder Fund ist ein Fehlfund):
+  875 → 549 (Runde 3) → 549 (Phase 4); „sicher falsch“ (Füllbytes, Text, Code) 0.
+- **Laufzeit** (Leistungssatz, 15 Abbilder nacheinander): 160,3 s → 152,2 s (Runde 3) → 144,4 s
+  (Phase 4; Runde 3 am selben Tag neu gemessen: 141,8 s, Unterschied ist Messstreuung), Spitzenspeicher 431 MB
+  unverändert. MSD80-Vollflashs liegen ungefähr auf dem Stand von 1.20.1 (20,7 s gegenüber 20,3 s).
+- **Regressionen:** MS43 (Community-XDF) 197 → 196 exakt in Runde 3, in Phase 4 behoben (197). MEVD17.2.3-Vollflashs haben auf
+  dem Holdout noch mehr Verwechslungen als 1.20.1 (3 042 → 3 297). MSV90-Byte-Reihenfolge ohne unabhängigen Beleg.
+- **Unsicherheit bleibt sichtbar:** Funde sind Vorschläge mit Belegstufe; nicht belegte Datentypen tragen ein „?“
+  mit Grund; Änderungen in ungeprüften Vorschlägen erzeugen einen gelben Preflight-Befund.
 
-**XDF-Export** – Den Katalog als TunerPro-XDF speichern. Jede exportierte Datei wird sofort mit dem eigenen Importer zurückgelesen und Feld für Feld verglichen – erst dann heißt es „Rückimport geprüft“.<br><img src="docs/clips/xdfexport.gif" width="720" alt="XDF-Export">
+Einzelheiten je Linie, verworfene Ansätze und Grenzen: [docs/ENTWICKLUNG_1.21.0.md](docs/ENTWICKLUNG_1.21.0.md).
+Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.md](docs/ECU_SUPPORT.md),
+[docs/PROGRESS.md](docs/PROGRESS.md).
 
-</td><td align="center"><b>1.18</b></td></tr>
-<tr><td>
+---
 
-**Offline zuerst und lokale Referenzsuche** – Ohne eigene Einstellung baut die App keine Netzwerkverbindung auf. Beim Öffnen einer BIN werden passende Projekte und Kennfeldpakete auch über Hardware- und Softwarenummer gefunden, mit Stufe und Grund.
+## C. Funktionen und Stand
 
-</td><td align="center"><b>1.18.0</b></td></tr>
-<tr><td>
+| Bereich | Status | Seit | Was es heute kann | Grenzen |
+|---|---|---|---|---|
+| **Automatische Kennfelderkennung** | ✅ veröffentlicht · 🟠 Ausbau in 1.21.0 | 1.15.0, Ebenen 1.19.0 | Code-Verweise (C16x, TriCore, 68k, SH-2, HC11, 8051), Datensätze mit Anzahl und Achsen, Achsen-Arrays, Datenmuster; jeder Fund mit Belegstufe | Funde sind Geometrie-Hypothesen, nicht unabhängig validiert; TriCore-Code 🧪; Präzision nur für einzelne Referenzen bekannt |
+| **A2L / DAMOS** | ✅ veröffentlicht · 🟠 Korrekturen in 1.21.0 | 1.15.0 | Kennfelder, Kennlinien und Werte mit Achsen und Umrechnung, EPK-Prüfung gegen die Datei, Zwischenspeicher | Keine vollständige ASAP2-Implementierung; 1.21.0: verdoppelte Anführungszeichen, VAL_BLK mit `NUMBER` |
+| **Weitere Definitionen** | ✅ veröffentlicht | ≤ 1.14, Pakete 1.17.0 | XDF (Import, Export mit Rückimport-Prüfung), RomRaider, CSV, HEX/S19, offenes Kennfeldpaket | XDF-Export nur für Tabellen, Kennlinien, Konstanten |
+| **Editor und Visualisierung** | ✅ veröffentlicht | ≤ 1.14 | Tabelle, Heatmap, 2D, 3D, Hex, Speicheratlas, ORI/MOD-Vergleich, Definition bearbeiten mit Vorschau, Undo, Projektstände | Original bleibt unverändert; Änderungen als Ebene |
+| **Steuergeräte-Identifikation** | ✅ veröffentlicht · 🟡 teilweise | 1.16.0, Stufen 1.19.0 | Familie und Softwarestand mit Stufe und Grund | Siemens-Familien ohne Klartext „unbekannt“; ME9-Referenz nicht erkannt; 1.21.0 🟠: EPK verfeinert Plattformfamilie |
+| **Wiedererkennung über Versionen** | ✅ veröffentlicht · 🟠 Ausbau in 1.21.0 | 1.16.0 / 1.16.4 | Softwarestand-Vergleich (auch verschoben), Namensübertragung, Werteübernahme mit Vorschau | Übertragene Namen sind Vorschläge; 1.21.0: flache Blöcke nur mit Ankern |
+| **KI / Lernmodelle** | 🧪 eingeschränkt | vor 1.15.0; Rückzug 1.19.0 | Zwei kleine Modelle mit geklärter Herkunft sortieren Strukturvorschläge nur um (Strukturprüfung aus synthetischen Flächen; Reihung aus rusEFI-Quellen, GPL-3.0) und entfernen keine; Modellsperre für überwacht trainierte Typmodelle | Lernmodell für Datenmuster und angezeigte Trefferquoten 1.19.0 entfernt (Herkunft nicht nachweisbar); kein Training mit den 1.21.0-Referenzdaten ([Modellkarte](docs/MODELLKARTE.md)) |
+| **Getriebesteuergeräte (TCU)** | 🧪 experimentell | 1.9.0 | Opt-in-Suche nach 1D-Wortpaar-Kurven, Familienhinweise (u. a. GS20) | Keine validierte TCU-Kennfelderkennung, keine TCU-Referenzdaten |
+| **Checksummen** | ✅ veröffentlicht · 🟡 teilweise | 1.15.0, System 1.20.0 | Bosch-Multipoint (ME7.x, ME9, MED9) prüfen und korrigieren (199/199 Herstellerwerte); weitere ME7-Prüfsummen und EDC16/EDC17-Blöcke nur prüfen | Keine Datei bisher vollständig abgedeckt; Siemens/Continental „nicht unterstützt“ ([Details](docs/CHECKSUMMEN.md)) |
+| **Signaturprüfung** | 🟡 teilweise | 1.20.1 | Herstellersignaturen mit sechs getrennten Status; „gültig“ nur mit vertrauenswürdigem Schlüssel | Für keine Familie liegt ein solcher Schlüssel vor; keine Funktion erzeugt, entfernt oder umgeht Signaturen |
+| **Firmware-Schutz und Flash-Sicherheit** | ✅ veröffentlicht | 1.18.0 – 1.18.2 | Git-Hooks gegen Firmware im Repository, strukturelle Bildprüfung, Preflight mit getrennten Stufen; 1.21.0 🟠: Befund für Änderungen in ungeprüften Vorschlägen | **Keine Flashfreigabe**; Pixelinhalte von Bildern nicht prüfbar ([Details](docs/FIRMWARE_PROTECTION.md)) |
+| **Updates und Deinstallation** | ✅ veröffentlicht | 1.15.0, Offline zuerst 1.18.0, Inventar 1.20.1 | Update-Suche ab Werk aus, SHA-256 und Build-Herkunft, Rücksicherung, Deinstallation nach Inventar | Signierte Updates eingebaut, aber ohne Schlüssel inaktiv; EXE nicht code-signiert (SmartScreen); Updates mit dem Updater von 1.20.0 hinterlassen Dateien |
+| **Leistung** | ✅ veröffentlicht · 🟠 1.21.0 | 1.16.0 | Alle CPU-Kerne; 1.21.0: Leistungssatz 160 s → 144 s bei 48 % mehr exakten Funden | Messstreuung zwischen Tagen bis 7 %; 10-MB-Vollflashs brauchen rund 18 s |
+| **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0 🟠: Datentyp mit „?“, Überschneidungen mit Status | Windows 10/11 |
+| **Sprachen** | ✅ veröffentlicht | 1.16.0 | Deutsch und Englisch (Systemsprache als Standard) | Dokumentation überwiegend Deutsch |
+| **Tests und CI/CD** | ✅ veröffentlicht · 🟠 Isolierung in 1.21.0 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter; echte Daten nur lokal |
 
-**Kennfeldpakete** – Definitionen als offenes Paket exportieren und in einem anderen Projekt importieren: Vorschau aller Einträge, Prüfung von Original-Hash und Konflikten, ausdrückliche Übernahme mit Undo. Keine BIN-Bytes im Paket.<br><img src="docs/clips/mappack.gif" width="720" alt="Kennfeldpakete">
+---
 
-</td><td align="center"><b>1.17.0</b></td></tr>
-<tr><td>
+## D. Plan
 
-**Softwarestände vergleichen** – Stand A mit Definitionen laden: Die Kennfelder werden im geöffneten Stand B gefunden, auch wenn alles verschoben ist (hier +512 Byte). Unterschiede je Zelle nebeneinander, Definitionen gezielt übernehmen.<br><img src="docs/clips/versions.gif" width="720" alt="Softwarestände vergleichen">
+### 1.21.0 – bis zum Release-Kandidaten (in Arbeit)
 
-</td><td align="center"><b>1.16.4</b></td></tr>
-<tr><td>
+| Punkt | Stand |
+|---|---|
+| Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🟠 umgesetzt: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht |
+| MS43-Regression aus Runde 3 | 🟠 behoben (196 → 197), allgemeine Regel, keine Sonderregel |
+| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt |
+| Neue unabhängige Referenzdaten | 📋 offen: keine geeigneten gefunden |
+| Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 📋 offen |
 
-**Doppelt so viele Treffer** – Ein Klick auf <i>Scan</i>: Die Suche findet Kennfelder über ihre Achsen im Kopf, jede Fundstelle bekommt eine gemessene Konfidenz. Anklicken zeigt sofort die Heatmap.<br><img src="docs/clips/scan.gif" width="720" alt="Doppelt so viele Treffer">
+### Danach (Reihenfolge = Priorität, ohne Termine)
 
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Konfidenz-Filter** – Nur gesicherte, nur wahrscheinliche oder nur geprüfte Kennfelder anzeigen – die Prozentwerte sind auf echten Referenzdaten gemessen.<br><img src="docs/clips/filter.gif" width="720" alt="Konfidenz-Filter">
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**ORI/MOD-Vergleich** – Zweite Datei wählen: Liste aller betroffenen Kennfelder und eine Differenz-Heatmap je Zelle (rot = höher, blau = niedriger).<br><img src="docs/clips/compare.gif" width="720" alt="ORI/MOD-Vergleich">
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Unterstützte Steuergeräte** – Für jede Familie ehrlich angezeigt: validiert, teilweise, experimentell oder nicht validiert – mit Messwerten.<br><img src="docs/clips/support.gif" width="720" alt="Unterstützte Steuergeräte">
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Englische Oberfläche** – <i>Einstellungen → Sprache / Language</i>. Standard ist die Systemsprache, Projekte bleiben sprachunabhängig.<br><img src="docs/clips/english.gif" width="720" alt="Englische Oberfläche">
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**2–4× schneller** – Alle CPU-Kerne arbeiten mit – große Dateien in ~10 statt ~33 Sekunden.
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Kennlinien** – Fast doppelt so viele Kennlinien und Achsen werden erkannt.
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Steuergerät erkannt** – Nach dem Öffnen: Familie, Softwarestand und ob sie getestet ist.
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Namen übernehmen** – Kennfeldnamen aus einem verwandten Softwarestand mit Definition übertragen.
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-<tr><td>
-
-**Prüfsummen ME7 · MED9 · ME9** – Prüfen und korrigieren – nur wenn das Verfahren am Original bewiesen ist.
-
-</td><td align="center"><b>1.16.0</b></td></tr>
-</table>
-
-<br>
-
-## ![Neu in 1.20.1](https://img.shields.io/badge/🚀_NEU_IN-1.20.1_·_veröffentlicht_14.11.2026-0969da?style=for-the-badge)
-
-**1.20.1, veröffentlicht am 14.11.2026** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)). Enthalten sind die
-Behebung unten, weitere ME7-Prüfsummen (nur Prüfung) und der Signaturstatus (siehe „In Arbeit“).
-
-**Deinstallation nach einem In-App-Update ohne Rückstände.**
-Wurde eine Installation über „Jetzt nach Updates suchen“ aktualisiert, blieben nach der Deinstallation
-Programmdateien zurück, die erst mit der neuen Version hinzukamen (1.19.1 → 1.20.0: eine Datei; Benutzerdaten nicht
-betroffen). Der Fix kommt ohne pauschale Löschregel aus:
-- Der Deinstaller entfernt genau die Dateien, die laut `RUNTIME_INVENTORY.json` ausgeliefert und unverändert sind.
-- Installationen mit Installer werden über den geprüften Installer aktualisiert.
-- „Apps & Features“ zeigt die installierte Version.
-
-Die Update-Sicherung neben dem Programmordner wird beim Deinstallieren nicht mehr pauschal gelöscht, sondern Datei für
-Datei geprüft; eigene und veränderte Dateien bleiben. Auch der Updater löscht vorhandene Sicherungs- und
-Arbeitsordner nicht mehr als Ganzes: Sie werden umbenannt, nach einem Fehler zurückbenannt und nach Erfolg Datei für
-Datei bereinigt.
-
-Grenze: Ein Update, das noch der Updater von 1.20.0 ausführt, läuft über den alten Weg. Nach einer Deinstallation
-bleiben dann drei neue Programmdateien zurück, und eine bereits vorhandene Update-Sicherung wird dabei noch
-vollständig ersetzt. Abhilfe: Reparaturinstallation mit dem Installer von 1.20.1 (siehe
-[Release Notes](docs/RELEASE_NOTES_1.20.1.md)); auch das nächste Update behebt es. Nachweis auf Windows Server 2022 und 2025
-([A5](docs/RELEASE_CHECKLIST_1.20.0.md#a5-befund-rückstand-nach-in-app-update-und-deinstallation)).
-
-<br>
-
-## Bereits verfügbar seit 1.16.4
-
-Alle damaligen Messungen im [Bericht vom 23.10.2026](docs/ANALYSE_2026-10-23.md).
-
-| | Thema | Was es bringt |
+| | Vorhaben | Warum / Voraussetzung |
 |:--:|---|---|
-| 🔗 | **Gemeinsame Achsen** | Katalog, Detailansicht und Funktionsgraph zeigen, welche Kennfelder sich eine gespeicherte Achse teilen – nur über die Adresse belegt, nie über ähnliche Werte. MS43: 491 von 491 erkannten Paaren richtig |
-| 🔀 | **Softwarestände vergleichen** | Zwei Stände nebeneinander: Kennfelder zuordnen (exakt · strukturell · wahrscheinlich · mehrdeutig), Unterschiede je Zelle, Definitionen und geprüfte Werteänderungen übernehmen |
-| 🗂️ | **Projektbibliothek** | Projekte nach Familie, Kennung, Tags und Kommentaren suchen und filtern; zwei beliebige Versionen eines Projekts vergleichen |
-| 🔬 | **Fehlfundanalyse** | Zeigt je Steuergerät, warum Kennfelder übersehen werden; Benchmark mit Vorher/Nachher-Urteil |
+| 1 | **Unabhängige Validierung der Kennfelderkennung** | Neue, vorab festgelegte Testgruppe mit dokumentierter Herkunft und Nutzungsrecht; ohne sie bleiben Runde 2–4 unbestätigt |
+| 2 | **MEVD17.2.3-Vollflashs und MSV90-Byte-Reihenfolge** | Offene Fehlerquellen aus 1.21.0; braucht Entwicklungsdaten derselben Linien, nicht den Holdout |
+| 3 | **Weitere Steuergerätefamilien messen** | EDC17 (außer CP09), MED17.5/17.7, MG1, MD1, Simos, SID, MSD81/MSV70/MSV80: je zwei Softwarestände mit Original und passender A2L |
+| 4 | **Checksummen erweitern** | ME7 unabhängig belegen, EDC17-Blöcke (3 von 11 Strukturen offen), Siemens/Continental; Korrektur erst nach unabhängigem Beleg |
+| 5 | **Signaturen prüfen** | Nur mit öffentlich dokumentiertem, vertrauenswürdigem Schlüssel; Umgehen bleibt ausgeschlossen |
+| 6 | **ME9-Identifikation** | Familie statt Tabellenbeleg für die Prüfsummenkorrektur |
+| 7 | **Definitionen und Software-Abgleich** | Lokaler Referenzordner mit A2L/XDF/Kennfeldpaketen im Index, verwandte Softwarestände als eigene Stufe |
+| 8 | **Vergleichswerkzeuge** | Softwarestand-Vergleich mit Belegstufen der Funde, Prüfliste über zwei Stände |
+| 9 | **Leistung** | Große Vollflashs (10 MB, rund 18 s) schneller, ohne Ergebnisänderung; Messung mit Wiederholungen statt Einzellauf |
+| 10 | **Getriebesteuergeräte** | Erst mit rechtmäßig nutzbaren TCU-Referenzen |
+| 11 | **Kennfelder aus Bosch-Programmcode** | EDC17/MED17 übergeben Kennfelder anders als MSD80; braucht eigene Referenzen |
+| 12 | **TunerStudio-Abstimmungen öffnen** | Speeduino/rusEFI: Definition (.ini) ist öffentlich |
+| 13 | **Signierte Updates aktivieren, Code-Signatur** | Schlüssel bzw. Zertifikat einrichten ([Anleitung](docs/RELEASE.md)) |
+| 14 | **Dokumentation** | Zweisprachiges Handbuch, Seite je Steuergerät, Anleitungen mit Aufnahmen synthetischer Dateien |
 
-<br>
+---
 
-## ![In Arbeit](https://img.shields.io/badge/🔨_IN_ARBEIT-läuft_gerade-bf8700?style=for-the-badge)
+## E. Bewusst nicht geplant und fehlende Daten
 
-| | Thema | Stand |
-|:--:|---|---|
-| 🔐 | **Signierte Updates** | Eingebaut – aktiv, sobald der Schlüssel eingerichtet ist ([Anleitung](docs/RELEASE.md)) |
-| 🧮 | **Prüfsummen EDC16 · EDC17** | Prüfung eingebaut (EDC17CP09: 8 von 11 Strukturen bestätigt); Korrektur gesperrt, bis unabhängige OEM-Nachweise vorliegen |
-| 🧮 | **Weitere ME7-Prüfsummen, nur Prüfung** | In 1.20.1 (14.11.2026, [PR #26](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/26)): ROMSYS, CRC-Tabelle, Hauptdaten- und Hauptprogramm-Prüfsumme. An einem ME7.5-Original gemessen (8 von 8 Werten), nicht unabhängig belegt; Korrektur gesperrt, Status bleibt „unvollständig“ ([Details](docs/CHECKSUMMEN.md)) |
-| 🔏 | **Signaturstatus für Firmware** | In 1.20.1 (14.11.2026, [PR #27](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/27)): sechs getrennte Zustände; „gültig“ nur nach echter kryptografischer Prüfung mit vertrauenswürdigem Schlüssel. Für keine Familie liegt ein solcher Schlüssel vor – auf echten Dateien ändert sich die Anzeige nicht. Keine Funktion erzeugt, entfernt oder umgeht eine Signatur ([Details](docs/CHECKSUMMEN.md)) |
+**Nicht geplant**
 
-<br>
+- **Automatische Leistungssteigerung** („Stage 1“): braucht fachliches Urteil am Fahrzeug
+- **Flashfreigabe**: die App ersetzt keine Prüfung mit einem geeigneten Werkzeug
+- **Umgehen von Schutzfunktionen** (Wegfahrsperre, Abgas, Plausibilitätsprüfungen, Signaturen)
+- **Zerlegen kommerzieller Programme** wie WinOLS: Vergleiche nur von außen
+- **Firmware oder A2L im Repository**: Originaldateien bleiben beim Nutzer
+- **Ghidra/REA im Programm**: wurden nur extern zur Analyse benutzt
 
-## ![Als Nächstes](https://img.shields.io/badge/📋_ALS_NÄCHSTES-geplant-8250df?style=for-the-badge)
-
-Zunächst geplant, noch nicht begonnen. Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
-gemessen ist.
-
-**Hohe Priorität – Checksummen und Steuergeräte**
-
-| | Thema | Warum |
-|:--:|---|---|
-| 🔎 | **1. ME9-Identifikation verbessern** | Die ME9-Referenz wird noch nicht als Familie erkannt; ihre Prüfsummenkorrektur stützt sich bisher nur auf die Tabellen der Datei (Regel B statt A) |
-| 🧮 | **2. ME7-Prüfsummen unabhängig belegen** | Die Verfahren sind gemessen (siehe „In Arbeit“). Für „gültig“ fehlen ein zweiter Softwarestand mit dokumentierter Herkunft und ein Original mit Hauptdaten-CRC32; indirekte CRC-Blöcke werden noch nicht unterstützt |
-| 🧮 | **3. EDC17-Blockprüfungen erweitern** | EDC17CP09: 3 von 11 Strukturen unbestätigt. Nachuntersuchung: Datensatz #0 passt weder zu CRC32 noch zu ADD32 (vermutlich veränderte Kalibrierung); ein CRC32-Feld hinter dem Startup-Block reproduziert, ist aber nur dokumentiert ([Details](docs/CHECKSUMMEN.md)). Weitere EDC17-/MED17-Varianten ungemessen |
-| 🧪 | **4. Unabhängige Validierung weiterer Steuergerätefamilien** | Zwei Softwarestände je Familie mit dokumentierter Herkunft, bevor ein Verfahren als „unterstützt“ gilt |
-| 🧮 | **5. Checksummen für Siemens/Continental** | MS4x, MSD8x, Simos, SID: bisher kein Verfahren („nicht unterstützt“) |
-| 🚗 | **6. Moderne Familien wie MG1 und MD1** | Erst, sobald rechtmäßig verwendbare Referenzen vorliegen |
-
-**Mittlere Priorität – Dokumentation**
-
-| | Thema | Warum |
-|:--:|---|---|
-| 🌐 | **7. Dokumentationswebsite** | GitHub Pages mit MkDocs: eine durchsuchbare Seite statt verteilter Markdown-Dateien |
-| 📘 | **8. Zweisprachiges Benutzerhandbuch** | Deutsch und Englisch, passend zur zweisprachigen Oberfläche |
-| 🚗 | **9. Alle unterstützten Steuergeräte dokumentieren** | Je Familie: Kennfelderkennung, Prüfsummen, Messwerte und Grenzen auf einer Seite |
-| 🖼️ | **10. Schritt-für-Schritt-Anleitungen mit Screenshots** | Öffnen, Scannen, Prüfsummen prüfen, korrigierte Kopie, Projekt – aus echten Aufnahmen mit synthetischen Dateien |
-
-**Weitere Vorhaben**
-
-| | Thema | Warum |
-|:--:|---|---|
-| 🧩 | **TunerStudio-Abstimmungen öffnen** | Speeduino, rusEFI, MegaSquirt – die Definition ist dort öffentlich |
-| 🧠 | **Kennfelder aus dem Programmcode für Bosch** | Für Siemens MSD80 (TriCore) fertig; EDC17 und MED17 übergeben Kennfelder anders und brauchen eigene Referenzen |
-| 🔗 | **Gruppenkennfelder finden** | Gemeinsame Achsen werden jetzt angezeigt und geprüft; das Finden der kopflosen Werteblöcke braucht Bosch-Referenzen zum Messen ([Bericht](docs/ANALYSE_2026-10-23.md)) |
-| ✍️ | **Code-Signatur** | Keine SmartScreen-Warnung mehr (braucht ein Zertifikat) |
-
-<br>
-
-## ![Wartet auf Testdaten](https://img.shields.io/badge/📦_WARTET_AUF_TESTDATEN-ungetestet-6e7781?style=for-the-badge)
-
-Die App öffnet und durchsucht diese Steuergeräte – ihre Erkennungsgüte ist aber **noch nicht mit echten Daten
-gemessen**. Rechtlich sichere Testdateien gibt es dafür öffentlich nicht.
+**Wartet auf Testdaten** (die App öffnet und durchsucht diese Steuergeräte, die Güte ist nicht gemessen):
 
 > **Bosch** MD1 · MG1 · MED17.5 · MED17.7 · EDC17 (außer CP09)<br>
 > **Continental** Simos · SID<br>
 > **Siemens** MSD81 · MSV70 · MSV80<br>
-> **Delphi/Delco** Multec S („D98…“) – [Recherche](docs/DELCO_D98_RESEARCH.md)
+> **Delphi/Delco** Multec S („D98…“), [Recherche](docs/DELCO_D98_RESEARCH.md)
 
-💡 **Du kannst helfen:** Hast du eine Originaldatei **und** die passende A2L, die du nutzen darfst? Ein einziger Befehl
-misst sie und zeigt das Ergebnis – [so geht's](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird).
+Öffentliche, klar lizenzierte A2L-/HEX-Paare dieser Familien wurden nicht gefunden (Suche 15.11.2026, siehe
+[Bericht § 6c](docs/ENTWICKLUNG_1.21.0.md)). **Du kannst helfen:** Hast du ein Original **und** die passende A2L,
+die du nutzen darfst? Ein Befehl misst sie lokal ([so geht's](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird)).
 Bitte keine Firmware hochladen.
 
-<br>
-
 <details>
-<summary><b>✅ Frühere Versionen</b></summary>
+<summary><b>Clips der veröffentlichten Funktionen</b></summary>
 <br>
 
-**1.20.1** · 14.11.2026 – Deinstallation nach In-App-Update ohne Rückstände, Update-Sicherung ohne pauschale Löschregel, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus
+Echte Aufnahmen der App mit einer synthetischen Vorführdatei (keine Herstellerdaten).
 
-**1.20.0** · 11.11.2026 – Checksummen & Integrität (erste validierte Ausbaustufe), sichere Prüfsummenkorrektur, getrennte Preflight-Stufen, stabiler Definitionseditor
+| Funktion | Version | Clip |
+|---|---|---|
+| Kennfelddefinition bearbeiten / prüfen (Strg+E) | 1.18.0 | <img src="docs/clips/definition.gif" width="420" alt="Kennfelddefinition bearbeiten"> |
+| XDF-Export mit Rückimport-Prüfung | 1.18.0 | <img src="docs/clips/xdfexport.gif" width="420" alt="XDF-Export"> |
+| Kennfeldpakete | 1.17.0 | <img src="docs/clips/mappack.gif" width="420" alt="Kennfeldpakete"> |
+| Softwarestände vergleichen | 1.16.4 | <img src="docs/clips/versions.gif" width="420" alt="Softwarestände vergleichen"> |
+| Kennfeldsuche | 1.16.0 | <img src="docs/clips/scan.gif" width="420" alt="Kennfeldsuche"> |
+| Filter nach Belegstufe und Prüfstatus | 1.16.0 | <img src="docs/clips/filter.gif" width="420" alt="Filter"> |
+| ORI/MOD-Vergleich | 1.16.0 | <img src="docs/clips/compare.gif" width="420" alt="ORI/MOD-Vergleich"> |
+| Unterstützte Steuergeräte | 1.16.0 | <img src="docs/clips/support.gif" width="420" alt="Unterstützte Steuergeräte"> |
+| Englische Oberfläche | 1.16.0 | <img src="docs/clips/english.gif" width="420" alt="Englische Oberfläche"> |
+| 3D-Ansicht | 1.10.0 | <img src="docs/clips/view3d.gif" width="420" alt="3D-Ansicht"> |
 
-**1.19.1** · 08.11.2026 – Zuverlässigere Kennfelderkennung, zwei MSD80-Kennfelder wiederhergestellt
-
-**1.19.0** · 04.11.2026 – Drei Erkennungsebenen, TriCore-Programmcode, Lerndaten ohne Freigabe entfernt
-
-**1.18.2** · 01.11.2026 – Sicherheitskorrektur der Bildprüfung im Firmware-Schutz
-
-**1.18.1** · 31.10.2026 – Programm-Symbol, Firmware-Schutz prüft Bilder strukturell
-
-**1.18.0** · 31.10.2026 – Offline zuerst, lokale Referenzsuche, Definition bearbeiten, XDF-Export
-
-**1.17.0** · 24.10.2026 – Offenes Kennfeldpaket v2 mit Vorschau, Herkunft und Undo
-
-**1.16.4** · 23.10.2026 – Verlustfreies Laden neuerer Projekte und unabhängige Transfer-Regressionstests
-
-**1.16.3** · 22.10.2026 – Updater-Arbeitsordner und Retry bei Windows-Dateisperren
-
-**1.16.2** · 22.10.2026 – EDC16/EDC17-Prüfung, vollständige Struktur-Sperre und kryptografisch abgesicherte OEM-Nachweise
-
-**1.16.1** · 22.10.2026 – Update aus der App repariert (einmal von Hand installieren), Update-Suche bei jedem Start
-
-**1.15.0** · 21.10.2026
-- Kennfeldsuche ohne Raster, mit Code-Verweisen für ältere Prozessoren
-- A2L mit gespeicherten Achsen, Prüfung der Software-Kennung (EPK)
-- Messung gegen Hersteller-Definitionen
-- Flash-Vorabprüfung, Prüfsummen-Suche und -Korrektur mit Vorschau
-- Windows-Paket ohne Python, Installer, automatische Updates mit Rücksicherung
-
-**1.10.0** · 16.10.2026 – 3D-Ansicht mit Drehen, Neigen und ORI/MOD-Drahtgitter
-
-<img src="docs/clips/view3d.gif" width="720" alt="3D-Ansicht">
-
-**1.14 und früher**
-- Editor mit Hex-, Tabellen- und 3D-Ansicht, Versionsstände
-- XDF-, A2L-, RomRaider- und CSV-Import
-- Projekte mit Schutz der Originaldatei
-
-</details>
-
-<details>
-<summary><b>🚫 Bewusst nicht geplant</b></summary>
-<br>
-
-- **Automatische Leistungssteigerung** (Stage 1) – braucht fachliches Urteil am Fahrzeug
-- **Flashfreigabe** – die App ersetzt keine Prüfung mit einem geeigneten Werkzeug
-- **Umgehen von Schutzfunktionen** (Wegfahrsperre, Abgas, Plausibilitätsprüfungen)
-- **Zerlegen kommerzieller Programme** wie WinOLS – Vergleiche nur von außen
-- **Firmware im Repository** – Originaldateien bleiben bei dir
+Die Clips zeigen die Oberfläche der jeweiligen Version. Seit 1.19.0 steht an den Funden die Art des Belegs statt
+einer Prozentzahl.
 
 </details>
 
 <div align="center">
 <br>
-<sub>Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten Daten gemessen ist.</sub><br>
-<sub><a href="README.md">← README</a> · <a href="CHANGELOG.md">CHANGELOG</a> · <a href="docs/PROGRESS.md">Fortschritt</a> · <a href="docs/ECU_SUPPORT.md">Steuergeräte</a> · <a href="CONTRIBUTING.md">Mitmachen</a></sub>
+<sub><a href="README.md">← README</a> · <a href="CHANGELOG.md">CHANGELOG</a> · <a href="docs/PROGRESS.md">Fortschritt</a> · <a href="docs/ECU_SUPPORT.md">Steuergeräte</a> · <a href="docs/README.md">Dokumentation</a> · <a href="CONTRIBUTING.md">Mitmachen</a></sub>
 </div>

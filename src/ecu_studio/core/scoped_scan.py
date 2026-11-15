@@ -82,12 +82,34 @@ def _overlaps_any(lo,hi,merged):
 PITCH_NO_RECORDS=True
 PITCH_UNSIGNED_ONLY=True
 PITCH_LAYOUT='candidate:row-pitch'
+# Phase 4: a header only contradicts when nothing stronger contradicts the header. A record whose bytes
+# overlap a table the program code addresses (with another start) is an unconfirmed reading; the ranking
+# drops it anyway, so it must not remove a pattern reading first (MS43 regression of round 3: the header
+# lay inside a code-referenced 8x8 map and displaced the correct neighbouring table).
+HEADS_CODE_CHECKED=True
+CODE_LAYOUTS=('candidate:code-reference','candidate:code-reference-generic','candidate:code-call',
+              'candidate:pointer-descriptor')
+
+
+def _code_refuted(record,code):
+    """True if a code-evidenced table overlaps the record (header to last cell) without being it."""
+    starts,items,longest=code
+    lo,hi=record.candidate_region_start,record.offset+record.length
+    for s,e in items[bisect.bisect_left(starts,lo-longest):bisect.bisect_left(starts,hi)]:
+        if e>lo and s<hi and s not in (record.offset,record.candidate_region_start):
+            return True
+    return False
 
 
 def _contradicted_patterns(candidates):
     """Row-pitch candidates whose bytes contradict a single table (see above)."""
-    heads=sorted({m.candidate_region_start for m in candidates
-                  if m.record_layout=='candidate:nx,ny,x,y,z' and m.candidate_region_start is not None})
+    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z' and m.candidate_region_start is not None]
+    if HEADS_CODE_CHECKED and records:
+        spans=sorted((m.offset,m.offset+m.length) for m in candidates if m.record_layout in CODE_LAYOUTS)
+        if spans:
+            code=([s for s,_ in spans],spans,max(e-s for s,e in spans))
+            records=[m for m in records if not _code_refuted(m,code)]
+    heads=sorted({m.candidate_region_start for m in records})
     out=[]
     for m in candidates:
         if m.record_layout==PITCH_LAYOUT:
