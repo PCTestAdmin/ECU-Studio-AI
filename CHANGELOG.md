@@ -24,7 +24,16 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
   beide Nachbaranker dieselbe Verschiebung zeigen oder die angrenzenden Bytes übereinstimmen.
 - **Wertebreite aus der Datensatzgrenze:** Eine 16-Bit-Lesart, hinter der kein Datensatz beginnt, während hinter der
   8-Bit-Lesart gleicher Form der nächste Datensatz (Anzahl + steigende Achse) anfängt, wird als Byte-Tabelle gemeldet.
-  Gekennzeichnet als „Wertebreite nur aus dem Datensatzaufbau abgeleitet“.
+  Gekennzeichnet als „Wertebreite nur aus dem Datensatzaufbau abgeleitet“. Seit Runde 3 zählt nur ein Datensatz auf
+  derselben Adressparität wie der eigene Kopf, und nur ein starker Beleg (2D-Datensatz oder eine Datensatzkette, die
+  weitergeht) stellt die Breite um. Ein einzelner Kennlinien-Datensatz lässt die 16-Bit-Lesart stehen und markiert die
+  Breite als offen („Wertebreite nicht belegt“, auch in der Prüfliste).
+- **Widersprochene Datenmuster:** Glätte-Kandidaten (Zeilenabstand), in deren Bereich ein angenommener Datensatzkopf
+  liegt, und rein vorzeichenbehaftete Glätte-Lesarten werden verworfen. Datensatzbelege gehen vor bloßen Mustern.
+  Entwicklungsdaten: Verwechslungen 7 878 → 5 316, exakte Funde +940.
+- **16-Bit-Felder im Datensatz ausgerichtet:** Auch wo ein Abbild zu wenige Datensätze für eine eigene Ausrichtung
+  hat, liegen 16-Bit-Achsen und -Werte eines Datensatzes in geradem Abstand zu dessen Kopf. Auf offener Firmware ohne
+  Kennfelder (Negativbestand) waren solche Lesarten die einzigen neuen Strukturfunde.
 - **16-Bit-Felder auf geraden Adressen:** Ist die Ausrichtung eines Abbilds durch genügend Datensätze mit 16-Bit-Zählern
   oder -Achsen eindeutig, werden 16-Bit-Lesarten auf der anderen Adressparität verworfen.
 - **Byte-Reihenfolge (vorbereitet, aus):** Datensätze mit 8-Bit-Zählern und kleinen 16-Bit-Achsen, die in beiden
@@ -36,12 +45,23 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 - Datentyp mit „?“, wenn er nicht belegt ist (Vorzeichen offen, nur aus der Glätte geschätzt oder Wertebreite nur aus
   dem Datensatzaufbau). Der Grund steht im Tooltip und in der Detailansicht.
 - Übertragene Namen sind als „Name übertragen (ungeprüft)“ markiert.
+- Die Detailansicht nennt alle Einträge, die sich Bytes mit dem gewählten Kennfeld teilen, mit ihrem Status
+  (ungeprüfter Vorschlag oder Definition/geprüft).
+
+**Prüfung vor dem Speichern/Flashen**
+
+- Jede Änderung in einem ungeprüften Kennfeldvorschlag (automatisch erkannt oder Name übertragen), die keine
+  Definition oder geprüftes Kennfeld abdeckt, erzeugt einen gelben Befund „Änderung in ungeprüftem Kennfeldvorschlag“.
+  Vorschläge gelten nie als geprüfte Grundlage für Änderungen oder eine Flashfreigabe. Bisher gab es diesen Hinweis
+  nur im vermuteten Programmcode, und nur für automatische Kandidaten.
 
 **Geschwindigkeit**
 
 - TriCore-Codeanalyse: Der Durchlauf besucht nur Befehle, die den verfolgten Zustand ändern (Sprungziele werden in
   Adressreihenfolge zusammengeführt, Ergebnis bitgleich). Speicherbefehle werden zwischen den Durchläufen
   wiederverwendet, und die Suche nach verschobenen Kalibrierbereichen prüft nur Bytes, die eine Anzahl sein können.
+- Achs- und Datensatzprüfung verwirft Kandidaten, deren erste zwei Werte nicht steigen, bevor das ganze Array gelesen
+  wird (ergebnisgleich).
 
 **Identifikation**
 

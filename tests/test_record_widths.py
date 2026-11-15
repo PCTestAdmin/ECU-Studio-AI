@@ -33,17 +33,28 @@ def image(*records, at=0x100, size=0x2000):
     return BinaryImage(bytes(buf)), starts
 
 
+Y8_EVEN = Y8 + [100]                                       # 6 points: 16-bit values stay on the record's alignment
+
+
 def test_mixed_axis_widths_are_read_with_their_own_widths():
-    z = surface(5, 6, dtype='<u2') * 30
-    img, (h,) = image(record(X16, Y8, 2, 1, z))
-    data_at = h + 2 + 6 * 2 + 5
+    z = surface(6, 6, dtype='<u2') * 30
+    img, (h,) = image(record(X16, Y8_EVEN, 2, 1, z))
+    data_at = h + 2 + 6 * 2 + 6
     found = [m for m in scan_axis_records(img, max_results=200) if m.offset == data_at]
     assert found, 'record with 16-bit X and 8-bit Y axis not found'
     m = found[0]
-    assert (m.rows, m.cols, m.axes_x, m.axes_y) == (5, 6, X16, Y8)
+    assert (m.rows, m.cols, m.axes_x, m.axes_y) == (6, 6, X16, Y8_EVEN)
     assert (m.axis_x_offset, m.axis_y_offset) == (h + 2, h + 2 + 12)
     axes = record_axes(img, m)
-    assert [(a.offset, a.cols, a.dtype) for a in axes] == [(h + 2, 6, 'u16'), (h + 14, 5, 'u8')]
+    assert [(a.offset, a.cols, a.dtype) for a in axes] == [(h + 2, 6, 'u16'), (h + 14, 6, 'u8')]
+
+
+def test_word_values_an_odd_distance_behind_the_header_are_not_read():
+    # 1.21.0 round 3: five 8-bit Y points put the 16-bit values off the record's alignment.
+    z = surface(5, 6, dtype='<u2') * 30
+    img, (h,) = image(record(X16, Y8, 2, 1, z))
+    data_at = h + 2 + 6 * 2 + 5
+    assert not [m for m in scan_axis_records(img, max_results=200) if m.offset == data_at and m.width == 2]
 
 
 def test_signed_byte_values_are_read_signed():

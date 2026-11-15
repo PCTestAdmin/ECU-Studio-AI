@@ -51,12 +51,29 @@ def axis_at(data: bytes, header: int) -> CountAxis | None:
         a = header + width
         if not MIN_POINTS <= n <= MAX_POINTS or a + n * width > len(data):
             continue
+        if not first_pair_rises(data, a, width):
+            continue
         raw = data[a:a + n * width]
         for kind in ('u', 'i'):
             v = np.frombuffer(raw, np.dtype(kind + '1') if width == 1 else np.dtype('<' + kind + '2')).astype(np.int64)
             if np.all(np.diff(v) > 0):
                 return CountAxis(header, a, n, width, tuple(int(x) for x in v))
     return None
+
+
+def first_pair_rises(data: bytes, at: int, width: int) -> bool:
+    """Whether the first two little-endian values at ``at`` rise, read unsigned or signed.
+
+    A necessary condition for a strictly increasing array of two or more values; checked
+    before the arrays are converted (1.21.0: most code-derived headers fail here).
+    """
+    if width == 1:
+        v0, v1 = data[at], data[at + 1]
+        top = 0x80
+    else:
+        v0, v1 = data[at] | data[at + 1] << 8, data[at + 2] | data[at + 3] << 8
+        top = 0x8000
+    return v1 > v0 or (v1 ^ top) > (v0 ^ top)
 
 
 def _raw_arrays(data: bytes, lo: int, hi: int) -> list[CountAxis]:

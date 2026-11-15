@@ -41,7 +41,7 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
-from ..core.confidence import LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level
+from ..core.confidence import LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, overlap_note
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -1227,6 +1227,8 @@ class Window(QMainWindow):
         extra = (f"\nECU-Adresse: 0x{m.ecu_address:X}" if m.ecu_address is not None else "")
         axes = (f"\nAchsenbeschreibung: {m.axes_info}" if m.axes_info else "")
         axes += self._shared_axis_text(m)
+        overlap = overlap_note(m, self.maps)
+        axes += ('\n' + overlap) if overlap else ''
         math_info=(f'\nXDF-Umrechnung: {m.equation} (schreibgeschützt)' if m.equation else '')
         self.map_hint.setText(f"{evidence} · Quelle: {m.source}{extra}{axes}{math_info}\n"
             f"Struktur-Score: {m.confidence:.2f} (keine Wahrscheinlichkeit)\n{m.notes}")

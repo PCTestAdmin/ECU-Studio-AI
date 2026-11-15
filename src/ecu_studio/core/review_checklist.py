@@ -7,6 +7,7 @@ plausibility warning for them. Higher score = a human decision matters more:
   contradiction with a definition      5   (detection or definition is wrong)
   definition plausibility warning      4
   sign not proven by code              3   (other reading listed)
+  value width not proven (8/16 bit)    3   (1.21.0: record boundary too weak)
   axes missing / changing direction    2
   data pattern only, no code/structure 2   (evidence level "Datenmuster-Vermutung")
   experimental evidence (TriCore code) 1
@@ -35,7 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import datetime
 import math
-from .confidence import DATA_PATTERN, evidence_level, is_experimental
+from .confidence import DATA_PATTERN, dtype_doubt, evidence_level, is_experimental
 from .fusion import layer_of
 from .model import MapDefinition
 
@@ -102,6 +103,9 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
             score += 3
             reasons.append(f'Datentyp nicht belegt: {m.dtype} ist die glattere Lesart, ebenfalls möglich: '
                            + ', '.join(m.dtype_alternatives))
+        elif dtype_doubt(m).startswith('Wertebreite nicht belegt'):
+            score += 3
+            reasons.append(f'Wertebreite nicht belegt: {m.dtype} gelesen, eine 8-Bit-Tabelle gleicher Form ist ebenfalls möglich')
         if layer > 1:
             two_d = m.rows > 1 and m.cols > 1
             if not m.axes_x or (two_d and not m.axes_y):

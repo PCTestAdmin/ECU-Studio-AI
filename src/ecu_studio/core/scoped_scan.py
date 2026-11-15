@@ -72,6 +72,35 @@ def _overlaps_any(lo,hi,merged):
     return k>=0 and ends[k]>lo
 
 
+# Smoothness-only (row-pitch) candidates that the bytes themselves contradict (1.21.0 round 3).
+# Development data (MEVD17.2/MSD80, 58 images, row-pitch candidates against the A2L):
+#  - an accepted header record (count + rising axes) starts strictly inside the run: the run
+#    is a list of records, not one table (0 of 661 exact in calibration images, 1 of 96 in
+#    full images);
+#  - only a signed reading is smooth: a pattern cannot establish a sign, and wraps between
+#    unrelated values read smooth signed (2 exact against 2 128 confusions, both makers).
+PITCH_NO_RECORDS=True
+PITCH_UNSIGNED_ONLY=True
+PITCH_LAYOUT='candidate:row-pitch'
+
+
+def _contradicted_patterns(candidates):
+    """Row-pitch candidates whose bytes contradict a single table (see above)."""
+    heads=sorted({m.candidate_region_start for m in candidates
+                  if m.record_layout=='candidate:nx,ny,x,y,z' and m.candidate_region_start is not None})
+    out=[]
+    for m in candidates:
+        if m.record_layout==PITCH_LAYOUT:
+            if PITCH_UNSIGNED_ONLY and m.dtype.startswith('s'):
+                continue
+            if PITCH_NO_RECORDS and heads:
+                i=bisect.bisect_right(heads,m.offset)
+                if i<len(heads) and heads[i]<m.offset+m.length:
+                    continue
+        out.append(m)
+    return out
+
+
 PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
 SCANNERS=('discover','u8','u32','s16')
 
@@ -211,6 +240,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
         if diagnostics is not None:diagnostics['outside_data_blocks']=dropped
     if diagnostics is not None:diagnostics.update({'method':'heuristic','scope':[start or 0,end or image.size],
         'input_candidates':len(candidates),'structure_candidates':len(structures),'axis_candidates':len(axes)})
+    before=len(candidates)
+    candidates=_contradicted_patterns(candidates)
+    if diagnostics is not None:diagnostics['contradicted_patterns']=before-len(candidates)
     stage(f'{len(candidates)} Kandidaten bewerten', 92)
     ranked=rank_candidates(image,candidates,max_results=sum(limits)+structure_limit,diagnostics=diagnostics)
     spans=[(m.candidate_region_start if m.candidate_region_start is not None else m.offset,m.offset+m.length) for m in lines]

@@ -228,3 +228,34 @@ def test_status_levels_are_never_conflated():
     stages=dict(report.stages())
     assert 'nicht geprüft' in stages['Signaturen'] and stages['Flashfreigabe'].startswith('keine')
     assert 'PRÜFSTATUS' in report.text() and 'Flashfreigabe' in report.checksum_summary
+
+
+def test_change_in_unverified_proposal_is_never_a_checked_basis():
+    # 1.21.0: detected or transferred maps are proposals; editing one is always a yellow finding.
+    for source in ('heuristic','transfer-proposed','ml-proposed'):
+        image,maps=_image()
+        guess=MapDefinition('Vorschlag',0x1000,8,8,dtype='u8',source=source)
+        image.write(0x1009,bytes([image.byte(0x1009)+1]))
+        report=run_preflight(image,[guess],cal_window=(0x1000,0x4000))
+        found=[f for f in report.findings if f.code=='candidate']
+        assert found and found[0].level=='gelb' and found[0].offset==0x1009, source
+        assert report.status!='grün' and not report.checks_passed
+
+
+def test_confirmed_or_defined_map_is_no_proposal_finding():
+    image,maps=_image()
+    image.write(0x1009,bytes([image.byte(0x1009)+1]))
+    checked=MapDefinition('Geprüft',0x1000,8,8,dtype='u8',source='heuristic',verified=True)
+    guess=MapDefinition('Vorschlag',0x1000,8,8,dtype='u8',source='heuristic')
+    for maps_ in ([checked],maps,maps+[guess]):          # a definition covering the bytes decides
+        report=run_preflight(image,maps_,cal_window=(0x1000,0x4000))
+        assert not any(f.code=='candidate' for f in report.findings)
+
+
+def test_proposal_in_suspected_code_is_reported_once():
+    image,_=_code_image()
+    guess=MapDefinition('Kandidat',0x2000,8,8,dtype='u8',source='heuristic')
+    image.write(0x2004,b'\x00')
+    report=run_preflight(image,[guess])
+    codes=[f.code for f in report.findings]
+    assert 'code-candidate' in codes and 'candidate' not in codes

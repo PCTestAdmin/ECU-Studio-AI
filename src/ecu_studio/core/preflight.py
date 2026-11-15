@@ -11,6 +11,7 @@ from .model import BinaryImage, MapDefinition
 from .axis_arrays import scan_count_axes
 from .data_regions import data_mask
 from .checksum_audit import verify_checksums
+from .project_store import DETECTED_SOURCES
 
 LEVELS = ('grün', 'gelb', 'rot')
 MIN_TWIN_BYTES = 16
@@ -230,22 +231,33 @@ def run_preflight(image: BinaryImage, maps: list[MapDefinition], *, checksum_pro
     # 2. Changes in program code, decided per byte: a run that touches a map or
     # a data block must not hide its other bytes.
     in_map = _covered(pos, [(m.offset, m.offset + m.length) for m in maps])
+    # Unconfirmed automatic candidates and transferred names are proposals, not definitions.
+    guessed = [m.source in DETECTED_SOURCES and not m.verified for m in maps]
+    by_guess = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if g])
+    by_def = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if not g])
+    in_code = np.zeros(len(pos), bool)
     if cal_window and cal_window[0] is not None:
         outside = (pos < cal_window[0]) | (pos >= cal_window[1])
         _report_runs(report, 'rot', 'code', 'Änderung außerhalb des Kalibrierbereichs',
                      'dort liegt bei diesem Steuergerät Programmcode.', pos[outside])
+        in_code = outside
     else:
         mask = data_mask(original)
         in_data = mask[pos]
         _report_runs(report, 'rot', 'code', 'Änderung im vermuteten Programmcode',
                      'in einem Block ohne Datenstruktur und ohne Kennfeld.', pos[~in_data & ~in_map])
         # Unconfirmed automatic candidates do not prove that code bytes are data.
-        guessed = [m.source == 'heuristic' and not m.verified for m in maps]
-        by_guess = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if g])
-        by_def = _covered(pos, [(m.offset, m.offset + m.length) for m, g in zip(maps, guessed) if not g])
+        in_code = ~in_data & by_guess & ~by_def
         _report_runs(report, 'gelb', 'code-candidate', 'Änderung in ungeprüftem Kandidaten im vermuteten Code',
                      'nur ein automatischer Kandidat deckt diese Bytes ab; der Block sieht nach Programmcode aus.',
-                     pos[~in_data & by_guess & ~by_def])
+                     pos[in_code])
+
+    # 2b. (1.21.0) A detected map is a proposal: position, width, sign and axes are unproven.
+    # A change covered only by proposals is never a checked basis for flashing.
+    _report_runs(report, 'gelb', 'candidate', 'Änderung in ungeprüftem Kennfeldvorschlag',
+                 'nur ein automatisch erkannter oder übertragener Vorschlag deckt diese Bytes ab; Lage, Datentyp, '
+                 'Vorzeichen und Achsen sind nicht bestätigt. Vor dem Flashen gegen Definition oder Steuergerätecode prüfen.',
+                 pos[by_guess & ~by_def & ~in_code])
 
     # 3. Twins: copies of a modified map must carry the SAME change. A single
     # touched byte in a copy is not an adaptation.

@@ -23,6 +23,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from .model import MapDefinition
+from .project_store import DETECTED_SOURCES
 
 # Where tools/calibrate_confidence.py used to write; the application no longer reads it.
 DATA = Path(__file__).resolve().parents[1] / 'recognition' / 'data' / 'confidence_calibration.json'
@@ -94,6 +95,8 @@ def dtype_doubt(m: MapDefinition) -> str:
     """
     if m.source != 'heuristic' or m.verified:
         return ''
+    if 'Wertebreite offen: auch eine 8-Bit-Tabelle' in (m.notes or ''):
+        return 'Wertebreite nicht belegt (auch möglich: 8-Bit-Tabelle gleicher Form)'
     if m.dtype_alternatives:
         return 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'
     if evidence_level(m) == DATA_PATTERN:
@@ -101,6 +104,23 @@ def dtype_doubt(m: MapDefinition) -> str:
     if any(text in (m.notes or '') for text in _WIDTH_GUESSED):
         return 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'
     return ''
+
+
+def overlap_note(m: MapDefinition, maps: list[MapDefinition], limit: int = 5) -> str:
+    """Which other entries share bytes with ``m`` (1.21.0): only one reading of these bytes can be right.
+
+    Shown in the details so a tuner sees competing readings instead of one silently winning.
+    """
+    end = m.offset + m.length
+    hits = [x for x in maps if x is not m and x.offset < end and m.offset < x.offset + x.length]
+    if not hits:
+        return ''
+    def state(x):
+        return 'ungeprüfter Vorschlag' if x.source in DETECTED_SOURCES and not x.verified else 'Definition/geprüft'
+    names = ', '.join(f'{x.name} @0x{x.offset:X} ({state(x)})' for x in hits[:limit])
+    more = f' (+{len(hits) - limit})' if len(hits) > limit else ''
+    return (f'Überschneidung mit {len(hits)} weiteren Einträgen: {names}{more}. '
+            'Nur eine Lesart dieser Bytes kann stimmen; vor Änderungen klären.')
 
 
 def describe(m: MapDefinition) -> str:

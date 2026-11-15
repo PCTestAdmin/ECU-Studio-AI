@@ -38,7 +38,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import numpy as np
-from .axis_arrays import axis_at, CountAxis
+from .axis_arrays import axis_at, CountAxis, first_pair_rises
 
 SEGMENTS = (0x80000000, 0xA0000000)    # PFLASH cached / uncached
 GLOBAL_BASES = (0, 1, 8, 9)
@@ -794,7 +794,7 @@ RECORD_SHARE = .3   # a4-only calls of a record routine whose target parses as a
 
 
 def _strict_axis(data: bytes, at: int, n: int, w: int) -> tuple | None:
-    if n < MIN_RECORD_POINTS or at % w or at + n * w > len(data):
+    if n < MIN_RECORD_POINTS or at % w or at + n * w > len(data) or not first_pair_rises(data, at, w):
         return None
     for kind in ('u', 'i'):
         v = np.frombuffer(data[at:at + n * w], np.dtype(kind + '1') if w == 1 else np.dtype('<' + kind + '2'))

@@ -117,3 +117,105 @@ def test_catalogue_marks_unproven_types_and_transferred_names():
     assert 'Datentyp u8 nicht belegt' in tip and 's8' in tip
     assert 'nicht belegt' not in model.data(model.index(1, 0), Qt.ItemDataRole.ToolTipRole)
     assert app is not None
+
+
+def _byte_table_then(after):
+    """A 4x4 byte table at 0x40 (header at 0x38, even) followed by ``after``."""
+    buf = bytearray(0x200)
+    buf[0x40:0x50] = bytes([60 + i % 3 for i in range(16)])
+    buf[0x50:0x50 + len(after)] = after
+    return bytes(buf)
+
+
+def test_record_on_the_other_parity_is_no_width_evidence():
+    """Round 3 cause 1: in 16-bit data a count byte at an odd address followed by a rising
+    16-bit run reads like the next record. Real records follow on the header's parity."""
+    after = bytes([0, 4]) + np.asarray([100, 300, 900, 2000], '<u2').tobytes()   # 'record' at 0x51
+    out = ar._width_by_boundary(_byte_table_then(after), [(1., reading(0x40, 4, 4, 'u16'))])
+    assert [m.dtype for _, m in out] == ['u16']
+    assert ar.WIDTH_OPEN_NOTE not in out[0][1].notes
+
+
+def test_lone_curve_record_leaves_the_width_open():
+    """Round 3 cause 2: a single 1-D record behind the byte reading, not followed by another
+    record, header or fill, is weak evidence: the 16-bit reading stays, its width is marked open."""
+    garbage = bytes([0x77, 0x99]) * 16
+    after = curve_record([100, 300, 900, 2000])[:10] + garbage   # n, axis, then no values/next record
+    out = ar._width_by_boundary(_byte_table_then(after), [(1., reading(0x40, 4, 4, 'u16'))])
+    assert [m.dtype for _, m in out] == ['u16']
+    assert ar.WIDTH_OPEN_NOTE in out[0][1].notes
+    assert 'Wertebreite nicht belegt' in dtype_doubt(out[0][1])
+
+
+def test_two_dimensional_record_decides_the_width():
+    after = bytes([3, 3, 10, 20, 30, 1, 2, 3]) + bytes([0x77, 0x99]) * 16
+    out = ar._width_by_boundary(_byte_table_then(after), [(1., reading(0x40, 4, 4, 'u16'))])
+    assert sorted(m.dtype for _, m in out) == ['s8', 'u8']
+
+
+def test_record_list_that_goes_on_decides_the_width():
+    after = curve_record([100, 300, 900, 2000]) + curve_record([300, 500, 700, 900])
+    out = ar._width_by_boundary(_byte_table_then(after + bytes([0x77, 0x99]) * 8), [(1., reading(0x40, 4, 4, 'u16'))])
+    assert sorted(m.dtype for _, m in out) == ['s8', 'u8']
+
+
+def test_contradicted_smoothness_candidates_are_dropped():
+    """Round 3: a row-pitch run with an accepted header record strictly inside is a record
+    list; a run that is only smooth signed has no sign evidence. Records themselves stay."""
+    from ecu_studio.core import scoped_scan as ss
+    pitch = lambda off, dtype='u16': MapDefinition('', off, 8, 8, dtype, source='heuristic',
+                                                  record_layout='candidate:row-pitch')
+    record = reading(0x148, 4, 4, 'u16')                    # header at 0x140
+    covering, clean, signed, at_start = pitch(0x100), pitch(0x400), pitch(0x600, 's16'), pitch(0x140)
+    kept = ss._contradicted_patterns([covering, clean, signed, at_start, record])
+    assert covering not in kept and signed not in kept
+    assert clean in kept and record in kept and at_start in kept   # a header at its own start is not inside
+    old = ss.PITCH_NO_RECORDS, ss.PITCH_UNSIGNED_ONLY
+    try:
+        ss.PITCH_NO_RECORDS = ss.PITCH_UNSIGNED_ONLY = False
+        assert len(ss._contradicted_patterns([covering, signed, record])) == 3
+    finally:
+        ss.PITCH_NO_RECORDS, ss.PITCH_UNSIGNED_ONLY = old
+
+
+def test_open_width_is_a_review_reason():
+    from ecu_studio.core.review_checklist import checklist
+    m = reading(0x40, 4, 4, 'u16', axes_x=[1, 2, 3, 4], axes_y=[1, 2, 3, 4])
+    m.notes += ar.WIDTH_OPEN_NOTE
+    item = checklist([m])[0]
+    assert any(r.startswith('Wertebreite nicht belegt') for r in item.reasons) and item.score >= 3
+
+
+def test_overlapping_readings_are_named_in_the_details():
+    from ecu_studio.core.confidence import overlap_note
+    a=MapDefinition('Vorschlag',0x100,4,4,dtype='u16',source='heuristic')
+    b=MapDefinition('KF_DEF',0x110,2,2,dtype='u8',source='a2l')
+    c=MapDefinition('Weit weg',0x400,2,2,dtype='u8',source='heuristic')
+    note=overlap_note(a,[a,b,c])
+    assert 'KF_DEF @0x110 (Definition/geprüft)' in note and 'Weit weg' not in note
+    assert 'Vorschlag @0x100 (ungeprüfter Vorschlag)' in overlap_note(b,[a,b,c])
+    assert overlap_note(c,[a,b,c])==''
+
+
+def _mixed_record(nx, ny):
+    """u8 counts, u8 X axis, 16-bit big-endian Y axis and 16-bit smooth values, at 0x100 in an empty image."""
+    x = bytes(10 + 10 * i for i in range(nx))
+    y = np.asarray([500 + 400 * j for j in range(ny)], '>u2').tobytes()
+    z = np.asarray([[1000 + 37 * i + 53 * j + 3 * i * j for i in range(nx)] for j in range(ny)], '>u2').tobytes()
+    buf = bytearray(0x400)
+    rec = bytes([nx, ny]) + x + y + z
+    buf[0x100:0x100 + len(rec)] = rec
+    return BinaryImage(bytes(buf))
+
+
+def _has_record(image, header, nx, ny):
+    return any(m.candidate_region_start == header and (m.rows, m.cols) == (ny, nx) and m.width == 2
+               for m in ar.scan_axis_records(image, max_results=200))
+
+
+def test_sixteen_bit_fields_lie_on_their_records_alignment(monkeypatch):
+    assert _has_record(_mixed_record(8, 6), 0x100, 8, 6)          # even X axis: Y axis and values aligned
+    odd = _mixed_record(7, 6)                                      # Y axis an odd distance behind the header
+    assert not _has_record(odd, 0x100, 7, 6)
+    monkeypatch.setattr(ar, 'RECORD_ALIGNED_16', False)
+    assert _has_record(odd, 0x100, 7, 6)                           # the switch alone decides

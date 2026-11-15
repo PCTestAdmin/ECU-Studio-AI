@@ -221,9 +221,10 @@ def _rising(values) -> bool:
     return len(values) >= 2 and all(b > a for a, b in zip(values, values[1:]))
 
 
-def _record_start(buf: bytes, at: int, order: str) -> bool:
-    """A count-prefixed record (1-D or 2-D, 8/16-bit counts and axes) starts at ``at`` or
-    up to BOUNDARY_PAD bytes later; 16-bit fields only at even offsets."""
+def _record_starts(buf: bytes, at: int, order: str):
+    """Count-prefixed records (1-D or 2-D, 8/16-bit counts and axes) starting at ``at`` or up
+    to BOUNDARY_PAD bytes later, as (start, count width, counts, axis width); 16-bit fields
+    only at even offsets."""
     for q in range(at, at + BOUNDARY_PAD + 1):
         for cw in (1, 2):
             if cw == 2 and q % 2:
@@ -236,32 +237,71 @@ def _record_start(buf: bytes, at: int, order: str) -> bool:
                     continue
                 a, n = q + cw * dims, counts[0]
                 if _rising(list(buf[a:a + n])) and a + n <= len(buf):
-                    return True
+                    yield q, cw, counts, 1
                 if a % 2 == 0 and a + 2 * n <= len(buf):
                     for kind in ('u', 'i'):
                         v = np.frombuffer(buf[a:a + 2 * n], ('<' if order == 'little' else '>') + kind + '2').tolist()
                         if _rising(v):
-                            return True
+                            yield q, cw, counts, 2
+                            break
+
+
+def _record_start(buf: bytes, at: int, order: str) -> bool:
+    return next(_record_starts(buf, at, order), None) is not None
+
+
+def _chain_continues(buf: bytes, start, order: str, heads: set) -> bool:
+    """The record after ``start`` (values 8 or 16 bit) is followed by another record, an
+    accepted header, fill bytes or the end of the data: a packed record list goes on."""
+    q, cw, counts, aw = start
+    cells = counts[0] * (counts[1] if len(counts) == 2 else 1)
+    for w in (1, 2):
+        end = q + cw * len(counts) + aw * sum(counts) + w * cells
+        if (end >= len(buf) - 2 or any(end + p in heads for p in range(BOUNDARY_PAD + 1))
+                or _record_start(buf, end, order) or buf[end:end + 8] in (b'\xff' * 8, b'\x00' * 8)):
+            return True
     return False
 
 
+# Development data (MEVD17.2/MSD80, 58 images, 1 992 boundary decisions, 1.21.0 round 3):
+# behind every real byte table the next record starts on the parity of the table's own
+# header (1 223 of 1 223); behind 82 of 106 real 16-bit tables the "record" sits on the
+# other parity (a chance count inside 16-bit data). Of the rest, 2-D records and records
+# whose list goes on decide; a lone 1-D match (20 of the 24 remaining errors) does not.
+BOUNDARY_SAME_PARITY = True
+BOUNDARY_STRONG_ONLY = True
+WIDTH_OPEN_NOTE = (' Wertebreite offen: auch eine 8-Bit-Tabelle gleicher Form ist möglich '
+                   '(hinter ihr beginnt ein einzelner Datensatz; ungeprüft).')
+
+
 def _width_by_boundary(buf: bytes, found: list) -> list:
-    """16-bit header-record readings that are byte tables by the record boundary (WIDTH_BY_BOUNDARY)."""
+    """16-bit header-record readings that are byte tables by the record boundary (WIDTH_BY_BOUNDARY).
+
+    Strong evidence (a 2-D record, or a record list that goes on, on the header parity)
+    turns the reading into a byte table; weak evidence (a lone 1-D record) keeps the 16-bit
+    reading and marks its width as open; a record on the other parity is no evidence.
+    """
     import dataclasses
     have = {(m.offset, m.rows, m.cols, m.width) for _, m in found}
+    heads = {m.candidate_region_start for _, m in found}
     out = []
     for sc, m in found:
         n = m.rows * m.cols
-        if (m.width == 2 and m.record_layout == 'candidate:nx,ny,x,y,z'
-                and not _record_start(buf, m.offset + 2 * n, m.endian)
-                and _record_start(buf, m.offset + n, m.endian)):
-            if (m.offset, m.rows, m.cols, 1) not in have:
-                have.add((m.offset, m.rows, m.cols, 1))
-                note = (' Wertebreite 1 Byte: hinter der 8-Bit-Lesart beginnt der nächste Datensatz '
-                        '(Anzahl + steigende Achse), hinter der 16-Bit-Lesart nicht (ungeprüft).')
-                for dtype in ('u8', 's8'):
-                    out.append((FLAT_SCORE, dataclasses.replace(m, dtype=dtype, endian='big', notes=m.notes + note)))
-            continue
+        if m.width == 2 and m.record_layout == 'candidate:nx,ny,x,y,z' and not _record_start(buf, m.offset + 2 * n, m.endian):
+            parity = (m.candidate_region_start if m.candidate_region_start is not None else m.offset) % 2
+            starts = [s for s in _record_starts(buf, m.offset + n, m.endian)
+                      if not BOUNDARY_SAME_PARITY or s[0] % 2 == parity]
+            strong = any(len(s[2]) == 2 or _chain_continues(buf, s, m.endian, heads) for s in starts)
+            if starts and (strong or not BOUNDARY_STRONG_ONLY):
+                if (m.offset, m.rows, m.cols, 1) not in have:
+                    have.add((m.offset, m.rows, m.cols, 1))
+                    note = (' Wertebreite 1 Byte: hinter der 8-Bit-Lesart beginnt der nächste Datensatz '
+                            '(Anzahl + steigende Achse), hinter der 16-Bit-Lesart nicht (ungeprüft).')
+                    for dtype in ('u8', 's8'):
+                        out.append((FLAT_SCORE, dataclasses.replace(m, dtype=dtype, endian='big', notes=m.notes + note)))
+                continue
+            if starts:
+                m.notes += WIDTH_OPEN_NOTE
         out.append((sc, m))
     return out
 
@@ -274,6 +314,12 @@ def _width_by_boundary(buf: bytes, found: list) -> list:
 ALIGNED_16 = True
 ALIGN_MIN = 20
 ALIGN_RATIO = 4.
+# The same within one record (1.21.0 round 3), also where the image has too few records to
+# decide its parity: a 16-bit axis or value field lies an even distance behind its header
+# (C structures, halfword loads on TriCore/C16x). Development data: of about 3,000 accepted
+# records with mixed widths, 4 had a 16-bit field at an odd distance, all 4 confusions and no
+# exact table; on open ARM firmware (negatives) such readings were the only new structure finds.
+RECORD_ALIGNED_16 = True
 
 
 def _image_parity(found: list, fixed: dict) -> int | None:
@@ -475,6 +521,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                     for xw,yw in AXIS_WIDTHS:
                         end=axis_start+cols*xw+rows*yw
                         if end+rows*cols>len(buf):continue
+                        if RECORD_ALIGNED_16 and yw==2 and (cols*xw)%2:continue   # 16-bit Y axis off its record's alignment
                         wide=xw==2 or yw==2
                         for order in (['big','little'] if wide else ['big']):
                             if count_width==2 and wide and order!=endian:continue
@@ -489,6 +536,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                 continue
                             for dtype in DATA_TYPES:
                                 if dtype=='u32' and not include_u32:continue
+                                if RECORD_ALIGNED_16 and dtype[1:]!='8' and (end-header)%2:continue
                                 for storage in (['big'] if dtype[1:]=='8' else ['big','little']):
                                     if dtype[1:]!='8' and ((wide and storage!=order) or
                                                           (count_width==2 and storage!=endian)):continue
