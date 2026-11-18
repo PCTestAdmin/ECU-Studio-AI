@@ -61,11 +61,42 @@ def _registry_snapshot() -> dict:
 
 _registry = {'last': None, 'changes': []}
 _run = {'settings': None}
+RUN_PREFIX = 'ecu-studio-tests-'
+STALE_HOURS = 6
+
+
+def remove_stale_run_folders(temp: str, now: float | None = None) -> list[str]:
+    """Run folders of earlier test runs that ended without clean-up (killed process), older than STALE_HOURS.
+
+    Only folders with the prefix of this suite and only below the temporary folder are removed; a run that is
+    still going (younger) is left alone.
+    """
+    import shutil
+    import time
+    now = time.time() if now is None else now
+    removed = []
+    try:
+        names = os.listdir(temp)
+    except OSError:
+        return removed
+    for name in names:
+        path = os.path.join(temp, name)
+        if not name.startswith(RUN_PREFIX) or not os.path.isdir(path) or os.path.islink(path):
+            continue
+        try:
+            old = now - os.path.getmtime(path) > STALE_HOURS * 3600
+        except OSError:
+            continue
+        if old:
+            shutil.rmtree(path, ignore_errors=True)
+            removed.append(path)
+    return removed
 
 
 def pytest_configure(config):
     import tempfile
-    run = tempfile.mkdtemp(prefix=f'ecu-studio-tests-{RUN_ID}-')
+    remove_stale_run_folders(tempfile.gettempdir())
+    run = tempfile.mkdtemp(prefix=f'{RUN_PREFIX}{RUN_ID}-')
     os.environ['ECU_STUDIO_TEST_PROFILE'] = RUN_ID
     _run['settings'] = os.environ['ECU_STUDIO_SETTINGS_DIR'] = os.path.join(run, 'settings')
     os.environ['ECU_STUDIO_NO_UPDATE_CHECK'] = '1'
@@ -119,3 +150,7 @@ def _isolated_user_folders(tmp_path_factory, monkeypatch):
     yield
     # Stay on INI files between tests (this run's folder), never back to the registry.
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, _run['settings'])
+    # The test's settings file goes, also after a failure (teardown runs either way); the rest of the
+    # temporary home stays with pytest's own clean-up for diagnosis.
+    import shutil
+    shutil.rmtree(home / 'settings', ignore_errors=True)

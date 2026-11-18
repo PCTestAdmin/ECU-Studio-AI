@@ -51,6 +51,12 @@ class CatalogueModel(QAbstractListModel):
                     f'    0x{m.offset:08X}  {m.rows}×{m.cols}  {m.dtype}{"?" if doubt else ""}  | Typ: {t(m.kind)}{status}{shared}')
         if role==Qt.ItemDataRole.DecorationRole and evidence_level(m):
             return _tier_dot(evidence_level(m))
+        if role==Qt.ItemDataRole.FontRole and m.verified:
+            # 1.21.0: entries the user checked stand apart from automatic proposals at a glance
+            from PySide6.QtGui import QFont
+            font=QFont()
+            font.setBold(True)
+            return font
         if role==Qt.ItemDataRole.ToolTipRole:
             rate=(describe(m) or ('Von dir geprüft' if m.verified else
                   'Aus einer Definition (Lage laut Definition)' if m.source!='heuristic' and not m.label_origin else

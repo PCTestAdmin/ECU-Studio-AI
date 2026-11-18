@@ -185,3 +185,101 @@ def test_opening_the_window_writes_no_settings():
         assert Path(w.settings.fileName()).read_bytes() == before
     finally:
         w.close()
+
+
+# ---- 1.21.0 phase 5: aborted runs, simulated faults, clean-up ------------------------------------------------
+NESTED_TESTS = '''
+import os, json
+import conftest
+
+def test_writes_settings_then_fails():
+    from ecu_studio.app_settings import app_settings, is_registry
+    s = app_settings()
+    s.setValue('ui/theme', 'dark')
+    s.sync()
+    with open(os.environ['ECU_MARKER'], 'w', encoding='utf-8') as f:
+        json.dump({'file': s.fileName(), 'registry': is_registry(s),
+                   'run': os.path.dirname(conftest._run['settings']), 'profile': os.environ['ECU_STUDIO_TEST_PROFILE']}, f)
+    assert False, 'simulated failure'
+
+def test_interrupted():
+    raise KeyboardInterrupt
+'''
+
+
+def test_failed_and_interrupted_run_leaves_no_settings_and_no_registry_change(tmp_path):
+    """A nested test run (same conftest) writes settings, fails and is interrupted: the run folder and the test's
+    settings file are gone afterwards, the settings never were in the registry, the registry is unchanged."""
+    import json
+    import shutil
+    import conftest
+    nested = tmp_path / 'nested'
+    nested.mkdir()
+    shutil.copy2(Path(__file__).with_name('conftest.py'), nested / 'conftest.py')
+    (nested / 'test_abort.py').write_text(NESTED_TESTS, encoding='utf-8')
+    marker = tmp_path / 'marker.json'
+    before = conftest._registry_snapshot()
+    env = dict(os.environ, PYTHONPATH=SRC, ECU_MARKER=str(marker))
+    out = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', '--basetemp',
+                          str(tmp_path / 'basetemp'), str(nested)], capture_output=True, text=True, env=env,
+                         cwd=str(nested), timeout=300)
+    assert out.returncode not in (0, 5), out.stdout + out.stderr          # failed / interrupted, not "passed"
+    seen = json.loads(marker.read_text(encoding='utf-8'))
+    assert not seen['registry'] and 'HKEY_' not in seen['file']
+    assert seen['profile'] and seen['profile'] != os.environ['ECU_STUDIO_TEST_PROFILE']   # its own run profile
+    assert not Path(seen['file']).exists()                  # the failed test's settings file was removed
+    assert not Path(seen['run']).exists()                   # the run folder too, despite failure and interrupt
+    assert conftest._registry_snapshot() == before
+
+
+def test_settings_folder_that_cannot_be_created_never_falls_back_to_the_registry(monkeypatch, tmp_path):
+    """Simulated fault: the redirect points at a file. Opening settings fails loudly instead of using the registry."""
+    from ecu_studio import app_settings as a
+    blocker = tmp_path / 'kein-ordner'
+    blocker.write_text('x')
+    monkeypatch.setenv(a.SETTINGS_DIR, str(blocker))
+    with pytest.raises(OSError):
+        a.app_settings()
+    monkeypatch.setenv(a.SETTINGS_DIR, '')                  # empty redirect in a test profile: refused
+    with pytest.raises(a.SettingsIsolationError):
+        a.app_settings()
+
+
+def test_window_start_with_a_broken_settings_folder_fails_without_touching_the_registry(monkeypatch, tmp_path):
+    import conftest
+    from ecu_studio import app_settings as a
+    blocker = tmp_path / 'kein-ordner'
+    blocker.write_text('x')
+    monkeypatch.setenv(a.SETTINGS_DIR, str(blocker))
+    before = conftest._registry_snapshot()
+    with pytest.raises(OSError):
+        _window()
+    assert conftest._registry_snapshot() == before
+
+
+def test_stale_run_folders_of_killed_runs_are_removed_but_running_ones_stay(tmp_path):
+    import conftest
+    import time
+    old = tmp_path / (conftest.RUN_PREFIX + 'alt')
+    (old / 'settings').mkdir(parents=True)
+    young = tmp_path / (conftest.RUN_PREFIX + 'laeuft')
+    young.mkdir()
+    other = tmp_path / 'fremder-ordner'
+    other.mkdir()
+    past = time.time() - (conftest.STALE_HOURS + 1) * 3600
+    os.utime(old, (past, past))
+    os.utime(other, (past, past))
+    removed = conftest.remove_stale_run_folders(str(tmp_path))
+    assert removed == [str(old)] and not old.exists()
+    assert young.exists() and other.exists()
+
+
+def test_tests_never_start_the_installed_program():
+    """Static guard: no test starts ECU-Studio-AI.exe from an installation folder or the Start menu; process starts
+    in tests use this Python, PowerShell scripts of the repository, cmd.exe or git."""
+    import re
+    here = Path(__file__).resolve().parent
+    pattern = re.compile(r'(LOCALAPPDATA|Programs)[^\n]{0,80}ECU-Studio-AI\.exe|startfile\(', re.I)
+    offenders = [p.name for p in here.glob('test_*.py') if p.name != Path(__file__).name
+                 and pattern.search(p.read_text(encoding='utf-8'))]
+    assert offenders == []

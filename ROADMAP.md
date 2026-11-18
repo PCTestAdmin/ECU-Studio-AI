@@ -17,7 +17,7 @@
 
 # Roadmap
 
-Stand: 15.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 18.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
@@ -54,7 +54,7 @@ veröffentlicht; sie stehen nur im [CHANGELOG](CHANGELOG.md).
 
 | Version | Datum | Status | Schwerpunkte | Belege |
 |---|---|---|---|---|
-| **1.21.0** | – | 🟠 in Entwicklung | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
+| **1.21.0** | – | 🟠 in Entwicklung | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, unbelegte Byte-Reihenfolge sichtbar, Prüfhilfen (Filter, fehlender Beleg, Lesarten nebeneinander), gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
 | **1.20.1** | 14.11.2026 | ✅ veröffentlicht | Deinstallation nach In-App-Update ohne Rückstände (Inventar), Updates von Installer-Installationen über den geprüften Installer, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus mit sechs Zuständen, Release-Prüfungen | [Notes](docs/RELEASE_NOTES_1.20.1.md), PR [#24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24)–[#28](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/28) |
 | **1.20.0** | 11.11.2026 | ✅ veröffentlicht | Checksummen & Integrität mit fünf Status, Bosch-Multipoint unabhängig belegt (199/199), sichere Korrektur, getrennte Preflight-Stufen, stabiler Definitionseditor | [Notes](docs/RELEASE_NOTES_1.20.0.md), PR [#19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)–[#22](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/22) |
 | **1.19.1** | 08.11.2026 | ✅ veröffentlicht | Architektur nur mit zwei Merkmalen, weniger Fehlfunde (offene Firmware: nachweislich falsche Funde 921 → 0), A2L-Zwischenspeicher, Dateiversion | [Notes](docs/RELEASE_NOTES_1.19.1.md), PR [#16](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/16)–[#18](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/18) |
@@ -88,39 +88,49 @@ bewerten („nicht bewertbar“), und die A2L beschreibt nicht jede Tabelle.
 
 ### Entwicklungsdaten (58 Abbilder, 52 508 verifizierbare Kennfelder; alle Regeln nur hier abgestimmt)
 
-| | 1.20.1 | Runde 1 | Runde 3 | Phase 4 |
-|---|---:|---:|---:|---:|
-| exakt | 20 517 | 30 735 | 32 058 | 32 058 |
-| Verwechslungen | 9 020 | 7 912 | 5 316 | 5 316 |
-| Datentyp richtig unter exakten | 77,0 % | 96,3 % | 95,8 % | 95,8 % |
-| Vorzeichenfehler / Byte-Reihenfolge falsch | 1 890 / 2 829 | 1 128 / 21 | 1 326 / 20 | 1 326 / 20 |
-| falscher Typ **ohne** „?“-Kennzeichnung | – | – | 235 ¹ | **0** |
+| | 1.20.1 | Runde 1 | Runde 3 | Phase 4 | Phase 5 |
+|---|---:|---:|---:|---:|---:|
+| exakt | 20 517 | 30 735 | 32 058 | 32 058 | 32 058 |
+| Verwechslungen | 9 020 | 7 912 | 5 316 | 5 316 | 5 316 |
+| Datentyp richtig unter exakten | 77,0 % | 96,3 % | 95,8 % | 95,8 % | 95,8 % |
+| Vorzeichenfehler / Byte-Reihenfolge falsch | 1 890 / 2 829 | 1 128 / 21 | 1 326 / 20 | 1 326 / 20 | 1 326 / 20 |
+| falscher Typ **ohne** „?“-Kennzeichnung | – | – | 235 ¹ | **0** | **0** |
 
 ¹ Abgeleitet: gleiche Funde und Typen wie Phase 4, ohne die „?“-Regeln von Phase 4. Phase 4 ändert keine Funde;
-sie hält nicht belegte Vorzeichen als Alternative offen (41 % der exakten Funde tragen ein „?“).
+sie hält nicht belegte Vorzeichen als Alternative offen (41 % der exakten Funde tragen ein „?“). Phase 5 ändert auf
+den Entwicklungsdaten nichts (alle 58 Abbilder fundgleich); ihre Regel betrifft nur Abbilder ohne einheitliche
+Byte-Reihenfolge.
 
 ### Holdout (105 Abbilder, 91 370 verifizierbare Kennfelder; vor der Arbeit nach Linien getrennt)
 
-| | 1.20.1 | Runde 1 | Runde 3 |
-|---|---:|---:|---:|
-| exakt | 35 382 | **49 958** | 52 701 |
-| Verwechslungen | 16 820 | **15 518** | 10 743 |
-| Datentyp richtig unter exakten | 80,5 % | **93,3 %** | 92,6 % |
-| Vorzeichenfehler / Byte-Reihenfolge falsch | 2 639 / 4 270 | **2 017 / 1 336** | 2 486 / 1 436 |
+| | 1.20.1 | Runde 1 | Runde 3 | Phase 5 |
+|---|---:|---:|---:|---:|
+| exakt | 35 382 | **49 958** | 52 701 | 52 701 |
+| Verwechslungen | 16 820 | **15 518** | 10 743 | 10 743 |
+| Datentyp richtig unter exakten | 80,5 % | **93,3 %** | 92,6 % | 92,6 % |
+| Vorzeichenfehler / Byte-Reihenfolge falsch | 2 639 / 4 270 | **2 017 / 1 336** | 2 486 / 1 436 | 2 486 / 1 436 |
+| davon Byte-Reihenfolge falsch **mit** „?“ | – | – | 0 | **1 399** |
 
 - **Runde 1 war die erste und einzige unabhängige Holdout-Messung.** Danach waren die Holdout-Linien bekannt;
-  Runde 3 ist nur eine **Regressionsprüfung** (nichts wurde am Holdout abgestimmt), keine Bestätigung. Phase 4
-  wurde ebenso einmal geprüft: alle Werte wie Runde 3. Eine neue unabhängige Testgruppe gibt es nicht (siehe
-  [E](#e-bewusst-nicht-geplant-und-fehlende-daten)).
+  Runde 3 ist nur eine **Regressionsprüfung** (nichts wurde am Holdout abgestimmt), keine Bestätigung. Phase 4 und
+  Phase 5 wurden ebenso je einmal geprüft: Funde wie Runde 3. Phase 5 macht die unbelegte Byte-Reihenfolge sichtbar
+  (MSV90), ohne eine Reihenfolge festzulegen. Eine neue unabhängige Testgruppe realer Steuergeräte gibt es nicht
+  (siehe [E](#e-bewusst-nicht-geplant-und-fehlende-daten)).
+- **Externe Stichprobe** (Phase 5, synthetisch): TT-DEMO-1 aus dem MIT-lizenzierten Projekt Tuners Toolkit, ein
+  erfundenes Steuergerät mit A2L und HEX. 4 Kennfelder: 1.20.1 und 1.21.0 je 1 exakt, Verwechslungen 2 → 1.
+  Statistisch ohne Aussage; zeigt nur, dass Import und Abgleich mit einer fremden A2L funktionieren.
 - **Wiedererkennung über Versionen** (Namensübertragung, Holdout, Runde 1): falsch übertragene Namen 1 832 → 210,
   richtig übertragene 91,4 % → 90,7 %. Übertragene Namen bleiben ungeprüfte Vorschläge.
 - **Negativbestand** (7 offene FOME-/rusEFI-/Speeduino-Stände ohne Kennfelder, jeder Fund ist ein Fehlfund):
-  875 → 549 (Runde 3) → 549 (Phase 4); „sicher falsch“ (Füllbytes, Text, Code) 0.
+  875 → 549 (Runde 3) → 549 (Phase 4) → 549 (Phase 5); „sicher falsch“ (Füllbytes, Text, Code) 0.
 - **Laufzeit** (Leistungssatz, 15 Abbilder nacheinander): 160,3 s → 152,2 s (Runde 3) → 144,4 s
-  (Phase 4; Runde 3 am selben Tag neu gemessen: 141,8 s, Unterschied ist Messstreuung), Spitzenspeicher 431 MB
-  unverändert. MSD80-Vollflashs liegen ungefähr auf dem Stand von 1.20.1 (20,7 s gegenüber 20,3 s).
-- **Regressionen:** MS43 (Community-XDF) 197 → 196 exakt in Runde 3, in Phase 4 behoben (197). MEVD17.2.3-Vollflashs haben auf
-  dem Holdout noch mehr Verwechslungen als 1.20.1 (3 042 → 3 297). MSV90-Byte-Reihenfolge ohne unabhängigen Beleg.
+  (Phase 4; Runde 3 am selben Tag neu gemessen: 141,8 s, Unterschied ist Messstreuung) → 149,6 s (Phase 5),
+  Spitzenspeicher 431 MB unverändert. Messungen unter Fremdlast streuen bis 17 %; eine Wiederholung auf einem
+  unbelasteten Rechner vor dem Release steht aus.
+- **Regressionen:** MS43 (Community-XDF) 197 → 196 exakt in Runde 3, in Phase 4 behoben (197); Regressionssatz in
+  Phase 5 unverändert (15 Fälle). MEVD17.2.3-Vollflashs haben auf dem Holdout noch mehr Verwechslungen als 1.20.1
+  (3 042 → 3 297); die Entwicklungsdaten zeigen das Muster nicht, eine Abhilfe braucht Entwicklungsdaten dieser
+  Linie. MSV90-Byte-Reihenfolge weiter ohne Beleg, aber seit Phase 5 als offen gekennzeichnet.
 - **Unsicherheit bleibt sichtbar:** Funde sind Vorschläge mit Belegstufe; nicht belegte Datentypen tragen ein „?“
   mit Grund; Änderungen in ungeprüften Vorschlägen erzeugen einen gelben Preflight-Befund.
 
@@ -147,9 +157,9 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 | **Firmware-Schutz und Flash-Sicherheit** | ✅ veröffentlicht | 1.18.0 – 1.18.2 | Git-Hooks gegen Firmware im Repository, strukturelle Bildprüfung, Preflight mit getrennten Stufen; 1.21.0 🟠: Befund für Änderungen in ungeprüften Vorschlägen | **Keine Flashfreigabe**; Pixelinhalte von Bildern nicht prüfbar ([Details](docs/FIRMWARE_PROTECTION.md)) |
 | **Updates und Deinstallation** | ✅ veröffentlicht | 1.15.0, Offline zuerst 1.18.0, Inventar 1.20.1 | Update-Suche ab Werk aus, SHA-256 und Build-Herkunft, Rücksicherung, Deinstallation nach Inventar | Signierte Updates eingebaut, aber ohne Schlüssel inaktiv; EXE nicht code-signiert (SmartScreen); Updates mit dem Updater von 1.20.0 hinterlassen Dateien |
 | **Leistung** | ✅ veröffentlicht · 🟠 1.21.0 | 1.16.0 | Alle CPU-Kerne; 1.21.0: Leistungssatz 160 s → 144 s bei 48 % mehr exakten Funden | Messstreuung zwischen Tagen bis 7 %; 10-MB-Vollflashs brauchen rund 18 s |
-| **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0 🟠: Datentyp mit „?“, Überschneidungen mit Status | Windows 10/11 |
+| **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0 🟠: Datentyp mit „?“, Filter „Datentyp nicht belegt“ und „Überschneidung“, fehlender Beleg je offener Frage, Lesarten derselben Bytes nebeneinander, Prüfliste nach Prüfgrund, geprüfte Einträge hervorgehoben | Windows 10/11; Lesarten zeigen Rohwerte, keine Bewertung |
 | **Sprachen** | ✅ veröffentlicht | 1.16.0 | Deutsch und Englisch (Systemsprache als Standard) | Dokumentation überwiegend Deutsch |
-| **Tests und CI/CD** | ✅ veröffentlicht · 🟠 Isolierung in 1.21.0 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter; echte Daten nur lokal |
+| **Tests und CI/CD** | ✅ veröffentlicht · 🟠 Isolierung in 1.21.0 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter, Updater ohne echten Deinstallationseintrag im Testlauf, Tests für Abbruch und Fehlerfälle; echte Daten nur lokal |
 
 ---
 
@@ -159,10 +169,10 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 
 | Punkt | Stand |
 |---|---|
-| Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🟠 umgesetzt: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht |
+| Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🟠 umgesetzt: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht; Phase 5: Updater-Tests und Abbruchfälle abgesichert |
 | MS43-Regression aus Runde 3 | 🟠 behoben (196 → 197), allgemeine Regel, keine Sonderregel |
-| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt |
-| Neue unabhängige Referenzdaten | 📋 offen: keine geeigneten gefunden |
+| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt; Phase 5: unbelegte Byte-Reihenfolge, Filter, fehlender Beleg, Lesarten nebeneinander |
+| Neue unabhängige Referenzdaten | 📋 offen: zweimal öffentlich gesucht (15. und 17.11.2026), keine rechtmäßig nutzbaren Paare realer Steuergeräte; nur eine synthetische externe Stichprobe |
 | Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 📋 offen |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
@@ -170,7 +180,7 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 | | Vorhaben | Warum / Voraussetzung |
 |:--:|---|---|
 | 1 | **Unabhängige Validierung der Kennfelderkennung** | Neue, vorab festgelegte Testgruppe mit dokumentierter Herkunft und Nutzungsrecht; ohne sie bleiben Runde 2–4 unbestätigt |
-| 2 | **MEVD17.2.3-Vollflashs und MSV90-Byte-Reihenfolge** | Offene Fehlerquellen aus 1.21.0; braucht Entwicklungsdaten derselben Linien, nicht den Holdout |
+| 2 | **MEVD17.2.3-Vollflashs und MSV90-Byte-Reihenfolge** | Offene Fehlerquellen aus 1.21.0 (MSV90 seit Phase 5 als offen gekennzeichnet); braucht Entwicklungsdaten derselben Linien, nicht den Holdout |
 | 3 | **Weitere Steuergerätefamilien messen** | EDC17 (außer CP09), MED17.5/17.7, MG1, MD1, Simos, SID, MSD81/MSV70/MSV80: je zwei Softwarestände mit Original und passender A2L |
 | 4 | **Checksummen erweitern** | ME7 unabhängig belegen, EDC17-Blöcke (3 von 11 Strukturen offen), Siemens/Continental; Korrektur erst nach unabhängigem Beleg |
 | 5 | **Signaturen prüfen** | Nur mit öffentlich dokumentiertem, vertrauenswürdigem Schlüssel; Umgehen bleibt ausgeschlossen |

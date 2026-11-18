@@ -2,11 +2,12 @@
 from __future__ import annotations
 import datetime
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
-from ..core.review_checklist import GUESSES, checklist, decision, latest, entry_key, table_key
+from ..core.review_checklist import GUESSES, TOPICS, checklist, decision, latest, entry_key, table_key
 
-COLUMNS = ('Priorität', 'Kennfeld', 'Adresse', 'Größe / Typ', 'Gründe', 'Verknüpfungen')
+COLUMNS = ('Priorität', 'Kennfeld', 'Adresse', 'Größe / Typ', 'Gründe', 'Fehlender Beleg', 'Verknüpfungen')
+ALL_TOPICS = 'Alle Gründe'
 
 
 class ReviewDialog(QDialog):
@@ -33,7 +34,16 @@ class ReviewDialog(QDialog):
         self.show_guesses.setToolTip('Funde, die nur auf einem Datenmuster beruhen (weder Programmcode noch '
                                      'gespeicherte Struktur). Sie bleiben im Projekt und im Kennfeldkatalog.')
         self.show_guesses.toggled.connect(self.reload)
-        layout.addWidget(self.show_guesses)
+        options = QHBoxLayout()
+        options.addWidget(self.show_guesses, 1)
+        # 1.21.0: narrow the list to one kind of open question (e.g. only unproven data types).
+        self.topic = QComboBox()
+        self.topic.addItems([ALL_TOPICS, *TOPICS])
+        self.topic.setToolTip('Nur Einträge mit diesem Prüfgrund anzeigen. Die Reihenfolge bleibt die Prüfreihenfolge.')
+        self.topic.currentIndexChanged.connect(self.reload)
+        options.addWidget(QLabel('Prüfgrund:'))
+        options.addWidget(self.topic)
+        layout.addLayout(options)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -60,8 +70,10 @@ class ReviewDialog(QDialog):
         fusion = getattr(self.window, 'last_fusion', None) or {}
         every = checklist(self.window.maps, conflicts=fusion.get('conflicts'),
                           definition_warnings=fusion.get('definition_warnings'))
-        guesses = [i for i in every if i.group == GUESSES]
-        self.items = [i for i in every if i.group != GUESSES] + (guesses if self.show_guesses.isChecked() else [])
+        topic = self.topic.currentText()
+        chosen = every if topic == ALL_TOPICS else [i for i in every if topic in i.topics]
+        guesses = [i for i in chosen if i.group == GUESSES]
+        self.items = [i for i in chosen if i.group != GUESSES] + (guesses if self.show_guesses.isChecked() else [])
         self.show_guesses.setText(f'{GUESSES} anzeigen ({len(guesses)}, nur Datenmuster, kein Code- oder Strukturbeleg)')
         # Columns are measured once after filling. A header left in ResizeToContents mode re-measures the
         # whole column on every setItem: quadratic, minutes for a few thousand detected maps.
@@ -72,18 +84,21 @@ class ReviewDialog(QDialog):
         for row, item in enumerate(self.items):
             m = item.map
             values = (f'{item.priority} ({item.score:g})' + (' · Vermutung' if item.group == GUESSES else ''), m.name, f'0x{m.offset:X}',
-                      f'{m.rows}×{m.cols} {m.dtype} {m.endian}', '\n'.join(item.reasons), '\n'.join(item.links) or '–')
+                      f'{m.rows}×{m.cols} {m.dtype}{"?" if item.missing else ""} {m.endian}', '\n'.join(item.reasons),
+                      '\n'.join(item.missing) or '–', '\n'.join(item.links) or '–')
             for col, value in enumerate(values):
                 cell = QTableWidgetItem(value)
                 cell.setFlags(cell.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(row, col, cell)
         self.table.resizeColumnsToContents()
         header.setSectionResizeMode(4, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)
         self.table.resizeRowsToContents()
         self.table.setUpdatesEnabled(True)
         decided = len(self.open_decisions())
         hidden = 0 if self.show_guesses.isChecked() else len(guesses)
-        self.count.setText(f'{len(every)} offen' + (f' ({hidden} Vermutungen eingeklappt)' if hidden else '')
+        shown = '' if topic == ALL_TOPICS else f' ({len(chosen)} mit Prüfgrund „{topic}“)'
+        self.count.setText(f'{len(every)} offen{shown}' + (f' ({hidden} Vermutungen eingeklappt)' if hidden else '')
                            + f' · {decided} Entscheidungen im Projekt')
 
     def current(self):

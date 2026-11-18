@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.21.0 – Kennfelderkennung mit A2L-/HEX-Referenzdaten
 
-Stand: 15.11.2026, **in Entwicklung, nicht veröffentlicht**. Ausgangspunkt `v1.20.1` (8cca756), Branch
+Stand: 18.11.2026, **in Entwicklung, nicht veröffentlicht**. Ausgangspunkt `v1.20.1` (8cca756), Branch
 `feat/1.21.0-map-detection`. Die Referenzdaten (HEX-Abbilder und A2L-Dateien) sind private Daten eines Datengebers.
 Sie bleiben lokal. Firmwarebytes und A2L-Inhalte wurden an keinen externen Dienst übertragen; in der
 Sitzung des KI-Entwicklungsassistenten erschienen nur Dateinamen, Zählwerte, Lage und Größe einzelner
@@ -35,10 +35,16 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
   Update überschrieb das Fensterlayout des Nutzers). Ein Datensatzkopf, dem ein Code-Beleg widerspricht, verdrängt
   keine Lesart mehr (MS43 wieder 197). Nicht belegte Vorzeichen bleiben als Alternative sichtbar: falsche Datentypen
   ohne „?“ auf den Entwicklungsdaten 235 → 0. Funde und Zahlen sonst unverändert.
-- **Nicht unabhängig bestätigt:** Für Runde 2, 3 und Phase 4 gibt es keine neue, unbenutzte Testgruppe; lokal und
-  öffentlich wurden keine geeigneten Referenzen gefunden (§ 6c.4).
-- **Offen:** mehr Verwechslungen auf MEVD17.2.3-Vollflashs; Byte-Reihenfolge der MSV90-Kalibrierabbilder (§ 9).
-  Kein Modelltraining.
+- **Phase 5 (§ 6d):** Ist die Byte-Reihenfolge eines Abbilds nicht belegt, steht das jetzt am Fund (Holdout als
+  Regressionsprüfung: 1 399 von 1 436 falschen Byte-Reihenfolgen tragen ein „?“, MSV90). Prüfhilfen: Filter für
+  unbelegte Datentypen und Überschneidungen, fehlender Beleg je offener Frage, Lesarten derselben Bytes
+  nebeneinander, Prüfliste nach Prüfgrund. Updater-Tests berühren den echten Eintrag in „Apps & Features“ nicht
+  mehr; Abbruch- und Fehlerfälle der Testisolierung sind getestet. Funde unverändert.
+- **Nicht unabhängig bestätigt:** Für Runde 2, 3, Phase 4 und 5 gibt es keine neue, unbenutzte Testgruppe realer
+  Steuergeräte; lokal und öffentlich wurden zweimal keine geeigneten Referenzen gefunden (§ 6c.4, § 6d.1). Eine
+  synthetische externe Stichprobe (4 Kennfelder) ersetzt das nicht.
+- **Offen:** mehr Verwechslungen auf MEVD17.2.3-Vollflashs (nur im Holdout sichtbar, § 6d.3); Byte-Reihenfolge der
+  MSV90-Kalibrierabbilder (gekennzeichnet, nicht bestimmt; § 9). Kein Modelltraining.
 
 ## 2. Referenzdaten (zusammengefasst)
 
@@ -617,6 +623,141 @@ Phase 4 enthält keine Laufzeitänderung. Die neue Kopfprüfung kostet höchsten
 allen sieben Vollflash-Linien); die Abweichungen von 1–5 % je Linie sind Messstreuung. Die Ziele (höchstens
 152,2 s und 431 MB) sind eingehalten.
 
+## 6d. Qualitätsphase 5: Referenzsuche, MEVD17.2.3/MSV90, Prüfhilfen, Isolierung
+
+Stand 17.11.2026. Keine Regel wurde an Holdout-Daten abgestimmt. Der Code wurde vor allen Messungen eingefroren.
+
+### 6d.1 Suche nach neuen Referenzdaten
+
+- **Lokal:** Der Referenzordner des Datengebers ist seit dem 14.11.2026 unverändert (6 Linien, keine neuen Dateien).
+  Andere persönliche Verzeichnisse wurden nicht durchsucht.
+- **Öffentlich** (Suche 17.11.2026; gesucht nach MEVD17.2.3, MSV90, MED17.5/17.7, EDC17, MG1/MD1, Simos/SID, TCU,
+  Forschungsdatensätzen und offenen Steuergeräteprojekten):
+
+| Quelle | Inhalt | Lizenz / Herkunft | Eignung |
+|---|---|---|---|
+| Tuners Toolkit, `testdata/demo` (TT-DEMO-1) | A2L + HEX eines erfundenen Steuergeräts (Generator des Projekts) | MIT; „nothing here comes from a real ECU“ | **genutzt** als externe synthetische Stichprobe (§ 6d.2), keine Validierung realer Steuergeräte |
+| calibrationReader (asap2Go), `testing/` | ASAP2-Demo (A2L + HEX/S19) | Repository MIT, Demodateien aus dem ASAM-/Werkzeugumfeld ohne eigene Lizenzangabe | nicht genutzt (Herkunft der Demodateien ungeklärt, kein reales Steuergerät) |
+| ApexECUVault | „original binary dumps“ und TunerPro-Definitionen vieler Hersteller | als MIT gekennzeichnet, die Firmware gehört aber den Herstellern | **ausgeschlossen** (zweifelhafte Herkunft; der Hochladende kann Herstellerfirmware nicht lizenzieren) |
+| ecu_tcu_files u. ä. | ECU-/TCU-Abbilder mit XDF | keine Lizenzangabe | ausgeschlossen |
+| SimosDefinitions, RomRaider-Definitionen | Definitionen ohne Abbilder bzw. für andere Hersteller | teils ohne Lizenzangabe | nicht geeignet (keine Abbilder, Abbilder wären Herstellerdateien) |
+| XCPlite (Vector), Atlas, FOME, rusEFI, Speeduino | Demo-/Kalibrierwerkzeuge bzw. offene Firmware | offene Lizenzen | keine realen BMW-/Bosch-Kalibrierungen; FOME/rusEFI/Speeduino bereits im Negativbestand |
+| Forschungsdatensatz (Zenodo, Motorsteuerung) | Mess- und Regelungsdaten | offen | keine Firmware, keine A2L |
+
+**Folge:** Keine neuen, rechtmäßig nutzbaren A2L-/HEX-Paare realer Steuergeräte. **Anzahl neuer unabhängiger
+Testdateien realer Steuergeräte: 0.** Bekannte Testdaten wurden nicht als neuer Holdout ausgegeben.
+
+### 6d.2 Externe synthetische Stichprobe (TT-DEMO-1)
+
+Vor dem Download festgelegt: nur Test, eine Auswertung, eingefrorener Code, keine Änderung danach. Das Abbild ist
+das 32-KiB-Flash-Segment der HEX-Datei (Startadresse laut Projektbeschreibung). Die Dateien liegen nur lokal, nicht im
+Repository.
+
+| | 1.20.1 | 1.21.0 (Phase 5) |
+|---|---:|---:|
+| 2D-Kennfelder laut A2L | 4 | 4 |
+| exakt | 1 | 1 |
+| Verwechslungen | 2 | 1 |
+| Datentyp / Achsen richtig unter exakten | 1/1 / 1/1 | 1/1 / 1/1 (mit „?“) |
+| exakte 1D-Objekte (Achsen) | 2 | 2 |
+| Laufzeit / Spitzenspeicher | 0,29 s / 8 MB | 0,27 s / 8 MB |
+
+Vier Kennfelder sind statistisch bedeutungslos. Die Stichprobe zeigt nur, dass Import, Adressumsetzung und Abgleich
+mit einer fremd erzeugten A2L funktionieren und 1.21.0 dort nicht schlechter ist.
+
+### 6d.3 MEVD17.2.3-Vollflashs
+
+MEVD17.2.3 liegt nur im Holdout. Untersucht wurde deshalb zuerst die Entwicklungslinie derselben Bauart
+(MEVD17.2-Vollflashs, TriCore), danach der Holdout nur als Zählung ohne Abstimmung.
+
+- **Entwicklung:** Das Muster tritt dort nicht auf. Datensatz-Verwechslungen mit einem Kennfeld sinken gegenüber
+  1.20.1 (176 → 127), Zeilenabstands-Verwechslungen über mehrere Objekte ebenfalls (711 → 415).
+- **Holdout (Diagnose):** Gegenüber 1.20.1 entfallen 1 984 Verwechslungen, 2 239 kommen hinzu. Die neuen sind vor
+  allem 8-Bit-Lesarten mit Datensatzkopf (u8/s8, 691), 16-Bit-Datensatzlesarten über mehrere Objekte (351) und
+  Datenmuster-Lesarten (u. a. 541 Zeilenabstand über mehrere Objekte). Die Speicherabbildung ist nicht die Ursache:
+  exakte Funde und Adressen stimmen.
+- **Folge:** Eine Regel dagegen ließe sich nur am Holdout belegen. Sie unterbleibt; nötig sind Entwicklungsdaten
+  der Linie MEVD17.2.3. Die betroffenen Lesarten sind Strukturbeleg oder Datenmuster-Vermutung, nie Code-Beleg, und
+  bleiben ungeprüfte Vorschläge.
+
+### 6d.4 MSV90: unentschiedene Byte-Reihenfolge sichtbar
+
+Wenn sich die Datensätze eines Abbilds nicht auf eine Byte-Reihenfolge einigen (keine Mehrheit nach der bestehenden
+Regel), behielt jeder 16-Bit-Datensatz bisher still die Reihenfolge seiner eigenen Lesart.
+
+**Regel (Schalter `ENDIAN_KEEPS_OPEN`):** In diesem Fall trägt jeder 16-Bit-Datensatz ohne eigene 16-Bit-Zähler den
+Hinweis „Byte-Reihenfolge nicht belegt“. Anzeige mit „?“, Prüflistengrund, die andere Reihenfolge als Lesart in
+der Detailansicht. Keine Schwelle wurde geändert und kein Fund verändert; `DECISIVE_VOTES` bleibt aus. Die Regel
+beruht auf einer technischen Eigenschaft (keine Mehrheit), nicht auf Holdout-Zahlen.
+
+| | ohne Regel | Phase 5 |
+|---|---:|---:|
+| Entwicklung: Funde, Typen, „?“ | 32 058 exakt, 13 318 „?“ | gleich (alle 58 Abbilder fundgleich) |
+| Holdout (nur Regression): exakte Funde mit falscher Byte-Reihenfolge | 1 436 | 1 436 |
+| davon mit „?“ | 0 | **1 399** (97 %) |
+| Holdout: falscher Datentyp **ohne** „?“ | – ² | 48 |
+| Holdout: exakte Funde mit „?“ | – ² | 25 011 (47 %) |
+
+² Die Holdout-Messung von Phase 4 stammt aus einem Zwischenstand vor der Regel für flache Tabellen (§ 6c.5); ihre
+„?“-Zählung ist nicht vergleichbar. Holdout-Funde der Phase 5 sind mit Phase 4 identisch (alle 105 Abbilder).
+
+Die Reihenfolge selbst ist weiter nicht bestimmt; nur die Unsicherheit ist sichtbar. Die 48 falschen Typen ohne „?“
+liegen alle auf MSV90-Vollflashs (Vorzeichen); sie wurden nicht einzeln untersucht, weil sie nur im Holdout auftreten.
+Auf den Entwicklungsdaten trägt jeder falsche Datentyp ein „?“.
+
+### 6d.5 Prüfhilfen für Tuner
+
+- **Kennfeldliste:** Filter „Datentyp nicht belegt (?)“ und „Überschneidet andere Einträge“, neben den
+  Belegstufen und „Noch nicht manuell geprüft“. Von dir geprüfte Einträge stehen fett mit ✓; automatische Vorschläge
+  behalten Belegstufe und Status „ungeprüft“.
+- **Detailansicht:** alle offenen Fragen zum Datentyp gleichzeitig; je Frage der fehlende Beleg (z. B. für das
+  Vorzeichen: Programmcode, der die Werte vorzeichenbehaftet liest, oder eine Definition); dieselben Bytes in jeder
+  offenen Lesart als Rohwerte (min … max), die gewählte markiert.
+- **Prüfliste:** Filter nach Prüfgrund, Spalte „Fehlender Beleg“, Überschneidungen und Byte-Reihenfolge als Gründe.
+  Die Reihenfolge ist eine Zählung von Gründen (Widerspruch 5, Definitionswarnung 4, Datentyp 3, Achsen 2, …), keine
+  Wahrscheinlichkeit.
+- **Unverändert:** Automatische Funde bleiben ungeprüft, bis der Nutzer sie bestätigt; Änderungen in ihnen ergeben vor
+  dem Speichern einen gelben Befund.
+- **Synthetische Tests:** `tests/test_review_aids.py` (8 Tests, u. a. Abschalten der neuen Regel).
+
+### 6d.6 Registry- und GUI-Isolierung
+
+- **Neuer Befund:** Die Updater-Tests starteten `updater.ps1` mit dem echten Schlüssel von „Apps & Features“ als
+  Vorgabe. Geschützt war er nur durch den Vergleich des Installationsordners. Jetzt ignoriert der Updater im
+  Testprofil den echten Schlüssel, auch wenn er ausdrücklich übergeben wird. Auf einem Rechner mit installierter
+  1.20.1 hätte der alte Stand die Installer-Prüfung mit Exit 2 abgebrochen (nur gelesen, nichts geschrieben).
+- **Aufräumen:** Die Einstellungsdatei jedes Tests wird nach dem Test gelöscht, auch nach einem Fehler. Laufordner
+  abgebrochener Läufe (älter als 6 Stunden) entfernt der nächste Lauf.
+- **Abbruch und Fehler (neue Tests):**
+  - Ein verschachtelter Testlauf schreibt Einstellungen, schlägt fehl und wird abgebrochen. Danach sind Laufordner
+    und Einstellungsdatei weg, die Einstellungen lagen nie in der Registry, und die Registry ist unverändert.
+  - Ein nicht anlegbarer Einstellungsordner führt zu einem Fehler statt zu einem Rückfall auf die Registry, auch
+    beim Fensterstart.
+  - Ein statischer Test prüft, dass kein Test das installierte Programm startet.
+- **Unverändert aus Phase 4:** zentrale Einstellungsverwaltung, INI-Testprofil, Prüfung vor jedem Test, nur lesender
+  Registry-Wächter. Die gesicherte `.reg`-Datei wurde nicht importiert und nicht verändert.
+
+### 6d.7 Laufzeit, Speicher und Regressionen
+
+| Leistungssatz (15 Abbilder) | Laufzeit | Spitzenspeicher | exakte Funde |
+|---|---:|---:|---:|
+| Phase 4 (15.11., ohne Fremdlast) | 144,4 s | 431 MB | 7 494 |
+| **Phase 5 (17.11., ohne Fremdlast)** | **149,6 s** | **431 MB** | 7 494 |
+| 1.20.1 (18.11., mit Fremdlast) | 161,2 s | 431 MB | 5 049 |
+| Phase 5 (18.11., mit Fremdlast) | 165,0 s | 431 MB | 7 494 |
+| A/B abwechselnd am 18.11. (mit Fremdlast): Phase 4 / Phase 5 | 183,4 · 182,9 s / 162,0 · 189,2 s | – | gleich |
+
+Am 18.11. lief ein anderes Programm des Nutzers dauerhaft mit (etwa ein halber Prozessorkern). Die Messungen dieses
+Tages streuen deshalb um bis zu 17 % bei gleichem Code und sind nur untereinander vergleichbar. Im Mittel der
+abwechselnden Läufe ist Phase 5 nicht langsamer als Phase 4 (175,6 s gegenüber 183,2 s). Phase 5 fügt der Suche nur
+eine Schleife über die fertigen Funde hinzu; die Prüfhilfen rechnen erst in der Oberfläche. Die einzige Messung
+ohne Fremdlast (149,6 s, 431 MB) hält die Ziele (höchstens 152,2 s und 431 MB) ein. Eine Wiederholung auf einem
+unbelasteten Rechner vor dem Release steht aus.
+
+- **Regressionssatz** (15 Fälle): unverändert gegenüber Phase 4 (MS42 22, MS43 197, MSD80, synthetische Fälle).
+- **Negativbestand** (FOME, rusEFI, Speeduino): 549 Funde, 0 sicher falsch, unverändert.
+- **Entwicklung und Holdout:** alle Abbilder fundgleich mit Phase 4 (§ 6d.4).
+
 ## 7. Ghidra und REA (nur extern)
 
 Ghidra 12.1.4 und REA wurden ausschließlich als externe Werkzeuge an Entwicklungsabbildern benutzt. Nichts davon
@@ -645,9 +786,11 @@ trainierte Strukturmodell ist unverändert; Modellsperre und Firmware-Guard sind
 - **Byte-Reihenfolge MSV90-Kalibrierabbilder:** Die Datensätze stimmen dort nur 1,9 : 1 für Little Endian; die an
   den Entwicklungsdaten gewählte Schwelle ist 2 : 1. Deshalb gilt keine Reihenfolge für das ganze Abbild, und
   1 046 (Runde 3: 1 118) exakte Funde haben die falsche Reihenfolge. Eine Änderung der Schwelle anhand des Holdouts wäre eine
-  Anpassung an die Testdaten und unterbleibt; sie braucht neue Entwicklungsdaten.
-- **Verwechslungen auf MEVD17.2.3-Vollflashs** liegen über 1.20.1 (§ 6.1, § 6a.3, § 6b.7: 3 042 → 3 744 → 3 297). Ursache und Abhilfe sind
-  offen; sie sind nur aus dem Holdout bekannt und brauchen Entwicklungsdaten derselben Linie.
+  Anpassung an die Testdaten und unterbleibt; sie braucht neue Entwicklungsdaten. Seit Phase 5 tragen diese Funde
+  „Byte-Reihenfolge nicht belegt“ („?“, § 6d.4).
+- **Verwechslungen auf MEVD17.2.3-Vollflashs** liegen über 1.20.1 (§ 6.1, § 6a.3, § 6b.7: 3 042 → 3 744 → 3 297).
+  Diagnose (§ 6d.3): vor allem 8-Bit-Datensatzlesarten und Datenmuster-Lesarten; auf den Entwicklungsdaten tritt das
+  Muster nicht auf. Eine Abhilfe braucht Entwicklungsdaten derselben Linie.
 - **Breitenregel** (§ 6a.2, § 6b): Die Fehler aus Runde 2 (18 falsche Byte-Lesarten, 31 verdrängte Kennfelder)
   sind weitgehend behoben; gegenüber „Breitenregel aus“ gehen auf 27 Kalibrierabbildern noch 16 exakte Kennfelder
   verloren. Bei schwachem Beleg bleibt die 16-Bit-Lesart mit offener Breite stehen, obwohl dort die 8-Bit-Lesart
@@ -655,7 +798,8 @@ trainierte Strukturmodell ist unverändert; Modellsperre und Firmware-Guard sind
   belegt und als ungeprüft markiert.
 - **Kennfeldvorschläge** sind nie eine geprüfte Grundlage für Änderungen oder Flashfreigaben: Änderungen in ihnen
   ergeben in der Prüfung vor dem Speichern immer einen gelben Befund (§ 6b.5).
-- **Unabhängige Bestätigung fehlt** für Runde 2, 3 und Phase 4: keine neue Testgruppe (§ 6a.7, § 6b.6, § 6c.4).
+- **Unabhängige Bestätigung fehlt** für Runde 2, 3, Phase 4 und 5: keine neue Testgruppe realer Steuergeräte
+  (§ 6a.7, § 6b.6, § 6c.4, § 6d.1).
 - **Vorzeichen:** Bosch-Hüllroutinen springen in gemeinsame Kernroutinen; das Vorzeichen ist dort aus dem Code nicht
   ablesbar. Die Lesart ohne Überlauf irrt bei Kennfeldern mit wenigen Werten nahe 0/255 (Flags). Rest: 2 017
   Vorzeichenfehler unter 49 958 exakten Funden auf dem Holdout. Seit Phase 4 tragen solche Tabellen die andere

@@ -43,6 +43,10 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 - **Byte-Reihenfolge (vorbereitet, aus):** Datensätze mit 8-Bit-Zählern und kleinen 16-Bit-Achsen, die in beiden
   Byte-Reihenfolgen steigen, können von der Abstimmung ausgenommen werden. Ohne messbare Wirkung auf den
   Entwicklungsdaten und daher nicht eingeschaltet.
+- **Unentschiedene Byte-Reihenfolge sichtbar:** Sind sich die Datensätze eines Abbilds uneinig und entscheidet keine
+  Mehrheit, behielt bisher jeder 16-Bit-Datensatz still die Reihenfolge seiner eigenen Lesart. Jetzt steht dort
+  „Byte-Reihenfolge nicht belegt“ („?“, Prüflistengrund), außer der Datensatz legt sie mit eigenen 16-Bit-Zählern
+  selbst fest. Keine Schwelle geändert, kein Fund verändert.
 
 **Anzeige**
 
@@ -55,6 +59,16 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 - Übertragene Namen sind als „Name übertragen (ungeprüft)“ markiert.
 - Die Detailansicht nennt alle Einträge, die sich Bytes mit dem gewählten Kennfeld teilen, mit ihrem Status
   (ungeprüfter Vorschlag oder Definition/geprüft).
+- **Prüfhilfen für unbelegte Datentypen:**
+  - Kennfeldliste: Filter „Datentyp nicht belegt (?)“ und „Überschneidet andere Einträge“. Von dir geprüfte
+    Einträge stehen fett (zusätzlich zum ✓).
+  - Detailansicht: alle offenen Fragen zum Datentyp gleichzeitig (Wertebreite, Vorzeichen, Byte-Reihenfolge), je
+    Frage der fehlende Beleg (z. B. „Programmcode, der die Werte vorzeichenbehaftet liest, oder eine Definition“)
+    und dieselben Bytes in jeder offenen Lesart als Rohwerte (min … max), die gewählte markiert. Keine Bewertung,
+    keine Wahrscheinlichkeit.
+  - Prüfliste: Filter nach Prüfgrund (Widerspruch, Datentyp nicht belegt, Achsen, Überschneidung, nur Datenmuster,
+    experimentell), Spalte „Fehlender Beleg“, Überschneidungen und unbelegte Byte-Reihenfolge als eigene Gründe.
+    Die Reihenfolge bleibt eine Zählung der Gründe, keine Wahrscheinlichkeit.
 
 **Prüfung vor dem Speichern/Flashen**
 
@@ -98,6 +112,13 @@ nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICK
 - **Deinstallationseintrag:** Im Testprofil schreibt das Programm den Eintrag in „Apps & Features“ nie
   (Abgleich übersprungen, Schreibfunktion verweigert). Ein statischer Test erlaubt Registry-Schreibzugriffe nur an
   dieser einen Stelle.
+- **Updater im Testlauf:** `updater.ps1` lässt im Testprofil den echten Eintrag in „Apps & Features“ unberührt, auch
+  wenn er ausdrücklich übergeben wird. Bisher schützte ihn nur der Vergleich des Installationsordners; Tests mit
+  eigenem Wegwerf-Schlüssel laufen unverändert.
+- **Aufräumen und Abbruch:** Die Einstellungsdatei eines Tests wird nach dem Test gelöscht, auch nach einem Fehler.
+  Laufordner abgebrochener Läufe (älter als 6 Stunden) räumt der nächste Lauf weg. Getestet mit einem verschachtelten
+  Testlauf, der Einstellungen schreibt, fehlschlägt und abgebrochen wird, sowie mit einem nicht anlegbaren
+  Einstellungsordner (Fehler statt Rückfall auf die Registry).
 
 **Grenzen**
 

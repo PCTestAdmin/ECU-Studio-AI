@@ -428,6 +428,13 @@ BYTE_ORDER = True
 # (no measurable effect), so the rule is not validated; it waits for new development data.
 DECISIVE_VOTES = False
 
+# When the records of an image disagree on the byte order and no majority decides (_image_order
+# returns None), a 16-bit record whose order is not fixed by its own 16-bit counts says so in its
+# notes; confidence.dtype_doubt shows it as "?" and the checklist lists it (1.21.0). No threshold
+# changes: only the existing "no decision" case becomes visible instead of silently kept.
+ENDIAN_KEEPS_OPEN = True
+ENDIAN_OPEN = 'Byte-Reihenfolge nicht belegt'
+
 
 def _both_orders(buf: bytes, at: int, cols: int, rows: int, xw: int, yw: int, order: str) -> bool:
     """The 16-bit axes of an 8-bit-count record are strictly monotone in the other byte order too."""
@@ -508,6 +515,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
     fixed={}   # id(record) -> (byte order its 16-bit counts or axes fix, record)
     ambiguous=set()   # ids in fixed whose axes read as strictly monotone in both byte orders (no vote)
+    own_count=set()   # ids whose own 16-bit counts fix their byte order (c and c*256 cannot both be counts)
     flat_other=[]   # flat values of another width than the axes: kept when the next header fixes it
     for count_width in (1,2):
         for endian in (['big'] if count_width==1 else ['big','little']):
@@ -572,13 +580,20 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         continue
                                     if count_width==2 or wide:   # the reference keeps the id unique
                                         fixed[id(m)]=(order if wide else endian,m)
+                                        if count_width==2:
+                                            own_count.add(id(m))
                                         if count_width==1 and DECISIVE_VOTES and _both_orders(buf,axis_start,cols,rows,xw,yw,order):
                                             ambiguous.add(id(m))
                     if len(found)>max_results*30:
                         found=sorted(found,key=lambda item:-item[0])[:max_results*10]
     found.extend((FLAT_SCORE,m) for m in _chained(rough,[m for _,m in found]))
     found.extend((FLAT_SCORE,m) for m in _bounded_by_next_header(flat_other,[m for _,m in found]))
-    order=_image_order([fixed[id(m)][0] for _,m in found if id(m) in fixed and id(m) not in ambiguous]) if BYTE_ORDER else None
+    votes=[fixed[id(m)][0] for _,m in found if id(m) in fixed and id(m) not in ambiguous]
+    order=_image_order(votes) if BYTE_ORDER else None
+    # The records of this image disagree and no majority decides (1.21.0): a 16-bit record
+    # without its own 16-bit counts keeps the order its own reading chose, which nothing confirms.
+    order_open=(f'{votes.count("big")} big : {votes.count("little")} little'
+                if ENDIAN_KEEPS_OPEN and BYTE_ORDER and order is None and len(set(votes))==2 else '')
     if order:
         # Counts/axes fixed in the other byte order: a coincidence, dropped. Values alone in
         # the other order: the same record in the image order (small values stored in 16 bit
@@ -629,6 +644,10 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                 other=('u' if m.dtype[0]=='s' else 's')+m.dtype[1:]
                 if other not in m.dtype_alternatives:
                     m.dtype_alternatives=m.dtype_alternatives+[other]
+    if order_open:
+        for m in out:
+            if m.width>=2 and id(m) not in own_count and ENDIAN_OPEN not in m.notes:
+                m.notes+=f' {ENDIAN_OPEN}: die Datensätze dieses Abbilds sind uneinig ({order_open}), keine Mehrheit.'
     return out
 
 

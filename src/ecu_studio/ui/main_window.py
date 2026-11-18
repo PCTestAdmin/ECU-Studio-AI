@@ -42,7 +42,9 @@ from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
 from ..app_settings import app_settings
-from ..core.confidence import LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, overlap_note
+from ..core.confidence import (LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, missing_evidence, overlap_note,
+                               overlapping, type_doubts)
+from ..core.type_readings import readings as type_readings
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -82,14 +84,20 @@ from ..core.project_store import ProjectStore
 from .catalogue import CatalogueModel
 
 
-TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft')
+TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft',
+              'Datentyp nicht belegt (?)','Überschneidet andere Einträge')
 
 
-def tier_matches(m,choice:str)->bool:
-    """Catalogue filter by kind of evidence (core/confidence.py), never by a percentage."""
+def tier_matches(m,choice:str,overlaps:bool=False)->bool:
+    """Catalogue filter by kind of evidence (core/confidence.py), never by a percentage.
+
+    ``overlaps``: the entry shares bytes with another one (precomputed by the caller, 1.21.0).
+    """
     if choice==TIER_FILTERS[0]:return True
     if choice==TIER_FILTERS[4]:return m.verified or m.source not in ('heuristic','reference-shape','transfer-proposed','ml-proposed')
     if choice==TIER_FILTERS[5]:return not m.verified      # review queue: everything the user has not confirmed
+    if choice==TIER_FILTERS[6]:return bool(dtype_doubt(m))
+    if choice==TIER_FILTERS[7]:return overlaps
     return evidence_level(m)==choice
 
 
@@ -1164,6 +1172,7 @@ class Window(QMainWindow):
         elif sortby=='Typ':indices.sort(key=lambda i:(self.maps[i].kind.casefold(),self.maps[i].offset))
         else:indices.sort(key=lambda i:self.maps[i].offset)
         patch_offsets=sorted(self.image._patches) if self.image else []
+        overlaps=overlapping(self.maps) if tier==TIER_FILTERS[7] else {}
         visible=[]
         for i in indices:
             m=self.maps[i]
@@ -1177,7 +1186,7 @@ class Window(QMainWindow):
             elif category=="Favoriten":
                 if not m.favorite:continue
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
-            if not tier_matches(m,tier):continue
+            if not tier_matches(m,tier,bool(overlaps.get(i))):continue
             visible.append(i)
         self.axis_group_index=group_index(shared_axis_groups(self.maps))
         self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
@@ -1216,11 +1225,14 @@ class Window(QMainWindow):
         status = ('Schreibgeschützt: nichtlineare XDF-Formel' if m.equation else 'Manuell verifiziert' if m.verified else
                   'UNGEPRÜFTER HINWEIS – fachlich bestätigen')
         alt = ('\nWeitere Möglichkeiten: ' + ', '.join(m.type_alternatives)) if m.type_alternatives else ''
-        if m.dtype_alternatives:
-            alt += ('\nDatentyp NICHT belegt: ' + m.dtype + ' ist die glattere Lesart, ebenfalls möglich: '
-                    + ', '.join(m.dtype_alternatives))
-        elif dtype_doubt(m):
-            alt += '\nDatentyp NICHT belegt: ' + dtype_doubt(m)
+        doubts=type_doubts(m)
+        if doubts:
+            # 1.21.0: every open question, the evidence that would settle it, and the same bytes in each reading
+            alt += '\nDatentyp NICHT belegt: ' + '; '.join(text for _,text in doubts)
+            alt += ''.join('\nFehlender Beleg – ' + text for text in missing_evidence(m))
+            options=type_readings(self.image,m)
+            if len(options)>1:
+                alt += '\nLesarten derselben Bytes (Rohwerte min … max): ' + ' · '.join(r.describe() for r in options)
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(

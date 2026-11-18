@@ -8,11 +8,17 @@ plausibility warning for them. Higher score = a human decision matters more:
   definition plausibility warning      4
   sign not proven by code              3   (other reading listed)
   value width not proven (8/16 bit)    3   (1.21.0: record boundary too weak)
+  byte order not proven                3   (1.21.0: records of the image disagree)
   axes missing / changing direction    2
   data pattern only, no code/structure 2   (evidence level "Datenmuster-Vermutung")
   experimental evidence (TriCore code) 1
   size (up to 1 for 256 cells)         ≤1
   shares an axis with other maps       .5  (one check informs the linked maps)
+  overlaps other entries               .5  (1.21.0: only one reading of these bytes can be right)
+
+The score orders the work; it is a count of reasons, not a probability. Each item also
+names its topics (``ReviewItem.topics``, for the filters of the dialog) and, per open
+question about the data type, which technical evidence is missing (``ReviewItem.missing``).
 
 Data-pattern guesses without a contradiction form their own group
 (``ReviewItem.group``) after the evidenced finds; the dialog shows it
@@ -36,13 +42,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import datetime
 import math
-from .confidence import DATA_PATTERN, dtype_doubt, evidence_level, is_experimental
+from .confidence import (BYTE_ORDER, DATA_PATTERN, SIGN, WIDTH, evidence_level, is_experimental, missing_evidence,
+                         overlapping, type_doubts)
 from .fusion import layer_of
 from .model import MapDefinition
 
 DECISIONS = ('bestätigt', 'abgelehnt', 'zurückgenommen')
 GUESSES = 'Datenmuster-Vermutungen'
 LEVELS = ((5., 'hoch'), (2., 'mittel'), (0., 'niedrig'))
+# Topics for the dialog filters (1.21.0).
+CONTRADICTION, DTYPE, AXES, OVERLAP, GUESS, EXPERIMENTAL = (
+    'Widerspruch', 'Datentyp nicht belegt', 'Achsen', 'Überschneidung', 'Nur Datenmuster', 'Experimentell')
+TOPICS = (CONTRADICTION, DTYPE, AXES, OVERLAP, GUESS, EXPERIMENTAL)
 
 
 @dataclass
@@ -52,6 +63,8 @@ class ReviewItem:
     reasons: list[str] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
     group: str = ''                  # GUESSES: data pattern only, shown collapsed
+    topics: set[str] = field(default_factory=set)
+    missing: list[str] = field(default_factory=list)   # evidence that would settle the data type
 
     @property
     def priority(self) -> str:
@@ -79,49 +92,67 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
     conflicts = conflicts or {}
     definition_warnings = definition_warnings or {}
     shared: dict[int, list[MapDefinition]] = {}
+    overlaps = overlapping(maps)
     for m in maps:
         for off in {m.axis_x_offset, m.axis_y_offset} - {None}:
             shared.setdefault(off, []).append(m)
     items = []
-    for m in maps:
+    for index, m in enumerate(maps):
         if m.verified:
             continue
         layer = layer_of(m)
-        reasons, score = [], 0.
+        reasons, score, topics = [], 0., set()
         hits = [t for off, texts in conflicts.items() if m.offset <= off < m.offset + m.length for t in texts]
         if hits:
             score += 5
+            topics.add(CONTRADICTION)
             reasons.append('Widerspruch zwischen Erkennung und Definition: ' + hits[0]
                            + (f' (+{len(hits) - 1} weitere)' if len(hits) > 1 else ''))
         warnings = definition_warnings.get(m.name, [])
         if warnings:
             score += 4
+            topics.add(CONTRADICTION)
             reasons.append('Definitionsprüfung: ' + '; '.join(warnings))
         if layer == 1 and not reasons:
             continue                     # unremarkable definitions are not part of the checklist
-        if m.dtype_alternatives:
+        doubts = dict(type_doubts(m))
+        if SIGN in doubts:
             score += 3
             reasons.append(f'Datentyp nicht belegt: {m.dtype} ist die glattere Lesart, ebenfalls möglich: '
                            + ', '.join(m.dtype_alternatives))
-        elif dtype_doubt(m).startswith('Wertebreite nicht belegt'):
+        elif WIDTH in doubts:
             score += 3
             reasons.append(f'Wertebreite nicht belegt: {m.dtype} gelesen, eine 8-Bit-Tabelle gleicher Form ist ebenfalls möglich')
+        if BYTE_ORDER in doubts:
+            score += 3
+            reasons.append(f'Byte-Reihenfolge nicht belegt: {m.endian} gelesen, die Datensätze dieses Abbilds sind uneinig')
+        if doubts:
+            topics.add(DTYPE)
         if layer > 1:
             two_d = m.rows > 1 and m.cols > 1
             if not m.axes_x or (two_d and not m.axes_y):
                 score += 2
+                topics.add(AXES)
                 reasons.append('Achsen fehlen' if not m.axes_x else 'Y-Achse fehlt')
             elif any(len(a) > 1 and all(map(math.isfinite, a)) and not _monotone(a) for a in (m.axes_x, m.axes_y)):
                 score += 2
+                topics.add(AXES)
                 reasons.append('Achse nicht monoton')
             if evidence_level(m) == DATA_PATTERN:
                 score += 2
+                topics.add(GUESS)
                 reasons.append('Datenmuster-Vermutung: weder Programmcode noch gespeicherte Struktur belegt die Tabelle')
             elif is_experimental(m):
                 score += 1
+                topics.add(EXPERIMENTAL)
                 reasons.append('Beleg aus TriCore-Programmcode: experimentell, nicht unabhängig validiert')
             if not reasons:
                 reasons.append('Automatisch erkannt, noch nicht geprüft')
+        if overlaps.get(index):
+            score += .5
+            topics.add(OVERLAP)
+            reasons.append(f'Überschneidung mit {overlaps[index]} weiteren Einträgen: nur eine Lesart dieser Bytes '
+                           'kann stimmen')
         score += min(1., m.rows * m.cols / 256)
         links = []
         for name, off in (('X', m.axis_x_offset), ('Y', m.axis_y_offset)):
@@ -131,7 +162,8 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
                 links.append(f'{name}-Achse @ 0x{off:X} gemeinsam mit {len(others)} weiteren: '
                              + ', '.join(o.name for o in others[:3]) + (' …' if len(others) > 3 else ''))
         guess = evidence_level(m) == DATA_PATTERN and not hits and not warnings
-        items.append(ReviewItem(m, round(score, 2), reasons, links, GUESSES if guess else ''))
+        items.append(ReviewItem(m, round(score, 2), reasons, links, GUESSES if guess else '', topics,
+                                missing_evidence(m)))
     items.sort(key=lambda i: (-i.score, i.map.offset))
     return items
 

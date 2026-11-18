@@ -87,23 +87,77 @@ _WIDTH_GUESSED = ('Wertebreite = Achsenbreite (ungeprüft)', 'Wertebreite 1 Byte
                   'weil der nächste Datensatzkopf genau danach beginnt (ungeprüft)')
 
 
+WIDTH_OPEN = 'Wertebreite offen: auch eine 8-Bit-Tabelle'
+# Keys of the open questions about a data type, in the order they are shown (1.21.0).
+WIDTH, SIGN, BYTE_ORDER, PATTERN, WIDTH_DERIVED = 'width', 'sign', 'byte-order', 'pattern', 'width-derived'
+
+# What evidence would settle each open question (shown as "Fehlender Beleg"). Facts about the
+# evidence, never a probability.
+MISSING_EVIDENCE = {
+    WIDTH: 'Wertebreite: ein Datensatzkopf direkt hinter der Tabelle, Programmcode mit Zugriffsbreite '
+           'oder eine Definition (A2L/XDF) legt 8 oder 16 Bit fest.',
+    SIGN: 'Vorzeichen: Programmcode, der die Werte vorzeichenbehaftet liest, oder eine Definition. Die Werte '
+          'selbst entscheiden es nicht, weil das oberste Bit gesetzt ist und beide Lesarten zusammenhängende '
+          'Werte ergeben.',
+    BYTE_ORDER: 'Byte-Reihenfolge: eine klare Mehrheit der Datensätze dieses Abbilds, ein 16-Bit-Zähler im '
+                'eigenen Datensatzkopf oder eine Definition.',
+    PATTERN: 'Lage und Datentyp: weder Programmcode noch ein gespeicherter Datensatzkopf belegen die Tabelle; '
+             'nur der Werteverlauf spricht dafür.',
+    WIDTH_DERIVED: 'Wertebreite: nur aus dem Aufbau des Datensatzes abgeleitet; ein glatter Werteverlauf in dieser '
+                   'Breite, Programmcode oder eine Definition fehlen.',
+}
+
+
+def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
+    """Open questions about the data type of an unchecked candidate as (key, text), most important first.
+
+    Definitions and checked maps carry none. Several can apply at once (e.g. sign and byte order).
+    """
+    if m.source != 'heuristic' or m.verified:
+        return []
+    from .axis_records import ENDIAN_OPEN
+    notes = m.notes or ''
+    out = []
+    if WIDTH_OPEN in notes:
+        out.append((WIDTH, 'Wertebreite nicht belegt (auch möglich: 8-Bit-Tabelle gleicher Form)'))
+    if m.dtype_alternatives:
+        out.append((SIGN, 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'))
+    if ENDIAN_OPEN in notes and m.width > 1:
+        out.append((BYTE_ORDER, 'Byte-Reihenfolge nicht belegt (Datensätze dieses Abbilds uneinig; auch möglich: '
+                    + ('little' if m.endian == 'big' else 'big') + ')'))
+    if evidence_level(m) == DATA_PATTERN:
+        out.append((PATTERN, 'Datentyp nur aus der Glätte der Werte geschätzt'))
+    elif not out and any(text in notes for text in _WIDTH_GUESSED):
+        out.append((WIDTH_DERIVED, 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'))
+    return out
+
+
 def dtype_doubt(m: MapDefinition) -> str:
     """Why the data type of an unchecked candidate is not established ('' when it is).
 
     Shown next to the type in the list (1.21.0): a tuner must not edit a table in a
-    width or sign the evidence does not fix. Definitions and checked maps carry no doubt.
+    width, sign or byte order the evidence does not fix. Definitions and checked maps carry no doubt.
     """
-    if m.source != 'heuristic' or m.verified:
-        return ''
-    if 'Wertebreite offen: auch eine 8-Bit-Tabelle' in (m.notes or ''):
-        return 'Wertebreite nicht belegt (auch möglich: 8-Bit-Tabelle gleicher Form)'
-    if m.dtype_alternatives:
-        return 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'
-    if evidence_level(m) == DATA_PATTERN:
-        return 'Datentyp nur aus der Glätte der Werte geschätzt'
-    if any(text in (m.notes or '') for text in _WIDTH_GUESSED):
-        return 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'
-    return ''
+    return '; '.join(text for _, text in type_doubts(m))
+
+
+def missing_evidence(m: MapDefinition) -> list[str]:
+    """Which technical evidence would settle each open question of ``m`` (empty when nothing is open)."""
+    return [MISSING_EVIDENCE[key] for key, _ in type_doubts(m)]
+
+
+def overlapping(maps: list[MapDefinition]) -> dict[int, int]:
+    """{index: number of other entries sharing bytes with it}, one sweep over the sorted spans (1.21.0)."""
+    spans = sorted((m.offset, m.offset + max(m.length, 1), i) for i, m in enumerate(maps))
+    counts: dict[int, int] = {}
+    active: list[tuple[int, int]] = []          # (end, index) of spans still open
+    for start, end, i in spans:
+        active = [(e, j) for e, j in active if e > start]
+        for _, j in active:
+            counts[i] = counts.get(i, 0) + 1
+            counts[j] = counts.get(j, 0) + 1
+        active.append((end, i))
+    return counts
 
 
 def overlap_note(m: MapDefinition, maps: list[MapDefinition], limit: int = 5) -> str:
