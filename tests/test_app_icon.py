@@ -155,7 +155,9 @@ def test_build_functions_use_no_undefined_names():
 
 def test_installer_carries_the_program_version():
     installer = (ROOT / 'packaging' / 'installer.iss').read_text(encoding='utf-8-sig')
-    assert 'VersionInfoVersion={#AppVersion}' in installer
+    # 1.21.0-rc1: numeric file version x.y.z.N (core/app_version.py), the text version (1.21.0-rc1) stays visible.
+    assert 'VersionInfoVersion={#AppFileVersion}' in installer
+    assert 'VersionInfoTextVersion={#AppVersion}' in installer
 
 
 def test_relaunch_properties_need_the_packaged_launcher():

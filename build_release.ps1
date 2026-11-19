@@ -86,7 +86,9 @@ if ($iscc) {
     # Build outside the project: Windows "controlled folder access" may stop ISCC from
     # writing executables into Documents; PowerShell then copies the finished file.
     $isccOut = Join-Path ([System.IO.Path]::GetTempPath()) ('ECU-Studio-AI-installer-' + [Guid]::NewGuid().ToString('N'))
-    & $iscc /Qp "/O$isccOut" "/DAppVersion=$version" (Join-Path $PSScriptRoot 'packaging\installer.iss')
+    $fileVersion = (& $python -m ecu_studio.core.app_version $version windows).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Version $version ist ungültig." }
+    & $iscc /Qp "/O$isccOut" "/DAppVersion=$version" "/DAppFileVersion=$fileVersion" (Join-Path $PSScriptRoot 'packaging\installer.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer konnte nicht erstellt werden.' }
     $setup = "ECU-Studio-AI-$version-setup.exe"
     $manifest = "ECU-Studio-AI-$version-setup-manifest.txt"

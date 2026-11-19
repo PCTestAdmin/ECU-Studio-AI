@@ -30,8 +30,10 @@ def test_release_title_is_always_ecu_studio_ai_v_version():
 
 def test_workflow_publishes_the_generated_title_and_verifies_it():
     assert '--title "$(cat dist/release-title.txt)"' in WORKFLOW
-    assert 'test "$(cat release-title.txt)" = "ECU Studio AI $TAG"' in WORKFLOW
-    assert '--json name --jq .name)" = "ECU Studio AI $TAG"' in WORKFLOW
+    # 1.21.0: the artifact check (tools/release_guard.py assets) compares the title with the tag's expected title
+    # ("ECU Studio AI v1.2.3", a candidate with " (Vorabversion / Pre-release)"); the published name is compared too.
+    assert 'release_guard assets dist "$TAG"' in WORKFLOW
+    assert '--json name --jq .name)" = "$(cat dist/release-title.txt)"' in WORKFLOW
     # The wrong title of 1.20.0 must not come back.
     assert '--title "ECU Studio AI $version"' not in WORKFLOW
 
@@ -90,6 +92,7 @@ def test_command_fails_without_bilingual_notes_and_writes_title(tmp_path, monkey
     import ecu_studio.tools.release_notes as tool
     monkeypatch.setattr(tool, 'check_tag', lambda tag, version='2.0.0': '2.0.0')
     monkeypatch.setattr(tool, 'release_title', lambda tag, version='2.0.0': f'ECU Studio AI {tag}')
+    monkeypatch.setattr(tool, 'pyproject_version', lambda root=None: '2.0.0')   # 1.21.0: pyproject is compared too
     changelog = tmp_path / 'CHANGELOG.md'
     changelog.write_text(CHANGELOG, encoding='utf-8')
     docs = tmp_path / 'docs'
@@ -122,8 +125,9 @@ def test_workflow_gates():
     # Firmware guard, model block, version checks, installer test, checksums and provenance before/after publishing.
     assert 'firmware_guard.py tree HEAD' in WORKFLOW
     assert '-m ecu_studio.tools.withdrawn' in WORKFLOW
-    assert '--package dist/ECU-Studio-AI' in WORKFLOW and 'VersionInfo.ProductVersion' in WORKFLOW
+    assert '--package dist/ECU-Studio-AI' in WORKFLOW and '(Get-Item $file).VersionInfo' in WORKFLOW
+    assert '$info.ProductVersion' in WORKFLOW
     assert "release-test-user-file.txt" in WORKFLOW and 'DisplayVersion -ne $version' in WORKFLOW
-    assert 'sha256sum "$f"' in WORKFLOW and 'actions/attest-build-provenance' in WORKFLOW
+    assert 'release_guard assets dist' in WORKFLOW and 'actions/attest-build-provenance' in WORKFLOW
     assert 'gh attestation verify' in WORKFLOW
     assert WORKFLOW.index('needs: [build, update-test]') < WORKFLOW.index('gh release create')

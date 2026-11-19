@@ -870,6 +870,12 @@ class Window(QMainWindow):
         auto.setCheckable(True)
         auto.setChecked(self.updates.auto_enabled())
         act(settings_menu,"Jetzt nach Updates suchen",lambda:self.updates.check(manual=True))
+        # Test channel (1.21.0): release candidates only after an explicit, confirmed choice; off by default.
+        test_channel=act(settings_menu,"Testkanal: Vorabversionen (Release Candidates) anbieten …",
+                         lambda checked:test_channel.setChecked(self.updates.set_test_channel(checked)))
+        test_channel.setCheckable(True)
+        test_channel.setChecked(self.updates.channel()=='prerelease')
+        self.test_channel_action=test_channel
         act(settings_menu,"Vorherige Version wiederherstellen …",self.updates.request_restore)
         settings_menu.addSeparator()
         language_menu=settings_menu.addMenu("Sprache / Language")

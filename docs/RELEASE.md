@@ -40,8 +40,55 @@ bei einem Update von 1.16.2 ausdrücklich als Warnung.
    Zusätzlich wird eine Build-Herkunftsbestätigung (Attestation) erzeugt:
    `gh attestation verify <datei> --repo PCTestAdmin/ECU-Studio-AI`.
 
-Nur **stabile** Versionen (`vX.Y.Z`, kein Entwurf, keine Vorabversion) werden Nutzern angeboten. Für Testversionen
-den Release auf GitHub als „Pre-release“ markieren – die Update-Prüfung ignoriert ihn.
+Der **stabile Update-Kanal** (Standard) bietet nur stabile Versionen an (`vX.Y.Z`, kein Entwurf, keine
+Vorabversion). Ein Release, dessen Tag und Pre-release-Markierung nicht zusammenpassen, wird in **keinem** Kanal
+angeboten.
+
+## Release Candidates (ab 1.21.0)
+
+Vorabversionen heißen `X.Y.Z-rcN` (N = 1 … 99, ohne führende Null; Tag `vX.Y.Z-rcN`). Andere Schreibweisen
+(`1.21.0rc1`, `-RC1`, `-rc01`, `-rc0`, `-beta`) lehnt jede Prüfung ab. Reihenfolge:
+`1.20.1 < 1.21.0-rc1 < 1.21.0-rc2 < 1.21.0`.
+
+| Stelle | Form für `1.21.0-rc1` | Wo festgelegt |
+|---|---|---|
+| `src/ecu_studio/__init__.py`, `pyproject.toml` | `1.21.0-rc1` | von Hand, **erst beim Release** |
+| Python-Paketmetadaten (PEP 440) | `1.21.0rc1` | automatisch aus `pyproject.toml` |
+| Tag, Release-Titel | `v1.21.0-rc1`, „ECU Studio AI 1.21.0-rc1 (Vorabversion / Pre-release)“ | Tag von Hand, Titel vom Workflow |
+| Dateinamen, ZIP-Eintrag, Fenstertitel, „Apps & Features“, Produktversion | `1.21.0-rc1` | automatisch aus `__version__` |
+| Windows-Dateiversion (numerisch) | `1.21.0.1` (stabil: `1.21.0.0`) | `python -m ecu_studio.core.app_version <version> windows` |
+| Update-Kanal | `prerelease` (stabil: `stable`) | `python -m ecu_studio.core.app_version <version> channel` |
+
+Die numerische Windows-Dateiversion ist eindeutig, aber **nicht** über stabil/RC hinweg geordnet (`1.21.0.0` <
+`1.21.0.1`, obwohl 1.21.0 neuer ist). Versionsvergleiche des Programms verwenden deshalb nie die Dateiversion,
+sondern `app_version.parse`.
+
+**Ablauf für einen RC** (zusätzlich zu den Schritten oben):
+
+1. Erst wenn alle Prüfungen bestanden sind: `__version__` und `pyproject.toml` auf `X.Y.Z-rcN` setzen, in
+   `CHANGELOG.md` den Abschnitt `## X.Y.Z-rcN (Datum)` anlegen und `docs/RELEASE_NOTES_X.Y.Z-rcN.md` mit Datum
+   versehen. Der Entwicklungszweig bleibt bis dahin ohne veröffentlichte Versionsnummer.
+2. Probelauf ohne Veröffentlichung: denselben Commit auf einen Zweig `release-dry-run/X.Y.Z-rcN` pushen. Es laufen
+   build, update-test (2022/2025) und `publish-plan`, das nur liest: Paketprüfung (`release_guard assets`),
+   Negativtests (`release_guard selftest`) und der Veröffentlichungsplan gegen die echte Release-Liste.
+3. Nach ausdrücklicher Freigabe: Merge, dann Tag auf den Merge-Commit setzen und pushen.
+
+**Was der Workflow erzwingt** (`src/ecu_studio/tools/release_guard.py`):
+
+- Ein RC wird zuerst als Entwurf mit `--prerelease --latest=false` angelegt, geprüft und erst dann veröffentlicht.
+  Danach muss er als Pre-release markiert sein, und „Latest“ muss unverändert das bisherige stabile Release sein.
+- Abgelehnt werden: ein bereits vorhandener Tag oder Entwurf, ein RC nach seinem stabilen Release, ein RC, der nicht
+  neuer als das aktuelle stabile Release oder ein vorhandener RC ist, ein falsch geschriebener Tag.
+- Ein stabiles Release wird nur „Latest“, wenn es neuer als das bisherige ist.
+- Vor und nach der Veröffentlichung wird eine Momentaufnahme **aller anderen** Releases (Tag, Titel, Markierungen,
+  Dateien mit Größe und Prüfsumme) verglichen; jede Abweichung lässt den Lauf fehlschlagen. Bestehende Tags,
+  Releases und Dateien werden nie überschrieben.
+
+**Testkanal im Programm:** **Einstellungen → Testkanal: Vorabversionen (Release Candidates) anbieten …** schaltet
+nach einer Rückfrage den Kanal `prerelease` ein (Registry-Wert `channel` unter
+`HKCU\Software\ECU Studio\ECU Studio AI\updates`). Er bietet die höchste Version aus stabilen Releases und
+Vorabversionen an; Ausschalten fragt nicht. Eine installierte Vorabversion bekommt im stabilen Kanal die
+zugehörige stabile Version angeboten.
 
 ## Berechtigungen
 

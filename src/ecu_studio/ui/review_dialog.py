@@ -4,6 +4,7 @@ import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
+from ..core.i18n import t
 from ..core.review_checklist import GUESSES, TOPICS, checklist, decision, latest, entry_key, table_key
 
 COLUMNS = ('Priorität', 'Kennfeld', 'Adresse', 'Größe / Typ', 'Gründe', 'Fehlender Beleg', 'Verknüpfungen')
@@ -87,7 +88,8 @@ class ReviewDialog(QDialog):
                       f'{m.rows}×{m.cols} {m.dtype}{"?" if item.missing else ""} {m.endian}', '\n'.join(item.reasons),
                       '\n'.join(item.missing) or '–', '\n'.join(item.links) or '–')
             for col, value in enumerate(values):
-                cell = QTableWidgetItem(value)
+                # Table cells are painted by Qt itself (no translated setter): translate here (1.21.0-rc1).
+                cell = QTableWidgetItem('\n'.join(t(line) for line in value.split('\n')))
                 cell.setFlags(cell.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(row, col, cell)
         self.table.resizeColumnsToContents()

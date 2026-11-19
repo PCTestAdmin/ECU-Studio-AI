@@ -1,3 +1,32 @@
+## 1.21.0-rc1 – Release Candidate (Vorabversion; geplant, nicht veröffentlicht)
+
+Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
+automatisch erkannten Kennfelder bleiben **ungeprüfte Vorschläge**; wo ein Datentyp nicht belegt ist, steht ein
+„?“ mit Grund. Messwerte stehen bewusst nur im [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md): Sie stammen aus
+privaten Referenzdaten eines Datengebers und sind seit der ersten Holdout-Messung nicht mehr unabhängig bestätigt.
+Alle Einzelheiten: Abschnitt „1.21.0“ unten und [Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md).
+
+- **Kennfelderkennung ohne Definition:** TriCore-Tabellen an Interpolationsroutinen (auch bei verlagerter
+  Kalibrierung), Zeigertripel, Achssuche mit unbelegten Achsen; Datensätze mit gemischten Achsbreiten,
+  vorzeichenbehafteten Bytes und Wertebreite aus der Datensatzgrenze; weniger Fehlfunde aus bloßen Datenmustern.
+  Die TriCore-Codeerkennung ist experimentell.
+- **Datentyp mit „?“:** offene Wertebreite, offenes Vorzeichen und unbelegte Byte-Reihenfolge werden genannt, nicht
+  still entschieden. Ein TriCore-Vorzeichen gilt nur als belegt, wenn alle Tabellen-Ladebefehle der Routine in
+  Breite und Vorzeichen übereinstimmen.
+- **Prüfhilfen:** Filter „Datentyp nicht belegt (?)“ und „Überschneidet andere Einträge“, fehlender Beleg je offener
+  Frage, dieselben Bytes in jeder offenen Lesart, Prüfliste nach Prüfgrund, gelber Preflight-Befund für Änderungen
+  in ungeprüften Vorschlägen. Keine automatische Flashfreigabe.
+- **Updates:** Der stabile Kanal bietet nie eine Vorabversion an. Neu: **Einstellungen → Testkanal: Vorabversionen
+  (Release Candidates) anbieten …** (mit Rückfrage). Versionsschema `X.Y.Z-rcN`, Windows-Dateiversion `X.Y.Z.N`.
+- **Release-Workflow:** Ein Release Candidate wird nur als GitHub-Pre-Release veröffentlicht, nie als „Latest“;
+  vorher Entwurf und Prüfung, danach Vergleich aller anderen Releases. Negativtests für falsche Versionierung oder
+  fehlende Pre-release-Markierung.
+- **Isolierung:** Tests, GUI-Smoke und Selbsttest arbeiten mit eigenen Einstellungsprofilen und ändern die echte
+  Registry nicht.
+- **Grenzen:** keine neue unabhängige Validierung; MEVD17.2.3-Vollflashs mit Fehlzuordnungen; MSV90-Byte-Reihenfolge
+  und -Vorzeichen nicht immer sicher (dann „?“); viele Datentypen ungeprüft; keine vollständige Checksummen- oder
+  OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
+
 ## 1.21.0 (in Entwicklung, nicht veröffentlicht)
 
 Bessere Kennfelderkennung ohne Definition, gemessen an privaten Referenzdaten (A2L + HEX) eines Datengebers.

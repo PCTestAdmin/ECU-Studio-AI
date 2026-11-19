@@ -91,8 +91,11 @@ def _one(text: str) -> str | None:
     if text in exact:
         return exact[text]
     stripped = text.strip()
-    if stripped != text and stripped in exact:
-        return text.replace(stripped, exact[stripped])
+    if stripped != text and stripped:
+        # Indented lines (report details) get the same exact AND template lookup, indentation kept (1.21.0-rc1).
+        inner = _one(stripped)
+        if inner is not None:
+            return text.replace(stripped, inner, 1)
     for regex, order, target, chunks in templates:
         if not all(c in text for c in chunks):     # cheap pre-filter before any regex work
             continue

@@ -38,7 +38,7 @@ def test_dialog_text_buttons_and_choice(window):
 
 def test_automatic_check_is_off_until_switched_on_and_stored_choices_are_kept(window, monkeypatch):
     started = []
-    monkeypatch.setattr(ui, 'CheckWorker', lambda: started.append(1) or (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(ui, 'CheckWorker', lambda channel='stable': started.append(1) or (_ for _ in ()).throw(AssertionError))
     c = ui.UpdateController(window)
     assert not c.auto_enabled()                      # new installation: no network on its own
     c.check(manual=False, startup=True)
@@ -51,7 +51,7 @@ def test_automatic_check_is_off_until_switched_on_and_stored_choices_are_kept(wi
 
 def test_manual_check_works_with_automatic_check_off(window, monkeypatch):
     class Worker:
-        def __init__(self):
+        def __init__(self, channel='stable'):
             self.finished_check = type('S', (), {'connect': lambda s, fn: setattr(Worker, 'fn', fn)})()
         def isRunning(self):
             return False
@@ -153,7 +153,7 @@ def test_start_checks_even_if_checked_recently(window, monkeypatch):
     started = []
 
     class FakeWorker:                                           # records the start, no network
-        def __init__(self):
+        def __init__(self, channel='stable'):
             started.append(1)
             self.finished_check = type('S', (), {'connect': lambda self, fn: None})()
 

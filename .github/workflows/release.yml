@@ -1,12 +1,18 @@
 name: Release
 
 # Pushing a tag like v1.16.0 builds, tests and publishes the Windows package.
-# The tag must equal ecu_studio.__version__; CHANGELOG.md needs a "## 1.16.0" section and
+# The tag must equal ecu_studio.__version__ (and pyproject.toml); CHANGELOG.md needs a "## 1.16.0" section and
 # docs/RELEASE_NOTES_1.16.0.md a complete German and English part (tools/release_notes.py).
 # Publishing only happens after the real update path passed on several Windows versions.
 #
-# Dry run: pushing a branch release-dry-run/** runs everything for the version in the source EXCEPT the publish
-# job (no tag, no release, no attestation). That proves changes to this workflow before a real release.
+# Release candidates (from 1.21.0): a tag v1.21.0-rc1 (core/app_version.py: vX.Y.Z-rcN, nothing else) is published
+# ONLY as a GitHub pre-release, never as "Latest" (tools/release_guard.py plans the flags before anything is created,
+# checks the draft, publishes, and checks again that "Latest" and all other releases are unchanged). The program's
+# stable update channel never offers a candidate; only the test channel the user switched on does.
+#
+# Dry run: pushing a branch release-dry-run/** runs everything for the version in the source EXCEPT publishing
+# (no tag, no release, no attestation): the job publish-plan prints, with read-only rights, exactly how the tag
+# would be published (pre-release flags, title, files with SHA-256). That proves changes to this workflow first.
 on:
   push:
     tags: ['v*.*.*']
@@ -20,6 +26,7 @@ jobs:
     runs-on: windows-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      channel: ${{ steps.tag.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -43,14 +50,30 @@ jobs:
           python -m pip install --no-deps -e .
           if ("${{ github.ref_type }}" -eq 'tag') { $tag = "${{ github.ref_name }}" }
           else { $tag = 'v' + (python -c "import ecu_studio; print(ecu_studio.__version__)").Trim() }
+          # Only v1.2.3 or v1.2.3-rcN; the channel and the Windows file version follow from it (core/app_version.py).
+          $channel = (python -m ecu_studio.core.app_version $tag channel)
+          if ($LASTEXITCODE -ne 0) { throw "Tag $tag ist keine Version der Form v1.2.3 oder v1.2.3-rcN." }
+          $version = (python -m ecu_studio.core.app_version $tag text).Trim()
+          $fileVersion = (python -m ecu_studio.core.app_version $tag windows).Trim()
+          $pep440 = (python -m ecu_studio.core.app_version $tag pep440).Trim()
+          $installed = (python -c "import importlib.metadata as m; print(m.version('ecu-studio-ai'))").Trim()
+          if ($installed -ne $pep440) { throw "Paket-Metadaten $installed statt $pep440 (pyproject.toml)" }
           "tag=$tag" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
-          "Release-Tag: $tag (${{ github.ref_type }})"
+          "channel=$($channel.Trim())" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          "file_version=$fileVersion" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          "Release-Tag: $tag (${{ github.ref_type }}), Kanal $($channel.Trim()), Version $version, Windows $fileVersion, PEP 440 $pep440"
+      - name: Release guard negative test (wrong versions, missing pre-release flag, RC as Latest are refused)
+        shell: pwsh
+        run: |
+          python -m ecu_studio.tools.release_guard selftest
+          if ($LASTEXITCODE -ne 0) { throw 'Release-Wächter lehnt nicht alle Negativfälle ab.' }
       - name: Check tag, title and bilingual release notes
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist -Force | Out-Null
-          python -m ecu_studio.tools.release_notes "${{ steps.tag.outputs.tag }}" --out dist/release-notes.md --title-out dist/release-title.txt
+          python -m ecu_studio.tools.release_notes "${{ steps.tag.outputs.tag }}" --out dist/release-notes.md --title-out dist/release-title.txt --channel-out dist/release-channel.txt
           if ($LASTEXITCODE -ne 0) { throw 'Version, Titel oder Release Notes (Deutsch/Englisch) stimmen nicht.' }
+          if ((Get-Content dist/release-channel.txt).Trim() -ne '${{ steps.tag.outputs.channel }}') { throw 'Kanal der Release Notes passt nicht zum Tag.' }
       - name: Build, test and package (portable ZIP, EXE smoke test, run without Python in PATH)
         shell: pwsh
         run: ./build_release.ps1 -Python313 "${{ steps.py.outputs.python-path }}"
@@ -60,7 +83,7 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
           $version = "${{ steps.tag.outputs.tag }}".TrimStart('v')
-          & $iscc /Qp "/DAppVersion=$version" packaging\installer.iss
+          & $iscc /Qp "/DAppVersion=$version" "/DAppFileVersion=${{ steps.tag.outputs.file_version }}" packaging\installer.iss
           if ($LASTEXITCODE -ne 0) { throw 'Installer-Build fehlgeschlagen' }
           # Every file in the installer by SHA-256: no withdrawn learned data (docs/MODELLKARTE.md § 2e).
           python -m ecu_studio.tools.withdrawn "dist\ECU-Studio-AI-$version-setup-manifest.txt"
@@ -70,13 +93,18 @@ jobs:
       - name: Version of every built file equals the tag
         shell: pwsh
         run: |
-          $tag = "${{ steps.tag.outputs.tag }}"; $version = $tag.TrimStart('v')
-          python -m ecu_studio.tools.release_notes $tag --out dist/release-notes.md --title-out dist/release-title.txt --package dist/ECU-Studio-AI
+          $tag = "${{ steps.tag.outputs.tag }}"; $version = $tag.TrimStart('v'); $fileVersion = '${{ steps.tag.outputs.file_version }}'
+          python -m ecu_studio.tools.release_notes $tag --out dist/release-notes.md --title-out dist/release-title.txt --channel-out dist/release-channel.txt --package dist/ECU-Studio-AI
           if ($LASTEXITCODE -ne 0) { throw 'Programmordner hat eine andere Version als der Tag.' }
-          $setup = Get-Item "dist\ECU-Studio-AI-$version-setup.exe"
-          # Inno pads the version resource with blanks/NULs; compare the trimmed value exactly.
-          $productVersion = $setup.VersionInfo.ProductVersion -replace '[\s\x00]+$', ''
-          if ($productVersion -ne $version) { throw "Installer-Version '$productVersion' statt $version" }
+          # Windows version resources of setup.exe and of the starter EXE (Properties > Details): text = version,
+          # numbers = x.y.z.0 (stable) or x.y.z.N (rcN). Inno pads the text with blanks/NULs; compare it trimmed.
+          foreach ($file in @("dist\ECU-Studio-AI-$version-setup.exe", 'dist\ECU-Studio-AI\ECU-Studio-AI.exe')) {
+            $info = (Get-Item $file).VersionInfo
+            $productVersion = $info.ProductVersion -replace '[\s\x00]+$', ''
+            $numeric = "$($info.FileMajorPart).$($info.FileMinorPart).$($info.FileBuildPart).$($info.FilePrivatePart)"
+            if ($productVersion -ne $version) { throw "$file`: Produktversion '$productVersion' statt $version" }
+            if ($numeric -ne $fileVersion) { throw "$file`: Dateiversion $numeric statt $fileVersion" }
+          }
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path "dist\ECU-Studio-AI-$version-windows-x64.zip").Path)
           try {
@@ -106,6 +134,7 @@ jobs:
             dist/ECU-Studio-AI-*.sig
             dist/release-notes.md
             dist/release-title.txt
+            dist/release-channel.txt
           retention-days: 7
 
   update-test:
@@ -247,9 +276,53 @@ jobs:
             throw "Eigene Datei der Sicherung nicht unverändert erhalten: $($keptAll.FullName -join ', ')" }
           "Installer-Test auf ${{ matrix.os }} bestanden (von $old)."
 
+  publish-plan:
+    # Dry run only (release-dry-run/**): how the tag WOULD be published, with read-only rights. Nothing is created.
+    needs: [build, update-test]
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: src/ecu_studio
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: dist
+      - name: Files, checksums, title, channel and notes as they would be published
+        run: PYTHONPATH=src python3 -m ecu_studio.tools.release_guard assets dist "$TAG" --summary "$GITHUB_STEP_SUMMARY"
+      - name: Publishing plan against the live release list (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export PYTHONPATH=src
+          python3 -m ecu_studio.tools.release_guard selftest
+          gh release list --repo "$REPO" --json tagName,isPrerelease,isDraft --limit 200 > releases.json
+          latest="$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          python3 -m ecu_studio.tools.release_guard plan "$TAG" --releases releases.json --latest "$latest" --out plan.json
+          channel="${{ needs.build.outputs.channel }}"
+          test "$(python3 -c "import json; print(json.load(open('plan.json'))['prerelease'])")" = "$([ "$channel" = prerelease ] && echo True || echo False)"
+          flags="$(python3 -c "import json; print(' '.join(json.load(open('plan.json'))['flags']))")"
+          draft_flag="$([ "$channel" = prerelease ] && echo '--prerelease' || true)"
+          {
+            echo "### Veröffentlichung von $TAG (nur geplant, nichts erstellt)"
+            echo
+            echo "- Kanal: \`$channel\`, aktuelles Latest: \`${latest:-keins}\` (bleibt bei einem RC unverändert)"
+            echo "- 1. \`gh release create $TAG --verify-tag --draft $draft_flag --title \"$(cat dist/release-title.txt)\" ...\`"
+            echo "- 2. Entwurf prüfen (Pre-Release-Kennzeichnung, Titel, Latest unverändert)"
+            echo "- 3. \`gh release edit $TAG --draft=false $flags\`"
+            echo "- 4. Prüfen: Kennzeichnung, Latest, alle anderen Releases und ihre Dateien unverändert"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Dry run: $TAG würde mit '$flags' veröffentlicht (Latest vorher: ${latest:-keins})."
+
   publish:
     needs: [build, update-test]
-    # Only a pushed tag publishes; a dry-run branch stops here.
+    # Only a pushed tag publishes; a dry-run branch stops at publish-plan.
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
@@ -259,56 +332,83 @@ jobs:
     env:
       TAG: ${{ needs.build.outputs.tag }}
       REPO: ${{ github.repository }}
+      PYTHONPATH: src
     steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: src/ecu_studio
       - uses: actions/download-artifact@v4
         with:
           name: package
           path: dist
-      - name: Check assets, checksums, title and notes before publishing
+      - name: Check assets, checksums, title, channel and notes before publishing
         run: |
           set -euo pipefail
-          version="${TAG#v}"
           test "$TAG" = "${{ github.ref_name }}"
-          cd dist
-          for f in "ECU-Studio-AI-$version-windows-x64.zip" "ECU-Studio-AI-$version-setup.exe"; do
-            test -s "$f" && test -s "$f.sha256"
-            expected="$(tr -d '\r\n' < "$f.sha256")"
-            echo "$expected" | grep -qE "^[0-9a-f]{64}  $f\$"
-            test "$(sha256sum "$f" | cut -d' ' -f1)" = "${expected%% *}"
-          done
-          unexpected=$(ls | grep -vE "^ECU-Studio-AI-$version-(windows-x64\.zip|setup\.exe)(\.sha256|\.sig)?\$|^release-(notes\.md|title\.txt)\$" || true)
-          if [ -n "$unexpected" ]; then echo "::error::Unerwartete Dateien: $unexpected"; exit 1; fi
-          test "$(cat release-title.txt)" = "ECU Studio AI $TAG"
-          grep -q '^## English$' release-notes.md
+          python3 -m ecu_studio.tools.release_guard assets dist "$TAG" --summary "$GITHUB_STEP_SUMMARY"
+          test "$(cat dist/release-channel.txt)" = "${{ needs.build.outputs.channel }}"
+      - name: Plan (stable or pre-release) and snapshot of all other releases
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A re-pushed tag (e.g. after a history clean-up) must not replace published downloads.
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "::notice::Release $TAG existiert bereits – Dateien bleiben unverändert."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          gh release list --repo "$REPO" --json tagName,isPrerelease,isDraft --limit 200 > releases.json
+          latest="$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          python3 -m ecu_studio.tools.release_guard plan "$TAG" --releases releases.json --latest "$latest" --out plan.json
+          gh api --paginate "repos/$REPO/releases?per_page=100" |
+            jq -S -s --arg t "$TAG" 'add | map(select(.tag_name != $t) | {tag: .tag_name, prerelease, draft, name, assets: [.assets[] | {name, size, digest, updated_at}]}) | sort_by(.tag)' > others-before.json
+          echo "skip=false" >> "$GITHUB_OUTPUT"
       - name: Build provenance (verifiable with "gh attestation verify")
+        if: steps.plan.outputs.skip != 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
             dist/ECU-Studio-AI-*-windows-x64.zip
             dist/ECU-Studio-AI-*-setup.exe
-      - name: Publish GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="${TAG#v}"
-          # A re-pushed tag (e.g. after a history clean-up) must not replace published downloads.
-          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
-            echo "::notice::Release $TAG existiert bereits – Dateien bleiben unverändert."
-            exit 0
-          fi
-          files=("dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256"
-                 "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256")
-          for sig in dist/ECU-Studio-AI-*.sig; do if [ -f "$sig" ]; then files+=("$sig"); fi; done
-          gh release create "$TAG" --repo "$REPO" --verify-tag --title "$(cat dist/release-title.txt)" --notes-file dist/release-notes.md "${files[@]}"
-      - name: Verify the published release
+      - name: Publish GitHub release (draft first, then stable or pre-release as planned)
+        if: steps.plan.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="${TAG#v}"
-          test "$(gh release view "$TAG" --repo "$REPO" --json name --jq .name)" = "ECU Studio AI $TAG"
+          prerelease="$(python3 -c "import json; print(json.load(open('plan.json'))['prerelease'])")"
+          mapfile -t flags < <(python3 -c "import json; print('\n'.join(json.load(open('plan.json'))['flags']))")
+          draft_flags=(--draft)
+          if [ "$prerelease" = True ]; then draft_flags+=(--prerelease); fi
+          files=("dist/ECU-Studio-AI-$version-windows-x64.zip" "dist/ECU-Studio-AI-$version-windows-x64.zip.sha256"
+                 "dist/ECU-Studio-AI-$version-setup.exe" "dist/ECU-Studio-AI-$version-setup.exe.sha256")
+          for sig in dist/ECU-Studio-AI-*.sig; do if [ -f "$sig" ]; then files+=("$sig"); fi; done
+          gh release create "$TAG" --repo "$REPO" --verify-tag "${draft_flags[@]}" --title "$(cat dist/release-title.txt)" --notes-file dist/release-notes.md "${files[@]}"
+          latest_before="$(python3 -c "import json; print(json.load(open('plan.json'))['latest_before'])")"
+          gh release view "$TAG" --repo "$REPO" --json tagName,isPrerelease,isDraft,name > view.json
+          latest="$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          python3 -m ecu_studio.tools.release_guard verify --plan plan.json --release view.json --latest-after "$latest" --stage draft
+          gh release edit "$TAG" --repo "$REPO" --draft=false "${flags[@]}"
+      - name: Verify the published release
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          gh release view "$TAG" --repo "$REPO" --json tagName,isPrerelease,isDraft,name > view.json
+          latest="$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          python3 -m ecu_studio.tools.release_guard verify --plan plan.json --release view.json --latest-after "$latest"
+          test "$(gh release view "$TAG" --repo "$REPO" --json name --jq .name)" = "$(cat dist/release-title.txt)"
           gh release view "$TAG" --repo "$REPO" --json body --jq .body | grep -q '^## English'
+          # No other release, its flags or its files changed (a candidate never touches the stable releases).
+          gh api --paginate "repos/$REPO/releases?per_page=100" |
+            jq -S -s --arg t "$TAG" 'add | map(select(.tag_name != $t) | {tag: .tag_name, prerelease, draft, name, assets: [.assets[] | {name, size, digest, updated_at}]}) | sort_by(.tag)' > others-after.json
+          diff others-before.json others-after.json
           for f in "ECU-Studio-AI-$version-windows-x64.zip" "ECU-Studio-AI-$version-setup.exe"; do
             gh attestation verify "dist/$f" --repo "$REPO"
           done
-          echo "Release $TAG: Titel, Release-Text (DE + EN), Dateien und Herkunftsnachweise geprüft."
+          echo "Release $TAG: Titel, Kennzeichnung ($(cat dist/release-channel.txt)), Latest, Release-Text (DE + EN), Dateien, Herkunftsnachweise und alle anderen Releases geprüft."

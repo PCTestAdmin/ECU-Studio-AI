@@ -33,10 +33,14 @@ EXE_NAME=APP_NAME+'.exe'      # stable across versions: shortcuts and the update
 
 
 def app_version(root: Path) -> str:
+    """__version__ of the source tree: 1.2.3 or a release candidate 1.2.3-rcN (core/app_version.py)."""
     import re
+    from ecu_studio.core import app_version as versions
     text=(root/'src'/'ecu_studio'/'__init__.py').read_text(encoding='utf-8')
-    match=re.search(r'__version__\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"',text)
+    match=re.search(r'__version__\s*=\s*"([^"]+)"',text)
     if not match:raise RuntimeError('__version__ nicht gefunden')
+    if versions.parse(match.group(1)) is None or versions.parse(match.group(1)).text!=match.group(1):
+        raise RuntimeError(f'__version__ {match.group(1)!r} ist keine Version der Form 1.2.3 oder 1.2.3-rcN')
     return match.group(1)
 
 
@@ -45,8 +49,10 @@ CSC=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
 
 def version_source(version: str) -> str:
     """Assembly attributes for the starter: csc writes them into the Windows version
-    resource (Explorer > Properties > Details). Without them it shows 0.0.0.0."""
-    numeric=version+'.0'
+    resource (Explorer > Properties > Details). Without them it shows 0.0.0.0.
+    Numeric fields: 1.2.3.0, a release candidate 1.2.3.N; the text field (product version) is the version itself."""
+    from ecu_studio.core import app_version as versions
+    numeric=versions.windows_version(version)
     return ('using System.Reflection;\n'
             '[assembly: AssemblyTitle("ECU Studio AI")]\n'
             '[assembly: AssemblyProduct("ECU Studio AI")]\n'

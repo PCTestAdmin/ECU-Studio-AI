@@ -685,8 +685,12 @@ def cell_loads(h: list[int], entry: int, end: int, base: int = 4) -> Counter:
 def routine_cells(h: list[int], entries: list[int], routines, bases: dict | None = None) -> dict[int, tuple]:
     """{routine: (cell width or None, signed or None)} from its table loads.
 
-    A width (or sign) counts only when every table load of the routine agrees
-    and there are at least MIN_CELL_LOADS of them; mixed loads stay unknown.
+    A width counts only when every table load of the routine agrees and there
+    are at least MIN_CELL_LOADS of them; mixed loads stay unknown. A sign needs
+    more (1.21.0-rc1): every load must agree in width AND sign. Loads of mixed
+    widths are not all loads of the cells (counts, header bytes, neighbouring
+    fields read through the same pointer), so their common sign proves nothing
+    about the cells and stays unknown (the candidate keeps the other sign open).
     The routine body ends at the next function entry (at most MAX_BODY bytes).
     """
     import bisect
@@ -697,9 +701,8 @@ def routine_cells(h: list[int], entries: list[int], routines, bases: dict | None
         seen = cell_loads(h, r, end, (bases or {}).get(r, 4))
         enough = sum(seen.values()) >= MIN_CELL_LOADS
         widths = {w for w, _ in seen}
-        signs = {sg for _, sg in seen}
         out[r] = (widths.pop() if enough and len(widths) == 1 else None,
-                  signs.pop() if enough and len(signs) == 1 else None)
+                  next(iter(seen))[1] if enough and len(seen) == 1 else None)
     return out
 
 
