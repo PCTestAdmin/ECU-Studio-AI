@@ -30,9 +30,11 @@ jobs:
       - run: python -m pip install -e ".[dev]" pytest-github-actions-annotate-failures
       # Failures appear as annotations on the run (readable without the full log).
       - run: |
-          $env:PYTHONPATH = "$PWD"
-          foreach ($i in 1, 2) {
+          $env:PYTHONPATH = "$PWD\.github\diag"
+          foreach ($i in 1, 2, 3) {
             python -m pytest -q -rf -p diag_plugin
             Write-Host "DIAG round $i process exit code: $LASTEXITCODE"
           }
+          python -X faulthandler -m pytest -q -rf -p diag_plugin
+          Write-Host "DIAG round faulthandler process exit code: $LASTEXITCODE"
           exit 0
