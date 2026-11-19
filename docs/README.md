@@ -4,7 +4,7 @@
 |---|---|
 | [../ROADMAP.md](../ROADMAP.md) | Versionen mit Status, Erkennungsgüte 1.20.1 → 1.21.0, Funktionsstand, Plan |
 | [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) | 1.21.0 (in Entwicklung): Kennfelderkennung mit privaten A2L-/HEX-Referenzen, getrennter Holdout, Ergebnisse und Grenzen (nur Zählwerte) |
-| [RELEASE_NOTES_1.21.0-rc1.md](RELEASE_NOTES_1.21.0-rc1.md) | 1.21.0-rc1 (Vorabversion, geplant und nicht veröffentlicht): Release Notes Deutsch/Englisch mit bekannten Einschränkungen |
+| [RELEASE_NOTES_1.21.0-rc1.md](RELEASE_NOTES_1.21.0-rc1.md) | 1.21.0-rc1 (Vorabversion, veröffentlicht am 19.11.2026 als Pre-Release): Release Notes Deutsch/Englisch mit bekannten Einschränkungen |
 | [SPRINT_NAECHSTER.md](SPRINT_NAECHSTER.md) | Historisch (Stand 31.10.2026): damalige Sprintplanung mit Abnahmekriterien; aktueller Plan in der [Roadmap](../ROADMAP.md#d-plan) |
 | [FIRMWARE_PROTECTION.md](FIRMWARE_PROTECTION.md) | Firmware-Schutz: lokale Ablage, Git-Hooks, Regeln, Ausnahmen, Prüfung vor dem Push, Restrisiken |
 | [ANALYSE_2026-10-31.md](ANALYSE_2026-10-31.md) | Firmware-Schutz, Fehlerbehebungen bei Definition/XDF-Export, lokale Referenzsuche mit Benchmark, Aufgabenstand |

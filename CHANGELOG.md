@@ -1,4 +1,4 @@
-## 1.21.0-rc1 – Release Candidate (Vorabversion; geplant, nicht veröffentlicht)
+## 1.21.0-rc1 (19.11.2026) – Release Candidate (Vorabversion)
 
 Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
 automatisch erkannten Kennfelder bleiben **ungeprüfte Vorschläge**; wo ein Datentyp nicht belegt ist, steht ein
@@ -23,9 +23,13 @@ Alle Einzelheiten: Abschnitt „1.21.0“ unten und [Release Notes](docs/RELEASE
   fehlende Pre-release-Markierung.
 - **Isolierung:** Tests, GUI-Smoke und Selbsttest arbeiten mit eigenen Einstellungsprofilen und ändern die echte
   Registry nicht.
+- **Englische Oberfläche:** Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste sind
+  übersetzt.
+- **Installation:** Von 1.20.1 aus über den Installer oder das ZIP dieses Releases; 1.20.1 hat keinen Testkanal.
 - **Grenzen:** keine neue unabhängige Validierung; MEVD17.2.3-Vollflashs mit Fehlzuordnungen; MSV90-Byte-Reihenfolge
-  und -Vorzeichen nicht immer sicher (dann „?“); viele Datentypen ungeprüft; keine vollständige Checksummen- oder
-  OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
+  und -Vorzeichen nicht immer sicher (dann „?“); viele Datentypen ungeprüft; Checksummen nur teilweise, keine
+  allgemein vertrauenswürdige OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
+  Testversion, keine Empfehlung für produktive Fahrzeugkalibrierungen.
 
 ## 1.21.0 (in Entwicklung, nicht veröffentlicht)
 

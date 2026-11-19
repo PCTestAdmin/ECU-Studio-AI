@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.21.0 – Kennfelderkennung mit A2L-/HEX-Referenzdaten
 
-Stand: 19.11.2026, **in Entwicklung, nicht veröffentlicht** (Release Candidate 1.21.0-rc1 vorbereitet, § 6e). Ausgangspunkt `v1.20.1` (8cca756), Branch
+Stand: 19.11.2026. 1.21.0 **in Entwicklung, nicht veröffentlicht**; Vorabversion 1.21.0-rc1 als GitHub-Pre-Release veröffentlicht (§ 6e). Ausgangspunkt `v1.20.1` (8cca756), Branch
 `feat/1.21.0-map-detection`. Die Referenzdaten (HEX-Abbilder und A2L-Dateien) sind private Daten eines Datengebers.
 Sie bleiben lokal. Firmwarebytes und A2L-Inhalte wurden an keinen externen Dienst übertragen; in der
 Sitzung des KI-Entwicklungsassistenten erschienen nur Dateinamen, Zählwerte, Lage und Größe einzelner
@@ -44,7 +44,7 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
   Routine in Breite und Vorzeichen übereinstimmen (Holdout als Regressionsprüfung: falsche Datentypen ohne „?“ bei
   MSV90 48 → 0; Entwicklung unverändert). Englische Oberfläche der Prüfhilfen vervollständigt. RC-Versionen,
   Testkanal und Release-Workflow für Vorabversionen; Installer-QA auf Windows Server 2022/2025 (1 020 Prüfungen,
-  0 fehlgeschlagen) und Release-Probelauf bestanden. Nichts veröffentlicht.
+  0 fehlgeschlagen) und Release-Probelauf bestanden. Am 19.11.2026 als Pre-Release veröffentlicht.
 - **Nicht unabhängig bestätigt:** Für Runde 2, 3, Phase 4 und 5 gibt es keine neue, unbenutzte Testgruppe realer
   Steuergeräte; lokal und öffentlich wurden zweimal keine geeigneten Referenzen gefunden (§ 6c.4, § 6d.1). Eine
   synthetische externe Stichprobe (4 Kennfelder) ersetzt das nicht.
@@ -763,7 +763,7 @@ unbelasteten Rechner vor dem Release steht aus.
 - **Negativbestand** (FOME, rusEFI, Speeduino): 549 Funde, 0 sicher falsch, unverändert.
 - **Entwicklung und Holdout:** alle Abbilder fundgleich mit Phase 4 (§ 6d.4).
 
-## 6e. Vorbereitung 1.21.0-rc1 (19.11.2026, geplant und nicht veröffentlicht)
+## 6e. Vorbereitung 1.21.0-rc1 (19.11.2026, als Pre-Release veröffentlicht)
 
 ### 6e.1 Die 48 falschen Vorzeichen ohne „?“ (MSV90-Vollflashs)
 

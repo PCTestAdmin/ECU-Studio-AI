@@ -1,7 +1,7 @@
 # ECU Studio AI 1.21.0-rc1 – Release Notes
 
-**Release Candidate (Vorabversion) – geplant, noch nicht veröffentlicht.**
-**Release candidate (pre-release) – planned, not published yet.**
+**Release Candidate (Vorabversion) vom 19.11.2026 – zum Testen, nicht für den produktiven Einsatz.**
+**Release candidate (pre-release) of 19.11.2026 – for testing, not for production use.**
 
 Inhalt: [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29). Messwerte, Datensätze und ihr
 Validierungsstatus: [Entwicklungsbericht 1.21.0](ENTWICKLUNG_1.21.0.md). Gesamtstand: [Roadmap](../ROADMAP.md).
@@ -20,7 +20,7 @@ mehr unabhängig bestätigt**. Sie stehen mit Datensatz und Validierungsstatus i
 ### Kennfelderkennung ohne Definition
 
 - **TriCore-Code:** Tabellen, die das Programm an Interpolationsroutinen übergibt, auch wenn der Code den
-  Datenbereich an einer anderen Flash-Adresse erwartet. Tabellen aus Zeigertripeln (Daten, X-Achse, Y-Achse).
+  Datenbereich an einer anderen Flash-Adresse erwartet (verlagerter Kalibrierbereich). Tabellen aus Zeigertripeln (Daten, X-Achse, Y-Achse).
   Achssuch-Routinen mit unbelegten Achsen (alle Stützstellen gleich). Die TriCore-Codeerkennung ist als
   experimentell gekennzeichnet.
 - **Datensätze mit Kopf (Anzahl + Achsen):** gemischte Achsbreiten (8/16 Bit), vorzeichenbehaftete Bytes,
@@ -78,15 +78,37 @@ mehr unabhängig bestätigt**. Sie stehen mit Datensatz und Validierungsstatus i
   Programm im Testprofil jeden Zugriff auf die echten Einstellungen, statt auf die Registry zurückzufallen. Der
   Eintrag in „Apps & Features“ wird im Testprofil nie geschrieben.
 
+### Oberfläche, Laufzeit und Stabilität
+
+- **Englische Oberfläche:** Prüfliste (Spalten, Prüfgründe, Priorität, Zähler), Detailansicht, Stufen und
+  Detailzeilen des Preflight-Berichts sowie die Markierungen der Kennfeldliste („Name übertragen (ungeprüft)“,
+  „Vorschlag“, „[geändert]“) erscheinen jetzt auf Englisch.
+- **Laufzeit:** Die zusätzlichen Erkennungswege kosten etwas Rechenzeit je Vollflash; der Speicherbedarf bleibt
+  gleich.
+- **Stabilität:** Abgebrochene oder fehlgeschlagene Test- und Selbsttestläufe hinterlassen keine Einstellungsdateien
+  und keine Laufordner.
+
+### Installation
+
+- **Von 1.20.1 oder älter:** Installer `ECU-Studio-AI-1.21.0-rc1-setup.exe` oder ZIP aus diesem Release verwenden.
+  Die Update-Prüfung von 1.20.1 kennt keinen Testkanal und bietet diese Vorabversion nicht an. Projekte und
+  Einstellungen bleiben erhalten.
+- **Prüfen:** Zu jedem Paket gehört eine `.sha256`-Datei; die Build-Herkunft lässt sich mit
+  `gh attestation verify <Datei> --repo PCTestAdmin/ECU-Studio-AI` prüfen. Die Dateien sind **nicht
+  Authenticode-signiert**; Windows kann beim ersten Start warnen.
+
 ### Bekannte Einschränkungen
 
+- **Testversion:** keine Empfehlung für produktive Fahrzeugkalibrierungen.
+- **Automatisch erkannte Kennfelder sind ungeprüfte Vorschläge**, bis du sie selbst geprüft hast.
 - **Keine neue unabhängige Validierung:** Die Verbesserungen dieser Version sind nur an den Referenzdaten eines
   Datengebers gemessen; nach der ersten Holdout-Messung wurden diese Daten nur noch als Regressionstest verwendet.
 - **MEVD17.2.3:** Auf Vollflashs bleiben Fehlzuordnungen, dort mehr als mit 1.20.1.
 - **MSV90:** Byte-Reihenfolge und Vorzeichen sind nicht immer sicher bestimmt; sie sind dann mit „?“ markiert.
 - **Viele automatisch erkannte Datentypen bleiben ungeprüft** („?“). Ein Datentyp ohne „?“ ist ebenfalls nur ein
   Vorschlag.
-- **Keine vollständige Checksummen- oder OEM-Signaturvalidierung** und **keine automatische Flashfreigabe**.
+- **Checksummen nur teilweise unterstützt**, **keine allgemein vertrauenswürdige OEM-Signaturvalidierung** und
+  **keine automatische Flashfreigabe**.
 - Kein Modelltraining mit den privaten Firmwaredaten des Datengebers; Ghidra und REA wurden nur extern zur Analyse
   verwendet und sind nicht Teil des Programms.
 - **Rückmeldung:** Wer eigene Originaldateien mit passender Definition (A2L/XDF) rechtmäßig nutzen darf, kann die
@@ -108,7 +130,7 @@ measurement**. They are listed with data set and validation status in the develo
 ### Map detection without a definition
 
 - **TriCore code:** tables the program passes to interpolation routines, also when the code expects the data area
-  at another flash address. Tables from pointer triples (data, X axis, Y axis). Axis lookup routines with unapplied
+  at another flash address (relocated calibration area). Tables from pointer triples (data, X axis, Y axis). Axis lookup routines with unapplied
   axes (all breakpoints equal). TriCore code detection is marked as experimental.
 - **Records with a header (count + axes):** mixed axis widths (8/16 bit), signed bytes, value width from the
   boundary to the next record, 16-bit fields aligned to the header, one byte order per image when a clear majority of
@@ -162,14 +184,33 @@ measurement**. They are listed with data set and validation status in the develo
   to the real settings in the test profile instead of falling back to the registry. The "Apps & Features" entry is
   never written in the test profile.
 
+### Interface, run time and stability
+
+- **English interface:** the review list (columns, review reasons, priority, counters), the detail view, the levels
+  and detail lines of the preflight report and the markers of the map list ("name transferred (unchecked)",
+  "suggestion", "[changed]") are now shown in English.
+- **Run time:** the additional detection paths cost some computing time per full flash; memory use stays the same.
+- **Stability:** aborted or failed test and self-test runs leave no settings files and no run folders behind.
+
+### Installation
+
+- **From 1.20.1 or older:** use the installer `ECU-Studio-AI-1.21.0-rc1-setup.exe` or the ZIP of this release. The
+  update check of 1.20.1 has no test channel and does not offer this pre-release. Projects and settings are kept.
+- **Verify:** every package comes with a `.sha256` file; the build provenance can be checked with
+  `gh attestation verify <file> --repo PCTestAdmin/ECU-Studio-AI`. The files are **not Authenticode-signed**;
+  Windows may warn on first start.
+
 ### Known limitations
 
+- **Test version:** not a recommendation for production vehicle calibrations.
+- **Automatically detected maps are unchecked suggestions** until you have checked them yourself.
 - **No new independent validation:** the improvements of this version were measured only on the reference data of
   one data provider; after the first holdout measurement these data were used as a regression test only.
 - **MEVD17.2.3:** mismatches remain on full flashes, more than with 1.20.1.
 - **MSV90:** byte order and sign are not always determined reliably; they are then marked with "?".
 - **Many automatically detected data types stay unproven** ("?"). A data type without "?" is a suggestion too.
-- **No complete checksum or OEM signature validation** and **no automatic flash release**.
+- **Checksums only partly supported**, **no generally trustworthy OEM signature validation** and **no automatic
+  flash release**.
 - No model training with the data provider's private firmware data; Ghidra and REA were used only externally for
   analysis and are not part of the program.
 - **Feedback:** if you may lawfully use your own original files with a matching definition (A2L/XDF), you can measure

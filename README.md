@@ -339,7 +339,7 @@ Echtheit prüfen: Die SHA-256 der Datei (`Get-FileHash <datei>`) muss mit der `.
 
 | Schritt | Was passiert |
 |---|---|
-| Prüfen | Nur wenn du es willst: **Einstellungen → Jetzt nach Updates suchen**, oder automatisch beim Start und höchstens einmal täglich, sobald du **Automatisch nach Updates suchen** einschaltest (ab Werk aus). Abgefragt wird nur die GitHub-Releases-API, nur **stabile** Versionen; es wird nichts hochgeladen. Ohne Internet passiert still nichts. Ab 1.21.0 (noch nicht veröffentlicht) zusätzlich: **Einstellungen → Testkanal: Vorabversionen (Release Candidates) anbieten …** nach einer Rückfrage; ohne diesen Schalter wird nie eine Vorabversion angeboten. |
+| Prüfen | Nur wenn du es willst: **Einstellungen → Jetzt nach Updates suchen**, oder automatisch beim Start und höchstens einmal täglich, sobald du **Automatisch nach Updates suchen** einschaltest (ab Werk aus). Abgefragt wird nur die GitHub-Releases-API, nur **stabile** Versionen; es wird nichts hochgeladen. Ohne Internet passiert still nichts. Ab 1.21.0-rc1 (Vorabversion) zusätzlich: **Einstellungen → Testkanal: Vorabversionen (Release Candidates) anbieten …** nach einer Rückfrage; ohne diesen Schalter wird nie eine Vorabversion angeboten. |
 | Fragen | Fenster mit Version und Änderungen: **Jetzt aktualisieren** · **Später erinnern** · **Diese Version überspringen**. |
 | Laden | Nur von den Releases dieses Repositorys; SHA-256 gegen die veröffentlichte Prüfsumme **und** GitHubs eigene Angabe. |
 | Installieren | Erst nach dem Schließen (ungespeicherte Arbeit wird abgefragt) durch einen separaten Updater: jede Datei geprüft, eigene Dateien übernommen, alte Version gesichert. |
