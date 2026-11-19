@@ -31,7 +31,7 @@ jobs:
       # Failures appear as annotations on the run (readable without the full log).
       - run: |
           $env:PYTHONPATH = "$PWD\.github\diag"
-          foreach ($i in 1, 2, 3) {
+          foreach ($i in 1, 2, 3, 4) {
             python -m pytest -q -rf -p diag_plugin
             Write-Host "DIAG round $i process exit code: $LASTEXITCODE"
           }
