@@ -173,9 +173,11 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 |---|---|
 | Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🟠 umgesetzt: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht; Phase 5: Updater-Tests und Abbruchfälle abgesichert |
 | MS43-Regression aus Runde 3 | 🟠 behoben (196 → 197), allgemeine Regel, keine Sonderregel |
-| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt; Phase 5: unbelegte Byte-Reihenfolge, Filter, fehlender Beleg, Lesarten nebeneinander |
+| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt; Phase 5: unbelegte Byte-Reihenfolge, Filter, fehlender Beleg, Lesarten nebeneinander; rc1: Vorzeichen nur bei einheitlicher Ladebreite belegt (MSV90 ohne „?“ falsch: 48 → 0, Holdout nur als Regression) |
+| Englische Oberfläche der Prüfhilfen | 🟠 rc1: Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste übersetzt, GUI-Test |
+| Release Candidate: Versionen, Testkanal, Workflow nur als Pre-Release | 🟠 rc1: umgesetzt; Installer-QA Windows Server 2022/2025 (1 020 Prüfungen, 0 fehlgeschlagen), Release-Probelauf ohne Veröffentlichung bestanden |
 | Neue unabhängige Referenzdaten | 📋 offen: zweimal öffentlich gesucht (15. und 17.11.2026), keine rechtmäßig nutzbaren Paare realer Steuergeräte; nur eine synthetische externe Stichprobe |
-| Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 📋 offen |
+| Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 🟠 Prüfung für 1.21.0-rc1 abgeschlossen (19.11.2026; Leistung nur unter Fremdlast gemessen); **Freigabe offen**, nichts veröffentlicht |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.21.0 – Kennfelderkennung mit A2L-/HEX-Referenzdaten
 
-Stand: 18.11.2026, **in Entwicklung, nicht veröffentlicht**. Ausgangspunkt `v1.20.1` (8cca756), Branch
+Stand: 19.11.2026, **in Entwicklung, nicht veröffentlicht** (Release Candidate 1.21.0-rc1 vorbereitet, § 6e). Ausgangspunkt `v1.20.1` (8cca756), Branch
 `feat/1.21.0-map-detection`. Die Referenzdaten (HEX-Abbilder und A2L-Dateien) sind private Daten eines Datengebers.
 Sie bleiben lokal. Firmwarebytes und A2L-Inhalte wurden an keinen externen Dienst übertragen; in der
 Sitzung des KI-Entwicklungsassistenten erschienen nur Dateinamen, Zählwerte, Lage und Größe einzelner
@@ -40,6 +40,11 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
   unbelegte Datentypen und Überschneidungen, fehlender Beleg je offener Frage, Lesarten derselben Bytes
   nebeneinander, Prüfliste nach Prüfgrund. Updater-Tests berühren den echten Eintrag in „Apps & Features“ nicht
   mehr; Abbruch- und Fehlerfälle der Testisolierung sind getestet. Funde unverändert.
+- **Vorbereitung 1.21.0-rc1 (§ 6e):** Ein Vorzeichen gilt nur noch als belegt, wenn alle Tabellen-Ladebefehle der
+  Routine in Breite und Vorzeichen übereinstimmen (Holdout als Regressionsprüfung: falsche Datentypen ohne „?“ bei
+  MSV90 48 → 0; Entwicklung unverändert). Englische Oberfläche der Prüfhilfen vervollständigt. RC-Versionen,
+  Testkanal und Release-Workflow für Vorabversionen; Installer-QA auf Windows Server 2022/2025 (1 020 Prüfungen,
+  0 fehlgeschlagen) und Release-Probelauf bestanden. Nichts veröffentlicht.
 - **Nicht unabhängig bestätigt:** Für Runde 2, 3, Phase 4 und 5 gibt es keine neue, unbenutzte Testgruppe realer
   Steuergeräte; lokal und öffentlich wurden zweimal keine geeigneten Referenzen gefunden (§ 6c.4, § 6d.1). Eine
   synthetische externe Stichprobe (4 Kennfelder) ersetzt das nicht.
@@ -757,6 +762,99 @@ unbelasteten Rechner vor dem Release steht aus.
 - **Regressionssatz** (15 Fälle): unverändert gegenüber Phase 4 (MS42 22, MS43 197, MSD80, synthetische Fälle).
 - **Negativbestand** (FOME, rusEFI, Speeduino): 549 Funde, 0 sicher falsch, unverändert.
 - **Entwicklung und Holdout:** alle Abbilder fundgleich mit Phase 4 (§ 6d.4).
+
+## 6e. Vorbereitung 1.21.0-rc1 (19.11.2026, geplant und nicht veröffentlicht)
+
+### 6e.1 Die 48 falschen Vorzeichen ohne „?“ (MSV90-Vollflashs)
+
+**Herkunft der Untersuchung:** Die 48 Fälle traten nur im Holdout auf (§ 6d.4). Sie wurden hier untersucht, weil eine
+Vorabversion keine falsche Sicherheit zeigen darf. Es wurde **keine Schwelle** an ihnen abgestimmt; geprüft wurde nur,
+welche vorhandene Regel die Sicherheit behauptet.
+
+- **Befund:** Alle 48 sind TriCore-Tabellen an Interpolationsroutinen (Belegstufe „Code-Beleg“, u8 statt s8). Ihre
+  Routinen lesen über den Tabellenzeiger Werte **unterschiedlicher Breite** (z. B. Anzahl- oder Kopffelder neben den
+  Zellen). Bisher wurden Breite und Vorzeichen getrennt ausgewertet: Die Breite blieb offen, aber das gemeinsame
+  „vorzeichenlos“ dieser Ladebefehle galt als Beleg für die Zellen. Ein privater Prüflauf (nur Zählwerte) zeigt: In
+  allen Fällen, in denen die Ladebefehle auch die Breite festlegen, stimmt das Vorzeichen (Entwicklung und Holdout);
+  falsch war es nur bei uneinheitlicher Breite.
+- **Allgemeine Regel:** Ein Vorzeichen gilt nur noch als belegt, wenn **alle** Tabellen-Ladebefehle der Routine in
+  Breite **und** Vorzeichen übereinstimmen. Sonst bleibt es offen („?“, beide Lesarten sichtbar, fehlender Beleg
+  genannt). Keine Sonderbehandlung nach Steuergerät, Softwarestand, Dateiname oder Adresse.
+- **Synthetische Tests:** `tests/test_tricore_refs.py` (gemischte Breiten mit gleichem Vorzeichen, mit beiden
+  Vorzeichen, mehrheitlich eine Breite; Anzeige von „?“, Alternative und fehlendem Beleg).
+
+| | Phase 5 | 1.21.0-rc1 |
+|---|---:|---:|
+| Entwicklung: exakt / Verwechslungen / Typ richtig / „?“ / falsch ohne „?“ | 32 058 / 5 316 / 30 712 / 13 318 / 0 | gleich |
+| Holdout (nur Regression): exakt / Verwechslungen | 52 701 / 10 743 | gleich |
+| Holdout MSV90: falscher Datentyp **ohne** „?“ | 48 | **0** |
+| Holdout MSV90: mit „?“ markiert / Datentyp richtig | 4 375 / 11 047 | 4 423 / 11 063 |
+| Holdout, andere Linien | – | unverändert |
+
+Die 48 tragen jetzt ein „?“; 16 davon bekommen über die bestehende Lesart ohne Überlauf das richtige Vorzeichen.
+Das Vorzeichen bleibt bei MSV90 damit **nicht** sicher bestimmt, nur die Unsicherheit ist sichtbar. Der Holdout
+ist seit Runde 1 keine unabhängige Prüfung; eine neue unabhängige Testgruppe gibt es weiterhin nicht.
+
+### 6e.2 Englische Oberfläche
+
+Beim Durchgehen der Prüfhilfen in der englischen Oberfläche waren Teile deutsch geblieben: Spalten, Prüfgründe,
+Priorität, Zähler und Zellen der Prüfliste (Tabellenzellen zeichnet Qt selbst, ohne übersetzten Setter), Teile der
+Detailansicht (zusammengesetzte Zeilen), die Stufen des Preflight-Berichts und eingerückte Detailzeilen sowie
+Markierungen der Kennfeldliste („Name übertragen (ungeprüft)“, „Vorschlag“, „[geändert]“). Behoben; ein GUI-Test
+prüft die angezeigten Texte gegen deutsche Wörter (`tests/test_english_interface.py`). Funktional war nichts
+betroffen.
+
+### 6e.3 Release Candidate: Versionen, Kanäle, Workflow
+
+- **Versionsschema:** `X.Y.Z-rcN`; Windows-Dateiversion `X.Y.Z.N` (stabil `.0`), eindeutig, aber nicht über
+  stabil/RC geordnet; Versionsvergleiche nutzen nie die Dateiversion. Einzelheiten und die erst beim Release
+  gesetzten Angaben: [RELEASE.md](RELEASE.md#release-candidates-ab-1210).
+- **Update-Kanäle:** stabiler Kanal ohne Vorabversionen, auch bei falscher Markierung; Testkanal nur nach Rückfrage.
+- **Workflow:** RC nur als Pre-Release, nie „Latest“; Entwurf → Prüfung → Veröffentlichung → Prüfung, Vergleich aller
+  anderen Releases. Negativtests (`release_guard selftest`) laufen in jedem Build. `release_notes` lehnt einen Tag ab,
+  dessen CHANGELOG-Überschrift oder Release-Notes-Kopf noch „geplant/nicht veröffentlicht“ enthält.
+- **Probelauf** (`release-dry-run/1.21.0-rc1`, Commit mit den Release-Angaben nur auf diesem Zweig): build,
+  update-test auf Windows Server 2022/2025 und `publish-plan` bestanden; Plan `--prerelease --latest=false`, Latest
+  bleibt v1.20.1. Pakete: Dateinamen und Versionen `1.21.0-rc1`, Dateiversion `1.21.0.1`, SHA-256 der `.sha256`-Dateien
+  stimmen, ZIP mit einem Wurzelordner, Inventar 1.21.0-rc1, keine Firmwaredateien. Nichts veröffentlicht.
+
+### 6e.4 Installer-QA (GitHub-Runner, Windows Server 2022 und 2025)
+
+Zweig `qa/1.21.0-rc1` (wird nie gemergt), 9 Modi × 2 Systeme, 1 020 Einzelprüfungen, **0 fehlgeschlagen**:
+Neuinstallation, Update von v1.20.1, In-App-Update im eingeschalteten Testkanal (RC → RC), kein Angebot im stabilen
+Kanal (auch bei falsch markiertem Release), Reparaturinstallation, Wiederherstellen der Vorversion, Rollback nach
+simuliertem Fehler, vorhandene Sicherungs- und Staging-Ordner, gesperrte Dateien, unbekannte und geänderte
+Nutzerdateien, Registry-Isolierung von Selbsttest und GUI-Smoke, Deinstallation nach Update und nach Reparatur.
+
+Zwei vorherige Läufe schlugen fehl, beide wegen der QA-Werkzeuge, nicht wegen des Kandidaten:
+
+1. Die QA-Testversion trug „nicht veröffentlicht“ in der Überschrift; die neue Release-Prüfung lehnte das ab (gewollt).
+2. Im Modus Update veränderte der **Selbsttest der veröffentlichten 1.20.1** (vor der Installation des Kandidaten)
+   das Fensterlayout in der Registry, der in § 6c.1 gefundene und in 1.21.0 behobene Fehler. Er wird jetzt als bekannte
+   Einschränkung von 1.20.1 protokolliert; Selbsttest und GUI-Smoke des Kandidaten bleiben strikt geprüft (unverändert).
+
+### 6e.5 Laufzeit und Speicher
+
+Abwechselnd je 5 Läufe in eigenen Prozessen (Zeit), 2 Läufe mit Speichermessung; ein MSD80- und ein MSV90-Vollflash.
+**Unter Fremdlast** (ein anderes Programm des Nutzers lief dauerhaft mit und wurde nicht angehalten): die Werte sind
+untereinander vergleichbar, aber **kein Nachweis** für einen unbelasteten Rechner.
+
+| Vollflash | 1.20.1 Median (Min–Max) | 1.21.0-rc1 Median (Min–Max) | Spitzenspeicher | exakte Funde |
+|---|---:|---:|---:|---:|
+| MSD80 (Entwicklung) | 12,72 s (12,47–13,48) | 13,65 s (13,09–13,95) | 87,3 → 87,5 MB | 315 → 620 |
+| MSV90 (Holdout) | 12,66 s (12,45–12,99) | 13,61 s (13,51–14,06) | 86,3 → 86,3 MB | 146 → 526 |
+
+Der Kandidat braucht etwa 7 % länger bei zwei- bis dreieinhalbmal so vielen exakten Funden; der Speicher ist gleich.
+Ohne nachgewiesenen Engpass wurde an der Leistung nichts geändert.
+
+### 6e.6 Weitere Prüfungen
+
+- pytest lokal (Python 3.13) 1 254 bestanden, 22 übersprungen, 0 fehlgeschlagen; ebenso mit Version 1.21.0-rc1
+  (Probelauf-Stand). CI: pytest 3.11/3.12 und CodeQL bestanden.
+- GUI-Smoke 10/10 und `--self-check` im isolierten Profil; Registry vorher/nachher nur lesend verglichen: unverändert.
+- Übersetzungen ohne Lücke; Firmware-Guard `tree`, `staged`, `push` ohne Befund; Modellsperre in pytest.
+- Regressionssatz (15 Fälle) unverändert; Negativbestand 549 Funde, 0 sicher falsch; TT-DEMO-1 unverändert
+  (1 exakt, 1 Verwechslung).
 
 ## 7. Ghidra und REA (nur extern)
 
