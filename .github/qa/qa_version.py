@@ -42,7 +42,9 @@ pyproject.write_text(text, encoding='utf-8')
 
 changelog = args.root / 'CHANGELOG.md'
 kind = 'Vorabversion (Release Candidate), ' if candidate else ''
-section = (f'## {args.version} (QA-Testversion, nicht veröffentlicht)\n\n'
+# 1.21.0-rc1: release_notes refuses placeholders ("nicht veröffentlicht", "geplant") in the heading of the
+# tagged version, so the QA heading is a final one, as at release time.
+section = (f'## {args.version} (QA-Testversion)\n\n'
            f'Nur für den isolierten Installer-Test auf einem GitHub-Runner: {kind}Kandidat mit der Testversion '
            f'{args.version}. Kein Tag, kein Release.\n\n')
 changelog.write_text(section + changelog.read_text(encoding='utf-8'), encoding='utf-8')
@@ -50,7 +52,16 @@ changelog.write_text(section + changelog.read_text(encoding='utf-8'), encoding='
 # Since the release checks (tools/release_notes.py) every built version needs bilingual release notes. A QA-only
 # test version (e.g. the derived NEXT) has none: write a minimal QA note on the runner. Real notes are never touched.
 notes = args.root / 'docs' / f'RELEASE_NOTES_{args.version}.md'
-if not notes.exists():
+if notes.exists():
+    # Real notes of a candidate: their head says "geplant, noch nicht veröffentlicht" until release time. On
+    # the runner only, replace the head (before "## Deutsch") as the release commit would; the body stays.
+    doc = notes.read_text(encoding='utf-8')
+    head, sep, body = doc.partition('\n## Deutsch')
+    title = head.split('\n', 1)[0]
+    head = (f'{title}\n\n**QA-Testversion {args.version} (Vorabversion) – nur für den isolierten Installer-Test.**\n'
+            f'**QA test version {args.version} (pre-release) – isolated installer test only.**\n')
+    notes.write_text(head + sep + body, encoding='utf-8')
+else:
     de = 'Vorabversion (Release Candidate). ' if candidate else ''
     en = 'Pre-release (release candidate). ' if candidate else ''
     notes.write_text(f'# ECU Studio AI {args.version} – Release Notes\n\n'
