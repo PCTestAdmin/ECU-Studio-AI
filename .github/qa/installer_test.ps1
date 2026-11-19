@@ -145,7 +145,18 @@ function Run-Exe([string[]]$Arguments, [string]$Name) {
     $p = Start-Process "$install\ECU-Studio-AI.exe" -ArgumentList $Arguments -PassThru -Wait -WindowStyle Hidden
     Remove-Item Env:QT_QPA_PLATFORM
     $diff = Compare-Object $before (Get-SettingsSnapshot) | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" }
-    Check "Registry-Isolation: $($Arguments[0]) lässt HKCU\Software\ECU Studio unverändert" (-not $diff) (($diff | Select-Object -First 5) -join '; ')
+    $label = "Registry-Isolation: $($Arguments[0]) lässt HKCU\Software\ECU Studio unverändert"
+    $installed = "$(Get-Content "$install\VERSION.txt" -ErrorAction SilentlyContinue | Select-Object -First 1)".Trim()
+    if ($diff -and $installed -match '^1\.(1\d|20)\.\d+$') {
+        # A PUBLISHED version before 1.21.0 (installed as the starting point of a test): its self-check writes the
+        # window layout to the registry. Found and fixed in 1.21.0 (phase 4). Recorded as a known limitation of the
+        # old version, never as a pass of the candidate: the candidate's own runs below are checked strictly.
+        $results.Add([ordered]@{ name = "$label (bekannte Einschränkung von $installed, in 1.21.0 behoben)"; ok = $true;
+                                 known = $true; detail = (($diff | Select-Object -First 3) -join '; ') })
+        Write-Host "[BEKANNT] $label ($installed)"
+    } else {
+        Check $label (-not $diff) (($diff | Select-Object -First 5) -join '; ')
+    }
     return $p.ExitCode
 }
 function Run-Python([string]$Runtime, [string[]]$Arguments, [bool]$Offscreen = $true) {
@@ -567,7 +578,7 @@ if ($Mode -eq 'Update') {
     $oldFiles = Get-TreeHash $install
     New-UserFile "Update ($OldTag)"
 
-    Check 'Update: Kandidat über 1.19.1 installiert' ((Install $setup "$Out\install-update.log") -eq 0)
+    Check "Update: Kandidat über $OldTag installiert" ((Install $setup "$Out\install-update.log") -eq 0)
     Check-Installed 'Update'
     $zipFiles = @{}
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -590,7 +601,7 @@ if ($Mode -eq 'Update') {
     $code = Run-Exe @('--smoke-test', ('"' + "$Out\gui-smoke-update" + '"'))
     $smoke = if (Test-Path "$Out\gui-smoke-update\gui-smoke.json") { Get-Content "$Out\gui-smoke-update\gui-smoke.json" -Raw -Encoding utf8 | ConvertFrom-Json }
     Check 'Update: GUI-Smoke-Test inkl. Checksummen' ($code -eq 0 -and $smoke.passed -and $smoke.checksums) "Exit $code"
-    E2E $install 'compat' "$Out\user" 'Update: Projekt und Einstellungen aus 1.19.1'
+    E2E $install 'compat' "$Out\user" "Update: Projekt und Einstellungen aus $OldTag"
     E2E $install 'first' "$Out\e2e" 'Update: Ablauf'
     Check 'Update: Projekt und BIN des Benutzers unverändert' (-not (Compare-Object $userBefore ($userFiles | ForEach-Object { (Get-FileHash $_).Hash })))
     Check 'Update: private Datei in .ecu_studio_ai unverändert' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
@@ -611,9 +622,9 @@ if ($Mode -eq 'Update') {
     powershell -NoProfile -ExecutionPolicy Bypass -File "$work\updater.ps1" -InstallDir $inapp -Archive $zip -Sha256 $sha -LogFile "$work\update.log"
     $code = $LASTEXITCODE
     Remove-Item Env:QT_QPA_PLATFORM
-    Check 'In-App-Updater 1.19.1 -> Kandidat' ($code -eq 0 -and (Test-Path "$inapp\_internal\app\ecu_studio\core\integrity.py")) "Exit $code"
+    Check "In-App-Updater $OldTag -> Kandidat" ($code -eq 0 -and (Test-Path "$inapp\_internal\app\ecu_studio\core\integrity.py")) "Exit $code"
     $portableAfter = Get-TreeHash $portable
-    Check 'andere ECU-Studio-Kopie (portable 1.19.1) unverändert' (-not (Compare-Object $portableBefore $portableAfter)) "$($portableBefore.Count) Dateien"
+    Check "andere ECU-Studio-Kopie (portable $OldTag) unverändert" (-not (Compare-Object $portableBefore $portableAfter)) "$($portableBefore.Count) Dateien"
 }
 
 if ($Mode -eq 'InApp') {
