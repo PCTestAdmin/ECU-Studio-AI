@@ -29,4 +29,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]" pytest-github-actions-annotate-failures
       # Failures appear as annotations on the run (readable without the full log).
-      - run: python -m pytest -q -rf
+      - run: |
+          python -X faulthandler -c "import sys, pytest; rc = pytest.main(['-q', '-rfE']); print('DIAG pytest.main returned', int(rc), flush=True); sys.exit(int(rc))"
+          Write-Host "DIAG process exit code: $LASTEXITCODE"
+          exit 0

@@ -154,3 +154,26 @@ def _isolated_user_folders(tmp_path_factory, monkeypatch):
     # temporary home stays with pytest's own clean-up for diagnosis.
     import shutil
     shutil.rmtree(home / 'settings', ignore_errors=True)
+
+
+# ---- DIAGNOSE (branch diag/rc1-exit-code only, never merged) ----
+_diag = []
+
+
+def pytest_runtest_logreport(report):
+    if report.failed or (report.when != 'call' and report.outcome not in ('passed', 'skipped')):
+        _diag.append(f'{report.nodeid} [{report.when}] {report.outcome}')
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus):
+    print(f'\nDIAG sessionfinish: exitstatus={exitstatus!r} session.exitstatus={session.exitstatus!r} '
+          f'testsfailed={session.testsfailed} shouldfail={session.shouldfail!r} shouldstop={session.shouldstop!r} '
+          f'registry_changes={_registry["changes"]!r}', flush=True)
+    for line in _diag:
+        print('DIAG failed report:', line, flush=True)
+
+
+def pytest_collectreport(report):
+    if report.failed:
+        _diag.append(f'COLLECT {report.nodeid} failed')
