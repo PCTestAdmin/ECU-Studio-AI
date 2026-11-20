@@ -117,3 +117,18 @@ def test_me7_style_lookup_call_names_table_and_axes():
     assert (x.count,y.count)==(6,4) and x.values==(0,10,20,30,40,50)
     m={s.offset:s for s in scan_structures(BinaryImage(bytes(data)),0x10000,0x20000)}[0x18000]
     assert (m.rows,m.cols)==(4,6) and m.axes_y==[5,15,25,35]
+
+
+def test_first_pair_check_agrees_with_the_full_axis_test():
+    # 1.21.0: exact pre-check (first two values rise, unsigned or signed); results unchanged.
+    import itertools
+    import numpy as np
+    from ecu_studio.core.axis_arrays import first_pair_rises
+    def rises(d, width):
+        return any(np.all(np.diff(np.frombuffer(d, np.dtype(('<' if width == 2 else '') + k + str(width))).astype(np.int64)) > 0)
+                   for k in 'ui')
+    for a, b in itertools.product(range(256), repeat=2):
+        assert first_pair_rises(bytes([a, b]), 0, 1) == rises(bytes([a, b]), 1)
+    for v0, v1 in [(0, 1), (1, 0), (0x7FFF, 0x8000), (0x8000, 0x7FFF), (0xFFFF, 0), (0, 0xFFFF), (5, 5)]:
+        d = v0.to_bytes(2, 'little') + v1.to_bytes(2, 'little')
+        assert first_pair_rises(d, 0, 2) == rises(d, 2)

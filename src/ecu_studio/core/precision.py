@@ -198,6 +198,40 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
     return sorted(selected,key=lambda m:m.offset)
 
 
+SIGNED_WRAP_RATIO = 4.   # the signed reading must step at most a quarter as far as the unsigned one
+
+
+def _step_sum(a: np.ndarray) -> int:
+    a = a.astype(np.int64)
+    total = int(np.abs(np.diff(a, axis=-1)).sum())
+    if a.ndim == 2 and a.shape[0] > 1:
+        total += int(np.abs(np.diff(a, axis=0)).sum())
+    return total
+
+
+def preferred_sign(raw: bytes, rows: int, cols: int, width: int, endian: str = 'little') -> str | None:
+    """'u' or 's' for table bytes whose sign no code decides, or None when the bytes cannot tell.
+
+    Both readings share their units, so the true one is the reading whose neighbouring
+    cells do not wrap around (255 -> 0 unsigned, 127 -> -128 signed). The comparison
+    favours unsigned: signed only when its raw step sum is at most 1/SIGNED_WRAP_RATIO
+    of the unsigned one. Range-normalised smoothness (surface_evidence) is no guide
+    here: a wrap is small against the full 0..255 range. Development data (A2L, three
+    TriCore images, tables whose sign the bytes affect): smoothness 55 %, this rule
+    87-96 % right, unsigned for all 86-96 %; no data rule reaches certainty (1.21.0).
+    Known limit: 0/255 flag tables read as -1/0 (signed).
+    """
+    if width not in (1, 2) or rows * cols * width > len(raw):
+        return None
+    end = '<' if endian == 'little' else '>'
+    u = np.frombuffer(raw[:rows * cols * width], end + 'u' + str(width)).reshape(rows, cols)
+    s = np.frombuffer(raw[:rows * cols * width], end + 'i' + str(width)).reshape(rows, cols)
+    su, ss = _step_sum(u), _step_sum(s)
+    if (u == s).all() or su == ss:
+        return None          # no wrap either way (e.g. every cell >= 0x80): the bytes cannot tell
+    return 's' if ss * SIGNED_WRAP_RATIO < su else 'u'
+
+
 def narrower_storage_alias(image, m, evidence=None) -> bool:
     """Abstain if packed subwords explain the same bytes at least as well.
 

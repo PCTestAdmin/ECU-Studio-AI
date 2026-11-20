@@ -23,6 +23,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from .model import MapDefinition
+from .project_store import DETECTED_SOURCES
 
 # Where tools/calibrate_confidence.py used to write; the application no longer reads it.
 DATA = Path(__file__).resolve().parents[1] / 'recognition' / 'data' / 'confidence_calibration.json'
@@ -79,6 +80,101 @@ def evidence_level(m: MapDefinition) -> str:
 
 def is_experimental(m: MapDefinition) -> bool:
     return m.source == 'heuristic' and evidence_class(m).startswith(EXPERIMENTAL_CLASSES)
+
+
+# Notes the record scan writes when the value width was not read from a smooth surface.
+_WIDTH_GUESSED = ('Wertebreite = Achsenbreite (ungeprüft)', 'Wertebreite 1 Byte: hinter der 8-Bit-Lesart',
+                  'weil der nächste Datensatzkopf genau danach beginnt (ungeprüft)')
+
+
+WIDTH_OPEN = 'Wertebreite offen: auch eine 8-Bit-Tabelle'
+# Keys of the open questions about a data type, in the order they are shown (1.21.0).
+WIDTH, SIGN, BYTE_ORDER, PATTERN, WIDTH_DERIVED = 'width', 'sign', 'byte-order', 'pattern', 'width-derived'
+
+# What evidence would settle each open question (shown as "Fehlender Beleg"). Facts about the
+# evidence, never a probability.
+MISSING_EVIDENCE = {
+    WIDTH: 'Wertebreite: ein Datensatzkopf direkt hinter der Tabelle, Programmcode mit Zugriffsbreite '
+           'oder eine Definition (A2L/XDF) legt 8 oder 16 Bit fest.',
+    SIGN: 'Vorzeichen: Programmcode, der die Werte vorzeichenbehaftet liest, oder eine Definition. Die Werte '
+          'selbst entscheiden es nicht, weil das oberste Bit gesetzt ist und beide Lesarten zusammenhängende '
+          'Werte ergeben.',
+    BYTE_ORDER: 'Byte-Reihenfolge: eine klare Mehrheit der Datensätze dieses Abbilds, ein 16-Bit-Zähler im '
+                'eigenen Datensatzkopf oder eine Definition.',
+    PATTERN: 'Lage und Datentyp: weder Programmcode noch ein gespeicherter Datensatzkopf belegen die Tabelle; '
+             'nur der Werteverlauf spricht dafür.',
+    WIDTH_DERIVED: 'Wertebreite: nur aus dem Aufbau des Datensatzes abgeleitet; ein glatter Werteverlauf in dieser '
+                   'Breite, Programmcode oder eine Definition fehlen.',
+}
+
+
+def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
+    """Open questions about the data type of an unchecked candidate as (key, text), most important first.
+
+    Definitions and checked maps carry none. Several can apply at once (e.g. sign and byte order).
+    """
+    if m.source != 'heuristic' or m.verified:
+        return []
+    from .axis_records import ENDIAN_OPEN
+    notes = m.notes or ''
+    out = []
+    if WIDTH_OPEN in notes:
+        out.append((WIDTH, 'Wertebreite nicht belegt (auch möglich: 8-Bit-Tabelle gleicher Form)'))
+    if m.dtype_alternatives:
+        out.append((SIGN, 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'))
+    if ENDIAN_OPEN in notes and m.width > 1:
+        out.append((BYTE_ORDER, 'Byte-Reihenfolge nicht belegt (Datensätze dieses Abbilds uneinig; auch möglich: '
+                    + ('little' if m.endian == 'big' else 'big') + ')'))
+    if evidence_level(m) == DATA_PATTERN:
+        out.append((PATTERN, 'Datentyp nur aus der Glätte der Werte geschätzt'))
+    elif not out and any(text in notes for text in _WIDTH_GUESSED):
+        out.append((WIDTH_DERIVED, 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'))
+    return out
+
+
+def dtype_doubt(m: MapDefinition) -> str:
+    """Why the data type of an unchecked candidate is not established ('' when it is).
+
+    Shown next to the type in the list (1.21.0): a tuner must not edit a table in a
+    width, sign or byte order the evidence does not fix. Definitions and checked maps carry no doubt.
+    """
+    return '; '.join(text for _, text in type_doubts(m))
+
+
+def missing_evidence(m: MapDefinition) -> list[str]:
+    """Which technical evidence would settle each open question of ``m`` (empty when nothing is open)."""
+    return [MISSING_EVIDENCE[key] for key, _ in type_doubts(m)]
+
+
+def overlapping(maps: list[MapDefinition]) -> dict[int, int]:
+    """{index: number of other entries sharing bytes with it}, one sweep over the sorted spans (1.21.0)."""
+    spans = sorted((m.offset, m.offset + max(m.length, 1), i) for i, m in enumerate(maps))
+    counts: dict[int, int] = {}
+    active: list[tuple[int, int]] = []          # (end, index) of spans still open
+    for start, end, i in spans:
+        active = [(e, j) for e, j in active if e > start]
+        for _, j in active:
+            counts[i] = counts.get(i, 0) + 1
+            counts[j] = counts.get(j, 0) + 1
+        active.append((end, i))
+    return counts
+
+
+def overlap_note(m: MapDefinition, maps: list[MapDefinition], limit: int = 5) -> str:
+    """Which other entries share bytes with ``m`` (1.21.0): only one reading of these bytes can be right.
+
+    Shown in the details so a tuner sees competing readings instead of one silently winning.
+    """
+    end = m.offset + m.length
+    hits = [x for x in maps if x is not m and x.offset < end and m.offset < x.offset + x.length]
+    if not hits:
+        return ''
+    def state(x):
+        return 'ungeprüfter Vorschlag' if x.source in DETECTED_SOURCES and not x.verified else 'Definition/geprüft'
+    names = ', '.join(f'{x.name} @0x{x.offset:X} ({state(x)})' for x in hits[:limit])
+    more = f' (+{len(hits) - limit})' if len(hits) > limit else ''
+    return (f'Überschneidung mit {len(hits)} weiteren Einträgen: {names}{more}. '
+            'Nur eine Lesart dieser Bytes kann stimmen; vor Änderungen klären.')
 
 
 def describe(m: MapDefinition) -> str:

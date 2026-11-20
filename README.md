@@ -18,7 +18,7 @@
 
 **ECU Studio AI** ist eine Open-Source-Kalibrier-Workbench für Motor- und Getriebesteuergeräte.<br>
 Sie liest den Programmcode des Steuergeräts, findet Kennfelder samt Achsen und sagt dir bei jedem Fund,<br>
-**wie sicher er ist – gemessen an echten Herstellerdaten.**
+**welcher Beleg dahintersteht – Programmcode, Datensatz oder nur ein Datenmuster.**
 
 <br>
 
@@ -47,7 +47,8 @@ Sie liest den Programmcode des Steuergeräts, findet Kennfelder samt Achsen und 
 - **Edit safely:** hex, table, heatmap, 3D and curve views, ORI/MOD comparison, checksum verification and correction
   (only where the algorithm is proven on the original), flash preflight. The original file is never changed.
 - **Measured, not promised:** e.g. Siemens MSD85 279 of 1026 maps found exactly at 81 % precision on held-out test
-  data; all results per ECU in the [support matrix](docs/ECU_SUPPORT.md).
+  data (historical measurement of 21 Oct 2026); all results per ECU in the [support matrix](docs/ECU_SUPPORT.md).
+  Version 1.21.0 is in development and not released; its measurements are in the [roadmap](ROADMAP.md).
 - **English interface:** *Einstellungen → Sprache / Language → English* (defaults to the system language).
 - **Deliberately out of scope:** automatic "stage 1" tuning, disabling emission or protection functions, flash approval.
 
@@ -104,8 +105,8 @@ Checksummen und Undo.
 ## 🎬 In Aktion
 
 <p align="center">
-  <img src="docs/clips/scan.gif" width="760" alt="Kennfeldsuche mit einem Klick: Kandidaten mit Konfidenz, Achsen und Beweis">
-  <br><sub><b>Ein Klick – Kennfelder samt Achsen, jeweils mit Beweisart und gemessener Konfidenz.</b></sub>
+  <img src="docs/clips/scan.gif" width="760" alt="Kennfeldsuche mit einem Klick: Kandidaten mit Achsen und Beweisart">
+  <br><sub><b>Ein Klick – Kennfelder samt Achsen, jeweils mit Beweisart (Aufnahme aus 1.16.0).</b></sub>
 </p>
 
 <table>
@@ -114,7 +115,7 @@ Checksummen und Undo.
 <td width="50%" align="center"><img src="docs/clips/compare.gif" width="100%" alt="ORI/MOD-Vergleich"><br><sub><b>ORI/MOD-Vergleich</b> – jede Zelle, jede Differenz</sub></td>
 </tr>
 <tr>
-<td width="50%" align="center"><img src="docs/clips/filter.gif" width="100%" alt="Filter nach Konfidenz"><br><sub><b>Filter</b> – nach Konfidenz, Prüfstatus und Beweisart</sub></td>
+<td width="50%" align="center"><img src="docs/clips/filter.gif" width="100%" alt="Filter nach Belegstufe"><br><sub><b>Filter</b> – nach Belegstufe und Prüfstatus</sub></td>
 <td width="50%" align="center"><img src="docs/clips/support.gif" width="100%" alt="Unterstützte Steuergeräte"><br><sub><b>Unterstützte Steuergeräte</b> – mit Messwerten direkt in der App</sub></td>
 </tr>
 </table>
@@ -200,6 +201,12 @@ Ausführlich: [docs/ANALYSE_2026-10-30.md](docs/ANALYSE_2026-10-30.md), [docs/EN
 Blind gemessen: Die Herstellerdefinition dient **nur als Referenz**, nie als Eingabe. Präzision steht nur dort,
 wo die Referenz vollständig ist. **Test** = Daten, die nie zum Einstellen der Erkennung verwendet wurden.
 
+> [!NOTE]
+> Die Hersteller-A2L-Zeilen sind die **historische Messung vom 21.10.2026** (Stand 1.16.0); diese Referenzpaare
+> liegen lokal nicht mehr vor und ließen sich nicht wiederholen. Neuere Messungen an anderen, privaten Referenzdaten
+> (MEVD17.2, MEVD17.2.3, MSD80, MSV90, ME9) gehören zu **1.21.0, das noch nicht veröffentlicht ist**:
+> [Roadmap, Abschnitt B](ROADMAP.md#b-erkennungsgüte-1201--1210-in-entwicklung).
+
 | Steuergerät | Referenz | Exakt erkannte Kennfelder | Präzision |
 |---|---|---|---:|
 | Bosch EDC17CP09 | Hersteller-A2L | `█████████████████░░░░░░░░░` **463** / 703 | **85 %** |
@@ -230,25 +237,26 @@ Programmcode; die TriCore-Codeanalyse wirkt nur auf Vollflashs.</sub>
 | Familie | Prozessor | Code-Verweise | Achsen | Status |
 |---|---|:---:|:---:|---|
 | Bosch EDC17CP09 (BMW) | TriCore | – | ✅ | ✅ gemessen · Hersteller-A2L |
-| Siemens MSD80 (BMW) | TriCore | ✅ <sub>Vollflash</sub> | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
-| Siemens MSD85 (BMW) | <sub>ungeprüft</sub> | – | ✅ | ✅ unabhängig gemessen · Hersteller-A2L |
+| Siemens MSD80 (BMW) | TriCore | ✅ <sub>Vollflash</sub> | ✅ | ✅ gemessen (Testdaten, 21.10.2026) · Hersteller-A2L |
+| Siemens MSD85 (BMW) | <sub>ungeprüft</sub> | – | ✅ | ✅ gemessen (Testdaten, 21.10.2026) · Hersteller-A2L |
 | Bosch EDC16C31 / C35 (BMW) | PowerPC | – | ✅ | ✅ gemessen · Hersteller-A2L |
 | BMW ME9 / ME9.2.1 | PowerPC | – | ✅ | ✅ validiert · Hersteller-A2L |
 | Siemens MS43 (BMW) | C167 | ✅ | ✅ | ✅ validiert · Standard-XDFs inklusive |
 | Siemens MS41 / MS42 (BMW) | C167 | ✅ | ✅ | 🟡 gemessen, Erkennung gering (MS42: 22 von 213 exakt) |
 | Siemens MS45 | C167 | – | ✅ | 🟡 gemessen, Erkennung gering (30 von 472 exakt) |
-| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | ✅ gemessen |
+| Bosch ME7 / ME7.5 (Volvo, VAG) | C167 | ✅ | ✅ | 🟡 gemessen · nur Teil-Referenz (Community-XDF) |
 | BMW MSS54 | CPU32 | – | ✅ | ✅ gemessen · vollständige XDF |
-| GM P01 | 68k | ✅ | – | ✅ gemessen |
-| Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | ✅ gemessen |
-| Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | ✅ gemessen |
+| GM P01 | 68k | ✅ | – | 🟡 gemessen · nur Teil-Referenz |
+| Denso SH-2 (Subaru) | SH-2 | ✅ | ✅ | 🟡 gemessen · nur Teil-Referenz (RomRaider-Auswahl) |
+| Bosch M4.4 · Motronic · Renault Fenix | 8051 · 68HC11 | 🟡 | – | 🟡 gemessen · nur Teil-Referenz |
 | Bosch MED17.1.62 · MED9 | TriCore · PowerPC | – | ✅ | 🟡 nur Teil-Referenz |
 | Continental SIM2K (Hyundai) | TriCore | – | 🟡 | 🟡 gemessen, Erkennung unzureichend |
 | Speeduino (Open Source) | AVR / ARM | – | – | 🟡 gemessen (14 Abstimmungen), ohne Definition schwach – `.ini` ist öffentlich |
 | Delco Multec S („D98…“) | HC12 | – | – | ⚪ keine rechtlich nutzbaren Referenzdaten – [Recherche](docs/DELCO_D98_RESEARCH.md) |
+| Bosch MEVD17.2 / MEVD17.2.3 · Siemens MSV90 (BMW) | TriCore | 🧪 <sub>Vollflash</sub> | ✅ | 🟠 nur in 1.21.0 (nicht veröffentlicht) an privaten A2L gemessen – [Roadmap B](ROADMAP.md#b-erkennungsgüte-1201--1210-in-entwicklung) |
 | EDC17 (weitere) · MED17.5/17.7 · MG1 · MD1 · Simos · SID | – | – | – | ⚪ nicht validiert – keine rechtlich sicheren Referenzdaten öffentlich |
 
-<sub>✅ gemessen · 🟡 teilweise · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
+<sub>✅ gemessen · 🟡 teilweise · 🟠 nur im Entwicklungsstand gemessen · ⚪ noch keine Referenzdaten. Code-Verweise = Kennfeldadressen aus dem Programmcode.
 Alle Softwarestände und Zahlen: <a href="docs/ECU_SUPPORT.md">docs/ECU_SUPPORT.md</a> · in der App:
 <b>Hilfe → Unterstützte Steuergeräte …</b></sub>
 
@@ -331,7 +339,7 @@ Echtheit prüfen: Die SHA-256 der Datei (`Get-FileHash <datei>`) muss mit der `.
 
 | Schritt | Was passiert |
 |---|---|
-| Prüfen | Nur wenn du es willst: **Einstellungen → Jetzt nach Updates suchen**, oder automatisch beim Start und höchstens einmal täglich, sobald du **Automatisch nach Updates suchen** einschaltest (ab Werk aus). Abgefragt wird nur die GitHub-Releases-API, nur **stabile** Versionen; es wird nichts hochgeladen. Ohne Internet passiert still nichts. |
+| Prüfen | Nur wenn du es willst: **Einstellungen → Jetzt nach Updates suchen**, oder automatisch beim Start und höchstens einmal täglich, sobald du **Automatisch nach Updates suchen** einschaltest (ab Werk aus). Abgefragt wird nur die GitHub-Releases-API, nur **stabile** Versionen; es wird nichts hochgeladen. Ohne Internet passiert still nichts. Ab 1.21.0-rc1 (Vorabversion) zusätzlich: **Einstellungen → Testkanal: Vorabversionen (Release Candidates) anbieten …** nach einer Rückfrage; ohne diesen Schalter wird nie eine Vorabversion angeboten. |
 | Fragen | Fenster mit Version und Änderungen: **Jetzt aktualisieren** · **Später erinnern** · **Diese Version überspringen**. |
 | Laden | Nur von den Releases dieses Repositorys; SHA-256 gegen die veröffentlichte Prüfsumme **und** GitHubs eigene Angabe. |
 | Installieren | Erst nach dem Schließen (ungespeicherte Arbeit wird abgefragt) durch einen separaten Updater: jede Datei geprüft, eigene Dateien übernommen, alte Version gesichert. |
@@ -390,10 +398,10 @@ build_exe_windows.bat                     :: Windows-Paket bauen (ZIP + Installe
 
 <a href="ROADMAP.md"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
-  <img alt="Roadmap: veröffentlicht, nächstes Update, in Arbeit, als Nächstes" src="docs/images/roadmap-light.svg" width="100%">
+  <img alt="Roadmap: veröffentlicht 1.20.1, in Entwicklung 1.21.0, danach geplant" src="docs/images/roadmap-light.svg" width="100%">
 </picture></a>
 
-**→ [Ganze Roadmap](ROADMAP.md)** – jede neue Funktion mit kurzem Clip aus der App
+**→ [Ganze Roadmap](ROADMAP.md)** – Versionen, Erkennungsgüte, Funktionsstand und Plan
 
 <div align="center">
 <br>

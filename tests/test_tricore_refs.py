@@ -314,7 +314,10 @@ def test_table_routine_without_table_loads_loses_its_role():
 
 @pytest.mark.parametrize('loads, width, signed, dtype', [
     ((LD_BU, LD_BU), 1, False, 'u8'), ((LD_B, LD_B), 1, True, 's8'),
-    ((LD_BU, LD_B), 1, None, None), ((LD_BU,), None, None, None)])
+    ((LD_BU, LD_B), 1, None, None), ((LD_BU,), None, None, None),
+    # 1.21.0-rc1: loads of mixed widths are not all cell loads, so their common sign proves nothing.
+    ((LD_BU, LD_HU), None, None, None), ((LD_BU, LD_BU, LD_BU, LD_HU), None, None, None),
+    ((LD_B, LD_H), None, None, None)])
 def test_cell_width_and_sign_come_from_the_table_loads_of_the_routine(loads, width, signed, dtype):
     data, tables = image_with(stack_function, routines={0x7000: reader(*loads)})
     desc = call_descriptors(data)
@@ -325,6 +328,38 @@ def test_cell_width_and_sign_come_from_the_table_loads_of_the_routine(loads, wid
         called = [m for m in maps if m.record_layout == CALL_LAYOUT]
         assert called and {m.dtype for m in called} == {dtype}
         assert all('Ladebefehlen der Interpolationsroutine' in m.label_evidence for m in called)
+
+
+def high_cells(data, tables):
+    """The same tables with every cell 120 higher: all cells have their top bit set (the sign matters)."""
+    img = bytearray(data)
+    for t in tables:
+        img[t:t + 30] = bytes(b + 120 for b in img[t:t + 30])
+    return bytes(img)
+
+
+@pytest.mark.parametrize('loads, proven', [((LD_BU, LD_BU), True), ((LD_BU, LD_HU), False),
+                                           ((LD_BU, LD_BU, LD_BU, LD_HU), False)])
+def test_sign_of_mixed_width_loads_stays_open_and_is_marked(loads, proven):
+    from ecu_studio.core.confidence import dtype_doubt, missing_evidence, SIGN
+    from ecu_studio.core.fusion import sign_proven
+    data, tables = image_with(stack_function, routines={0x7000: reader(*loads)})
+    data = high_cells(data, tables)
+    maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
+    called = [m for m in maps if m.record_layout == CALL_LAYOUT]
+    assert called
+    for m in called:
+        assert m.dtype[1:] == '8'                                    # the width (gap) is not in question
+        if proven:
+            assert (m.dtype, m.dtype_alternatives, sign_proven(m)) == ('u8', [], True)
+            assert 'Ladebefehlen der Interpolationsroutine' in m.label_evidence and not dtype_doubt(m)
+        else:
+            # Both signs stay visible, the candidate is marked unchecked and names the missing evidence.
+            assert m.dtype_alternatives == [('s' if m.dtype[0] == 'u' else 'u') + '8'] and not sign_proven(m)
+            assert 'Vorzeichen nicht belegt' in dtype_doubt(m)
+            assert 'ungeprüft' in m.label_evidence and 'Ladebefehlen der Interpolationsroutine' not in m.label_evidence
+            from ecu_studio.core.confidence import MISSING_EVIDENCE
+            assert MISSING_EVIDENCE[SIGN] in missing_evidence(m)
 
 
 def test_loads_overrule_a_gap_that_two_equal_byte_tables_fill_exactly():
@@ -557,7 +592,8 @@ def test_record_routine_without_cell_loads_leaves_the_type_open():
     assert all(widths[s] == 2 for s in starts[:-1])
     maps = scan_calibration_candidates(BinaryImage(data), use_definitions=False)
     called = [m for m in maps if m.record_layout == CALL_LAYOUT]
-    assert called and all('Vorzeichen aus der glatteren Lesart (ungeprüft)' in m.label_evidence for m in called)
+    assert called and all('Vorzeichen aus der Lesart ohne Überlauf benachbarter Zellen, sonst vorzeichenlos (ungeprüft)'
+                          in m.label_evidence for m in called)
 
 
 def test_mixed_loads_give_no_record_cell_type():

@@ -24,7 +24,7 @@ from .architecture import detect_architecture, TRICORE, C16X
 from .region_classes import text_spans, pointer_spans, address_word_spans, classify, POINTER_COVERAGE
 from . import parallel
 
-RECORD_LIMIT=1000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09); MS4x unchanged
+RECORD_LIMIT=2000   # header records (nx,ny,X,Y,Z): 55 -> 200 -> 1000 -> 2000, each measured on complete OEM A2L (ME9.2.1, EDC17CP09; 1.21.0: MEVD17.2 full images with mixed widths exceed 1000); MS4x unchanged
 AXIS_RECORD_LAYOUTS=('candidate:record-axis','candidate:count-axis','candidate:curve-record')
 
 
@@ -70,6 +70,57 @@ def _overlaps_any(lo,hi,merged):
     starts,ends=merged
     k=bisect.bisect_left(starts,hi)-1
     return k>=0 and ends[k]>lo
+
+
+# Smoothness-only (row-pitch) candidates that the bytes themselves contradict (1.21.0 round 3).
+# Development data (MEVD17.2/MSD80, 58 images, row-pitch candidates against the A2L):
+#  - an accepted header record (count + rising axes) starts strictly inside the run: the run
+#    is a list of records, not one table (0 of 661 exact in calibration images, 1 of 96 in
+#    full images);
+#  - only a signed reading is smooth: a pattern cannot establish a sign, and wraps between
+#    unrelated values read smooth signed (2 exact against 2 128 confusions, both makers).
+PITCH_NO_RECORDS=True
+PITCH_UNSIGNED_ONLY=True
+PITCH_LAYOUT='candidate:row-pitch'
+# Phase 4: a header only contradicts when nothing stronger contradicts the header. A record whose bytes
+# overlap a table the program code addresses (with another start) is an unconfirmed reading; the ranking
+# drops it anyway, so it must not remove a pattern reading first (MS43 regression of round 3: the header
+# lay inside a code-referenced 8x8 map and displaced the correct neighbouring table).
+HEADS_CODE_CHECKED=True
+CODE_LAYOUTS=('candidate:code-reference','candidate:code-reference-generic','candidate:code-call',
+              'candidate:pointer-descriptor')
+
+
+def _code_refuted(record,code):
+    """True if a code-evidenced table overlaps the record (header to last cell) without being it."""
+    starts,items,longest=code
+    lo,hi=record.candidate_region_start,record.offset+record.length
+    for s,e in items[bisect.bisect_left(starts,lo-longest):bisect.bisect_left(starts,hi)]:
+        if e>lo and s<hi and s not in (record.offset,record.candidate_region_start):
+            return True
+    return False
+
+
+def _contradicted_patterns(candidates):
+    """Row-pitch candidates whose bytes contradict a single table (see above)."""
+    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z' and m.candidate_region_start is not None]
+    if HEADS_CODE_CHECKED and records:
+        spans=sorted((m.offset,m.offset+m.length) for m in candidates if m.record_layout in CODE_LAYOUTS)
+        if spans:
+            code=([s for s,_ in spans],spans,max(e-s for s,e in spans))
+            records=[m for m in records if not _code_refuted(m,code)]
+    heads=sorted({m.candidate_region_start for m in records})
+    out=[]
+    for m in candidates:
+        if m.record_layout==PITCH_LAYOUT:
+            if PITCH_UNSIGNED_ONLY and m.dtype.startswith('s'):
+                continue
+            if PITCH_NO_RECORDS and heads:
+                i=bisect.bisect_right(heads,m.offset)
+                if i<len(heads) and heads[i]<m.offset+m.length:
+                    continue
+        out.append(m)
+    return out
 
 
 PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
@@ -211,6 +262,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
         if diagnostics is not None:diagnostics['outside_data_blocks']=dropped
     if diagnostics is not None:diagnostics.update({'method':'heuristic','scope':[start or 0,end or image.size],
         'input_candidates':len(candidates),'structure_candidates':len(structures),'axis_candidates':len(axes)})
+    before=len(candidates)
+    candidates=_contradicted_patterns(candidates)
+    if diagnostics is not None:diagnostics['contradicted_patterns']=before-len(candidates)
     stage(f'{len(candidates)} Kandidaten bewerten', 92)
     ranked=rank_candidates(image,candidates,max_results=sum(limits)+structure_limit,diagnostics=diagnostics)
     spans=[(m.candidate_region_start if m.candidate_region_start is not None else m.offset,m.offset+m.length) for m in lines]

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from collections import defaultdict
 import csv
 import math
+import functools
 import re
 import unicodedata
 from pathlib import Path
@@ -132,6 +133,12 @@ def normalize(value: str) -> str:
     return ' ' + re.sub(r'[^a-z0-9]+', ' ', value).strip() + ' '
 
 
+@functools.lru_cache(maxsize=1)
+def _normalized_lexicon() -> tuple:
+    """LEXICON with each alias normalised once (A2L linking calls classify_metadata per object)."""
+    return tuple((kind, tuple((a, normalize(a)) for a in aliases)) for kind, aliases in LEXICON)
+
+
 def classify_metadata(name: str, description: str = '', unit: str = '', axes: str = '') -> Prediction:
     """Return ranked, explainable *label suggestions from descriptive metadata*.
 
@@ -141,9 +148,9 @@ def classify_metadata(name: str, description: str = '', unit: str = '', axes: st
     n = normalize(name)
     d = normalize(description)
     ranks = []
-    for kind, aliases in LEXICON:
-        matched_name = [a for a in aliases if normalize(a) in n]
-        matched_desc = [a for a in aliases if normalize(a) in d]
+    for kind, aliases in _normalized_lexicon():
+        matched_name = [a for a, key in aliases if key in n]
+        matched_desc = [a for a, key in aliases if key in d]
         if not matched_name and not matched_desc:
             continue
         # A long/descriptive token is more discriminatory than 'egr' or 'torque'.

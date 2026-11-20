@@ -116,3 +116,26 @@ def test_adopting_replaces_unnamed_detections_but_keeps_checked_maps(tmp_path, m
     assert adopted.source == 'transfer-proposed' and 'unabhängig bestätigt' in adopted.notes
     w.saved_fingerprint = w.project_state()
     w.close()
+
+
+def _flat_between_disagreeing_anchors(keep_context: bool):
+    """Flat block with an insertion right after it: the anchors around it disagree on the shift."""
+    rng = np.random.default_rng(5)
+    base = bytearray(rng.integers(0, 256, 0x8000, dtype=np.uint8).tobytes())
+    base[0x6000:0x6040] = bytes(64)
+    target = bytearray(base[:0x6050] + rng.integers(0, 256, 0x40, dtype=np.uint8).tobytes() + base[0x6050:])
+    if not keep_context:
+        target[0x5FF0:0x6000] = bytes(range(16))            # bytes before the block differ ...
+        target[0x6040:0x6050] = bytes(range(16, 32))        # ... and after it as well
+    return BinaryImage(bytes(base)), BinaryImage(bytes(target)), [MapDefinition('F', 0x6000, 8, 8, 'u8', 'big')]
+
+
+def test_flat_block_with_disagreeing_anchors_needs_its_own_neighbourhood(monkeypatch):
+    from ecu_studio.core import name_transfer
+    source, target, maps = _flat_between_disagreeing_anchors(keep_context=True)
+    (t,) = transfer_names(source, target, maps)
+    assert t.target.offset == 0x6000 and t.evidence == 'gleiche Umgebung'
+    source, target, maps = _flat_between_disagreeing_anchors(keep_context=False)
+    assert transfer_names(source, target, maps) == []
+    monkeypatch.setattr(name_transfer, 'FLAT_NEEDS_PLACE', False)       # 1.20.1 behaviour: anchors alone
+    assert len(transfer_names(source, target, maps)) == 1

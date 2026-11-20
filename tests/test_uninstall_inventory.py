@@ -793,6 +793,25 @@ def test_entry_of_another_folder_is_not_touched_and_blocks_the_installer_route(i
     assert _get(sub, 'DisplayVersion') == '1.0.0' and (install / 'VERSION.txt').read_text() == '1.20.1'
 
 
+REAL_UNINSTALL_KEY = r'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F8CD5330-FC90-4891-BFDA-58E6668C93A5}_is1'
+
+
+@windows
+def test_a_test_run_never_touches_the_real_apps_and_features_entry(installed):
+    """1.21.0: started from a test run (ECU_STUDIO_TEST_PROFILE, inherited), the updater ignores the real uninstall
+    key even when it is passed explicitly. Before, only the folder comparison protected it; with the program
+    installed on the test machine, the real entry also blocked the installer route (exit 2)."""
+    import conftest
+    assert os.environ.get('ECU_STUDIO_TEST_PROFILE')
+    assert REAL_UNINSTALL_KEY.split('\\', 1)[1] == conftest.WATCHED_KEYS[1]
+    install, setup, script, _, tmp = installed
+    before = conftest._registry_snapshot()                       # read only
+    result = _update(install, setup, script, key=REAL_UNINSTALL_KEY)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (install / 'VERSION.txt').read_text() == '1.20.2'
+    assert conftest._registry_snapshot() == before
+
+
 # ---- route and version display (pure Python, all systems) --------------------------------------------
 BASE = 'https://github.com/PCTestAdmin/ECU-Studio-AI/releases/download/v1.20.2/'
 

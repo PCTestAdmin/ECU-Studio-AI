@@ -26,6 +26,7 @@ from .model import BinaryImage, MapDefinition
 from .axis_arrays import scan_count_axes, axis_at, quantity_hint, CountAxis, MIN_POINTS, MAX_POINTS
 from .cpu_refs import detect_cpu, GENERIC_LAYOUT
 from .tricore_refs import call_descriptors, cell_widths
+from .precision import preferred_sign
 from .parallel import ordered_map
 
 # Signed views: two's-complement tables (e.g. Bosch ME7 ignition maps) wrap around
@@ -49,6 +50,7 @@ POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
+POINTER_TRIPLE_ORIGIN = 'TriCore-Zeigertripel + Achsen (ungeprüft)'
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -543,7 +545,7 @@ def sign_alternatives(data: bytes, off: int, cells: int, width: int, dtype: str,
 def _cell_type_note(call, dtype: str) -> str:
     """Where the sign of a TriCore call table comes from."""
     if call.cell_signed is None:
-        return ' Vorzeichen aus der glatteren Lesart (ungeprüft).'
+        return ' Vorzeichen aus der Lesart ohne Überlauf benachbarter Zellen, sonst vorzeichenlos (ungeprüft).'
     return f' Datentyp {dtype}: Vorzeichen aus den Ladebefehlen der Interpolationsroutine.'
 
 
@@ -620,6 +622,12 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         views = tuple(v for v in VIEWS if v[1] == w and (w == 1 or v[2] == 'little'))
         if call.cell_signed is not None:
             views = tuple(v for v in views if (v[0][0] == 's') == call.cell_signed)
+        else:
+            # The routine does not show the sign: the reading without wrapping neighbours
+            # (precision.preferred_sign) instead of the smoother one (1.21.0).
+            pick = preferred_sign(data[z:z + rows * call.x_axis.count * w], rows, call.x_axis.count, w, 'little')
+            if pick is not None:
+                views = tuple(v for v in views if v[0][0] == pick) or views
         f = _axis_fit(data, z, rows, call.x_axis.count, end, views)
         cost, dtype = (f[0], f[3]) if f else (1., ('s' if call.cell_signed else 'u') + ('8' if w == 1 else '16'))
         proposals.append((ANCHOR_SCORE + 2.4 - cost, z, rows, call.x_axis.count, dtype, 'little', w,
@@ -715,12 +723,19 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         return []
     pitched = [c for part in parts for c in part]
     generic_sorted = sorted(generic_only)
+    # Objects TriCore code passes to routines one by one (data, axis headers, records):
+    # a smooth run across one of them spans several objects and is dropped (1.21.0; MSD80
+    # development data: 140 of 161 such pitch readings were confusions or partials, none exact).
+    addressed = sorted(set(getattr(calls, 'addressed', ())) - set(anchors))
     for score, off, rows, c, dtype, endian, w in pitched:
         k = bisect.bisect_left(generic_sorted, off - 2)
         if k < len(generic_sorted) and generic_sorted[k] <= off + 2 and generic_sorted[k] % w == 0:
             # A code load of (almost) this start confirms the table and fixes its start.
             off, score = generic_sorted[k], score + 1.
             generic_confirmed.add(off)
+        i = bisect.bisect_right(addressed, off)
+        if i < len(addressed) and addressed[i] < off + rows * c * w:
+            continue
         i = bisect.bisect_right(anchors, off)
         if i < len(anchors) and anchors[i] < off + rows * c * w:
             # A referenced address inside the run usually starts the next table.
@@ -755,6 +770,12 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                         f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
             evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
+        elif called and getattr(calls[off], 'pointer', False):
+            evidence = (f'Zeigertripel im Programmspeicher @ 0x{calls[off].sites[0]:X} nennt Datenstart und Achsen: '
+                        f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
+                        f'({pair[1].count} Punkte); Zellbreite {w} Byte aus dem nächsten benannten Objekt.')
+            evidence += _cell_type_note(calls[off], dtype)
+            origin = POINTER_TRIPLE_ORIGIN
         elif called and calls[off].record:
             n = len(calls[off].sites)
             evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt einen '

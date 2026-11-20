@@ -47,7 +47,10 @@ def _opener(files, final_host='objects.githubusercontent.com'):
 def test_versions_compare_numerically_and_ignore_prereleases():
     assert updates.is_newer('v1.15.0', '1.14.0') and updates.is_newer('1.10.0', '1.9.9')
     assert not updates.is_newer('1.14.0', '1.14.0') and not updates.is_newer('1.13.9', '1.14.0')
-    assert updates.parse_version('1.15.0-rc1') is None and not updates.is_newer('2.0.0-beta', '1.0.0')
+    # 1.21.0: release candidates are parsed and ordered before their stable release; other suffixes are not.
+    assert updates.parse_version('1.15.0-rc1').text == '1.15.0-rc1' and updates.is_newer('1.15.0', '1.15.0-rc1')
+    assert updates.parse_version('2.0.0-beta') is None and not updates.is_newer('2.0.0-beta', '1.0.0')
+    assert updates.parse_release(_payload(tag_name='v1.15.0-rc1', prerelease=True)) is None   # stable channel
 
 
 def test_release_needs_stable_tag_both_assets_and_official_urls():

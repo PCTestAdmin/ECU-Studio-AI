@@ -63,6 +63,11 @@ param(
     [string]$UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F8CD5330-FC90-4891-BFDA-58E6668C93A5}_is1'
 )
 $ErrorActionPreference = 'Stop'
+# 1.21.0: a test run (ECU_STUDIO_TEST_PROFILE, set by the test suite and inherited by every process it starts)
+# never touches the real "Apps & Features" entry, whatever folder it updates. Tests that check the entry pass
+# their own throwaway key.
+$RealUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F8CD5330-FC90-4891-BFDA-58E6668C93A5}_is1'
+if ($env:ECU_STUDIO_TEST_PROFILE -and $UninstallKey -eq $RealUninstallKey) { $UninstallKey = '' }
 # Windows PowerShell started from a PowerShell 7 session inherits PSModulePath and may then
 # load PS7 modules that cannot work here ("Get-FileHash is not recognized"). Use only the
 # built-in Windows PowerShell modules.
@@ -277,7 +282,8 @@ function Sync-UninstallEntry {
     if ($null -eq (Get-UninstallEntry)) { return }
     try {
         $version = (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION.txt') -Raw).Trim()
-        if ($version -notmatch '^\d+\.\d+\.\d+$') { return }
+        # 1.2.3 or a release candidate 1.2.3-rcN (ecu_studio/core/app_version.py); anything else is left alone.
+        if ($version -notmatch '^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})(-rc[1-9]\d?)?$') { return }
         Set-ItemProperty -LiteralPath $UninstallKey -Name 'DisplayVersion' -Value $version
         Set-ItemProperty -LiteralPath $UninstallKey -Name 'DisplayName' -Value "ECU Studio AI $version"
         Log ('Versionsanzeige in Apps & Features: ' + $version)

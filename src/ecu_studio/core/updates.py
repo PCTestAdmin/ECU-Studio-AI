@@ -13,6 +13,13 @@ exactly this folder) are updated with the release's verified setup.exe instead
 of the ZIP (from 1.20.1): the uninstall log, the uninstaller and the version in
 "Apps & Features" then stay correct (finding A5 of 1.20.0). Portable copies keep
 the ZIP route.
+
+Channels (from 1.21.0): the STABLE channel (default) asks ``/releases/latest`` and accepts only a release that
+GitHub does not mark as pre-release AND whose tag is a stable version (v1.2.3); a release candidate (v1.2.3-rcN)
+is never offered there, even by a misconfigured source. The TEST channel is off unless the user switched it on
+with a separate, confirmed menu entry; it lists the newest releases and offers the highest version among stable
+releases and candidates, a candidate only when GitHub marks it as pre-release (tag and flag must agree). An
+installed candidate on the stable channel is offered the stable release it leads to (1.21.0 > 1.21.0-rc1).
 """
 from __future__ import annotations
 import base64
@@ -25,10 +32,14 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
+from . import app_version
 
 REPOSITORY = 'PCTestAdmin/ECU-Studio-AI'
 API_LATEST = f'https://api.github.com/repos/{REPOSITORY}/releases/latest'
-ASSET_PATTERN = re.compile(r'^ECU-Studio-AI-(\d+\.\d+\.\d+)-windows-x64\.zip$')
+# Test channel only: the newest releases (drafts are never listed for anonymous requests and are ignored anyway).
+API_RELEASES = f'https://api.github.com/repos/{REPOSITORY}/releases?per_page=30'
+STABLE, PRERELEASE = 'stable', 'prerelease'
+CHANNELS = (STABLE, PRERELEASE)
 CHECK_INTERVAL = 24 * 3600          # at most once a day
 TIMEOUT = 8
 MAX_ARCHIVE = 800 * 1024 * 1024
@@ -39,15 +50,14 @@ class UpdateError(Exception):
     """A check or download that must not continue; the message is user-facing (German)."""
 
 
-def parse_version(text: str) -> tuple[int, int, int] | None:
-    """'v1.15.0' / '1.15.0' -> (1, 15, 0); anything else (incl. pre-release suffixes) -> None."""
-    match = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)', (text or '').strip())
-    return tuple(int(x) for x in match.groups()) if match else None
+def parse_version(text: str) -> app_version.Version | None:
+    """'v1.15.0' / '1.15.0' / '1.21.0-rc1' -> Version (core/app_version.py); anything else -> None."""
+    return app_version.parse(text)
 
 
 def is_newer(candidate: str, current: str) -> bool:
-    a, b = parse_version(candidate), parse_version(current)
-    return bool(a and b and a > b)
+    """Ordered as 1.20.1 < 1.21.0-rc1 < 1.21.0-rc2 < 1.21.0; an unparsable side is never newer."""
+    return app_version.is_newer(candidate, current)
 
 
 @dataclass(frozen=True)
@@ -73,6 +83,7 @@ class Release:
     api_digest: str | None      # 'sha256:<hex>' from the API, if GitHub provides it
     signature_url: str | None = None   # '<archive>.sig': Ed25519 signature (core/signing.py)
     installer: Asset | None = None     # 'ECU-Studio-AI-<v>-setup.exe' with its '.sha256' (optional)
+    prerelease: bool = False           # a release candidate (only ever offered by the test channel)
 
     @property
     def archive(self) -> Asset:
@@ -86,14 +97,21 @@ def _official_download(url: str) -> bool:
             and parsed.path.lower().startswith(f'/{REPOSITORY.lower()}/releases/download/'))
 
 
-def parse_release(payload: dict) -> Release | None:
-    """The installable Windows package of a release, or None if it has none / is not stable."""
-    if not isinstance(payload, dict) or payload.get('draft') or payload.get('prerelease'):
+def parse_release(payload: dict, allow_prerelease: bool = False) -> Release | None:
+    """The installable Windows package of a release, or None if it has none or does not belong to the channel.
+
+    Stable channel (default): only a release that is not marked as pre-release and has a stable tag.
+    allow_prerelease=True (test channel): also a release candidate, but only when tag and pre-release flag agree
+    (a candidate tag without the flag, or a stable tag with it, is a publishing error and never offered)."""
+    if not isinstance(payload, dict) or payload.get('draft'):
         return None
-    version = parse_version(payload.get('tag_name', ''))
-    if version is None:
+    version = app_version.parse_tag(payload.get('tag_name', ''))
+    flagged = payload.get('prerelease', False)          # GitHub always sends it; missing counts as stable
+    if version is None or flagged not in (True, False):
         return None
-    text = '.'.join(map(str, version))
+    if version.prerelease != flagged or (version.prerelease and not allow_prerelease):
+        return None
+    text = version.text
     assets = {a.get('name'): a for a in payload.get('assets', []) if isinstance(a, dict)}
     name = f'ECU-Studio-AI-{text}-windows-x64.zip'
     archive, checksum = assets.get(name), assets.get(name + '.sha256')
@@ -112,7 +130,7 @@ def parse_release(payload: dict) -> Release | None:
     return Release(text, notes, str(payload.get('html_url') or ''),
                    name, archive['browser_download_url'], int(archive.get('size') or 0),
                    checksum['browser_download_url'],
-                   _sha256_digest(digest), signature_url, _installer_asset(assets, text))
+                   _sha256_digest(digest), signature_url, _installer_asset(assets, text), version.prerelease)
 
 
 def _sha256_digest(value) -> str | None:
@@ -139,11 +157,15 @@ def _get(url: str, opener=None, accept: str = 'application/octet-stream'):
     return (opener or urllib.request.urlopen)(request, timeout=TIMEOUT)
 
 
-def fetch_latest(opener=None) -> Release | None:
-    """Latest stable release with a Windows package, or None. Network errors raise UpdateError."""
+def fetch_latest(opener=None, channel: str = STABLE) -> Release | None:
+    """Stable channel: latest stable release with a Windows package. Test channel: the highest version among the
+    newest stable releases and release candidates. None if there is none. Network errors raise UpdateError."""
+    if channel not in CHANNELS:
+        raise UpdateError(f'Unbekannter Update-Kanal: {channel}')
+    url = API_LATEST if channel == STABLE else API_RELEASES
     try:
-        with _get(API_LATEST, opener, 'application/vnd.github+json') as response:
-            payload = json.loads(response.read(2 * 1024 * 1024).decode('utf-8'))
+        with _get(url, opener, 'application/vnd.github+json') as response:
+            payload = json.loads(response.read(4 * 1024 * 1024).decode('utf-8'))
     except UpdateError:
         raise
     except urllib.error.HTTPError as exc:
@@ -152,7 +174,12 @@ def fetch_latest(opener=None) -> Release | None:
         raise UpdateError(f'Update-Prüfung nicht möglich: GitHub antwortet {exc.code}') from exc
     except Exception as exc:          # offline, DNS, rate limit, invalid JSON: never fatal
         raise UpdateError(f'Update-Prüfung nicht möglich: {exc}') from exc
-    return parse_release(payload)
+    if channel == STABLE:
+        return parse_release(payload)
+    if not isinstance(payload, list):
+        raise UpdateError('Update-Prüfung nicht möglich: unerwartete Antwort der Release-Liste')
+    found = [r for r in (parse_release(p, allow_prerelease=True) for p in payload) if r is not None]
+    return max(found, key=lambda r: app_version.parse(r.version).key, default=None)
 
 
 def check_due(last_check: float | None, now: float | None = None, interval: float = CHECK_INTERVAL) -> bool:
@@ -290,7 +317,11 @@ def _read_uninstall_entry() -> dict | None:
 
 
 def _write_uninstall_entry(values: dict) -> None:
+    import os
     import winreg
+    from ..app_settings import TEST_PROFILE, SettingsIsolationError
+    if os.environ.get(TEST_PROFILE):     # 1.21.0: a test run never writes the real uninstall entry
+        raise SettingsIsolationError('Testprofil: Deinstallationseintrag wird nicht geschrieben.')
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY, 0, winreg.KEY_SET_VALUE) as key:
         for name, value in values.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)

@@ -81,3 +81,69 @@ def test_composite_status_lines_and_painted_text():
         assert i18n.t('Typ: Unbekannt · ungeprüfter Vorschlag') == 'Type: Unknown · unverified proposal'
     finally:
         i18n.set_language(previous)
+
+
+def _german_left(texts):
+    return sorted({line for text in texts for line in str(text).split('\n') if line and GERMAN.search(line)})
+
+
+def test_review_aids_are_english_in_the_english_interface(tmp_path, monkeypatch, english):
+    """1.21.0-rc1 (synthetic): open data types, missing evidence, readings, filters, the review list and the
+    pre-flash finding for unchecked suggestions show no German in the English interface."""
+    import numpy as np
+    from PySide6.QtWidgets import QAbstractButton, QApplication, QLabel
+    from ecu_studio.core.axis_records import ENDIAN_OPEN
+    from ecu_studio.core.model import BinaryImage, MapDefinition
+    from ecu_studio.core.preflight import run_preflight
+    from ecu_studio.ui import i18n_qt
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    monkeypatch.setattr(Path, 'home', classmethod(lambda cls: tmp_path))
+    app = QApplication.instance() or QApplication([])
+    i18n_qt.install(app, 'en')
+    from ecu_studio.ui.main_window import Window, TIER_FILTERS
+    from ecu_studio.ui.review_dialog import ReviewDialog
+
+    def cand(name, offset, **kw):
+        kw = {'rows': 2, 'cols': 2, 'dtype': 'u16', 'endian': 'little', 'source': 'heuristic',
+              'record_layout': 'candidate:nx,ny,x,y,z', 'axes_x': [1, 2], 'axes_y': [1, 2], **kw}
+        return MapDefinition(name, offset, **kw)
+
+    raw = np.array([0x0010, 0x8000, 0x7FFF, 0xFFFF], '<u2').tobytes()
+    maps = [cand('Open', 0, dtype='s16', dtype_alternatives=['u16'], notes=f'{ENDIAN_OPEN}: x.'),
+            cand('Clean', 0x40), cand('O1', 0x80), cand('O2', 0x84), cand('Checked', 0xC0, verified=True)]
+    w = Window()
+    w.load_state(BinaryImage(raw + bytes(252)), maps, [], '', None)
+    shown_filters = [w.tier_filter.model().index(i, 0).data() for i in range(w.tier_filter.count())]
+    assert 'Data type not established (?)' in shown_filters and 'Overlaps other entries' in shown_filters
+    w.tier_filter.setCurrentText(TIER_FILTERS[6])
+    assert [w.maps[i].name for i in w.catalog_model.indices] == ['Open']
+    w.tier_filter.setCurrentIndex(0)
+    w.select_map(maps[0])
+    detail = w.identification_detail.text()
+    assert 'Missing evidence – Sign' in detail and 'Readings of the same bytes' in detail and '(chosen)' in detail
+    assert _german_left([detail.replace('x.', '')]) == []
+    d = ReviewDialog(w)
+    d.show(); app.processEvents()
+    texts = [d.windowTitle(), d.count.text()]
+    texts += [d.table.horizontalHeaderItem(c).text() for c in range(d.table.columnCount())]
+    texts += [d.topic.model().index(i, 0).data() for i in range(d.topic.count())]
+    texts += [b.text() for b in d.findChildren(QAbstractButton)] + [x.text() for x in d.findChildren(QLabel)]
+    texts += [d.table.item(r, c).text() for r in range(d.table.rowCount()) for c in range(d.table.columnCount())
+              if c != 1]                                   # column 1: map names are data
+    assert _german_left(texts) == []
+    d.close()
+    # pre-flash check: a change inside an unchecked suggestion
+    image = BinaryImage(bytes(range(256)) * 64)
+    image.write(0x1009, bytes([image.byte(0x1009) + 1]))
+    report = run_preflight(image, [MapDefinition('S', 0x1000, 8, 8, dtype='u8', source='heuristic')],
+                           cal_window=(0x1000, 0x3000))
+    shown = i18n.t(report.text())
+    assert '[YELLOW] Change in an unverified map proposal' in shown
+    assert _german_left([shown]) == []
+    # map list markers: transferred names, suggestions, shared axes, changed entries
+    line = i18n.t('• N  [geändert]\n    0x00000000  2×2  u16?  | Typ: Unbekannt · Name übertragen (ungeprüft) · '
+                  'Achse geteilt (unsicher)')
+    assert 'name transferred (unchecked)' in line and '[changed]' in line and _german_left([line]) == []
+    assert i18n.t('Typ: Unbekannt · Vorschlag') == 'Type: Unknown · suggestion'
+    w.saved_fingerprint = w.project_state()
+    w.close()

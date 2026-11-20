@@ -14,6 +14,14 @@ from .. import __version__
 from ..core import updates
 
 KEY_AUTO, KEY_LAST, KEY_SKIP = 'updates/auto_check', 'updates/last_check', 'updates/skipped_version'
+KEY_CHANNEL = 'updates/channel'          # 'stable' (default) or 'prerelease' (test channel, confirmed by the user)
+CHANNEL_WARNING = ('Testkanal einschalten?\n\n'
+                   'Im Testkanal bietet ECU Studio AI auch Vorabversionen (Release Candidates) an. Sie sind zum Testen '
+                   'gedacht, nicht für den produktiven Einsatz: Erkennung und Oberfläche können sich bis zur stabilen '
+                   'Version noch ändern, und automatisch erkannte Kennfelder bleiben ungeprüfte Vorschläge.\n\n'
+                   'Jedes Update fragt weiterhin vorher nach, wird per SHA-256 geprüft und lässt die bisherige Version '
+                   'als Sicherung zurück. Der Testkanal lässt sich jederzeit wieder ausschalten; eine installierte '
+                   'Vorabversion bleibt dann installiert, bis die zugehörige stabile Version erscheint.')
 
 
 def data_dir() -> Path:
@@ -23,9 +31,13 @@ def data_dir() -> Path:
 class CheckWorker(QThread):
     finished_check = Signal(object, str)          # Release | None, error text ('' = ok)
 
+    def __init__(self, channel: str = updates.STABLE):
+        super().__init__()
+        self.channel = channel
+
     def run(self):
         try:
-            self.finished_check.emit(updates.fetch_latest(), '')
+            self.finished_check.emit(updates.fetch_latest(channel=self.channel), '')
         except updates.UpdateError as exc:
             self.finished_check.emit(None, str(exc))
 
@@ -62,6 +74,13 @@ class UpdateDialog(QDialog):
         title.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(QLabel(f'Installiert: {__version__}  ·  Neu: {release.version}'))
+        if getattr(release, 'prerelease', False):
+            warning = QLabel('Vorabversion (Release Candidate) aus dem Testkanal – zum Testen, nicht für den '
+                             'produktiven Einsatz.')
+            warning.setObjectName('prereleaseWarning')
+            warning.setWordWrap(True)
+            warning.setStyleSheet('color:#b45309;font-weight:bold')
+            layout.addWidget(warning)
         notes = QTextBrowser()
         notes.setOpenExternalLinks(True)
         notes.setMarkdown(release.notes or '_Keine Änderungshinweise veröffentlicht._')
@@ -105,6 +124,28 @@ class UpdateController:
     def set_auto(self, enabled: bool):
         self.settings.setValue(KEY_AUTO, 'true' if enabled else 'false')
 
+    def channel(self) -> str:
+        """'prerelease' only after the user switched the test channel on and confirmed it; otherwise 'stable'."""
+        value = str(self.settings.value(KEY_CHANNEL, updates.STABLE) or updates.STABLE).lower()
+        return updates.PRERELEASE if value == updates.PRERELEASE else updates.STABLE
+
+    def set_test_channel(self, enabled: bool, confirm=None) -> bool:
+        """Switch the test channel; switching it ON needs the user's confirmation (confirm() -> bool, default: a
+        dialog). Returns the resulting state. Switching it off never asks."""
+        if enabled and self.channel() != updates.PRERELEASE:
+            if confirm is None:
+                def confirm():
+                    answer = QMessageBox.question(
+                        self.window, 'Testkanal (Vorabversionen)', CHANNEL_WARNING,
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+                    return answer == QMessageBox.StandardButton.Yes
+            if not confirm():
+                return False
+        self.settings.setValue(KEY_CHANNEL, updates.PRERELEASE if enabled else updates.STABLE)
+        # A version skipped in one channel is not a decision for the other one.
+        self.settings.remove(KEY_SKIP)
+        return enabled
+
     def start(self):
         self.sync_installed_version()
         # No network from tests, CI, smoke and self-checks (headless) or when switched off.
@@ -123,7 +164,7 @@ class UpdateController:
             last = self.settings.value(KEY_LAST)
             if not self.auto_enabled() or not (startup or updates.check_due(float(last) if last else None)):
                 return
-        self.worker = CheckWorker()
+        self.worker = CheckWorker(self.channel())
         self.worker.finished_check.connect(lambda release, error: self._checked(release, error, manual))
         self.worker.start()
 
@@ -154,7 +195,7 @@ class UpdateController:
         """Installed with the installer: "Apps & Features" shows the running version. In-app updates up to
         1.20.0 replaced the files without updating that entry. Local registry only, never network."""
         root = updates.install_root(sys.executable)
-        if root is None:
+        if root is None or os.environ.get('ECU_STUDIO_TEST_PROFILE'):
             return
         try:
             updates.sync_uninstall_entry(root, __version__)

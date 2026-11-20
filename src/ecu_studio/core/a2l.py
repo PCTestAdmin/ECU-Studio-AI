@@ -15,7 +15,10 @@ from .model import MapDefinition
 from .intelligence import classify_metadata
 from .addressing import AddressSegment, validate_segments, locate_range
 
-TOKEN = re.compile(r'/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|[^\s]+', re.DOTALL)
+# A quote inside an ASAP2 string is written as \" or doubled as "" (both occur in OEM
+# files). A doubled quote must not end the token: the CHARACTERISTIC head would shift
+# and the object would silently drop out of the catalogue.
+TOKEN = re.compile(r'/\*.*?\*/|//[^\n]*|"(?:\\.|""|[^"\\])*"|[^\s]+', re.DOTALL)
 STORAGE = {'UBYTE': 'u8', 'SBYTE': 's8', 'UWORD': 'u16', 'SWORD': 's16',
            'ULONG': 'u32', 'SLONG': 's32', 'FLOAT32_IEEE': 'f32'}
 SIZES = {'u8': 1, 's8': 1, 'u16': 2, 's16': 2, 'u32': 4, 's32': 4, 'f32': 4}
@@ -86,7 +89,7 @@ def scan_blocks(source: str) -> Block:
 def unquote(value: str) -> str:
     if value.startswith('"') and value.endswith('"'):
         # Do not accidentally re-decode UTF-8 bytes as Latin-1 (umlauts in DAMOS).
-        return re.sub(r'\\(["\\])', r'\1', value[1:-1])
+        return re.sub(r'\\(["\\])|""', lambda m: m.group(1) or '"', value[1:-1])
     return value
 
 
@@ -773,6 +776,9 @@ def parse_a2l(source: str) -> A2LCatalog:
                 ydim = dims_raw[1] if len(dims_raw) > 1 else 1
             elif form == 'VALUE':
                 xdim, ydim = 1, 1
+            elif form == 'VAL_BLK' and attr(block, 'NUMBER'):
+                # ASAP2 1.5 sizes a value block with NUMBER (MATRIX_DIM came with 1.6).
+                xdim, ydim = parse_num(attr(block, 'NUMBER')[0]), 1
             elif form == 'CURVE' and axes:
                 xdim, ydim = axes[0][2], 1
             elif form == 'MAP' and len(axes) >= 2:

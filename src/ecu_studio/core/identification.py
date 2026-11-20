@@ -11,6 +11,11 @@ Sources (measured on local reference images, see docs/ECU_SUPPORT.md):
 - VAG part numbers of engine control units (``8V0907404A``, ``06A906032HS``).
 - Siemens/Continental hardware ``5WK9…`` and plain-text family names (Simos, SID, MSV, MSD).
   These patterns are not yet measured on real Continental files (none available).
+- Siemens calibration data sets name themselves ``CA<6 characters>.DAT`` (MSD80 development
+  builds, 1.21.0). The name identifies the data set (software), not the family.
+- The Bosch EPK names platform and project (``40/1/MED17/11/MEVD172X//…``). When the
+  platform is generic (MED17) and the plain text names exactly the family the project
+  spells (``MEVD17.2`` for ``MEVD172X``), that family is reported (1.21.0).
 Calibration-only dumps (MSD80/MSD85, ME9.2.1) often hold none of these; their
 identity comes from a matching A2L (EPK check in a2l.py).
 
@@ -33,6 +38,7 @@ BOSCH_HW = re.compile(rb'(02[68][01][0-9]{6})')   # often directly next to the S
 BOSCH_SW = re.compile(rb'(103[79][0-9]{6})')
 VAG_PN = re.compile(rb'(?<![0-9A-Z])([0-9][0-9A-Z][0-9A-Z]90[67][0-9]{3}[A-Z]{0,3})(?![0-9A-Z])')
 SIEMENS_HW = re.compile(rb'(?<![0-9A-Z])(5WK9[0-9]{3,4})(?![0-9])')
+SIEMENS_DATASET = re.compile(rb'(?<![0-9A-Za-z])(CA[0-9A-Z]{6}\.DAT)')
 FAMILY_TEXT = re.compile(rb'(?<![A-Z0-9])(EDC1[567](?:_?C[P]?[0-9]{2})?|MEV?D?1[67](?:\.[0-9]{1,2}){0,3}|MED9[0-9.]{0,4}|ME7(?:\.[0-9])?'
                          rb'|MD1C[PS][0-9]{3}|MG1C[PS][0-9]{3}'
                          # Continental / Siemens VDO plain-text family names
@@ -67,6 +73,7 @@ class Identity:
     software: list[str] = field(default_factory=list)
     part_numbers: list[str] = field(default_factory=list)
     epk: str | None = None
+    project: str | None = None      # project named by the Bosch EPK (``MEVD172X``)
     markers: list[Marker] = field(default_factory=list)
     level: str = 'unbekannt'
     level_reason: str = 'keine Familienkennung in der Datei'
@@ -79,6 +86,8 @@ class Identity:
             parts.append('Familie mehrdeutig: ' + ', '.join(self.ambiguous))
         else:
             parts.append('Familie: keine Kennung in der Datei')
+        if self.project:
+            parts.append('Projekt ' + self.project)
         if self.hardware:
             parts.append('HW ' + ', '.join(self.hardware))
         if self.software:
@@ -104,6 +113,19 @@ def _related(a: str, b: str) -> bool:
     """Same family at different detail (MED17 / MED17.1.62, MSD80 / MSD 80)."""
     a, b = a.upper().replace('.', ''), b.upper().replace('.', '')
     return a.startswith(b) or b.startswith(a)
+
+
+def _epk_project(epk: re.Match) -> str | None:
+    """Second field after the family in a Bosch EPK (``11/MEVD172X//…`` -> ``MEVD172X``)."""
+    fields = epk.group(3).decode('latin-1').split('/')
+    project = fields[1].strip() if len(fields) > 1 else ''
+    return project if re.fullmatch(r'[A-Z][A-Z0-9_.]{2,15}', project) else None
+
+
+def _spells(project: str, family: str) -> bool:
+    """The EPK project spells the family without dots, at most a one-letter variant after it."""
+    key = family.upper().replace('.', '')
+    return project.upper().startswith(key) and len(project) - len(key) <= 1
 
 
 def _grade(ident: Identity, texts: list[str], profile_version: bool) -> None:
@@ -137,12 +159,25 @@ def identify(image: BinaryImage) -> Identity:
         ident.epk = m.group(0).decode('latin-1').rstrip('/ ')
         ident.markers.append(Marker('EPK', ident.epk, m.start()))
         families = collections.OrderedDict((_family_name(x.group(2).decode('latin-1')), x.start()) for x in real)
+        projects = {p for p in (_epk_project(x) for x in real) if p}
+        if len(projects) == 1:
+            ident.project = projects.pop()
         if len(families) == 1:
             ident.family, off = next(iter(families.items()))
             ident.family_evidence = f'Bosch-EPK @ 0x{off:X}'
         else:
             ident.ambiguous = list(families)
     texts = collections.Counter(_family_name(x.group(1).decode('latin-1')) for x in FAMILY_TEXT.finditer(data))
+    families_first = ident.family
+    if ident.family in GENERIC and ident.project:
+        # Platform EPK (MED17) whose project names a variant the plain text spells out.
+        refined = [t for t in texts if t not in GENERIC and _spells(ident.project, t)]
+        if len(refined) == 1:
+            ident.family = refined[0]
+            ident.family_evidence += f' (Plattform {families_first}, Projekt {ident.project}, Klartext {refined[0]})'
+    for marker in _first(SIEMENS_DATASET, data, 'Siemens-Datensatz'):
+        ident.software.append(marker.value)
+        ident.markers.append(marker)
     profile_version = False
     if ident.family is None and not ident.ambiguous:
         # Only a single, specific name counts (EDC16 dumps name C31 and C35 alike).

@@ -2,7 +2,10 @@
 
 | Dokument | Inhalt |
 |---|---|
-| [SPRINT_NAECHSTER.md](SPRINT_NAECHSTER.md) | Nächster Sprint: Referenzsuche, Hintergrund-Indizierung, XDF-Achsen, Erkennung, unabhängige Benchmarks – mit Abnahmekriterien |
+| [../ROADMAP.md](../ROADMAP.md) | Versionen mit Status, Erkennungsgüte 1.20.1 → 1.21.0, Funktionsstand, Plan |
+| [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) | 1.21.0 (in Entwicklung): Kennfelderkennung mit privaten A2L-/HEX-Referenzen, getrennter Holdout, Ergebnisse und Grenzen (nur Zählwerte) |
+| [RELEASE_NOTES_1.21.0-rc1.md](RELEASE_NOTES_1.21.0-rc1.md) | 1.21.0-rc1 (Vorabversion, veröffentlicht am 20.11.2026 als Pre-Release): Release Notes Deutsch/Englisch mit bekannten Einschränkungen |
+| [SPRINT_NAECHSTER.md](SPRINT_NAECHSTER.md) | Historisch (Stand 31.10.2026): damalige Sprintplanung mit Abnahmekriterien; aktueller Plan in der [Roadmap](../ROADMAP.md#d-plan) |
 | [FIRMWARE_PROTECTION.md](FIRMWARE_PROTECTION.md) | Firmware-Schutz: lokale Ablage, Git-Hooks, Regeln, Ausnahmen, Prüfung vor dem Push, Restrisiken |
 | [ANALYSE_2026-10-31.md](ANALYSE_2026-10-31.md) | Firmware-Schutz, Fehlerbehebungen bei Definition/XDF-Export, lokale Referenzsuche mit Benchmark, Aufgabenstand |
 | [OPEN_SOURCE_DETECTION_BENCHMARK.md](OPEN_SOURCE_DETECTION_BENCHMARK.md) | Quellcodevergleich, isolierte Detektorversuche und reproduzierbare Qualitätsgrenzen |
@@ -12,10 +15,10 @@
 | [ANALYSE_2026-10-24.md](ANALYSE_2026-10-24.md) | 1.17-Kandidat: Kennfeldpaket, Workflow, Messnachweise, Windows-Prüfung und offene Referenzdaten |
 | [PROGRESS.md](PROGRESS.md) | Erkennung je Version und Meilenstein, inklusive TriCore-Stufen am MSD80-Vollflash |
 | [ECU_SUPPORT.md](ECU_SUPPORT.md) | Welche Steuergeräte mit welchen Referenzen gemessen sind – Trefferquote, Präzision, was nicht validiert ist |
-| [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung |
+| [RELEASE.md](RELEASE.md) | Neue Version veröffentlichen: Version, CHANGELOG, Tag, automatischer Build und Update-Verteilung; Release Candidates (Versionsschema `X.Y.Z-rcN`, Testkanal, Probelauf, Schutzprüfungen) und die erst beim Release gesetzten Versionsangaben |
 | [MAP_PACK.md](MAP_PACK.md) | Offenes Kennfeldpaket v2, Grenzen, Herkunft, Vorschau, Undo und Softwarestand-Abgleich |
 | [REFERENCE_VALIDATION.md](REFERENCE_VALIDATION.md) | Hashgebundene lokale Referenzmessung mit Rollen, Fehlfundanalyse und Baseline-Vergleich |
-| [MODELLKARTE.md](MODELLKARTE.md) | Gemessene Trefferquote je Beweisart, Lernmodell für Datenmuster-Funde, Grenzen |
+| [MODELLKARTE.md](MODELLKARTE.md) | Belegstufen statt Prozentzahlen (seit 1.19.0), Historie der bis 1.18.2 ausgelieferten Trefferquoten und des zurückgezogenen Lernmodells |
 | [OPEN_SOURCE_VERGLEICH.md](OPEN_SOURCE_VERGLEICH.md) | Vergleich quelloffener ECU-Werkzeuge: welche Ideen übernommen, welche verworfen wurden |
 | [ANALYSE_2026-10-23.md](ANALYSE_2026-10-23.md) | Fehlfundanalyse, gemeinsame Achsen, Softwarestand-Abgleich, Projektbibliothek, verworfene Ansätze, Qualitätsmatrix |
 | [../CHANGELOG.md](../CHANGELOG.md) | Änderungen je Version |

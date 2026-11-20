@@ -3,9 +3,17 @@
 ; the program folder later. Projects and settings live outside the program folder
 ; (%USERPROFILE%\.ecu_studio_ai, registry) and survive updates and uninstallation.
 ; Build: ISCC.exe /DAppVersion=1.15.0 packaging\installer.iss   (after build_release.ps1)
+; Release candidate: ISCC.exe /DAppVersion=1.21.0-rc1 /DAppFileVersion=1.21.0.1 packaging\installer.iss
+; (AppFileVersion = python -m ecu_studio.core.app_version <version> windows; Windows needs four numbers).
 
 #ifndef AppVersion
   #error AppVersion fehlt: ISCC /DAppVersion=x.y.z
+#endif
+#ifndef AppFileVersion
+  #if Pos("-", AppVersion) > 0
+    #error AppFileVersion fehlt: eine Vorabversion braucht ISCC /DAppFileVersion=x.y.z.n
+  #endif
+  #define AppFileVersion AppVersion
 #endif
 
 [Setup]
@@ -13,9 +21,12 @@ AppId={{F8CD5330-FC90-4891-BFDA-58E6668C93A5}
 AppName=ECU Studio AI
 AppVersion={#AppVersion}
 AppVerName=ECU Studio AI {#AppVersion}
-; Windows file version of setup.exe (Properties > Details) instead of 0.0.0.0.
-VersionInfoVersion={#AppVersion}
-VersionInfoProductVersion={#AppVersion}
+; Windows file version of setup.exe (Properties > Details) instead of 0.0.0.0: numeric fields x.y.z(.n), the text
+; fields (product version shown by Explorer and checked by release.yml) carry the version itself, e.g. 1.21.0-rc1.
+VersionInfoVersion={#AppFileVersion}
+VersionInfoProductVersion={#AppFileVersion}
+VersionInfoTextVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
 AppPublisher=PCTestAdmin
 AppPublisherURL=https://github.com/PCTestAdmin/ECU-Studio-AI
 AppUpdatesURL=https://github.com/PCTestAdmin/ECU-Studio-AI/releases

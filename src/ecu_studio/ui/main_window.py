@@ -41,7 +41,10 @@ from ..core.definition_registry import remember_pair, lookup_pair, search_local_
 from ..core.quality import audit_catalog, write_quality_csv
 from ..core.scoped_scan import scan_calibration_candidates
 from ..core.fusion import fuse, annotate, layer_of, definition_mismatch
-from ..core.confidence import LEVELS as EVIDENCE_LEVELS, evidence_level
+from ..app_settings import app_settings
+from ..core.confidence import (LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, missing_evidence, overlap_note,
+                               overlapping, type_doubts)
+from ..core.type_readings import readings as type_readings
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -81,14 +84,20 @@ from ..core.project_store import ProjectStore
 from .catalogue import CatalogueModel
 
 
-TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft')
+TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft',
+              'Datentyp nicht belegt (?)','Überschneidet andere Einträge')
 
 
-def tier_matches(m,choice:str)->bool:
-    """Catalogue filter by kind of evidence (core/confidence.py), never by a percentage."""
+def tier_matches(m,choice:str,overlaps:bool=False)->bool:
+    """Catalogue filter by kind of evidence (core/confidence.py), never by a percentage.
+
+    ``overlaps``: the entry shares bytes with another one (precomputed by the caller, 1.21.0).
+    """
     if choice==TIER_FILTERS[0]:return True
     if choice==TIER_FILTERS[4]:return m.verified or m.source not in ('heuristic','reference-shape','transfer-proposed','ml-proposed')
     if choice==TIER_FILTERS[5]:return not m.verified      # review queue: everything the user has not confirmed
+    if choice==TIER_FILTERS[6]:return bool(dtype_doubt(m))
+    if choice==TIER_FILTERS[7]:return overlaps
     return evidence_level(m)==choice
 
 
@@ -279,10 +288,10 @@ class Window(QMainWindow):
         self.map_editors = []
         self.project_store = ProjectStore()
         self.setWindowTitle(f"ECU Studio AI v{__version__}  |  Calibration Workbench")
-        # defaultFormat(): the program uses the registry as before; tests, the smoke test and the screenshot tools
-        # switch to an INI file with setDefaultFormat/setPath. The two-argument constructor ignores that switch and
-        # always wrote into the user's real settings (the installed program's window layout, theme, update check).
-        self.settings=QSettings(QSettings.defaultFormat(),QSettings.Scope.UserScope,"ECU Studio","ECU Studio AI")
+        # app_settings(): the program uses the registry as before; tests (also in child processes), the smoke test
+        # and the screenshot tools use an INI file. The two-argument QSettings constructor ignored that switch and
+        # wrote into the user's real settings until 1.19.1 (window layout, theme, update check).
+        self.settings=app_settings()
         self.theme=self.settings.value("ui/theme", "dark")
         if self.theme not in ("light","dark"): self.theme="light"
         self.actions={}
@@ -730,7 +739,8 @@ class Window(QMainWindow):
         self.view3d.update()
         self.memory_atlas.dark=(theme=='dark')
         self.memory_atlas.update()
-        self.settings.setValue('ui/theme',theme)
+        if self.settings.value('ui/theme')!=theme:   # starting the program writes nothing (1.21.0)
+            self.settings.setValue('ui/theme',theme)
         for name,act in self.theme_actions.items():act.setChecked(name==theme)
 
     def reset_workspace(self):
@@ -860,6 +870,12 @@ class Window(QMainWindow):
         auto.setCheckable(True)
         auto.setChecked(self.updates.auto_enabled())
         act(settings_menu,"Jetzt nach Updates suchen",lambda:self.updates.check(manual=True))
+        # Test channel (1.21.0): release candidates only after an explicit, confirmed choice; off by default.
+        test_channel=act(settings_menu,"Testkanal: Vorabversionen (Release Candidates) anbieten …",
+                         lambda checked:test_channel.setChecked(self.updates.set_test_channel(checked)))
+        test_channel.setCheckable(True)
+        test_channel.setChecked(self.updates.channel()=='prerelease')
+        self.test_channel_action=test_channel
         act(settings_menu,"Vorherige Version wiederherstellen …",self.updates.request_restore)
         settings_menu.addSeparator()
         language_menu=settings_menu.addMenu("Sprache / Language")
@@ -1162,6 +1178,7 @@ class Window(QMainWindow):
         elif sortby=='Typ':indices.sort(key=lambda i:(self.maps[i].kind.casefold(),self.maps[i].offset))
         else:indices.sort(key=lambda i:self.maps[i].offset)
         patch_offsets=sorted(self.image._patches) if self.image else []
+        overlaps=overlapping(self.maps) if tier==TIER_FILTERS[7] else {}
         visible=[]
         for i in indices:
             m=self.maps[i]
@@ -1175,7 +1192,7 @@ class Window(QMainWindow):
             elif category=="Favoriten":
                 if not m.favorite:continue
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
-            if not tier_matches(m,tier):continue
+            if not tier_matches(m,tier,bool(overlaps.get(i))):continue
             visible.append(i)
         self.axis_group_index=group_index(shared_axis_groups(self.maps))
         self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
@@ -1214,9 +1231,14 @@ class Window(QMainWindow):
         status = ('Schreibgeschützt: nichtlineare XDF-Formel' if m.equation else 'Manuell verifiziert' if m.verified else
                   'UNGEPRÜFTER HINWEIS – fachlich bestätigen')
         alt = ('\nWeitere Möglichkeiten: ' + ', '.join(m.type_alternatives)) if m.type_alternatives else ''
-        if m.dtype_alternatives:
-            alt += ('\nDatentyp NICHT belegt: ' + m.dtype + ' ist die glattere Lesart, ebenfalls möglich: '
-                    + ', '.join(m.dtype_alternatives))
+        doubts=type_doubts(m)
+        if doubts:
+            # 1.21.0: every open question, the evidence that would settle it, and the same bytes in each reading
+            alt += '\nDatentyp NICHT belegt: ' + '; '.join(text for _,text in doubts)
+            alt += ''.join('\nFehlender Beleg – ' + text for text in missing_evidence(m))
+            options=type_readings(self.image,m)
+            if len(options)>1:
+                alt += '\nLesarten derselben Bytes (Rohwerte min … max): ' + ' · '.join(r.describe() for r in options)
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(
@@ -1225,6 +1247,8 @@ class Window(QMainWindow):
         extra = (f"\nECU-Adresse: 0x{m.ecu_address:X}" if m.ecu_address is not None else "")
         axes = (f"\nAchsenbeschreibung: {m.axes_info}" if m.axes_info else "")
         axes += self._shared_axis_text(m)
+        overlap = overlap_note(m, self.maps)
+        axes += ('\n' + overlap) if overlap else ''
         math_info=(f'\nXDF-Umrechnung: {m.equation} (schreibgeschützt)' if m.equation else '')
         self.map_hint.setText(f"{evidence} · Quelle: {m.source}{extra}{axes}{math_info}\n"
             f"Struktur-Score: {m.confidence:.2f} (keine Wahrscheinlichkeit)\n{m.notes}")

@@ -146,11 +146,10 @@ def window_properties(hwnd: int, values=None) -> dict:
 
 def apply_language(app) -> str:
     """Interface language from the settings (default: system language); must run before windows exist."""
-    from PySide6.QtCore import QSettings
+    from .app_settings import app_settings
     from .core import i18n
     from .ui import i18n_qt
-    code = QSettings(QSettings.defaultFormat(), QSettings.Scope.UserScope, "ECU Studio",
-                     "ECU Studio AI").value('language', 'system')
+    code = app_settings().value('language', 'system')
     if code not in i18n.LANGUAGES:
         code = i18n.system_language()
     i18n_qt.install(app, code)
@@ -158,18 +157,26 @@ def apply_language(app) -> str:
 
 
 def self_check():
-    """Used by the updater after installing: load the whole UI offscreen, then exit 0."""
+    """Used by the updater after installing: load the whole UI offscreen, then exit 0.
+
+    1.21.0: with its own throw-away settings. Closing the window saves its layout; with the real settings the
+    offscreen layout of the check replaced the user's window layout after every update."""
     import os
+    import tempfile
+    from .app_settings import SETTINGS_DIR
     os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
-    try:
-        app=QApplication([sys.argv[0]])
-        from .ui.main_window import Window
-        window=Window()
-        window.close()
-        app.processEvents()
-        return 0
-    except Exception:
-        return 1
+    os.environ['ECU_STUDIO_NO_UPDATE_CHECK']='1'
+    with tempfile.TemporaryDirectory(prefix='ecu-studio-self-check-', ignore_cleanup_errors=True) as folder:
+        os.environ[SETTINGS_DIR]=folder
+        try:
+            app=QApplication([sys.argv[0]])
+            from .ui.main_window import Window
+            window=Window()
+            window.close()
+            app.processEvents()
+            return 0
+        except Exception:
+            return 1
 
 
 if __name__ == "__main__":

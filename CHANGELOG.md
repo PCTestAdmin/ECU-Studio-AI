@@ -1,3 +1,164 @@
+## 1.21.0-rc1 (20.11.2026) – Release Candidate (Vorabversion)
+
+Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
+automatisch erkannten Kennfelder bleiben **ungeprüfte Vorschläge**; wo ein Datentyp nicht belegt ist, steht ein
+„?“ mit Grund. Messwerte stehen bewusst nur im [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md): Sie stammen aus
+privaten Referenzdaten eines Datengebers und sind seit der ersten Holdout-Messung nicht mehr unabhängig bestätigt.
+Alle Einzelheiten: Abschnitt „1.21.0“ unten und [Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md).
+
+- **Kennfelderkennung ohne Definition:** TriCore-Tabellen an Interpolationsroutinen (auch bei verlagerter
+  Kalibrierung), Zeigertripel, Achssuche mit unbelegten Achsen; Datensätze mit gemischten Achsbreiten,
+  vorzeichenbehafteten Bytes und Wertebreite aus der Datensatzgrenze; weniger Fehlfunde aus bloßen Datenmustern.
+  Die TriCore-Codeerkennung ist experimentell.
+- **Datentyp mit „?“:** offene Wertebreite, offenes Vorzeichen und unbelegte Byte-Reihenfolge werden genannt, nicht
+  still entschieden. Ein TriCore-Vorzeichen gilt nur als belegt, wenn alle Tabellen-Ladebefehle der Routine in
+  Breite und Vorzeichen übereinstimmen.
+- **Prüfhilfen:** Filter „Datentyp nicht belegt (?)“ und „Überschneidet andere Einträge“, fehlender Beleg je offener
+  Frage, dieselben Bytes in jeder offenen Lesart, Prüfliste nach Prüfgrund, gelber Preflight-Befund für Änderungen
+  in ungeprüften Vorschlägen. Keine automatische Flashfreigabe.
+- **Updates:** Der stabile Kanal bietet nie eine Vorabversion an. Neu: **Einstellungen → Testkanal: Vorabversionen
+  (Release Candidates) anbieten …** (mit Rückfrage). Versionsschema `X.Y.Z-rcN`, Windows-Dateiversion `X.Y.Z.N`.
+- **Release-Workflow:** Ein Release Candidate wird nur als GitHub-Pre-Release veröffentlicht, nie als „Latest“;
+  vorher Entwurf und Prüfung, danach Vergleich aller anderen Releases. Negativtests für falsche Versionierung oder
+  fehlende Pre-release-Markierung.
+- **Isolierung:** Tests, GUI-Smoke und Selbsttest arbeiten mit eigenen Einstellungsprofilen und ändern die echte
+  Registry nicht.
+- **Englische Oberfläche:** Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste sind
+  übersetzt.
+- **Installation:** Von 1.20.1 aus über den Installer oder das ZIP dieses Releases; 1.20.1 hat keinen Testkanal.
+- **Grenzen:** keine neue unabhängige Validierung; MEVD17.2.3-Vollflashs mit Fehlzuordnungen; MSV90-Byte-Reihenfolge
+  und -Vorzeichen nicht immer sicher (dann „?“); viele Datentypen ungeprüft; Checksummen nur teilweise, keine
+  allgemein vertrauenswürdige OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
+  Testversion, keine Empfehlung für produktive Fahrzeugkalibrierungen.
+
+## 1.21.0 (in Entwicklung, nicht veröffentlicht)
+
+Bessere Kennfelderkennung ohne Definition, gemessen an privaten Referenzdaten (A2L + HEX) eines Datengebers.
+Die Daten bleiben lokal; öffentlich sind nur zusammengefasste Zahlen. Entwicklung und Holdout wurden vor der Arbeit
+nach Steuergerätelinien getrennt. Bericht: [ENTWICKLUNG_1.21.0.md](docs/ENTWICKLUNG_1.21.0.md). Kein Modelltraining.
+
+**Kennfelderkennung (alles weiter ungeprüft und als Strukturhinweis gekennzeichnet)**
+
+- **Kalibrierung außerhalb des Abbilds:** TriCore-Entwicklungsstände, deren Code den Datenbereich an einer anderen
+  Flash-Adresse erwartet (z. B. 0xA0800000), werden über Achsköpfe und Datensätze platziert. Zwei unabhängige
+  Belege müssen übereinstimmen; mehrdeutige Lagen werden verworfen.
+- **Zeigertripel:** Tabellen, die der Code über Deskriptor-Arrays (Daten, X-Achse, Y-Achse) im Speicher übergibt,
+  werden mit eigener Herkunftsangabe gemeldet. Nur in Arrays aus 12-Byte-Einträgen mit lesbaren Achsen.
+- **Achssuche mit unbelegten Achsen:** Achsen, deren Stützstellen alle gleich sind, zählen bei der Rollenerkennung
+  der Achssuch-Routinen mit, aber nur bei Routinen, die auch echte Achsen lesen.
+- **Datensätze:** gemischte Achsbreiten (8/16 Bit), vorzeichenbehaftete Bytes, Wertebreite aus dem Abstand zum
+  nächsten Datensatzkopf, eine Byte-Reihenfolge je Abbild (Mehrheit der Datensätze mit 16-Bit-Zählern/Achsen).
+  Höchstzahl der Datensatzköpfe 1000 → 2000.
+- **Vorzeichen:** Wo der Code es nicht festlegt, gilt die Lesart ohne Überlauf zwischen Nachbarzellen; bei Gleichstand
+  bleibt es vorzeichenlos. Als ungeprüft gekennzeichnet.
+- **Weniger Fehlfunde:** Glatte Zeilenabstands-Läufe, in denen der Programmcode einzelne Objekte adressiert, werden
+  verworfen.
+- **Namensübertragung zwischen Softwareständen:** Flache Blöcke (Nullen, ein Wert) werden nur noch übertragen, wenn
+  beide Nachbaranker dieselbe Verschiebung zeigen oder die angrenzenden Bytes übereinstimmen.
+- **Wertebreite aus der Datensatzgrenze:** Eine 16-Bit-Lesart, hinter der kein Datensatz beginnt, während hinter der
+  8-Bit-Lesart gleicher Form der nächste Datensatz (Anzahl + steigende Achse) anfängt, wird als Byte-Tabelle gemeldet.
+  Gekennzeichnet als „Wertebreite nur aus dem Datensatzaufbau abgeleitet“. Seit Runde 3 zählt nur ein Datensatz auf
+  derselben Adressparität wie der eigene Kopf, und nur ein starker Beleg (2D-Datensatz oder eine Datensatzkette, die
+  weitergeht) stellt die Breite um. Ein einzelner Kennlinien-Datensatz lässt die 16-Bit-Lesart stehen und markiert die
+  Breite als offen („Wertebreite nicht belegt“, auch in der Prüfliste).
+- **Widersprochene Datenmuster:** Glätte-Kandidaten (Zeilenabstand), in deren Bereich ein angenommener Datensatzkopf
+  liegt, und rein vorzeichenbehaftete Glätte-Lesarten werden verworfen. Datensatzbelege gehen vor bloßen Mustern.
+  Entwicklungsdaten: Verwechslungen 7 878 → 5 316, exakte Funde +940.
+- **Datensatzkopf gegen Code-Beleg:** Ein Datensatzkopf verwirft eine Glätte-Lesart nur noch, wenn kein Kennfeld
+  aus dem Programmcode seinen Datensatz mit anderem Start überdeckt. Ein so widersprochener Kopf ist unbestätigt.
+  Behebt die MS43-Regression aus Runde 3 (196 → 197 exakt); Entwicklungsdaten, MS42, MSD80 und Negativbestand
+  unverändert.
+- **16-Bit-Felder im Datensatz ausgerichtet:** Auch wo ein Abbild zu wenige Datensätze für eine eigene Ausrichtung
+  hat, liegen 16-Bit-Achsen und -Werte eines Datensatzes in geradem Abstand zu dessen Kopf. Auf offener Firmware ohne
+  Kennfelder (Negativbestand) waren solche Lesarten die einzigen neuen Strukturfunde.
+- **16-Bit-Felder auf geraden Adressen:** Ist die Ausrichtung eines Abbilds durch genügend Datensätze mit 16-Bit-Zählern
+  oder -Achsen eindeutig, werden 16-Bit-Lesarten auf der anderen Adressparität verworfen.
+- **Byte-Reihenfolge (vorbereitet, aus):** Datensätze mit 8-Bit-Zählern und kleinen 16-Bit-Achsen, die in beiden
+  Byte-Reihenfolgen steigen, können von der Abstimmung ausgenommen werden. Ohne messbare Wirkung auf den
+  Entwicklungsdaten und daher nicht eingeschaltet.
+- **Unentschiedene Byte-Reihenfolge sichtbar:** Sind sich die Datensätze eines Abbilds uneinig und entscheidet keine
+  Mehrheit, behielt bisher jeder 16-Bit-Datensatz still die Reihenfolge seiner eigenen Lesart. Jetzt steht dort
+  „Byte-Reihenfolge nicht belegt“ („?“, Prüflistengrund), außer der Datensatz legt sie mit eigenen 16-Bit-Zählern
+  selbst fest. Keine Schwelle geändert, kein Fund verändert.
+
+**Anzeige**
+
+- Datentyp mit „?“, wenn er nicht belegt ist (Vorzeichen offen, nur aus der Glätte geschätzt oder Wertebreite nur aus
+  dem Datensatzaufbau). Der Grund steht im Tooltip und in der Detailansicht.
+- Vorzeichen von Datensatz-Tabellen: Kein Code legt es fest. Ist das oberste Bit gesetzt, bleibt die andere Lesart
+  als Alternative stehen („?“, Prüflistengrund), auch wenn die Lesart ohne Überlauf eine Seite bevorzugt oder eine
+  flache Tabelle gar nichts entscheidet. Entwicklungsdaten: falsche Datentypen ohne „?“ 235 → 0; 41 % der exakten
+  Funde tragen ein „?“.
+- Übertragene Namen sind als „Name übertragen (ungeprüft)“ markiert.
+- Die Detailansicht nennt alle Einträge, die sich Bytes mit dem gewählten Kennfeld teilen, mit ihrem Status
+  (ungeprüfter Vorschlag oder Definition/geprüft).
+- **Prüfhilfen für unbelegte Datentypen:**
+  - Kennfeldliste: Filter „Datentyp nicht belegt (?)“ und „Überschneidet andere Einträge“. Von dir geprüfte
+    Einträge stehen fett (zusätzlich zum ✓).
+  - Detailansicht: alle offenen Fragen zum Datentyp gleichzeitig (Wertebreite, Vorzeichen, Byte-Reihenfolge), je
+    Frage der fehlende Beleg (z. B. „Programmcode, der die Werte vorzeichenbehaftet liest, oder eine Definition“)
+    und dieselben Bytes in jeder offenen Lesart als Rohwerte (min … max), die gewählte markiert. Keine Bewertung,
+    keine Wahrscheinlichkeit.
+  - Prüfliste: Filter nach Prüfgrund (Widerspruch, Datentyp nicht belegt, Achsen, Überschneidung, nur Datenmuster,
+    experimentell), Spalte „Fehlender Beleg“, Überschneidungen und unbelegte Byte-Reihenfolge als eigene Gründe.
+    Die Reihenfolge bleibt eine Zählung der Gründe, keine Wahrscheinlichkeit.
+
+**Prüfung vor dem Speichern/Flashen**
+
+- Jede Änderung in einem ungeprüften Kennfeldvorschlag (automatisch erkannt oder Name übertragen), die keine
+  Definition oder geprüftes Kennfeld abdeckt, erzeugt einen gelben Befund „Änderung in ungeprüftem Kennfeldvorschlag“.
+  Vorschläge gelten nie als geprüfte Grundlage für Änderungen oder eine Flashfreigabe. Bisher gab es diesen Hinweis
+  nur im vermuteten Programmcode, und nur für automatische Kandidaten.
+
+**Geschwindigkeit**
+
+- TriCore-Codeanalyse: Der Durchlauf besucht nur Befehle, die den verfolgten Zustand ändern (Sprungziele werden in
+  Adressreihenfolge zusammengeführt, Ergebnis bitgleich). Speicherbefehle werden zwischen den Durchläufen
+  wiederverwendet, und die Suche nach verschobenen Kalibrierbereichen prüft nur Bytes, die eine Anzahl sein können.
+- Achs- und Datensatzprüfung verwirft Kandidaten, deren erste zwei Werte nicht steigen, bevor das ganze Array gelesen
+  wird (ergebnisgleich).
+
+**Identifikation**
+
+- EPK-Projektname verfeinert eine Plattformfamilie, wenn er genau eine Klartextfamilie nennt (z. B. MED17 → MEVD17.2).
+- Siemens-Datensatzname (`CA…….DAT`) wird als Software-Merkmal angezeigt. Die Familie bleibt ohne Klartext unbekannt.
+
+**A2L**
+
+- Objekte mit verdoppelten Anführungszeichen in Zeichenketten gehen nicht mehr verloren; VAL_BLK mit `NUMBER` hat die
+  richtige Größe. Label-Lexikon wird einmal statt je Objekt normalisiert (schneller).
+
+**Einstellungen, Selbsttest und Tests (Registry)**
+
+- **Selbsttest nach einem Update behält das Fensterlayout:** Der Selbsttest, den der Updater nach dem Installieren
+  startet, öffnete das Hauptfenster mit den echten Einstellungen. Beim Schließen speicherte es das Layout des
+  unsichtbaren Prüffensters und ersetzte so nach jedem Update Fensterposition und Dock-Anordnung des Nutzers. Der
+  Selbsttest arbeitet jetzt mit eigenen, danach gelöschten Einstellungen und ohne Update-Suche.
+- **Einstellungsort an einer Stelle** (`app_settings`): Registry für das installierte Programm wie bisher;
+  `ECU_STUDIO_SETTINGS_DIR` leitet in eine INI-Datei um, auch für Prozesse, die ein Test startet.
+  `ECU_STUDIO_TEST_PROFILE` (vom Testlauf gesetzt) verweigert ohne Umleitung jeden Zugriff auf die echten
+  Einstellungen, statt auf die Registry zurückzufallen.
+- **Testlauf isoliert und überwacht:** eigener Einstellungsordner je Test und je Lauf (am Ende gelöscht, auch nach
+  Fehlern), keine Update-Suche, keine sichtbaren Fenster. Vor jedem Test wird die Umleitung geprüft; ist sie nicht
+  nachweisbar, wird der Test übersprungen. Die Registry-Schlüssel des installierten Programms werden nur gelesen,
+  vor dem Lauf und nach jedem Test; eine Änderung lässt den Lauf fehlschlagen und nennt den Test.
+- **Deinstallationseintrag:** Im Testprofil schreibt das Programm den Eintrag in „Apps & Features“ nie
+  (Abgleich übersprungen, Schreibfunktion verweigert). Ein statischer Test erlaubt Registry-Schreibzugriffe nur an
+  dieser einen Stelle.
+- **Updater im Testlauf:** `updater.ps1` lässt im Testprofil den echten Eintrag in „Apps & Features“ unberührt, auch
+  wenn er ausdrücklich übergeben wird. Bisher schützte ihn nur der Vergleich des Installationsordners; Tests mit
+  eigenem Wegwerf-Schlüssel laufen unverändert.
+- **Aufräumen und Abbruch:** Die Einstellungsdatei eines Tests wird nach dem Test gelöscht, auch nach einem Fehler.
+  Laufordner abgebrochener Läufe (älter als 6 Stunden) räumt der nächste Lauf weg. Getestet mit einem verschachtelten
+  Testlauf, der Einstellungen schreibt, fehlschlägt und abgebrochen wird, sowie mit einem nicht anlegbaren
+  Einstellungsordner (Fehler statt Rückfall auf die Registry).
+
+**Grenzen**
+
+- Ghidra und REA wurden nur extern zur Analyse benutzt; sie sind weder Teil des Programms noch Abhängigkeit.
+- Kein Modell trainiert: Nutzungsrechte der Referenzdaten für Training sind nicht geklärt.
+- Weitere Grenzen und alle Zahlen: [ENTWICKLUNG_1.21.0.md](docs/ENTWICKLUNG_1.21.0.md).
+
 ## 1.20.1 (14.11.2026)
 
 Behebt Rückstände nach Deinstallationen, die auf ein In-App-Update folgen (A5), und prüft weitere ME7-Prüfsummen –
