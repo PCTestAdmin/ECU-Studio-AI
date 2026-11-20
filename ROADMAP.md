@@ -17,14 +17,14 @@
 
 # Roadmap
 
-Stand: 19.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 20.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
 | | Version | Status |
 |---|---|---|
 | 🟢 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** · 14.11.2026 | **aktuelle Version** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)) |
-| 🧪 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** · 19.11.2026 | **veröffentlichte Vorabversion** (GitHub-Pre-Release, nicht „Latest“) für freiwillige Tests, keine stabile Version; der stabile Update-Kanal bietet sie nicht an ([Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md)) |
+| 🧪 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** · 20.11.2026 | **veröffentlichte Vorabversion** (GitHub-Pre-Release, nicht „Latest“) für freiwillige Tests, keine stabile Version; der stabile Update-Kanal bietet sie nicht an ([Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md)) |
 | 🟠 | **1.21.0** | **geplante stabile Version, nicht veröffentlicht** ([PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
 
 Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
@@ -55,7 +55,7 @@ veröffentlicht; sie stehen nur im [CHANGELOG](CHANGELOG.md).
 
 | Version | Datum | Status | Schwerpunkte | Belege |
 |---|---|---|---|---|
-| **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** | 19.11.2026 | 🧪 Vorabversion veröffentlicht (Pre-Release, nicht „Latest“) | Vorabversion des Stands unten zum Praxistest; Testkanal für Vorabversionen (stabiler Kanal bietet sie nie an), Versionsschema `X.Y.Z-rcN`, Release-Workflow nur als Pre-Release mit Schutzprüfungen; TriCore-Vorzeichen nur bei einheitlichen Ladebefehlen belegt | [Notes](docs/RELEASE_NOTES_1.21.0-rc1.md), [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29) |
+| **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** | 20.11.2026 | 🧪 Vorabversion veröffentlicht (Pre-Release, nicht „Latest“) | Vorabversion des Stands unten zum Praxistest; Testkanal für Vorabversionen (stabiler Kanal bietet sie nie an), Versionsschema `X.Y.Z-rcN`, Release-Workflow nur als Pre-Release mit Schutzprüfungen; TriCore-Vorzeichen nur bei einheitlichen Ladebefehlen belegt | [Notes](docs/RELEASE_NOTES_1.21.0-rc1.md), [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29) |
 | **1.21.0** | – | 🟠 in Entwicklung (stabile Version geplant) | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, unbelegte Byte-Reihenfolge sichtbar, Prüfhilfen (Filter, fehlender Beleg, Lesarten nebeneinander), gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** | 14.11.2026 | ✅ veröffentlicht, aktuelle stabile Version | Deinstallation nach In-App-Update ohne Rückstände (Inventar), Updates von Installer-Installationen über den geprüften Installer, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus mit sechs Zuständen, Release-Prüfungen | [Notes](docs/RELEASE_NOTES_1.20.1.md), PR [#24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24)–[#28](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/28) |
 | **1.20.0** | 11.11.2026 | ✅ veröffentlicht | Checksummen & Integrität mit fünf Status, Bosch-Multipoint unabhängig belegt (199/199), sichere Korrektur, getrennte Preflight-Stufen, stabiler Definitionseditor | [Notes](docs/RELEASE_NOTES_1.20.0.md), PR [#19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)–[#22](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/22) |
@@ -177,7 +177,7 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 | Englische Oberfläche der Prüfhilfen | 🟠 rc1: Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste übersetzt, GUI-Test |
 | Release Candidate: Versionen, Testkanal, Workflow nur als Pre-Release | 🧪 in 1.21.0-rc1 veröffentlicht; Installer-QA Windows Server 2022/2025 und Release-Probelauf vor der Veröffentlichung bestanden |
 | Neue unabhängige Referenzdaten | 📋 offen: zweimal öffentlich gesucht (15. und 17.11.2026), keine rechtmäßig nutzbaren Paare realer Steuergeräte; nur eine synthetische externe Stichprobe |
-| Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 🧪 1.21.0-rc1: Prüfung abgeschlossen, Freigabe erteilt, am 19.11.2026 als [Pre-Release](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1) veröffentlicht (Leistung nur unter Fremdlast gemessen). Für die stabile Version 1.21.0: Rückmeldungen der Tester, neue Prüfung und neue Freigabe offen |
+| Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 🧪 1.21.0-rc1: Prüfung abgeschlossen, Freigabe erteilt, am 20.11.2026 als [Pre-Release](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1) veröffentlicht (Leistung nur unter Fremdlast gemessen). Für die stabile Version 1.21.0: Rückmeldungen der Tester, neue Prüfung und neue Freigabe offen |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

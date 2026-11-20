@@ -1,4 +1,4 @@
-## 1.21.0-rc1 (19.11.2026) – Release Candidate (Vorabversion)
+## 1.21.0-rc1 (20.11.2026) – Release Candidate (Vorabversion)
 
 Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
 automatisch erkannten Kennfelder bleiben **ungeprüfte Vorschläge**; wo ein Datentyp nicht belegt ist, steht ein

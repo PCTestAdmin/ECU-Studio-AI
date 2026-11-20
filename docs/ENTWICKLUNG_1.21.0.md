@@ -1,6 +1,6 @@
 # Entwicklungsbericht 1.21.0 – Kennfelderkennung mit A2L-/HEX-Referenzdaten
 
-Stand: 19.11.2026. 1.21.0 **in Entwicklung, nicht veröffentlicht**; Vorabversion 1.21.0-rc1 als GitHub-Pre-Release veröffentlicht (§ 6e). Ausgangspunkt `v1.20.1` (8cca756), Branch
+Stand: 20.11.2026. 1.21.0 **in Entwicklung, nicht veröffentlicht**; Vorabversion 1.21.0-rc1 als GitHub-Pre-Release veröffentlicht (§ 6e). Ausgangspunkt `v1.20.1` (8cca756), Branch
 `feat/1.21.0-map-detection`. Die Referenzdaten (HEX-Abbilder und A2L-Dateien) sind private Daten eines Datengebers.
 Sie bleiben lokal. Firmwarebytes und A2L-Inhalte wurden an keinen externen Dienst übertragen; in der
 Sitzung des KI-Entwicklungsassistenten erschienen nur Dateinamen, Zählwerte, Lage und Größe einzelner
@@ -44,7 +44,7 @@ Hashes, Adressen und Beispielen bleibt lokal (`.qa`).
   Routine in Breite und Vorzeichen übereinstimmen (Holdout als Regressionsprüfung: falsche Datentypen ohne „?“ bei
   MSV90 48 → 0; Entwicklung unverändert). Englische Oberfläche der Prüfhilfen vervollständigt. RC-Versionen,
   Testkanal und Release-Workflow für Vorabversionen; Installer-QA auf Windows Server 2022/2025 (1 020 Prüfungen,
-  0 fehlgeschlagen) und Release-Probelauf bestanden. Am 19.11.2026 als Pre-Release veröffentlicht.
+  0 fehlgeschlagen) und Release-Probelauf bestanden. Am 20.11.2026 als Pre-Release veröffentlicht.
 - **Nicht unabhängig bestätigt:** Für Runde 2, 3, Phase 4 und 5 gibt es keine neue, unbenutzte Testgruppe realer
   Steuergeräte; lokal und öffentlich wurden zweimal keine geeigneten Referenzen gefunden (§ 6c.4, § 6d.1). Eine
   synthetische externe Stichprobe (4 Kennfelder) ersetzt das nicht.
@@ -763,7 +763,7 @@ unbelasteten Rechner vor dem Release steht aus.
 - **Negativbestand** (FOME, rusEFI, Speeduino): 549 Funde, 0 sicher falsch, unverändert.
 - **Entwicklung und Holdout:** alle Abbilder fundgleich mit Phase 4 (§ 6d.4).
 
-## 6e. Vorbereitung 1.21.0-rc1 (19.11.2026, als Pre-Release veröffentlicht)
+## 6e. Vorbereitung 1.21.0-rc1 (19./20.11.2026, am 20.11.2026 als Pre-Release veröffentlicht)
 
 ### 6e.1 Die 48 falschen Vorzeichen ohne „?“ (MSV90-Vollflashs)
 
@@ -855,6 +855,27 @@ Ohne nachgewiesenen Engpass wurde an der Leistung nichts geändert.
 - Übersetzungen ohne Lücke; Firmware-Guard `tree`, `staged`, `push` ohne Befund; Modellsperre in pytest.
 - Regressionssatz (15 Fälle) unverändert; Negativbestand 549 Funde, 0 sicher falsch; TT-DEMO-1 unverändert
   (1 exakt, 1 Verwechslung).
+
+### 6e.7 Absturz beim Beenden des Testlaufs (vor der Veröffentlichung gefunden)
+
+Auf dem Release-Commit schlugen CI und der Release-Probelauf fehl, obwohl **alle Tests bestanden**: Der
+Python-Prozess endete nach dem Testlauf mit einem nativen Abbruch (`0xC0000409`, unter `faulthandler` „Fatal Python
+error: Aborted“). Diagnose auf eigenen, nie gemergten Zweigen (je Lauf mehrere vollständige Testdurchgänge):
+
+- pytest selbst meldete jedes Mal Exit-Status 0 und keinen fehlgeschlagenen Bericht; der Abbruch kam danach, im
+  Exit-Handler von PySide6.
+- Zu diesem Zeitpunkt lief kein Worker mehr, aber rund 1 100 Fenster, Dialoge und Menüs aus den Tests lebten noch
+  (54 Hauptfenster). PySide6 zerstörte sie zusammen mit der `QApplication`; Qt brach dabei gelegentlich ab.
+- **Schon vorher vorhanden:** Auch der Stand mit Version 1.20.1 stürzte so ab (1 von 10 Durchgängen), ebenso der
+  Release-Commit mit zurückgesetzter Version. Die Versionsnummer ist nicht die Ursache; die früheren grünen Läufe
+  waren zum Teil Glück.
+- **Nicht im Programm:** Das Programm schließt sein eines Fenster regulär (Selbsttest, GUI-Smoke, EXE-Start und
+  Installer-QA bestanden). Betroffen war nur der Testprozess mit seinen vielen offen gelassenen Fenstern.
+
+**Behebung:** Am Sitzungsende gibt `tests/conftest.py` die offenen Fenster frei, solange Python noch läuft
+(laufende Worker beenden und abwarten, Fenster verbergen und löschen, ohne `close()`, also ohne Rückfragen und ohne
+Einstellungen zu schreiben). Die Registry-Überwachung prüft auch diesen Schritt. Ein Test im eigenen Prozess
+belegt das Verhalten. Überprüft mit 20 vollständigen CI-Durchgängen ohne Absturz (vorher 1 bis 3 von 10).
 
 ## 7. Ghidra und REA (nur extern)
 
