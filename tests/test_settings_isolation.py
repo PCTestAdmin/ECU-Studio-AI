@@ -274,6 +274,44 @@ def test_stale_run_folders_of_killed_runs_are_removed_but_running_ones_stay(tmp_
     assert young.exists() and other.exists()
 
 
+LEFTOVERS = r'''
+import os, sys, json
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+sys.path.insert(0, sys.argv[1])
+import conftest
+from PySide6 import QtCore, QtWidgets
+import shiboken6
+app = QtWidgets.QApplication([])
+widgets = [QtWidgets.QWidget() for _ in range(50)] + [QtWidgets.QDialog() for _ in range(20)]
+for w in widgets[::3]:
+    w.show()
+
+class Worker(QtCore.QThread):
+    def run(self):
+        while not self.isInterruptionRequested():
+            self.msleep(5)
+
+worker = Worker()
+worker.start()
+released = conftest.release_qt_leftovers()
+print(json.dumps({'released': released, 'alive': sum(shiboken6.isValid(w) for w in widgets),
+                  'worker_running': worker.isRunning(), 'left': len(app.topLevelWidgets())}))
+'''
+
+
+def test_windows_left_open_by_tests_are_released_before_python_exits(tmp_path):
+    """Exit crash of full runs (1.21.0-rc1): Qt aborted while PySide6 destroyed about 1100 leftover test windows at
+    exit. The session end releases them while Python runs: a still running worker is stopped and joined, every
+    top-level widget is deleted, the process exits cleanly (exit code 0)."""
+    env = dict(os.environ, PYTHONPATH=SRC, QT_QPA_PLATFORM='offscreen')
+    out = subprocess.run([sys.executable, '-c', LEFTOVERS, str(Path(__file__).resolve().parent)],
+                         capture_output=True, text=True, env=env, timeout=120)
+    assert out.returncode == 0, out.stdout + out.stderr
+    import json
+    result = json.loads(out.stdout.strip().splitlines()[-1])
+    assert result == {'released': 70, 'alive': 0, 'worker_running': False, 'left': 0}
+
+
 def test_tests_never_start_the_installed_program():
     """Static guard: no test starts ECU-Studio-AI.exe from an installation folder or the Start menu; process starts
     in tests use this Python, PowerShell scripts of the repository, cmd.exe or git."""

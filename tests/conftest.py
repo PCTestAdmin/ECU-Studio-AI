@@ -114,8 +114,48 @@ def pytest_runtest_logfinish(nodeid, location):
     _registry['last'] = now
 
 
+def release_qt_leftovers(wait_ms: int = 10000) -> int:
+    """Delete the windows and dialogs the tests left open, before Python shuts down; returns how many.
+
+    1.21.0-rc1: about 1100 top-level widgets (54 main windows, dialogs, menus) stay alive until the end of a full
+    run. PySide6 destroys them together with the QApplication in its own exit handler, and Qt sometimes aborts
+    there (0xC0000409 on Windows runners, roughly one run in ten, also with 1.20.1): every test passed, yet the
+    process exit code failed the build. Here they go in a defined order while Python still runs: running workers
+    are asked to stop and joined, widgets are hidden and deleted (no close(): it would ask about unsaved work and
+    save the window layout), deferred deletions are processed.
+    """
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent, QThread
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return 0
+    app = QApplication.instance()
+    if app is None:
+        return 0
+    import gc
+    for thread in [o for o in gc.get_objects() if isinstance(o, QThread)]:
+        try:
+            if thread.isRunning():
+                thread.requestInterruption()
+            thread.wait(wait_ms)
+        except RuntimeError:                     # C++ object already gone
+            pass
+    widgets = app.topLevelWidgets()
+    for widget in widgets:
+        try:
+            widget.hide()
+            widget.deleteLater()
+        except RuntimeError:
+            pass
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    return len(widgets)
+
+
 def pytest_sessionfinish(session, exitstatus):
     import shutil
+    release_qt_leftovers()
+    pytest_runtest_logfinish('(Sitzungsende: offene Fenster freigegeben)', None)   # the clean-up is watched too
     shutil.rmtree(getattr(session.config, '_ecu_run_folder', ''), ignore_errors=True)
     if _registry['changes']:
         session.exitstatus = 1
