@@ -39,12 +39,38 @@ class FunctionGraphDialog(QDialog):
         hints.setToolTip(0, 'Gleiche Stützstellenwerte belegen keine Zusammengehörigkeit; nur ein Hinweis zur Prüfung.')
         for members in graph['axis_hints']:
             self._add_members(QTreeWidgetItem(hints, [f'{len(members)} Kennfelder', '', '']), members)
+        self._add_functions(graph)
         routines.setExpanded(True)
         axes.setExpanded(not graph['groups'])
         self.tree.itemDoubleClicked.connect(self._open)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _add_functions(self, graph):
+        """Function membership per table (core/function_id): only from definitions and relations to tables
+        with a known function; a hypothesis never names a function nobody declared."""
+        from ..core.function_id import STATUSES, UNKNOWN, counts, identify
+        hyps = identify(self.maps, graph=graph)
+        n = counts(hyps)
+        top = QTreeWidgetItem(self.tree, ['Funktionszuordnung (' + ' · '.join(f'{s} {n[s]}' for s in STATUSES) + ')'])
+        top.setToolTip(0, 'Funktionen nur aus Definitionen (A2L FUNCTION) oder über Beziehungen zu Kennfeldern mit '
+                          'bekannter Funktion (gemeinsame Achse, gleiche Routine, direkter Nachbar). Keine Namen aus Werten.')
+        for status in STATUSES:
+            chosen = [h for h in hyps if h.status == status and (status != UNKNOWN or h.contradictions)]
+            if not chosen:
+                continue
+            label = (f'{status}: {len(chosen)} Kennfelder' if status != UNKNOWN else
+                     f'Widersprüchlich (Unbekannt): {len(chosen)} Kennfelder')
+            node = QTreeWidgetItem(top, [label, '', ''])
+            for h in chosen[:500]:
+                m = self.maps[h.index]
+                item = QTreeWidgetItem(node, [f'{m.name} → {h.function or "?"}', f'0x{m.offset:08X}',
+                                              f'{m.rows}×{m.cols} {m.dtype}'])
+                item.setToolTip(0, h.describe())
+                item.setData(0, Qt.ItemDataRole.UserRole, h.index)
+            if len(chosen) > 500:
+                QTreeWidgetItem(node, [f'… {len(chosen) - 500} weitere', '', ''])
 
     def _add_members(self, parent, members):
         for i in members:

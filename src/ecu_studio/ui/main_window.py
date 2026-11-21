@@ -45,6 +45,7 @@ from ..app_settings import app_settings
 from ..core.confidence import (LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, missing_evidence, overlap_note,
                                overlapping, type_doubts)
 from ..core.type_readings import readings as type_readings
+from ..core.type_status import summary as type_summary
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -1239,6 +1240,10 @@ class Window(QMainWindow):
             options=type_readings(self.image,m)
             if len(options)>1:
                 alt += '\nLesarten derselben Bytes (Rohwerte min … max): ' + ' · '.join(r.describe() for r in options)
+        # after 1.21.0-rc1: status and source of width, sign, byte order and conversion; function membership
+        alt += '\n' + '\n'.join(type_summary(m, self.image))
+        function_text = self._function_hypothesis(m)
+        alt += ('\n' + function_text) if function_text else ''
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(
@@ -1255,6 +1260,18 @@ class Window(QMainWindow):
         if show_table:
             self.tabs.setCurrentWidget(self.map_table)
         self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
+
+    def _function_hypothesis(self, m) -> str:
+        """Function of the selected table with status, evidence and contradictions (core/function_id);
+        '' when nothing is known. Recomputed only when tables, functions or axes change."""
+        from ..core.function_id import identify
+        key=tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset) for x in self.maps)
+        if getattr(self,'_function_key',None)!=key:
+            self._function_key,self._function_hyps=key,identify(self.maps)
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:return ''
+        h=self._function_hyps[index]
+        return h.describe() if h.function or h.contradictions else ''
 
     def _shared_axis_text(self, m) -> str:
         """Shared stored axes of the selected map and its partner maps (first five)."""
@@ -3291,7 +3308,8 @@ class Window(QMainWindow):
         try:graph=build_function_graph(self.image,self.maps,*self._code_window())
         except Exception as exc:
             self.warning('Funktionsgraph fehlgeschlagen',exc);return
-        if not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']:
+        if (not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']
+                and not any(m.function for m in self.maps)):
             QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise und keine gemeinsamen Achsen gefunden. '
                                     'Code-Verweise werden derzeit für C16x (Siemens MS4x, Bosch ME7) ausgewertet; '
                                     'gemeinsame Achsen brauchen bekannte Achsadressen.')

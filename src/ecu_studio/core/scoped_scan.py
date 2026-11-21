@@ -15,6 +15,7 @@ from .axis_records import scan_axis_records, record_axes
 from .curve_records import scan_curve_records
 from .structure_scan import scan_structures, lookup_descriptors, c16x_base
 from .tricore_refs import call_descriptors
+from .type_status import open_axis_signs
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence
@@ -121,6 +122,27 @@ def _contradicted_patterns(candidates):
                     continue
         out.append(m)
     return out
+
+
+# After 1.21.0-rc1: values the program code loads directly (tricore_refs.direct_loads) start objects of
+# their own; a smoothness-only run with one strictly inside spans several objects. Applied as a pure removal
+# after ranking: dropping such runs inside the pitch search freed its result budget for weaker readings
+# (development data, MEVD17.2 full images: +41 confusions elsewhere), so here nothing can take their place.
+LOADED_REFUTES_PITCH=True
+
+
+def _crosses(m,points):
+    """True if a point of the sorted list lies strictly inside the table (not at its start)."""
+    i=bisect.bisect_right(points,m.offset)
+    return i<len(points) and points[i]<m.offset+m.length
+
+
+def refuted_by_loads(candidates,loaded):
+    """The candidates without the smoothness-only runs that a directly loaded value lies inside."""
+    points=sorted(loaded)
+    if not LOADED_REFUTES_PITCH or not points:
+        return list(candidates)
+    return [m for m in candidates if not (m.record_layout==PITCH_LAYOUT and _crosses(m,points))]
 
 
 PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
@@ -287,6 +309,9 @@ def scan_calibration_candidates(image: BinaryImage, *,
         key=(c.offset,c.cols,c.record_layout)
         if key not in seen:
             seen.add(key);extra.append(c)
+    before=len(kept)
+    kept=refuted_by_loads(kept,getattr(calls,'loaded',()))
+    if diagnostics is not None:diagnostics['loaded_refuted_patterns']=before-len(kept)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
     # Proven non-tables: runs of text strings, and pointer tables of an
     # architecture with a known pointer format (core/region_classes). Only
@@ -307,6 +332,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
             kept_result.append(m)
     result=kept_result
     if diagnostics is not None:diagnostics['suppressed']=suppressed
+    opened=open_axis_signs(image,result)
+    if diagnostics is not None:diagnostics['axis_signs_open']=opened
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: a learned scorer may drop weak ones; it is applied only
     # with cleared training data (core/candidate_model.py). None ships with 1.19.

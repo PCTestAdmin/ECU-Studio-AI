@@ -16,6 +16,9 @@ from .axis_records import _record_axis
 
 CURVE_LAYOUT = 'candidate:curve-record'
 CURVE_AXIS_LAYOUT = 'candidate:record-axis'
+# After 1.21.0-rc1: curve values with a top bit set were read as s16 without evidence for the sign (the axis
+# rises in one reading; the values decide nothing). The unsigned reading stays open ("?"), as for records.
+CURVE_SIGN_OPEN = True
 MIN_POINTS, MAX_POINTS = 4, 32
 GAP = 2   # alignment padding between packed records
 DOMINANCE = 2.5    # 16-bit map records of one byte order must outnumber the other (EDC17CP09 4:1, ME9.2.1 3.2:1)
@@ -86,9 +89,11 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
             if not chained:
                 continue
             raw_w = np.frombuffer(data[values:values + 2 * n], ('<' if endian == 'little' else '>') + 'u2')
-            dtype = 's16' if signed or bool(np.any(raw_w >= 0x8000)) else 'u16'
+            top = bool(np.any(raw_w >= 0x8000))
+            dtype = 's16' if signed or top else 'u16'
             common = dict(source='heuristic', confidence=.44, candidate_region_start=h)
             out.append(MapDefinition(f'Kennlinien-Kandidat @ 0x{values:08X}', values, 1, n, dtype, endian,
+                                     dtype_alternatives=['u16'] if CURVE_SIGN_OPEN and top else [],
                                      record_layout=CURVE_LAYOUT, axes_x=list(axis), axis_x_offset=h + 2,
                                      label_origin='Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)',
                                      label_evidence=f'{n} Stützstellen @ 0x{h + 2:X}, Werte @ 0x{values:X}.',

@@ -70,9 +70,21 @@ def _header_inside(plain):
     return inside
 
 
+# After 1.21.0-rc1: a candidate with program-code evidence (interpolation call, code reference, pointer
+# descriptor) always wins an overlap against a smoothness-only candidate. Until rc1 every evidenced candidate
+# yielded when its own start lay inside an earlier smooth run. That exception stays for stored header records:
+# smooth tables contain runs that read like a count header with axes (bundled synthetic demo: without it two
+# false records displace both real tables). A program-code address is not read from the values.
+CODE_EVIDENCE_ALWAYS_WINS=True
+CODE_LAYOUTS=('candidate:code-reference','candidate:code-reference-generic','candidate:pointer-descriptor',
+              'candidate:code-call')
+
+
 def _priority(m, inside) -> bool:
     if m.record_layout not in EVIDENCED_LAYOUTS:
         return False
+    if CODE_EVIDENCE_ALWAYS_WINS and m.record_layout in CODE_LAYOUTS:
+        return True
     head=m.candidate_region_start if m.candidate_region_start is not None else m.offset
     return not inside(head)
 
@@ -150,9 +162,9 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
             evaluated.append((strength,m,ev,ambiguous,synthetic_hint,preset_score))
         except (IndexError,ValueError,OverflowError,TypeError):
             reject(m,'invalid-layout-or-values');continue
-    # Evidenced candidates win overlaps, unless their own header lies inside a
-    # smoothness candidate that starts earlier: smooth tables contain runs that
-    # read like a count header with axes (then strength decides, as before).
+    # Evidenced candidates win overlaps. Header records (and, with CODE_EVIDENCE_ALWAYS_WINS
+    # off as in 1.21.0-rc1, code candidates) not when their own header lies inside a
+    # smoothness candidate that starts earlier: then strength decides.
     inside=_header_inside([z[1] for z in evaluated if z[1].record_layout not in EVIDENCED_LAYOUTS])
     # Among evidenced candidates, an interpolation call in the code beats a data
     # pattern (MSD80: code calls 0 conflicts with the XDF, header records 2).

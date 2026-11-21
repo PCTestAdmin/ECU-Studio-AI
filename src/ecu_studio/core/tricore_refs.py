@@ -252,6 +252,8 @@ class Sites(list):
     generic: tuple = ()     # set per instance by _walk; never shared between images
     unmapped: frozenset = frozenset()   # per call: flash argument addresses outside the image
     relocation: tuple = ()  # windows inferred by infer_relocation (empty: plain segments)
+    bases: dict = {}        # boot values of the global base registers (set by _analyse)
+    starts: object = None   # byte offsets of all instructions of the linear sweep (set by _analyse)
 
     def extended(self, more) -> 'Sites':
         out = Sites(list(self) + list(more))
@@ -606,6 +608,7 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
             sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc,
                           stream=stream)[0]
     sites.relocation = reloc
+    sites.bases, sites.starts = bases, stream[3]
     return sites, h, entries
 
 
@@ -1013,13 +1016,62 @@ def pointer_triples(data: bytes, reloc: tuple = (), lo: int = 0, hi: int | None 
     return out if len(out) >= MIN_TRIPLES else {}
 
 
+# Direct loads of calibration objects (after 1.21.0-rc1). Besides passing tables to routines, the
+# code reads single values straight from the calibration: ``ld.bu/ld.h/ld.w d,[a1]off`` and the like,
+# relative to a global base register (a0, a1, a8, a9). Every such address starts an object of its
+# own. A smooth run with one strictly inside spans several objects (development data, full images
+# with code, rc1 row-pitch results: 289 such runs, none exact; 203 of them confusions on MSD80).
+# Only instructions outside data-like blocks count: the linear sweep also decodes calibration bytes.
+DIRECT_LOADS = True
+_DIRECT_OPS = (0x79, 0x39, 0xC9, 0xB9, 0x19, 0x99, 0xD9)   # ld.b ld.bu ld.h ld.hu ld.w ld.a lea (BOL)
+
+
+def direct_loads(data: bytes, starts, bases: dict, reloc: tuple = (), code_only=None) -> list[int]:
+    """Sorted file offsets that BOL loads address through a global base register.
+
+    ``starts`` are the byte offsets of the instructions of the linear sweep (_stream), ``bases``
+    the boot values of a0/a1/a8/a9 (global_bases). With ``code_only`` (per-byte boolean: True
+    inside data-like blocks, data_regions.data_mask) instructions inside data blocks are skipped.
+    ``lea``/``ld.a`` writing their own base register (boot initialisation) are skipped too.
+    """
+    if not bases or starts is None or not len(starts):
+        return []
+    hw = np.frombuffer(data[:len(data) // 2 * 2], '<u2')
+    s = np.asarray(starts, dtype=np.int64) // 2
+    s = s[s + 1 < len(hw)]
+    low = hw[s].astype(np.uint32)
+    wide = (low & 1).astype(bool)
+    s = s[wide]
+    w = low[wide] | (hw[s + 1].astype(np.uint32) << 16)
+    keep = np.isin(w & 0xFF, _DIRECT_OPS)
+    s, w = s[keep], w[keep]
+    if code_only is not None and len(code_only):
+        keep = ~np.asarray(code_only, dtype=bool)[np.minimum(s * 2, len(code_only) - 1)]
+        s, w = s[keep], w[keep]
+    op, a, b = w & 0xFF, (w >> 8) & 0xF, (w >> 12) & 0xF
+    keep = ~(np.isin(op, (0x99, 0xD9)) & (a == b))
+    w, b = w[keep], b[keep]
+    off = (((w >> 16) & 0x3F) | (((w >> 28) & 0xF) << 6) | (((w >> 22) & 0x3F) << 10)).astype(np.int64)
+    off[(off & 0x8000) != 0] -= 0x10000
+    found = set()
+    for reg, base in bases.items():
+        for address in np.unique((base + off[b == reg]) & 0xFFFFFFFF).tolist():
+            f = _file(int(address), len(data), reloc)
+            if f is not None:
+                found.add(f)
+    return sorted(found)
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
     in a4 to one of the descriptors' routines, with or without resolved axes.
     ``addressed`` holds every address any routine call passes in an argument register
-    (data, axis headers, records): objects the code reads one by one (1.21.0)."""
+    (data, axis headers, records): objects the code reads one by one (1.21.0).
+    ``loaded`` holds every address the code reads directly through a global base register
+    (direct_loads, after 1.21.0-rc1)."""
     named: frozenset = frozenset()
     addressed: frozenset = frozenset()
+    loaded: frozenset = frozenset()
 
 
 def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
@@ -1103,6 +1155,10 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     out.named = frozenset({c.data for c in sites if c.callee in cells and lo <= c.data < hi} | set(triples))
     out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
                               if lo <= v < hi)
+    if DIRECT_LOADS:
+        from .data_regions import data_mask
+        out.loaded = frozenset(v for v in direct_loads(data, sites.starts, sites.bases, sites.relocation,
+                                                       data_mask(data)) if lo <= v < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:

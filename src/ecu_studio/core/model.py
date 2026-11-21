@@ -77,6 +77,13 @@ class MapDefinition:
     # Other data types the stored bytes allow when the detected one is not proven
     # (e.g. sign from a smoother reading, not from the code's load instructions).
     dtype_alternatives: list[str] = field(default_factory=list)
+    # Where factor, offset and unit come from (e.g. "A2L COMPU_METHOD name (LINEAR)"); empty:
+    # the definition's source or no conversion (core/type_status.scaling_of).
+    scaling_source: str = ""
+    # ECU function the table belongs to, only from a definition (A2L FUNCTION / DEF_CHARACTERISTIC)
+    # or set by the user; never derived from values or guessed (core/function_id).
+    function: str = ""
+    function_source: str = ""
     # Fields introduced by a newer application are kept verbatim while this
     # version is editing the known part of the definition.  This is deliberately
     # an internal dataclass field so ``dataclasses.replace`` carries the data to
