@@ -139,3 +139,25 @@ def test_flat_block_with_disagreeing_anchors_needs_its_own_neighbourhood(monkeyp
     assert transfer_names(source, target, maps) == []
     monkeypatch.setattr(name_transfer, 'FLAT_NEEDS_PLACE', False)       # 1.20.1 behaviour: anchors alone
     assert len(transfer_names(source, target, maps)) == 1
+
+
+def test_unrelated_images_are_refused_with_a_reason():
+    """Other ECU families share only a few unique windows (library code, flat blocks): nothing is moved."""
+    import numpy as np
+    from ecu_studio.core import name_transfer as N
+    from ecu_studio.core.model import BinaryImage, MapDefinition
+    rng = np.random.default_rng(5)
+    a = bytearray(rng.integers(0, 256, 0x10000, dtype=np.uint8).tobytes())
+    b = bytearray(rng.integers(0, 256, 0x10000, dtype=np.uint8).tobytes())
+    b[0x4000:0x4000 + 0x100] = a[0x2000:0x2000 + 0x100]           # one shared routine: 16 anchors of 4095
+    m = MapDefinition('KF', 0x2000, 4, 4, 'u8', source='xdf')
+    result = N.transfer_names(BinaryImage(bytes(a)), BinaryImage(bytes(b)), [m])
+    assert result == [] and 'keine Schwesterstände' in result.refused
+    related = N.transfer_names(BinaryImage(bytes(a)), BinaryImage(bytes(a)), [m])
+    assert related.refused == '' and [t.target.offset for t in related] == [0x2000]
+    old = N.MIN_ANCHOR_SHARE
+    N.MIN_ANCHOR_SHARE = 0
+    try:
+        assert [t.target.offset for t in N.transfer_names(BinaryImage(bytes(a)), BinaryImage(bytes(b)), [m])] == [0x4000]
+    finally:
+        N.MIN_ANCHOR_SHARE = old

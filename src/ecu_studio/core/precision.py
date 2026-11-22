@@ -168,11 +168,15 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
     inside=_header_inside([z[1] for z in evaluated if z[1].record_layout not in EVIDENCED_LAYOUTS])
     # Among evidenced candidates, an interpolation call in the code beats a data
     # pattern (MSD80: code calls 0 conflicts with the XDF, header records 2).
+    # The last keys only break ties, so that the result never depends on the order of the input; unsigned before
+    # signed as in preferred_sign (the scanners list the unsigned reading first, rc1 kept it by input order).
     evaluated.sort(key=lambda z:(not _priority(z[1],inside),z[1].record_layout!='candidate:code-call',
-                                 -z[0],z[1].offset,z[1].length))
+                                 -z[0],z[1].offset,z[1].length,z[1].record_layout or '',z[1].dtype[:1]=='s',z[1].dtype,
+                                 z[1].endian,z[1].rows,z[1].cols))
     selected=[]
     spans=[]
     plain=0
+    displaced={}
     for strength,m,ev,ambiguous,synthetic_hint,preset_score in evaluated:
         # The limit bounds smoothness-only guesses. Header records, code
         # references and descriptors carry their own evidence and are not cut.
@@ -183,8 +187,12 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
         end=m.offset+m.length
         # Heuristics are competing hypotheses, not definition-backed aliases.
         # Even partial overlap must not yield contradictory editable tables.
-        if any(start<e and s<end for s,e in spans):
+        hit=next((k for k,(s,e) in enumerate(spans) if start<e and s<end),None)
+        if hit is not None:
             reject(m,'competing-overlapping-layout')
+            # An alternative with its own evidence does not vanish silently: the winner names it.
+            if evidenced:
+                displaced.setdefault(hit,[]).append(m)
             continue
         m.confidence=round(min(.49, .48*strength),4)
         note=('Präzisionsprüfung: '+ev['reason']+'; normierte Kanten-Sprünge '
@@ -204,7 +212,15 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
         m.verified=False
         selected.append(m);spans.append((start,end))
         plain+=not evidenced
+    for k,others in displaced.items():
+        w=selected[k]
+        text=('Überlagernde Alternative mit eigenem Beleg verworfen: '+
+              '; '.join(f'{o.record_layout.removeprefix("candidate:")} {o.rows}×{o.cols} {o.dtype} @ 0x{o.offset:X}'
+                        for o in others[:3])+(f' (+{len(others)-3})' if len(others)>3 else '')+'.')
+        w.notes=(w.notes+' '+text).strip()
+        w.label_evidence=(w.label_evidence+' '+text).strip()
     if diagnostics is not None:
+        diagnostics['displaced_evidenced']=sum(len(v) for v in displaced.values())
         diagnostics['accepted']=[{'offset':m.offset,'rows':m.rows,'cols':m.cols,'dtype':m.dtype,
             'endian':m.endian,'source':m.source,'verified':m.verified} for m in selected]
     return sorted(selected,key=lambda m:m.offset)

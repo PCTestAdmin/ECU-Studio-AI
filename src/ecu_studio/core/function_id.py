@@ -5,16 +5,20 @@ never invented. It comes only from
 
   - a definition: A2L FUNCTION / DEF_CHARACTERISTIC (``MapDefinition.function``) or the user;
   - a relation to tables whose function is known (anchors): the same stored axis, the same code
-    routine, or direct neighbourhood in the calibration (no other object in between).
+    routine, or direct neighbourhood in the calibration (no other object in between); from the
+    program code (core/code_flow, TriCore): looked up by the same calling routine, the result of one
+    table feeds the other, or both results go to the same RAM variable. Reading the same input
+    variable is listed but never counts: tables of different functions share operating points.
 
 Status of a hypothesis (one per table, never a probability):
 
   Bestätigt       the table's own definition names the function and the table is checked
                   (user-verified definition or map)
   Stark gestützt  the table's own definition names the function, but its link to this file is
-                  not checked; or at least two independent kinds of relation lead to anchors of
-                  the same function and no relation leads to an anchor of another function
-  Vermutet        one kind of relation leads to anchors of one function, none to another; or the
+                  not checked; or relations of at least two independent families (stored axis,
+                  memory layout, program code) lead to anchors of the same function and no relation
+                  leads to an anchor of another function
+  Vermutet        relations of one family lead to anchors of one function, none to another; or the
                   function came with a transferred name (transferred names stay unchecked)
   Unbekannt       no evidence, or relations lead to anchors of different functions (listed as
                   contradictions)
@@ -31,8 +35,29 @@ from .model import MapDefinition
 CONFIRMED, STRONG, SUSPECTED, UNKNOWN = 'Bestätigt', 'Stark gestützt', 'Vermutet', 'Unbekannt'
 STATUSES = (CONFIRMED, STRONG, SUSPECTED, UNKNOWN)
 AXIS, ROUTINE, NEIGHBOUR = 'axis', 'routine', 'neighbour'
+CALLER, FLOW, SAME_RESULT, SHARED_INPUT = 'same-caller', 'flow', 'same-result', 'shared-input'   # core/code_flow
 RELATION_LABELS = {AXIS: 'gleiche gespeicherte Achse', ROUTINE: 'gleiche Coderoutine',
-                   NEIGHBOUR: 'direkter Nachbar im Speicher'}
+                   NEIGHBOUR: 'direkter Nachbar im Speicher', CALLER: 'gleiche aufrufende Coderoutine',
+                   FLOW: 'Ergebnis fließt in die andere Tabelle', SAME_RESULT: 'Ergebnis in derselben Variablen',
+                   SHARED_INPUT: 'gleiche Eingangsgröße'}
+# Independent sources of evidence: two relations of one family (e.g. same caller and same result
+# variable, both from the same code) are one argument, not two.
+FAMILY = {AXIS: 'Achse', NEIGHBOUR: 'Speicherlage', ROUTINE: 'Programmcode', CALLER: 'Programmcode',
+          FLOW: 'Programmcode', SAME_RESULT: 'Programmcode'}
+CODE_EVIDENCE = (ROUTINE, CALLER, FLOW, SAME_RESULT)
+# SHARED_INPUT never votes: development data, same A2L function for 166 of 538 such pairs (MSD80).
+# FLOW is shown and groups, but does not vote (Schutzregel): same A2L function in 128 of 195 pairs (66 %),
+# against 92 % for the same caller (development data, two full images per line).
+VOTING = tuple(k for k in FAMILY if k != FLOW)
+GROUPING = (AXIS, ROUTINE, CALLER, FLOW, SAME_RESULT)
+# A direct neighbour shares the A2L function in 62 % of the pairs (MSD80) and caused almost all wrong
+# assignments under hard splits (tools/function_benchmark, development data, 3 salts: MSD80 whole functions
+# hidden at 50 %: 84 216 of 86 108 wrong). It votes only when anchors of ONE function enclose the table on
+# both sides: wrong 86 108 -> 6 763 (function split), table split 50 %: precision 73.7 % -> 96.4 % (MSD80),
+# 95.4 % -> 99.8 % (MEVD17.2); about half of the right assignments become "Unbekannt".
+NEIGHBOUR_BOTH_SIDES = True
+# A shared axis with at least two anchors of the function: no measured benefit (ablation), so not required.
+AXIS_MIN_ANCHORS = 1
 NEIGHBOUR_GAP = 16      # bytes between two objects that still count as direct neighbours (alignment, counts)
 AXIS_WINDOW = 1024      # an axis this close in front of the values belongs to the table's own record
 TRANSFER_ORIGIN = 'Namensübertragung'   # label_origin of name_transfer proposals
@@ -44,6 +69,7 @@ class Relation:
     b: int
     kind: str
     detail: str = ''
+    evidence: object = None   # code_flow.CodeRelation for code relations (addresses, method, open points)
 
 
 @dataclass(frozen=True)
@@ -105,6 +131,21 @@ def relations(maps: list[MapDefinition], graph: dict | None = None) -> list[Rela
     return out
 
 
+def code_links(maps: list[MapDefinition], code_relations) -> list[Relation]:
+    """Code relations (core/code_flow.CodeRelation, between table offsets) as relations between ``maps``."""
+    index: dict[int, int] = {}
+    for i, m in enumerate(maps):
+        index.setdefault(m.offset, i)
+    out = []
+    for r in code_relations:
+        a, b = index.get(r.a), index.get(r.b)
+        if a is None or b is None or a == b:
+            continue
+        detail = r.evidence + (f' – offen: {r.uncertainty}' if r.uncertainty else '')
+        out.append(Relation(min(a, b), max(a, b), r.kind, detail, r))
+    return out
+
+
 def _own(m: MapDefinition) -> tuple[str, str, Evidence] | None:
     """(function, status, evidence) from the table's own definition or transferred name."""
     if not m.function:
@@ -133,21 +174,33 @@ def identify(maps: list[MapDefinition], rels: list[Relation] | None = None, grap
     for i, m in enumerate(maps):
         votes: dict[str, set[str]] = defaultdict(set)
         evidence: dict[str, list[Evidence]] = defaultdict(list)
-        for j, r in linked.get(i, ()):
+        mine = linked.get(i, ())
+        sides = {j for j, r in mine if r.kind == NEIGHBOUR}
+        enclosed = (anchors.get(next(iter(sides))) if len(sides) == 2 and
+                    len({anchors.get(j) for j in sides}) == 1 else None)
+        axis_anchors: dict[str, set[int]] = defaultdict(set)
+        for j, r in mine:
+            if r.kind == AXIS and anchors.get(j):
+                axis_anchors[anchors[j]].add(j)
+        for j, r in mine:
             f = anchors.get(j)
-            if not f:
+            if not f or r.kind not in VOTING:
                 continue
-            votes[f].add(r.kind)
+            if r.kind == NEIGHBOUR and NEIGHBOUR_BOTH_SIDES and enclosed != f:
+                continue
+            if r.kind == AXIS and len(axis_anchors[f]) < AXIS_MIN_ANCHORS:
+                continue
+            votes[f].add(FAMILY[r.kind])
             evidence[f].append(Evidence(r.kind, f'{RELATION_LABELS[r.kind]} wie „{maps[j].name}“ ({f})',
                                         r.detail, f))
         if own[i] and own[i][1] in (CONFIRMED, STRONG):
             f, status, ev = own[i]
             others = sorted(set(votes) - {f})
-            contra = [f'{RELATION_LABELS[k]} mit Tabellen der Funktion {g}' for g in others for k in sorted(votes[g])]
+            contra = [f'{k}-Beziehung mit Tabellen der Funktion {g}' for g in others for k in sorted(votes[g])]
             out.append(Hypothesis(i, f, status, [ev] + evidence.get(f, []), contra))
             continue
         if len(votes) > 1:
-            contra = [f'{g}: ' + ', '.join(RELATION_LABELS[k] for k in sorted(kinds)) for g, kinds in sorted(votes.items())]
+            contra = [f'{g}: ' + ', '.join(sorted(kinds)) for g, kinds in sorted(votes.items())]
             ev = [e for f in sorted(evidence) for e in evidence[f]]
             if own[i]:
                 ev.insert(0, own[i][2])
@@ -187,12 +240,54 @@ def groups(maps: list[MapDefinition], rels: list[Relation]) -> list[list[int]]:
             x = parent[x]
         return x
     for r in rels:
-        if r.kind in (AXIS, ROUTINE):
+        if r.kind in GROUPING:
             parent[find(r.a)] = find(r.b)
     members: dict[int, list[int]] = defaultdict(list)
     for i in range(len(maps)):
         members[find(i)].append(i)
     return sorted((v for v in members.values() if len(v) > 1), key=lambda v: (-len(v), v[0]))
+
+
+@dataclass
+class FunctionGroup:
+    """Tables linked by technical relations (shared axis, code). Named only by a number: the group is a
+    structural fact. ``functions`` are the definitions its members already have; with exactly one the
+    group is a proposal for the other members (status from identify, never more)."""
+    number: int
+    members: list[int]
+    kinds: dict[str, int]                 # relation kind -> number of relations inside the group
+    functions: dict[str, int]             # known function -> members that declare it
+    relations: list[Relation] = field(default_factory=list)
+
+    @property
+    def label(self) -> str:
+        return f'Unbekannte Funktionsgruppe {self.number}'
+
+    @property
+    def contradictory(self) -> bool:
+        return len(self.functions) > 1
+
+    @property
+    def code_backed(self) -> bool:
+        return any(k in CODE_EVIDENCE for k in self.kinds)
+
+
+def function_groups(maps: list[MapDefinition], rels: list[Relation]) -> list[FunctionGroup]:
+    """groups() with their relations, relation kinds and known functions; numbered from 1, largest first."""
+    out = []
+    for n, members in enumerate(groups(maps, rels), 1):
+        inside = set(members)
+        mine = [r for r in rels if r.kind in GROUPING and r.a in inside and r.b in inside]
+        kinds: dict[str, int] = defaultdict(int)
+        for r in mine:
+            kinds[r.kind] += 1
+        functions: dict[str, int] = defaultdict(int)
+        for i in members:
+            own = _own(maps[i])
+            if own and own[1] in (CONFIRMED, STRONG):
+                functions[own[0]] += 1
+        out.append(FunctionGroup(n, members, dict(kinds), dict(functions), mine))
+    return out
 
 
 def counts(hypotheses: list[Hypothesis]) -> dict[str, int]:
@@ -202,5 +297,6 @@ def counts(hypotheses: list[Hypothesis]) -> dict[str, int]:
     return out
 
 
-__all__ = ['CONFIRMED', 'STRONG', 'SUSPECTED', 'UNKNOWN', 'STATUSES', 'AXIS', 'ROUTINE', 'NEIGHBOUR', 'Relation',
-           'Evidence', 'Hypothesis', 'relations', 'identify', 'groups', 'counts']
+__all__ = ['CONFIRMED', 'STRONG', 'SUSPECTED', 'UNKNOWN', 'STATUSES', 'AXIS', 'ROUTINE', 'NEIGHBOUR', 'CALLER',
+           'FLOW', 'SAME_RESULT', 'SHARED_INPUT', 'FAMILY', 'VOTING', 'Relation', 'Evidence', 'Hypothesis',
+           'FunctionGroup', 'relations', 'code_links', 'identify', 'groups', 'function_groups', 'counts']

@@ -216,3 +216,37 @@ def test_catalogue_detail_and_graph_dialog_show_shared_axes(tmp_path, monkeypatc
     top = [dialog.tree.topLevelItem(k).text(0) for k in range(dialog.tree.topLevelItemCount())]
     assert top[1].startswith('Gemeinsame gespeicherte Achse (2') and 'Hypothese (1)' in top[2]
     dialog.close(); w.close()
+
+
+def test_graph_dialog_shows_code_relations_open_points_and_unnamed_groups(tmp_path, monkeypatch):
+    """Code relations with their origin, open points of the data flow, groups numbered without names; a shared
+    input quantity is listed but marked as no evidence of a function (synthetic, no program code)."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from tests.test_ui_filters_banner import _window
+    from ecu_studio.core import code_flow as C
+    from ecu_studio.ui.function_graph_dialog import FunctionGraphDialog
+    app, w = _window(tmp_path, monkeypatch)
+    maps = [MapDefinition(f'Kandidat {k}', 0x100 * (k + 1), 4, 4, 'u8', source='heuristic') for k in range(4)]
+    rels = [C.CodeRelation(0x100, 0x200, C.SAME_CALLER, 'beide in der Coderoutine bei 0x4000 gelesen', 0x4010, 0x4020,
+                           'test'),
+            C.CodeRelation(0x300, 0x400, C.SHARED_INPUT, 'gleiche Eingangsgröße bei 0xD000', 0x5010, 0x5020, 'test')]
+    uses = [C.TableUse(0x100, 0x4010, 0x9000, 0x4000, open=['Aufruf dazwischen']),
+            C.TableUse(0x200, 0x4020, 0x9000, 0x4000, stores=[C.Store(0xD100, C.COPY, 2, 0x4024)])]
+    graph = {'referenced': 0, 'groups': [], 'shared_axes': [], 'axis_hints': []}
+    dialog = FunctionGraphDialog(w, maps, graph, lambda m: None, code=(uses, rels))
+    top = {dialog.tree.topLevelItem(k).text(0): dialog.tree.topLevelItem(k)
+           for k in range(dialog.tree.topLevelItemCount())}
+    code = next(v for k, v in top.items() if k.startswith('Beziehungen aus dem Programmcode (2)'))
+    kinds = [code.child(k).text(0) for k in range(code.childCount())]
+    assert any('Programmcode-Beleg' in t for t in kinds)
+    assert any('kein Funktionsbeleg' in t for t in kinds)
+    caller = next(code.child(k) for k in range(code.childCount()) if 'Programmcode-Beleg' in code.child(k).text(0))
+    assert '0x4010' in caller.child(0).toolTip(0) and 'Verfahren: test' in caller.child(0).toolTip(0)
+    pending = next(code.child(k) for k in range(code.childCount()) if code.child(k).text(0).startswith('Nicht eindeutig'))
+    assert '2 Aufrufe, 1 mit gespeichertem Ergebnis' in pending.text(0) and pending.child(0).text(0) == 'Aufruf dazwischen: 1'
+    groups = next(v for k, v in top.items() if k.startswith('Funktionsgruppen ohne Namen (1)'))
+    assert groups.child(0).text(0).startswith('Unbekannte Funktionsgruppe 1 · 2 Kennfelder · Programmcode')
+    functions = next(v for k, v in top.items() if k.startswith('Funktionszuordnung'))
+    assert 'Unbekannt 4' in functions.text(0)          # no definition: nothing is named
+    dialog.close(); w.close()

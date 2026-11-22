@@ -4,8 +4,8 @@ from ecu_studio.core.a2l import limit_violations, parse_a2l
 from ecu_studio.core.axis_records import ENDIAN_OPEN
 from ecu_studio.core.confidence import WIDTH_OPEN, dtype_doubt
 from ecu_studio.core.model import BinaryImage, MapDefinition
-from ecu_studio.core.type_status import (ALTERNATIVE, CONFIRMED, DERIVED, UNDETERMINED, RAW, KNOWN, CHECKED,
-                                         BYTE_ORDER, SIGN, WIDTH, scaling_of, summary, type_status)
+from ecu_studio.core.type_status import (ALTERNATIVE, CODE, CONFIRMED, DERIVED, EQUAL, UNDETERMINED, RAW, KNOWN,
+                                         CHECKED, BYTE_ORDER, SIGN, WIDTH, scaling_of, summary, type_status)
 
 
 def cand(layout, **kw):
@@ -45,15 +45,45 @@ def test_open_sign_is_an_alternative_with_the_other_reading():
     assert 'auch möglich: s16' in sign.describe()
 
 
-def test_sign_question_that_does_not_arise_is_derived():
+def test_equal_readings_are_not_evidence_of_the_type():
+    """No top bit set: both readings give the same numbers, which does not tell what the code uses."""
     m = cand('candidate:nx,ny,x,y,z')
-    assert type_status(m, image([1, 2, 3] * 5 + [4])).get(SIGN).status == DERIVED
+    sign = type_status(m, image([1, 2, 3] * 5 + [4])).get(SIGN)
+    assert sign.status == EQUAL and sign.status not in (CONFIRMED, CODE, DERIVED)
+    assert 'nicht belegt' in sign.source
 
 
 def test_code_call_sign_comes_from_the_load_instructions():
     m = cand('candidate:code-call', dtype='s16')
     sign = type_status(m, image([0xFFF0] * 16)).get(SIGN)
-    assert sign.status == DERIVED and 'Ladebefehle' in sign.source
+    assert sign.status == CODE and 'Ladebefehle' in sign.source
+    assert type_status(m, image([1] * 16)).get(SIGN).status == CODE       # code evidence beats equal values
+
+
+def test_disagreeing_load_instructions_are_shown_as_contradiction():
+    m = cand('candidate:code-call', dtype='s16', dtype_alternatives=['u16'])
+    sign = type_status(m, image([0xFFF0] * 16)).get(SIGN)
+    assert sign.status == ALTERNATIVE and 'uneinig' in sign.contradiction and 'Widerspruch' in sign.describe()
+
+
+def test_proposals_are_never_confirmed_and_carry_no_conversion():
+    for source in ('transfer-proposed', 'xdf-preview', 'exact-reference'):
+        m = MapDefinition(name='KF', offset=0, rows=2, cols=2, dtype='s16', source=source, factor=0.1, unit='Nm')
+        st = type_status(m)
+        assert {p.status for p in st.properties} == {DERIVED} and st.overall != CONFIRMED
+        assert scaling_of(m).status == RAW
+    manual = MapDefinition(name='KF', offset=0, rows=2, cols=2, source='manual_2d')
+    assert type_status(manual).overall == UNDETERMINED
+    reranked = cand('candidate:row-pitch', source='ml-proposed')
+    assert type_status(reranked, image([1, 2, 3, 4] * 4)).overall == UNDETERMINED
+
+
+def test_definition_conflict_is_said_aloud_without_changing_the_status():
+    m = MapDefinition(name='KF', offset=0x40, rows=2, cols=2, dtype='u16', endian='big', source='a2l')
+    text = '0x40: Vorzeichen – behalten Definition „KF“, verworfen Datensatz (s16 big). Belegt: u16 big.'
+    sign = type_status(m, conflicts=[text]).get(SIGN)
+    assert sign.status == CONFIRMED and sign.contradiction
+    assert type_status(m).get(SIGN).contradiction == ''
 
 
 def test_open_width_and_byte_order_are_alternatives():

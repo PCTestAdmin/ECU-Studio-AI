@@ -37,9 +37,23 @@ def test_one_relation_kind_is_suspected_two_kinds_strongly_supported():
 def test_relations_to_different_functions_are_a_contradiction():
     maps = [table('A', 0, 'FN_A', verified=True), table('B', 0x200, 'FN_B', verified=True),
             table('x', 0x100, source='heuristic')]
-    h = identify(maps, [Relation(0, 2, AXIS), Relation(1, 2, NEIGHBOUR)])
+    h = identify(maps, [Relation(0, 2, AXIS), Relation(1, 2, AXIS)])
     assert (h[2].function, h[2].status) == ('', UNKNOWN)
     assert h[2].contradictions and 'FN_A' in ' '.join(h[2].contradictions) and 'FN_B' in ' '.join(h[2].contradictions)
+
+
+def test_a_neighbour_votes_only_when_one_function_encloses_the_table():
+    """A lone neighbour caused most wrong assignments under hard splits (function boundaries lie between
+    neighbours); enclosed on both sides by tables of one function it still votes."""
+    a, b = table('A', 0, 'FN_A', verified=True), table('B', 0x200, 'FN_B', verified=True)
+    x = table('x', 0x100, source='heuristic')
+    one_side = identify([a, x], [Relation(0, 1, NEIGHBOUR)])[1]
+    assert (one_side.function, one_side.status) == ('', UNKNOWN)
+    a2 = table('A2', 0x200, 'FN_A', verified=True)
+    enclosed = identify([a, x, a2], [Relation(0, 1, NEIGHBOUR), Relation(1, 2, NEIGHBOUR)])[1]
+    assert (enclosed.function, enclosed.status) == ('FN_A', SUSPECTED)
+    between = identify([a, x, b], [Relation(0, 1, NEIGHBOUR), Relation(1, 2, NEIGHBOUR)])[1]
+    assert between.function == ''
 
 
 def test_hypotheses_never_feed_other_hypotheses():

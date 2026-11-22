@@ -11,6 +11,7 @@ from bisect import bisect_left, bisect_right
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, Signal, QModelIndex, QSettings, QSize, QTimer
+import shiboken6
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget,
@@ -1076,7 +1077,7 @@ class Window(QMainWindow):
     def load_state(self,image,maps,bookmarks,notes,project_path):
         self.last_scan_report=None
         self.last_fusion=None
-        QTimer.singleShot(0,self.update_identity_banner)
+        QTimer.singleShot(0,self,self.update_identity_banner)
         for pane in self.map_editors:
             self.tabs.removeTab(self.tabs.indexOf(pane))
             pane.deleteLater()
@@ -1106,7 +1107,7 @@ class Window(QMainWindow):
         self.saved_fingerprint = self.project_state()
         self.statusBar().showMessage("Datei geladen · Original unverändert",5000)
         self.update_local_suggestions()
-        QTimer.singleShot(0,self._auto_integrity)
+        QTimer.singleShot(0,self,self._auto_integrity)
 
     def clear_map_editor(self):
         """No selected map: nothing of a previous map or file stays visible, and nothing can be applied to it."""
@@ -1241,7 +1242,9 @@ class Window(QMainWindow):
             if len(options)>1:
                 alt += '\nLesarten derselben Bytes (Rohwerte min … max): ' + ' · '.join(r.describe() for r in options)
         # after 1.21.0-rc1: status and source of width, sign, byte order and conversion; function membership
-        alt += '\n' + '\n'.join(type_summary(m, self.image))
+        fusion_conflicts=[t for off,texts in (getattr(self,'last_fusion',None) or {}).get('conflicts',{}).items()
+                          if m.offset<=off<m.offset+m.length for t in texts]
+        alt += '\n' + '\n'.join(type_summary(m, self.image, fusion_conflicts))
         function_text = self._function_hypothesis(m)
         alt += ('\n' + function_text) if function_text else ''
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
@@ -1264,10 +1267,16 @@ class Window(QMainWindow):
     def _function_hypothesis(self, m) -> str:
         """Function of the selected table with status, evidence and contradictions (core/function_id);
         '' when nothing is known. Recomputed only when tables, functions or axes change."""
-        from ..core.function_id import identify
-        key=tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset) for x in self.maps)
+        from ..core.function_id import code_links, identify, relations
+        # Code relations only when the function graph already computed them for this image (no slow
+        # analysis on every selection).
+        code=(self._code_flow if self.image is not None and getattr(self,'_code_flow_key',None)
+              ==(id(self.image),self.image.size) else None)
+        key=(tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset) for x in self.maps),
+             id(code))
         if getattr(self,'_function_key',None)!=key:
-            self._function_key,self._function_hyps=key,identify(self.maps)
+            rels=relations(self.maps)+(code_links(self.maps,code[1]) if code else [])
+            self._function_key,self._function_hyps=key,identify(self.maps,rels)
         index=next((i for i,x in enumerate(self.maps) if x is m),None)
         if index is None:return ''
         h=self._function_hyps[index]
@@ -3034,7 +3043,7 @@ class Window(QMainWindow):
             profile=load_checksum_profile(path,self.image)
             self.checksum_profile=profile
             self.integrity_report=None
-            QTimer.singleShot(0,self._auto_integrity)
+            QTimer.singleShot(0,self,self._auto_integrity)
             result=audit_export(self.image,self.maps,profile)
             QMessageBox.information(self,'Checksummenprofil geladen',
                 f'{len(profile.slots)} geprüfte Bereichsdefinitionen importiert.\n'
@@ -3118,8 +3127,11 @@ class Window(QMainWindow):
                 progress.close()
             if self._integrity_rerun and self.image is image:
                 self._integrity_rerun=False
-                QTimer.singleShot(0,self._auto_integrity)
+                QTimer.singleShot(0,self,self._auto_integrity)
+        # The worker's signals reach these closures even after the window was deleted (no context
+        # object): then nothing of the window may be touched.
         def done(report):
+            if not shiboken6.isValid(self):return
             finish()
             if self.image is not image:return
             self.integrity_report=report
@@ -3128,10 +3140,12 @@ class Window(QMainWindow):
             if show:self.show_integrity_report()
             if then and self._integrity_fresh():then(report)
         def failed(message):
+            if not shiboken6.isValid(self):return
             finish()
             self._show_integrity_state()
             if show or then:self.warning('Checksummenprüfung fehlgeschlagen',message)
         def cancelled():
+            if not shiboken6.isValid(self):return
             finish()
             self._show_integrity_state()
             self.statusBar().showMessage('Checksummenprüfung abgebrochen · nichts geändert',5000)
@@ -3305,16 +3319,32 @@ class Window(QMainWindow):
         if not self.require_image():return
         from ..core.function_graph import build_function_graph
         from .function_graph_dialog import FunctionGraphDialog
-        try:graph=build_function_graph(self.image,self.maps,*self._code_window())
+        try:
+            graph=build_function_graph(self.image,self.maps,*self._code_window())
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:code=self._code_relations()
+            finally:QApplication.restoreOverrideCursor()
         except Exception as exc:
             self.warning('Funktionsgraph fehlgeschlagen',exc);return
         if (not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']
-                and not any(m.function for m in self.maps)):
+                and not any(m.function for m in self.maps) and not (code and code[1])):
             QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise und keine gemeinsamen Achsen gefunden. '
-                                    'Code-Verweise werden derzeit für C16x (Siemens MS4x, Bosch ME7) ausgewertet; '
-                                    'gemeinsame Achsen brauchen bekannte Achsadressen.')
+                                    'Code-Verweise werden für C16x (Siemens MS4x, Bosch ME7) und experimentell für '
+                                    'TriCore-Interpolationsaufrufe ausgewertet; gemeinsame Achsen brauchen bekannte '
+                                    'Achsadressen.')
             return
-        FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m)).exec()
+        FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m),code).exec()
+
+    def _code_relations(self):
+        """(uses, code relations) of the TriCore data-flow analysis (core/tricore_flow), once per image;
+        None for images without such program code."""
+        key=(id(self.image),self.image.size)
+        if getattr(self,'_code_flow_key',None)!=key:
+            from ..core.tricore_flow import code_relations
+            data=self.image.read(0,self.image.size)
+            uses,rels=code_relations(data)
+            self._code_flow_key,self._code_flow=key,((uses,rels) if uses else None)
+        return self._code_flow
 
     def show_signal_trace(self):
         if not self.require_image():return
@@ -3646,6 +3676,8 @@ class Window(QMainWindow):
             QApplication.restoreOverrideCursor()
             self.warning('Namensübertragung',exc);return
         QApplication.restoreOverrideCursor()
+        if getattr(result,'refused',''):
+            QMessageBox.information(self,'Namen aus Schwesterstand',result.refused);return
         # Second, independent argument for the place: this file's own scan found the same table there.
         detected=[m for m in self.maps if m.source=='heuristic']
         if detected:confirm_by_detection(result,detected)

@@ -254,10 +254,15 @@ class Sites(list):
     relocation: tuple = ()  # windows inferred by infer_relocation (empty: plain segments)
     bases: dict = {}        # boot values of the global base registers (set by _analyse)
     starts: object = None   # byte offsets of all instructions of the linear sweep (set by _analyse)
+    stream: tuple = ()      # the sweep's acting instructions (_stream; set by _analyse)
 
     def extended(self, more) -> 'Sites':
         out = Sites(list(self) + list(more))
+        # Every per-image attribute travels along. Until after 1.21.0-rc1 bases and starts were
+        # dropped here, so direct_loads found nothing on images with learned register roles
+        # (none in the development data).
         out.generic, out.unmapped, out.relocation = self.generic, self.unmapped, self.relocation
+        out.bases, out.starts, out.stream = self.bases, self.starts, self.stream
         return out
 
 
@@ -608,7 +613,7 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
             sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc,
                           stream=stream)[0]
     sites.relocation = reloc
-    sites.bases, sites.starts = bases, stream[3]
+    sites.bases, sites.starts, sites.stream = bases, stream[3], stream
     return sites, h, entries
 
 
@@ -1074,7 +1079,8 @@ class Descriptors(dict):
     loaded: frozenset = frozenset()
 
 
-def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
+def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_context: bool = False
+                     ) -> dict[int, CallDescriptor]:
     """{data offset: descriptor} for calls naming table data plus parsable axis headers.
 
     Axes come from a5/a6 of the call; from a record header passed in a4 whose
@@ -1088,6 +1094,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     The result also lists all data addresses passed to the same routines
     (``Descriptors.named``): neighbours whose axes stay unresolved still bound
     a table (MSD80: two tables only fit exactly once their neighbour counts).
+    With ``keep_context`` the result carries ``context`` = (sweep sites, routine entries) for
+    the data-flow analysis (core/tricore_flow); the scan does not keep it (memory).
     """
     hi = len(data) if hi is None else hi
     if not looks_like_tricore(data):
@@ -1152,6 +1160,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     rec_cells = record_cells(h, entries, {r: c.most_common(1)[0][0] for r, c in count_width.items()})
     cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
+    if keep_context:
+        out.context = (sites, entries)
     out.named = frozenset({c.data for c in sites if c.callee in cells and lo <= c.data < hi} | set(triples))
     out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
                               if lo <= v < hi)
