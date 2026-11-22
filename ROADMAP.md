@@ -17,7 +17,7 @@
 
 # Roadmap
 
-Stand: 21.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 22.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
@@ -163,8 +163,9 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 | **Firmware-Schutz und Flash-Sicherheit** | ✅ veröffentlicht | 1.18.0 – 1.18.2 | Git-Hooks gegen Firmware im Repository, strukturelle Bildprüfung, Preflight mit getrennten Stufen; 1.21.0-rc1 🧪: Befund für Änderungen in ungeprüften Vorschlägen | **Keine Flashfreigabe**; Pixelinhalte von Bildern nicht prüfbar ([Details](docs/FIRMWARE_PROTECTION.md)) |
 | **Updates und Deinstallation** | ✅ veröffentlicht · 🧪 Testkanal in der Vorabversion 1.21.0-rc1 | 1.15.0, Offline zuerst 1.18.0, Inventar 1.20.1 | Update-Suche ab Werk aus, SHA-256 und Build-Herkunft, Rücksicherung, Deinstallation nach Inventar | Signierte Updates eingebaut, aber ohne Schlüssel inaktiv; EXE nicht code-signiert (SmartScreen); Updates mit dem Updater von 1.20.0 hinterlassen Dateien; 1.21.0-rc1: stabiler Kanal bietet nie eine Vorabversion an, Testkanal nur nach Rückfrage, ein Release mit widersprüchlicher Markierung wird in keinem Kanal angeboten |
 | **Leistung** | ✅ veröffentlicht · 🧪 1.21.0-rc1 | 1.16.0 | Alle CPU-Kerne; 1.21.0: Leistungssatz 160 s → 144 s bei 48 % mehr exakten Funden | Messstreuung zwischen Tagen bis 7 %; 10-MB-Vollflashs brauchen rund 18 s |
-| **Funktionsebene** | 🟠 Prototyp, nicht veröffentlicht | – | Funktion je Kennfeld nur aus A2L `FUNCTION` oder über Beziehungen (gemeinsame Achse, gleiche Routine, Nachbar) zu Kennfeldern mit bekannter Funktion; Status Bestätigt / Stark gestützt / Vermutet / Unbekannt, Widersprüche und Belege mit Herkunft | Ohne Definition bleibt jede Funktion „Unbekannt“; Namen werden nie aus Werten abgeleitet; gemessen nur an zwei BMW-Linien der Entwicklungsdaten |
-| **Datentyp und Umrechnung mit Herkunft** | 🟠 nicht veröffentlicht | – | Wertebreite, Vorzeichen, Byte-Reihenfolge je mit Status (bestätigt, abgeleitet, alternativ, unbestimmt) und Quelle; Faktor/Offset/Einheit mit Quelle (A2L COMPU_METHOD) | Erkannte Kennfelder bleiben Rohwerte; nicht unterstützte A2L-Umrechnungen ebenso; A2L-Grenzen nur als Hinweis |
+| **Funktionsebene** | 🟠 Prototyp, nicht veröffentlicht | – | Funktion je Kennfeld nur aus A2L `FUNCTION` oder über Beziehungen (gemeinsame Achse, Programmcode, Nachbar nur zwischen Tabellen derselben Funktion) zu Kennfeldern mit bekannter Funktion; Status Bestätigt / Stark gestützt / Vermutet / Unbekannt, Widersprüche und Belege mit Herkunft; Funktionsgruppen ohne Namen | Ohne Definition bleibt jede Funktion „Unbekannt“; Namen werden nie aus Werten abgeleitet; unter harten Aufteilungen geprüft, nur an zwei BMW-Linien der Entwicklungsdaten, nicht unabhängig validiert |
+| **Code-Datenfluss (TriCore)** | 🟠 ⚗️ experimentell, nicht veröffentlicht | – | Eingangsgrößen und Ergebnisort der Interpolationsaufrufe in begrenzten Fenstern; Beziehungen gleiche Routine, gleiche Ergebnisvariable, Datenfluss; offene Fälle mit Grund | Nur TriCore; keine PowerPC/C16x-Datenflussanalyse; an zwei Vollabbildern gegen A2L-Messgrößen geprüft |
+| **Datentyp und Umrechnung mit Herkunft** | 🟠 nicht veröffentlicht | – | Wertebreite, Vorzeichen, Byte-Reihenfolge je mit Status (bestätigt, codebelegt, abgeleitet, wertgleich, alternativ, unbestimmt), Quelle und Widerspruch; Faktor/Offset/Einheit mit Quelle (A2L COMPU_METHOD) | Erkannte Kennfelder bleiben Rohwerte; nicht unterstützte A2L-Umrechnungen ebenso; A2L-Grenzen nur als Hinweis; „wertgleich“ ist kein Typbeleg |
 | **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0-rc1 🧪: Datentyp mit „?“, Filter „Datentyp nicht belegt“ und „Überschneidung“, fehlender Beleg je offener Frage, Lesarten derselben Bytes nebeneinander, Prüfliste nach Prüfgrund, geprüfte Einträge hervorgehoben | Windows 10/11; Lesarten zeigen Rohwerte, keine Bewertung |
 | **Sprachen** | ✅ veröffentlicht | 1.16.0 | Deutsch und Englisch (Systemsprache als Standard) | Dokumentation überwiegend Deutsch |
 | **Tests und CI/CD** | ✅ veröffentlicht · 🧪 Isolierung in 1.21.0-rc1 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0-rc1: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter, Updater ohne echten Deinstallationseintrag im Testlauf, Tests für Abbruch und Fehlerfälle; echte Daten nur lokal. 1.21.0-rc1 🧪: Release-Wächter (Pre-Release-Plan, Prüfung von Entwurf und Veröffentlichung, Vergleich aller anderen Releases), Negativtests für falsche Versionierung, Probelauf ohne Veröffentlichung, Installer-QA auf Windows Server 2022/2025 |
@@ -197,7 +198,25 @@ Kein Teil davon ist unabhängig validiert; gemessen nur an den Entwicklungsdaten
 | Funktionsebene: Belege, Beziehungen, Status, Widersprüche, Herkunft | 🟠 Prototyp; A2L `FUNCTION` gelesen; keine Namen aus Werten |
 | Datentyp-Status je Eigenschaft, Umrechnung mit Quelle | 🟠 umgesetzt; Anzeige in Detailansicht und Funktionsgraph |
 | Benchmark je Eigenschaft (Start, Breite, Form, Achsen, Vorzeichen, Byte-Reihenfolge) | 🟠 privates Werkzeug; Umrechnung und Funktion für Funde „nicht ausgegeben“ |
-| Neue unabhängige Testgruppe | 📋 offen: Suche 21.11.2026 ohne rechtmäßig nutzbare Paare realer Steuergeräte |
+| Neue unabhängige Testgruppe | 📋 offen: Suche 21. und 22.11.2026 ohne rechtmäßig nutzbare Paare realer Steuergeräte |
+
+#### Stand nach Qualitätsphase 2 (22.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung: **🧪 rc1 veröffentlicht** = in 1.21.0-rc1; **🟠 PR #30** = im Zweig, nicht veröffentlicht; **⚗️
+experimentell**; **❔ nicht unabhängig validiert** = nur Entwicklungsdaten (Holdout nur Regression); **🔭 langfristig**.
+Zahlen: [Bericht § 7](docs/ENTWICKLUNG_NEXTGEN.md#7-qualitätsphase-2-22112026-funktionsanalyse-code-datenfluss-gegenbeispiele).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Funktionsidentifikation | 🟠 ❔ | Harte Aufteilungen (Anker 50 … 0 %, Speicherblöcke, ganze Funktionen) gemessen; Nachbar stimmt nur bei Einschluss durch dieselbe Funktion: falsche Zuordnungen −90 … 99 %, Abdeckung etwa halbiert; schwach bei sehr wenigen Ankern (MEVD17.2) |
+| Code-Datenfluss | 🟠 ⚗️ ❔ | TriCore: Eingänge und Ergebnisort gegen A2L-Messgrößen geprüft (88–96 % der aufgelösten Eingänge = A2L-Eingangsgröße); offene Fälle mit Grund |
+| Funktionsgruppen ohne A2L | 🟠 ❔ | „Unbekannte Funktionsgruppe N“, rein in 82–92 % der Gruppen (mit Programmcode 87–92 %); Funktionsgraph zeigt Herkunft, Code/Struktur, Widersprüche, Offenes |
+| Wenige Anker, andere Stände/Familien | 🟠 ❔ | Andere Stände derselben Linie: 99,9 % der prüfbaren übertragenen Funktionen richtig; andere Familie: Übertragung jetzt gesperrt (vorher 24 von 24 falsch) |
+| Kennlinien und Achsen (1D) | 🧪 rc1 · 🟠 ❔ | Eigene Auswertung (Breite, Vorzeichen, Byte-Reihenfolge, gemeinsame/feste Achsen); unverändert gegenüber rc1; gemeinsame Achsen bei MEVD17.2 nicht gefunden |
+| Typbelege | 🟠 | „codebelegt“ und „wertgleich“ getrennt, Widersprüche genannt; Vorschläge nie mehr „bestätigt“ |
+| Test- und GUI-Stabilität | 🟠 | „QLabel already deleted“ behoben; drei vollständige Testläufe mit Exit-Code 0 |
+| Direktlade-Regel | 🟠 ❔ | Gegenbeispiele gemessen (0,09 % echter Tabellen mit Ladebefehl innen, kein heutiger Fund betroffen); Reihenfolgeabhängigkeit bei Gleichstand behoben |
+| Unabhängige Validierung, physikalische Umrechnung | 🔭 | wartet auf rechtmäßig nutzbare neue Daten |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

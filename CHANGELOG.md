@@ -22,6 +22,41 @@ Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
   benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
   Funktionsgraph.
 
+### Qualitätsphase 2 (22.11.2026, nicht veröffentlicht)
+
+- **Datenfluss um TriCore-Interpolationsaufrufe (experimentell):** begrenzte Analyse (32 Befehle zurück, 24 vor)
+  ermittelt die Eingangsgrößen (d4/d5) und den Speicherort des Ergebnisses (d2). Was nicht sicher verfolgt werden
+  kann, bleibt offen und nennt den Grund (Sprungziel, Aufruf dazwischen, Wert aus dem Stapel, Fenster erschöpft …).
+  Prozessorunabhängiges Modell `core/code_flow.py`, TriCore-Schicht `core/tricore_flow.py`; keine PowerPC/C16x-Unterstützung
+  behauptet.
+- **Beziehungen aus dem Programmcode:** gleiche aufrufende Routine, Ergebnis in derselben Variablen, Ergebnis fließt in
+  die andere Tabelle; jede mit Art, Quell- und Zieladresse, Beleg, Verfahren und offenem Punkt. „Gleiche
+  Eingangsgröße“ wird angezeigt, stimmt aber nie für eine Funktion (gemeinsamer Betriebspunkt, keine gemeinsame
+  Funktion). Funktionsgraph: Abschnitte „Beziehungen aus dem Programmcode“, „Nicht eindeutig bestimmt“ und
+  „Funktionsgruppen ohne Namen“ („Unbekannte Funktionsgruppe N“, nur Struktur oder Programmcode, bekannte Funktionen nur
+  aus Definitionen, Widersprüche genannt).
+- **Funktionsstatus:** „Stark gestützt“ braucht zwei unabhängige Belegfamilien (Achse, Speicherlage, Programmcode);
+  mehrere Code-Beziehungen zählen als eine.
+- **Weniger falsche Funktionszuordnungen:** Ein direkter Nachbar stimmt nur noch, wenn Tabellen derselben Funktion die
+  Tabelle auf beiden Seiten einschließen (Schalter `NEIGHBOUR_BOTH_SIDES`). Entwicklungsdaten, ganze Funktionen
+  verdeckt: falsche Zuordnungen MSD80 86 108 → 7 857, MEVD17.2 19 212 → 779; dafür bleiben mehr Tabellen „Unbekannt“.
+  „Ergebnis fließt in die andere Tabelle“ wird angezeigt, stimmt aber nicht ab (Schutzregel).
+- **Namensübertragung nur zwischen Schwesterständen:** Decken die gemeinsamen Anker weniger als 0,5 % der Fenster ab,
+  wird nichts übertragen und der Grund genannt (Schalter `MIN_ANCHOR_SHARE`). Entwicklungsdaten: zwischen
+  Steuergerätefamilien waren alle 24 prüfbaren Funktionszuordnungen falsch, jetzt 0 Übertragungen.
+- **Datentyp-Status getrennt nach Herkunft:** „codebelegt“ (Ladebefehle), „wertgleich“ (beide Lesarten ergeben dieselben
+  Zahlen – kein Beleg für den Typ), „abgeleitet“, „alternativ“, „unbestimmt“; Widersprüche (Ladebefehle uneinig,
+  Byte-Reihenfolge offen, Konflikt Erkennung/Definition) werden genannt. Übertragene Namen, XDF-Vorschau,
+  Referenzsignaturen und manuell gewählte Rohdaten galten bisher als „bestätigt“ und sind jetzt „abgeleitet“ bzw.
+  „unbestimmt“; ihre Umrechnung bleibt Rohwert.
+- **Reihung unabhängig von der Eingabereihenfolge:** Bei exaktem Gleichstand (gleiche Stärke, Lage und Größe) entschied
+  bisher die Reihenfolge der Kandidaten (u16/s16 mit gleichen Werten); jetzt Typ und Form, vorzeichenlos zuerst. Eine Alternative mit eigenem
+  Beleg, die eine Überschneidung verliert, wird beim Gewinner genannt statt still verworfen.
+- **Qt-Abbau:** Verzögerte Aufrufe und Signale der Checksummenprüfung eines bereits gelöschten Hauptfensters greifen auf
+  nichts mehr zu (vorher „QLabel already deleted“ am Ende des Testlaufs). Die Fensterbereinigung des Testlaufs bleibt.
+- **Werkzeug:** `tools/function_benchmark.py` (Funktionsebene unter harten Aufteilungen: Anker-Anteile 50 … 0 %,
+  Speicherblöcke, ganze Funktionen; Zählung richtig/falsch/unbekannt mit auswertbarer Gesamtzahl).
+
 ## 1.21.0-rc1 (20.11.2026) – Release Candidate (Vorabversion)
 
 Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
