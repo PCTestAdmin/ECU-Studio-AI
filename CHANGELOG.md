@@ -1,3 +1,27 @@
+## Nach 1.21.0-rc1 (in Entwicklung, nicht veröffentlicht)
+
+Entwicklungszweig `feat/post-rc1-recognition-nextgen`, Draft-PR. Messung und Grenzen:
+[ENTWICKLUNG_NEXTGEN.md](docs/ENTWICKLUNG_NEXTGEN.md). Alle automatisch erkannten Kennfelder bleiben **ungeprüfte
+Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
+
+- **Weniger Fehlzuordnungen durch Codebelege (TriCore, experimentell):** Adressen, die der Programmcode direkt über
+  ein globales Basisregister lädt, beginnen je ein eigenes Objekt. Eine nur aus dem Werteverlauf gefundene Fläche,
+  in der eine solche Adresse innen liegt, wird verworfen (Schalter `LOADED_REFUTES_PITCH`).
+- **Codebeleg wird nicht verdrängt:** Ein Kandidat mit Programmcode-Beleg gewinnt eine Überschneidung gegen einen
+  reinen Datenmuster-Fund auch dann, wenn er innerhalb einer früher beginnenden glatten Fläche liegt. Gespeicherte
+  Datensatzköpfe behalten die bisherige Ausnahme (Schalter `CODE_EVIDENCE_ALWAYS_WINS`).
+- **Datentyp mit Status und Quelle:** Wertebreite, Vorzeichen und Byte-Reihenfolge je mit „bestätigt“,
+  „abgeleitet“, „alternativ“ oder „unbestimmt“ und dem Beleg (Detailansicht). Achsen und Kennlinien halten das andere
+  Vorzeichen offen („?“), wenn die Werte es nicht entscheiden.
+- **Umrechnung mit Herkunft:** Faktor, Offset und Einheit nennen ihre Quelle (z. B. A2L `COMPU_METHOD` mit Art).
+  Erkannte Tabellen und nicht unterstützte Umrechnungen bleiben ausdrücklich Rohwerte. A2L-Grenzen
+  (LowerLimit/UpperLimit) werden gelesen und können nur widersprechen, nie bestätigen.
+- **Funktionsebene (Prototyp):** A2L `FUNCTION`/`DEF_CHARACTERISTIC` wird gelesen. Für Tabellen ohne Definition
+  eine Funktionshypothese mit Status (Bestätigt, Stark gestützt, Vermutet, Unbekannt) und Belegen – nur aus
+  gemeinsamer Achse, gleicher Coderoutine oder direkter Nachbarschaft zu Tabellen mit bekannter Funktion. Werte
+  benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
+  Funktionsgraph.
+
 ## 1.21.0-rc1 (20.11.2026) – Release Candidate (Vorabversion)
 
 Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
@@ -31,7 +55,7 @@ Alle Einzelheiten: Abschnitt „1.21.0“ unten und [Release Notes](docs/RELEASE
   allgemein vertrauenswürdige OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
   Testversion, keine Empfehlung für produktive Fahrzeugkalibrierungen.
 
-## 1.21.0 (in Entwicklung, nicht veröffentlicht)
+## 1.21.0 (stabile Version geplant, nicht veröffentlicht; Inhalt als Vorabversion 1.21.0-rc1 veröffentlicht)
 
 Bessere Kennfelderkennung ohne Definition, gemessen an privaten Referenzdaten (A2L + HEX) eines Datengebers.
 Die Daten bleiben lokal; öffentlich sind nur zusammengefasste Zahlen. Entwicklung und Holdout wurden vor der Arbeit
