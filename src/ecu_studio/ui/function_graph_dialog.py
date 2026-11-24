@@ -43,6 +43,7 @@ class FunctionGraphDialog(QDialog):
         hints.setToolTip(0, 'Gleiche Stützstellenwerte belegen keine Zusammengehörigkeit; nur ein Hinweis zur Prüfung.')
         for members in graph['axis_hints']:
             self._add_members(QTreeWidgetItem(hints, [f'{len(members)} Kennfelder', '', '']), members)
+        self._add_axis_references()
         self.relations = self._relations(graph, code)
         code_node = self._add_code(code) if code is not None else None
         self._add_groups()
@@ -55,6 +56,30 @@ class FunctionGraphDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _add_axis_references(self):
+        """Axis references by status (stored / fixed / unresolved) and contradicted axis objects
+        (core/axis_refs): shared only by storage address, never by equal values."""
+        from ..core import axis_refs
+        objs = axis_refs.objects(self.maps)
+        n = axis_refs.summary(self.maps, objs)
+        top = QTreeWidgetItem(self.tree, [f"Achsenreferenzen: {n[axis_refs.STORED]} gespeichert · "
+                                          f"{n[axis_refs.FIXED]} fest · {n[axis_refs.OPEN]} ungeklärt", '', ''])
+        top.setToolTip(0, 'Kennfeld → Achsenreferenz → gespeichertes Achsenobjekt. Gemeinsam heißt: gleiche '
+                          'Speicheradresse. Ungeklärt: keine Quelle nennt die Speicheradresse; sie wird nicht aus '
+                          'Werten geraten.')
+        bad = [o for o in objs if o.contradictory]
+        node = QTreeWidgetItem(top, [f'Widersprüchliche Achsenobjekte ({len(bad)})', '', ''])
+        for o in bad[:MAX_ITEMS]:
+            item = QTreeWidgetItem(node, [o.describe(), f'0x{o.offset:08X}', ''])
+            item.setToolTip(0, o.describe())
+            self._add_members(item, o.tables)
+        open_refs = [r for r in axis_refs.references(self.maps) if r.status == axis_refs.OPEN]
+        node = QTreeWidgetItem(top, [f'Achsenreferenz ungeklärt ({len(open_refs)})', '', ''])
+        for r in open_refs[:MAX_ITEMS]:
+            m = self.maps[r.table]
+            item = QTreeWidgetItem(node, [f'{m.name}: {r.describe()}', f'0x{m.offset:08X}', ''])
+            item.setData(0, Qt.ItemDataRole.UserRole, r.table)
 
     def _relations(self, graph, code):
         from ..core.function_id import code_links, relations
@@ -118,23 +143,29 @@ class FunctionGraphDialog(QDialog):
     def _add_functions(self):
         """Function membership per table (core/function_id): only from definitions and relations to tables
         with a known function; a hypothesis never names a function nobody declared."""
-        from ..core.function_id import STATUSES, UNKNOWN, counts, identify
+        from ..core.function_id import CONFIRMED, STATUSES, counts, identify
         hyps = identify(self.maps, self.relations)
         n = counts(hyps)
         top = QTreeWidgetItem(self.tree, ['Funktionszuordnung (' + ' · '.join(f'{s} {n[s]}' for s in STATUSES) + ')'])
         top.setToolTip(0, 'Funktionen nur aus Definitionen (A2L FUNCTION) oder über Beziehungen zu Kennfeldern mit '
-                          'bekannter Funktion (gemeinsame Achse, Programmcode, direkter Nachbar). Keine Namen aus Werten.')
-        for status in STATUSES:
-            chosen = [h for h in hyps if h.status == status and (status != UNKNOWN or h.contradictions)]
+                          'bekannter Funktion (gemeinsame Achse, Programmcode, direkter Nachbar). Keine Namen aus Werten. '
+                          'Reichen die Belege nicht, bleibt die Funktion unbekannt; die zurückgehaltene Funktion und '
+                          'der Grund stehen im Tooltip.')
+        sections = [(status, [h for h in hyps if h.status == status and h.function]) for status in STATUSES[:3]]
+        sections.append(('widersprüchlich', [h for h in hyps if not h.function and h.contradictions]))
+        sections.append(('zurückgehalten', [h for h in hyps if not h.function and not h.contradictions and h.candidates]))
+        labels = {'widersprüchlich': 'Widersprüchlich (Funktion unbekannt)',
+                  'zurückgehalten': 'Zurückgehalten (Funktion unbekannt, Belege reichen nicht)'}
+        for status, chosen in sections:
             if not chosen:
                 continue
-            label = (f'{status}: {len(chosen)} Kennfelder' if status != UNKNOWN else
-                     f'Widersprüchlich (Unbekannt): {len(chosen)} Kennfelder')
-            node = QTreeWidgetItem(top, [label, '', ''])
+            node = QTreeWidgetItem(top, [f'{labels.get(status, status)}: {len(chosen)} Kennfelder', '', ''])
             for h in chosen[:MAX_ITEMS]:
                 m = self.maps[h.index]
-                item = QTreeWidgetItem(node, [f'{m.name} → {h.function or "?"}', f'0x{m.offset:08X}',
-                                              f'{m.rows}×{m.cols} {m.dtype}'])
+                shown = (f'{m.name} → {h.function}' if h.status == CONFIRMED else
+                         f'{m.name} → {h.function} ({h.status}, nicht bestätigt)' if h.function else
+                         f'{m.name} → Funktion unbekannt')
+                item = QTreeWidgetItem(node, [shown, f'0x{m.offset:08X}', f'{m.rows}×{m.cols} {m.dtype}'])
                 item.setToolTip(0, h.describe())
                 item.setData(0, Qt.ItemDataRole.UserRole, h.index)
             if len(chosen) > MAX_ITEMS:

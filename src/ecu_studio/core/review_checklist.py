@@ -125,7 +125,10 @@ def checklist(maps: list[MapDefinition], *, conflicts: dict[int, list[str]] | No
             reasons.append(f'Wertebreite nicht belegt: {m.dtype} gelesen, eine 8-Bit-Tabelle gleicher Form ist ebenfalls möglich')
         if BYTE_ORDER in doubts:
             score += 3
-            reasons.append(f'Byte-Reihenfolge nicht belegt: {m.endian} gelesen, die Datensätze dieses Abbilds sind uneinig')
+            from .axis_records import ENDIAN_OPEN_AXES
+            why = ('die Mehrheit der Datensätze dieses Abbilds liest anders, beide Lesarten steigen'
+                   if ENDIAN_OPEN_AXES in (m.notes or '') else 'die Datensätze dieses Abbilds sind uneinig')
+            reasons.append(f'Byte-Reihenfolge nicht belegt: {m.endian} gelesen, {why}')
         if doubts:
             topics.add(DTYPE)
         if layer > 1:

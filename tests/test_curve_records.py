@@ -56,3 +56,22 @@ def test_curves_only_in_the_dominant_byte_order():
     image = _image(a, b)
     assert scan_curve_records(image, _records(endian='big')) == []        # image records are big-endian
     assert scan_curve_records(image, _records(n=MIN_RECORDS - 1)) == []   # no record convention
+
+def test_value_width_stays_open_without_a_record_right_behind_the_16_bit_values(monkeypatch):
+    """Quality phase 3: the last curve of a chain has no record behind its values; they may as well be 8 bit
+    ("?"). The first curve is followed by the second record, so its 16-bit width is fixed by the structure."""
+    from ecu_studio.core import curve_records
+    from ecu_studio.core.confidence import type_doubts
+    a, b = _curve([50, 9, 14, 20, 27, 35]), _curve([-3, -1, 0, 2, 4, 9])
+    image = _image(a, b)
+
+    def doubts():
+        found = sorted((m for m in scan_curve_records(image, _records()) if m.record_layout == CURVE_LAYOUT),
+                       key=lambda m: m.offset)
+        return [(m.offset, m.cols, m.dtype, sorted(k for k, _ in type_doubts(m))) for m in found]
+    now = doubts()
+    assert 'width' not in now[0][3] and 'width' in now[1][3]
+    monkeypatch.setattr(curve_records, 'CURVE_WIDTH_OPEN', False)
+    old = doubts()
+    assert [x[:3] for x in old] == [x[:3] for x in now] and not any('width' in x[3] for x in old)
+

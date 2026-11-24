@@ -22,6 +22,30 @@ Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
   benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
   Funktionsgraph.
 
+### Qualitätsphase 3 (24.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert: [Bericht § 8](docs/ENTWICKLUNG_NEXTGEN.md#8-qualitätsphase-3-24112026-zuverlässige-funktionsidentifikation-und-achsenerkennung).
+
+- **„Funktion unbekannt“ statt eines fernen Namens:** Ein Funktionsvorschlag, der nur auf einer Belegfamilie beruht,
+  muss unter den nächstgelegenen Kennfeldern mit bekannter Funktion vorkommen; sonst bleibt die Funktion unbekannt,
+  und die Detailansicht nennt die zurückgehaltene Funktion, den Grund und den fehlenden Beleg (Schalter
+  `LOCAL_CHECK`). Entwicklungsdaten, 10 % Anker: falsche Namen MEVD17.2 983 → 288 bei nahezu gleicher Zahl richtiger (10 482 → 10 474); MSD80 2 370 → 1 143, dafür 17 % weniger richtige Namen. Eine Achse, deren Nutzer sich über die Punktzahl uneinig sind, stimmt nicht mehr ab.
+- **Achsenreferenzen:** Modell Kennfeld → Achsenreferenz → gespeichertes Achsenobjekt mit Status „gespeichert“,
+  „fest“ oder „ungeklärt“, Quelle, TriCore-Adressaliasen und Widersprüchen (`core/axis_refs.py`). Gemeinsam heißt
+  gleiche Speicheradresse; gleiche Werte allein verbinden nichts.
+- **Prüfhilfen:** Filter „Gemeinsame Achse“, „Achsenreferenz ungeklärt“, „Funktion unbekannt“, „Funktion vermutet“,
+  „Widersprüchliche Funktionsbelege“. Detailansicht mit Achsen (Adresse, Quelle, gemeinsame Nutzer, Widersprüche);
+  Funktionsgraph mit Achsenreferenzen, widersprüchlichen und zurückgehaltenen Funktionen; jeder nicht bestätigte Name
+  trägt „nicht bestätigt“.
+- **„?“ bei Byte-Reihenfolge und Wertebreite von Achsen und Kennlinien:** 16-Bit-Achsen, die gegen die Mehrheit der
+  Datensätze gelesen wurden, obwohl beide Lesarten steigen, und Kennlinienwerte ohne Datensatz direkt dahinter tragen
+  jetzt ein „?“ (Schalter `ENDIAN_AXES_OPEN`, `CURVE_WIDTH_OPEN`). Entwicklungsdaten: falsche Byte-Reihenfolgen exakter
+  1D-Funde vorher 0, jetzt alle markiert; falsche Breiten 1 448 von 1 533 markiert. Werte, Adressen, Formen und Typen
+  bleiben unverändert.
+- **Werkzeug für Tester:** `tools/tester_report.py` misst lokal mit eigener Datei und Definition und exportiert nur
+  Zählwerte – erst nach vollständiger Vorschau und mit einem an den Inhalt gebundenen Zustimmungscode.
+- **Benchmark:** `tools/function_benchmark.py` zählt „korrekt zurückgehalten“ und gibt Präzision und Abdeckung aus.
+
 ### Qualitätsphase 2 (22.11.2026, nicht veröffentlicht)
 
 - **Datenfluss um TriCore-Interpolationsaufrufe (experimentell):** begrenzte Analyse (32 Befehle zurück, 24 vor)

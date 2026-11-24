@@ -44,6 +44,7 @@ def test_function_split_hides_whole_functions_so_every_assignment_is_wrong():
     s = B.score(maps, anchors)
     assert s.correct == 0 and s.reachable == 0
     assert s.evaluable == len(maps) - len(anchors)
+    assert s.withheld == s.unknown and s.withheld + s.wrong == s.evaluable
 
 
 def test_score_counts_correct_wrong_and_unknown_with_the_evaluable_total():
@@ -53,6 +54,8 @@ def test_score_counts_correct_wrong_and_unknown_with_the_evaluable_total():
     assert s.correct == 1          # second A: enclosed by two anchors of A
     assert s.unknown == 2          # B: one-sided neighbour of A (no vote); C: no relation to an anchor
     assert s.by_status['Vermutet', 'correct'] == 1
+    assert s.precision == 1.0 and s.coverage == round(1 / 3, 4)
+    assert s.as_dict()['precision'] == 1.0
 
 
 def test_without_anchors_nothing_is_named():

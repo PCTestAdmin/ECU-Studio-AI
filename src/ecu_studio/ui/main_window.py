@@ -88,6 +88,10 @@ from .catalogue import CatalogueModel
 
 TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft',
               'Datentyp nicht belegt (?)','Überschneidet andere Einträge')
+# Review aids (quality phase 3): shared axes, open axis references, function status (core/axis_refs, function_id)
+AXIS_FILTERS=('Gemeinsame Achse','Achsenreferenz ungeklärt')
+FUNCTION_FILTERS=('Funktion unbekannt','Funktion vermutet','Widersprüchliche Funktionsbelege')
+TIER_FILTERS=TIER_FILTERS+AXIS_FILTERS+FUNCTION_FILTERS
 
 
 def tier_matches(m,choice:str,overlaps:bool=False)->bool:
@@ -1181,6 +1185,7 @@ class Window(QMainWindow):
         else:indices.sort(key=lambda i:self.maps[i].offset)
         patch_offsets=sorted(self.image._patches) if self.image else []
         overlaps=overlapping(self.maps) if tier==TIER_FILTERS[7] else {}
+        review=self._review_selection(tier)
         visible=[]
         for i in indices:
             m=self.maps[i]
@@ -1194,7 +1199,9 @@ class Window(QMainWindow):
             elif category=="Favoriten":
                 if not m.favorite:continue
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
-            if not tier_matches(m,tier,bool(overlaps.get(i))):continue
+            if review is not None:
+                if i not in review:continue
+            elif not tier_matches(m,tier,bool(overlaps.get(i))):continue
             visible.append(i)
         self.axis_group_index=group_index(shared_axis_groups(self.maps))
         self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
@@ -1264,32 +1271,63 @@ class Window(QMainWindow):
             self.tabs.setCurrentWidget(self.map_table)
         self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
 
-    def _function_hypothesis(self, m) -> str:
-        """Function of the selected table with status, evidence and contradictions (core/function_id);
-        '' when nothing is known. Recomputed only when tables, functions or axes change."""
+    def _function_hypotheses(self) -> list:
+        """Function hypotheses of all tables (core/function_id), recomputed only when tables, functions or
+        axes change."""
         from ..core.function_id import code_links, identify, relations
         # Code relations only when the function graph already computed them for this image (no slow
         # analysis on every selection).
         code=(self._code_flow if self.image is not None and getattr(self,'_code_flow_key',None)
               ==(id(self.image),self.image.size) else None)
-        key=(tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset) for x in self.maps),
-             id(code))
+        key=(tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset,x.rows,x.cols)
+                   for x in self.maps),id(code))
         if getattr(self,'_function_key',None)!=key:
             rels=relations(self.maps)+(code_links(self.maps,code[1]) if code else [])
             self._function_key,self._function_hyps=key,identify(self.maps,rels)
+        return self._function_hyps
+
+    def _function_hypothesis(self, m) -> str:
+        """Function of the selected table with status, evidence, reason for "unbekannt", held-back candidates
+        and contradictions; '' when there is nothing to say (no relation at all)."""
         index=next((i for i,x in enumerate(self.maps) if x is m),None)
         if index is None:return ''
-        h=self._function_hyps[index]
-        return h.describe() if h.function or h.contradictions else ''
+        h=self._function_hypotheses()[index]
+        return h.describe() if h.function or h.contradictions or h.candidates or h.reasons else ''
+
+    def _review_selection(self, choice:str):
+        """Indices for the review filters on axes and functions; None for the other filters."""
+        if choice in AXIS_FILTERS:
+            from ..core import axis_refs
+            if choice==AXIS_FILTERS[0]:
+                return {i for o in axis_refs.objects(self.maps) if o.shared for i in o.tables}
+            return {r.table for r in axis_refs.references(self.maps) if r.status==axis_refs.OPEN}
+        if choice in FUNCTION_FILTERS:
+            from ..core.function_id import SUSPECTED
+            hyps=self._function_hypotheses()
+            if choice==FUNCTION_FILTERS[0]:return {h.index for h in hyps if not h.function}
+            if choice==FUNCTION_FILTERS[1]:return {h.index for h in hyps if h.function and h.status==SUSPECTED}
+            return {h.index for h in hyps if h.contradictions}
+        return None
 
     def _shared_axis_text(self, m) -> str:
-        """Shared stored axes of the selected map and its partner maps (first five)."""
+        """Axis references of the selected map (stored / fixed / open), the stored axis objects with their
+        source and contradictions, and the partner maps of a shared axis (first five)."""
+        from ..core import axis_refs
         index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:return ''
         lines=[]
-        for g in getattr(self,'axis_group_index',{}).get(index,()):
-            partners=[self.maps[i].name for i in g.indices if i!=index]
-            more=f' (+{len(partners)-5})' if len(partners)>5 else ''
-            lines.append(f'\n{g.describe()}\nTeilt die Achse mit: '+', '.join(partners[:5])+more)
+        objs={o.offset:o for o in axis_refs.objects(self.maps)
+              if any(i==index for i,_ in o.users)}
+        for r in axis_refs.references([m]):
+            lines.append('\n'+r.describe())
+            o=objs.get(r.offset) if r.status==axis_refs.STORED else None
+            if o is None:continue
+            if o.shared:
+                partners=[self.maps[i].name for i in o.tables if i!=index]
+                more=f' (+{len(partners)-5})' if len(partners)>5 else ''
+                lines.append(f'\n  Gemeinsame Achse (gleiche Speicheradresse). Teilt die Achse mit: '+', '.join(partners[:5])+more)
+            if o.issues:
+                lines.append('\n  Widerspruch: '+'; '.join(o.issues))
         return ''.join(lines)
 
     def show_raw2d(self):

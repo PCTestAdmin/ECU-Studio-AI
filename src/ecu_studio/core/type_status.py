@@ -232,9 +232,12 @@ def type_status(m: MapDefinition, image: BinaryImage | None = None, conflicts=()
                                         'Datensatz ohne offene Vorzeichenfrage (Zellen nicht gelesen)'))
     # byte order
     if m.width > 1:
-        from .axis_records import ENDIAN_OPEN
+        from .axis_records import ENDIAN_OPEN, ENDIAN_OPEN_AXES
         other = 'little' if m.endian == 'big' else 'big'
-        if ENDIAN_OPEN in notes:
+        if ENDIAN_OPEN_AXES in notes:
+            props.append(PropertyStatus(BYTE_ORDER, m.endian, ALTERNATIVE, 'die Werte entscheiden es nicht', (other,),
+                                        'gegen die Mehrheit der Datensätze dieses Abbilds gelesen'))
+        elif ENDIAN_OPEN in notes:
             props.append(PropertyStatus(BYTE_ORDER, m.endian, ALTERNATIVE, 'keine Mehrheit entscheidet', (other,),
                                         'die Datensätze dieses Abbilds sind uneinig'))
         elif level == DATA_PATTERN:

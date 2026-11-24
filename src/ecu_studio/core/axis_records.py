@@ -433,6 +433,13 @@ DECISIVE_VOTES = False
 # notes; confidence.dtype_doubt shows it as "?" and the checklist lists it (1.21.0). No threshold
 # changes: only the existing "no decision" case becomes visible instead of silently kept.
 ENDIAN_KEEPS_OPEN = True
+# Quality phase 3 (1-D benchmark, development data): 16-bit axes of records outside the byte-order vote (flat
+# values bounded by the next header, chained rough records) kept the order they were first read in (big is tried
+# first) although the image majority is the other one and both readings rise. Every wrong byte order of an exact
+# 1-D hit came from such axes (MEVD17.2 414 of 414, MSD80 332 of 332), none was marked. Such axes now say that
+# the order is open ("?"); values, addresses and shapes stay as they are.
+ENDIAN_AXES_OPEN = True
+ENDIAN_OPEN_AXES = 'Byte-Reihenfolge nicht belegt (Achsen)'   # starts with ENDIAN_OPEN
 ENDIAN_OPEN = 'Byte-Reihenfolge nicht belegt'
 
 
@@ -514,6 +521,7 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
     found=[]
     rough=[]   # header + axes fine, values noisy: kept only inside a chain of records
     fixed={}   # id(record) -> (byte order its 16-bit counts or axes fix, record)
+    axis_order={}   # id(record) -> byte order its 16-bit axes were read in
     ambiguous=set()   # ids in fixed whose axes read as strictly monotone in both byte orders (no vote)
     own_count=set()   # ids whose own 16-bit counts fix their byte order (c and c*256 cannot both be counts)
     flat_other=[]   # flat values of another width than the axes: kept when the next header fixes it
@@ -564,6 +572,8 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         label_origin='Dimensionsheader + zwei monotone Rohachsen (ungeprüft)',
                                         notes=f'Layout-Hypothese: {count_width*8}-Bit nx/ny, {axes_note} ({order}); keine physikalische Skalierung.')
                                     if end+m.length>len(buf):continue
+                                    if wide:
+                                        axis_order[id(m)]=order
                                     ev,alias=value_evidence(m.rows,m.cols,m.dtype,m.endian,image.read(m.offset,m.length))
                                     axis_width=xw if xw==yw else 0     # flat values: width only from equal axes
                                     if ev['valid'] and not alias:
@@ -648,7 +658,30 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
         for m in out:
             if m.width>=2 and id(m) not in own_count and ENDIAN_OPEN not in m.notes:
                 m.notes+=f' {ENDIAN_OPEN}: die Datensätze dieses Abbilds sind uneinig ({order_open}), keine Mehrheit.'
+    if order and ENDIAN_AXES_OPEN:
+        for m in out:
+            read=axis_order.get(id(m))
+            if (read and read!=order and id(m) not in fixed and ENDIAN_OPEN not in m.notes
+                    and _axes_rise(image,m,order)):
+                m.notes+=(f' {ENDIAN_OPEN_AXES}: in {read} gelesen, die Mehrheit der Datensätze dieses Abbilds '
+                          f'ist {order}, und die Achsen steigen in beiden Lesarten.')
     return out
+
+
+def _axes_rise(image: BinaryImage, m: MapDefinition, order: str) -> bool:
+    """Both stored axes of a record are strictly monotone in ``order`` too (16-bit axes only)."""
+    if m.axis_x_offset is None or m.axis_y_offset is None:
+        return False
+    xw,yw=(m.axis_y_offset-m.axis_x_offset)//max(m.cols,1),(m.offset-m.axis_y_offset)//max(m.rows,1)
+    buf=image.read(m.axis_x_offset,m.cols*xw+m.rows*yw)
+    if 2 not in (xw,yw) or len(buf)<m.cols*xw+m.rows*yw:
+        return False
+    for kind in ('u','i'):
+        x=_axis_values(buf,0,m.cols,xw,order,kind)
+        y=_axis_values(buf,m.cols*xw,m.rows,yw,order,kind)
+        if _strict(x) and _strict(y):
+            return True
+    return False
 
 
 RECORD_AXIS_LAYOUT = 'candidate:record-axis'
@@ -676,12 +709,16 @@ def record_axes(image: BinaryImage, m: MapDefinition) -> list[MapDefinition]:
                     if x == list(m.axes_x) and y == list(m.axes_y):
                         def dtype(w):
                             return ('s' if kind == 'i' and w == 2 else 'u') + str(8 * w)
+                        # an open byte order of the record's axes stays open on the axis objects
+                        open_ = ''.join(' ' + s.strip() for s in m.notes.split('.') if ENDIAN_OPEN in s)
+                        open_ = (open_.strip() + '.') if open_ else ''
                         return [MapDefinition(f'Achse {label} von 0x{m.offset:08X}', off, 1, count, dtype(w), order,
                                               source='heuristic', confidence=.44, record_layout=RECORD_AXIS_LAYOUT,
                                               candidate_region_start=header,
                                               label_origin='Stützstellen eines Kopf-Datensatzes (ungeprüft)',
                                               label_evidence=f'{label}-Achse des Datensatzes @ 0x{header:X} mit Anzahl-Kopf.',
-                                              notes='Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.')
+                                              notes='Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.'
+                                              + (' ' + open_ if open_ and w == 2 else ''))
                                 for label, off, count, w in (('X', start, m.cols, xw), ('Y', start + m.cols * xw, m.rows, yw))]
     return []
 

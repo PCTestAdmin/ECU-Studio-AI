@@ -19,6 +19,13 @@ CURVE_AXIS_LAYOUT = 'candidate:record-axis'
 # After 1.21.0-rc1: curve values with a top bit set were read as s16 without evidence for the sign (the axis
 # rises in one reading; the values decide nothing). The unsigned reading stays open ("?"), as for records.
 CURVE_SIGN_OPEN = True
+# Quality phase 3 (1-D benchmark, development data): the 16-bit value width of a curve record is only fixed by
+# the structure when another record begins right behind the 16-bit values. Without it the values may as well be
+# 8 bit (Cur_Xs16Wu8): all wrong widths of exact curve hits were such curves (MEVD17.2 603 of 631, MSD80 877 of
+# 877), none marked. Their width stays open ("?"); values, address and shape are unchanged.
+CURVE_WIDTH_OPEN = True
+CURVE_WIDTH_NOTE = (' Wertebreite offen: auch eine 8-Bit-Tabelle gleicher Form ist möglich '
+                    '(kein Datensatzkopf direkt hinter den 16-Bit-Werten; ungeprüft).')
 MIN_POINTS, MAX_POINTS = 4, 32
 GAP = 2   # alignment padding between packed records
 DOMINANCE = 2.5    # 16-bit map records of one byte order must outnumber the other (EDC17CP09 4:1, ME9.2.1 3.2:1)
@@ -85,7 +92,8 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
             if values in axis_end and axis_end[values] in heads:
                 continue
             end = h + 2 + 4 * n
-            chained = any(end + g in heads for g in range(0, GAP + 1)) or any(h - g in ends for g in range(0, GAP + 1))
+            behind = any(end + g in heads for g in range(0, GAP + 1))
+            chained = behind or any(h - g in ends for g in range(0, GAP + 1))
             if not chained:
                 continue
             raw_w = np.frombuffer(data[values:values + 2 * n], ('<' if endian == 'little' else '>') + 'u2')
@@ -97,7 +105,8 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
                                      record_layout=CURVE_LAYOUT, axes_x=list(axis), axis_x_offset=h + 2,
                                      label_origin='Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)',
                                      label_evidence=f'{n} Stützstellen @ 0x{h + 2:X}, Werte @ 0x{values:X}.',
-                                     notes='Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.', **common))
+                                     notes='Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.'
+                                     + (CURVE_WIDTH_NOTE if CURVE_WIDTH_OPEN and not behind else ''), **common))
             out.append(MapDefinition(f'Achse von 0x{values:08X}', h + 2, 1, n, 's16' if signed else 'u16', endian,
                                      record_layout=CURVE_AXIS_LAYOUT,
                                      label_origin='Stützstellen eines Kennlinien-Datensatzes (ungeprüft)',

@@ -17,7 +17,7 @@
 
 # Roadmap
 
-Stand: 22.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 24.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
@@ -217,6 +217,21 @@ Zahlen: [Bericht § 7](docs/ENTWICKLUNG_NEXTGEN.md#7-qualitätsphase-2-22112026-
 | Test- und GUI-Stabilität | 🟠 | „QLabel already deleted“ behoben; drei vollständige Testläufe mit Exit-Code 0 |
 | Direktlade-Regel | 🟠 ❔ | Gegenbeispiele gemessen (0,09 % echter Tabellen mit Ladebefehl innen, kein heutiger Fund betroffen); Reihenfolgeabhängigkeit bei Gleichstand behoben |
 | Unabhängige Validierung, physikalische Umrechnung | 🔭 | wartet auf rechtmäßig nutzbare neue Daten |
+
+#### Stand nach Qualitätsphase 3 (24.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben; zusätzlich **📐 entwicklungsgeprüft** = an Entwicklungsdaten entworfen und an der anderen Linie
+gegengeprüft, nicht unabhängig validiert. Zahlen: [Bericht § 8](docs/ENTWICKLUNG_NEXTGEN.md#8-qualitätsphase-3-24112026-zuverlässige-funktionsidentifikation-und-achsenerkennung).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Funktionsidentifikation: Enthaltung | 🟠 📐 ❔ | „Funktion unbekannt“ mit Grund, zurückgehaltener Funktion und fehlendem Beleg; Speicherlage-Prüfung für Vorschläge mit nur einer Belegfamilie. MEVD17.2: falsche Namen −33 … −92 % bei nahezu gleicher Abdeckung; MSD80: Präzision höher in allen Aufteilungen, Abdeckung −10 … −22 % (Speicherblöcke −38 … −58 %) |
+| Gemeinsame Achsen | 🟠 ❔ | Modell Kennfeld → Achsenreferenz → Achsobjekt (gespeichert/fest/ungeklärt, Quelle, TriCore-Aliase, Widersprüche); 0 falsche Zusammenlegungen; MEVD17.2 weiter 0 von 1 466 gefunden (Nutzer werden nicht erkannt) |
+| Kennlinien und Achsen (1D): „?“ | 🟠 📐 ❔ | falsche Byte-Reihenfolge jetzt markiert (vorher nie), falsche Breite 1 448 von 1 533 markiert; Typen, Werte und Geometrie unverändert |
+| Prüfhilfen in der Oberfläche | 🟠 | Filter „Gemeinsame Achse“, „Achsenreferenz ungeklärt“, „Funktion unbekannt/vermutet“, „Widersprüchliche Funktionsbelege“; Achsen und Funktionsstatus in Detailansicht und Funktionsgraph |
+| Lokales Testverfahren | 🟠 | `tools/tester_report.py`: nur Zählwerte, Export erst nach Vorschau und inhaltsgebundener Zustimmung |
+| Datenfluss für Achsen | 📋 | keine neue Regel: hilft erst mit Adressrechnung für Laufzeitadressen |
+| Neue unabhängige Daten | 📋 | gezielte Suche 24.11.2026 ohne geeignete Paare (Herkunft/Rechte fehlen) |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

@@ -1,6 +1,6 @@
 # Nächste Generation der Kennfelderkennung – Entwicklungsbericht (nach 1.21.0-rc1)
 
-Stand: 22.11.2026 (Qualitätsphase 2: § 7). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
+Stand: 24.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
 **Nichts davon ist veröffentlicht.** Die Zahlen stammen aus privaten A2L-/HEX-Referenzdaten eines Datengebers
 (BMW-Linien, siehe [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) § 2). Die Daten bleiben lokal; öffentlich sind nur
 zusammengefasste Zahlen. Kein Modelltraining. Alle Regeln wurden nur an den Entwicklungsdaten (58 Abbilder)
@@ -446,3 +446,233 @@ Kindfenstern. Behoben: verzögerte Aufrufe mit Fenster als Kontext (Qt verwirft 
 noch existiert. Test reproduziert den Fehler mit dem alten Stand (4 Meldungen) und besteht mit dem neuen. Drei
 vollständige Testläufe: je Exit-Code 0, 0 Meldungen (1 328–1 329 bestanden, 22 übersprungen). Die bestehende
 Fensterbereinigung des Testlaufs bleibt.
+
+## 8. Qualitätsphase 3 (24.11.2026): Zuverlässige Funktionsidentifikation und Achsenerkennung
+
+Herkunft aller Zahlen: **Entwicklungsdaten** (58 Abbilder; Funktionsebene: die 28 Vollabbilder mit Programmcode,
+MEVD17.2 9, MSD80 19), drei Salze summiert, sofern nicht anders vermerkt. Jede Regel wurde an **einer** Linie
+entworfen und an der **anderen** gegengeprüft; beide Linien stehen getrennt da. Der bekannte Holdout dient nur als
+Regression (§ 8.6). Es gibt **keine neue unabhängige Testgruppe** (§ 8.8). Wahrscheinlichkeiten werden nicht
+angegeben, nur Zählungen.
+
+Einordnung: **PR #30** = Stand vor dieser Phase (Commit `fad6fd2`); **neu** = dieser Stand; **entwicklungsgeprüft**
+= an Entwicklungsdaten gemessen, nicht unabhängig validiert.
+
+### 8.1 Funktionsidentifikation: Enthaltung statt falscher Namen
+
+**Analyse (PR #30, Entwicklungsdaten):** Die meisten falschen Namen entstehen, wenn eine Tabelle nur **eine**
+Belegfamilie hat (fast immer: gemeinsame gespeicherte Achse) und der richtige Name unter den Ankern fehlt oder fern
+liegt. Bei MEVD17.2 mit 1 % Ankern gingen 579 von 591 falschen Namen allein auf die Achse zurück. Die
+Zuverlässigkeit einer Beziehungsart ist **linienabhängig**: Unter Ankerpaaren nennt eine gemeinsame Achse bei
+MEVD17.2 nur in 47–62 % dieselbe Funktion, bei MSD80 in rund 90 %.
+
+**Regel (umgesetzt, `LOCAL_CHECK = 'single'`):** Beruht ein Funktionsvorschlag auf nur einer Belegfamilie (wäre
+„Vermutet“), muss die Funktion unter den je zwei nächstgelegenen Ankern links und rechts (nach Adresse) vorkommen.
+Sonst bleibt die Tabelle „Funktion unbekannt“; die zurückgehaltene Funktion steht mit Grund („Speicherlage spricht
+dagegen“) und fehlendem Beleg in der Detailansicht. Vorschläge aus zwei unabhängigen Belegfamilien („Stark gestützt“)
+prüft die Regel nicht. Grundlage: Die Kalibrierung ist nach Softwaremodulen abgelegt; ein ferner Name ohne zweiten
+Beleg ist eher eine gemeinsame Größe als eine gemeinsame Funktion.
+
+**Weitere Regeln:** Eine Achse, deren Nutzer sich über die Punktzahl uneinig sind, stimmt nicht ab und wird als
+Widerspruch genannt. Ein übernommener Name wird nie „bestätigt“; widersprechen Name und Beziehungen, bleibt die
+Funktion unbekannt. Hypothesen dienen nie als Anker (keine Ketten).
+
+**Geprüft und nicht übernommen (Schalter bleiben für Ablationen):**
+
+| Variante | Ergebnis (Entwicklungsdaten) |
+|---|---|
+| gemeinsame Quelle (Achse, Routine, Ergebnisvariable) stimmt erst ab 10 % übereinstimmender Anker (`HUB_MIN_SHARE`) | an MEVD17.2 entworfen; an MSD80 schädlich: 1 % Anker 14 373 → 617 richtige Namen |
+| Selbstprüfung je Beziehungsart an den Ankern derselben Datei (`SELF_CHECK`) | nahezu wirkungslos; wo sie greift, kostet sie mehr richtige als falsche Namen (MEVD17.2, 10 % Anker, ein Salz: −906 richtig, −34 falsch) |
+| Speicherlage-Prüfung für jeden Vorschlag (`LOCAL_CHECK = True`) | gleiche falsche Namen wie die umgesetzte Regel, auf MSD80 weniger richtige |
+
+**Präzision-Abdeckung (Entwicklungsdaten, drei Salze summiert; richtig / falsch, Präzision = richtig unter benannten).**
+Abdeckung = richtig unter allen auswertbaren verdeckten Tabellen (*n*); viele haben gar keine Beziehung zu einem Anker.
+
+| Aufteilung | MEVD17.2 *n* | MEVD17.2 PR #30 | MEVD17.2 neu | MSD80 *n* | MSD80 PR #30 | MSD80 neu |
+|---|---:|---:|---:|---:|---:|---:|
+| Anker 50 % | 319 862 | 74 306 / 170 (99,8 %) | 74 306 / 92 (99,9 %) | 345 437 | 82 366 / 2 953 (96,5 %) | 73 938 / 2 486 (96,7 %) |
+| Anker 25 % | 480 168 | 32 607 / 320 (99,0 %) | 32 607 / 79 (99,8 %) | 517 371 | 74 252 / 2 618 (96,6 %) | 63 851 / 1 641 (97,5 %) |
+| Anker 10 % | 576 002 | 10 482 / 983 (91,4 %) | 10 474 / 288 (97,3 %) | 620 573 | 62 863 / 2 370 (96,4 %) | 52 101 / 1 143 (97,9 %) |
+| Anker 5 % | 608 214 | 4 987 / 1 232 (80,2 %) | 4 985 / 494 (91,0 %) | 654 822 | 56 321 / 1 681 (97,1 %) | 45 404 / 969 (97,9 %) |
+| Anker 1 % | 633 539 | 991 / 591 (62,6 %) | 991 / 393 (71,6 %) | 682 329 | 46 407 / 447 (99,0 %) | 35 987 / 339 (99,1 %) |
+| Speicherblöcke 50 % (räumlich getrennt) | 335 385 | 847 / 506 (62,6 %) | 812 / 127 (86,5 %) | 390 707 | 24 083 / 1 195 (95,3 %) | 14 813 / 152 (99,0 %) |
+| Speicherblöcke 10 % | 577 507 | 355 / 331 (51,7 %) | 351 / 28 (92,6 %) | 612 124 | 5 941 / 692 (89,6 %) | 2 486 / 14 (99,4 %) |
+| ganze Funktionen 50 % (verdeckt) | 265 996 | 0 / 779 | 0 / 497 | 365 444 | 0 / 7 857 | 0 / 5 713 |
+
+- **„Stark gestützt“ und falsch:** unverändert (MEVD17.2 0; MSD80 29 / 7 / 3 / 3 / 0 bei 50 / 25 / 10 / 5 / 1 %, 20 bei
+  verdeckten Funktionen) – die Regel betrifft nur „Vermutet“. **„Vermutet“ und falsch:** MEVD17.2 10 % 983 → 288,
+  MSD80 10 % 2 367 → 1 140.
+- **Korrekt zurückgehalten** (Funktion unter den Ankern nicht vorhanden, Tabelle blieb unbekannt): steigt leicht, z. B.
+  verdeckte Funktionen MSD80 357 587 → 359 731 von 365 444.
+- **Abdeckungsverlust:** MEVD17.2 praktisch keiner (höchstens 35 richtige Namen je Aufteilung); MSD80 10 % (Anker
+  50 %) bis 22 % (Anker 1 %) der richtigen Namen bei Tabellenaufteilungen, 38–58 % bei Speicherblöcken. Auf MSD80 stützen ferne Achsen häufiger die richtige Funktion
+  als auf MEVD17.2; die Regel kann das nicht unterscheiden.
+- **Andere Softwarestände und fremde Familien** (Namensübertragung, unverändert gegenüber PR #30): gleiche Linie
+  25 653 richtig / 26 falsch von 25 743 übertragenen Namen; fremde Familie 0 Übertragungen. Übertragene Namen sind
+  nie Anker und nie „bestätigt“.
+- **Völlig unbekannte Funktionen:** Bei 0 % Ankern wird nichts benannt (0 falsch). Bei verdeckten Funktionen ist jeder
+  Name falsch; die Regel senkt sie um 36 % (MEVD17.2) bzw. 27 % (MSD80), beseitigt sie aber nicht.
+
+**Hauptgründe für „Funktion unbekannt“:** keine Beziehung zu einem Kennfeld mit bekannter Funktion;
+Speicherlage spricht gegen den einzigen Beleg; Belege führen zu verschiedenen Funktionen; Achse mit uneinigen Nutzern;
+nur „gleiche Eingangsgröße“ oder „Ergebnis fließt in die andere Tabelle“ (stimmen nicht ab).
+
+### 8.2 Gemeinsame Achsen
+
+**Modell (neu, `core/axis_refs.py`):** Kennfeld → Achsenreferenz → gespeichertes Achsenobjekt. Jede Achse mit mehr als
+einem Punkt hat eine Referenz mit Status **gespeichert** (Adresse belegt durch Definition, Programmcode oder eigenen
+Datensatzkopf), **fest** (Definition nennt Punkte ohne Adresse, z. B. A2L `FIX_AXIS`) oder **ungeklärt** (keine Quelle
+nennt die Adresse; sie wird nicht aus Werten geraten). Gemeinsam heißt: **gleiche Speicheradresse**. Gleiche Werte an
+verschiedenen Adressen bleiben zwei Objekte. TriCore-Adressen derselben Bytes (gecacht 0x8…/ungecacht 0xA…) werden als
+Aliase eines Objekts geführt. Widersprüche je Objekt: verschiedene Punktzahlen, verschiedene Achsnamen,
+verschiedene Zelltypen in Definitionen, Achse im Wertebereich eines Nutzers. Ein widersprüchliches Objekt ist kein
+Funktionsbeleg. A2L `AXIS_DESCR`/`AXIS_PTS`/`COM_AXIS`/`FIX_AXIS`/`RECORD_LAYOUT` werden wie bisher beim Verknüpfen
+gelesen; `axis_refs` ordnet sie nur ein. Aliasing (gleiche Achse unter zwei A2L-Adressen) kam in den Daten nicht vor.
+
+**Messung (Entwicklungsdaten; rc1, PR #30 und neu identisch):**
+
+| | MEVD17.2 | MSD80 |
+|---|---:|---:|
+| gemeinsame Referenzachsen (≥ 2 Nutzer) | 1 466 | 12 994 |
+| gefunden (≥ 2 Funde nutzen sie) / nur ein Fund / verfehlt | 0 / 94 / 1 372 | 2 238 / 338 / 10 418 |
+| falsch zusammengelegte Achsen / falsch zugeordnete Kennfelder | 0 / 0 | 0 / 0 |
+| Achsadresse der Funde richtig / falsch | 31 302 / 36 | 54 388 / 203 |
+| Achsadresse nicht prüfbar (keine Referenztabelle an der Stelle) | 2 439 | 1 153 |
+| feste Achsen (nicht gespeichert, nicht auswertbar) | 362 | 0 |
+| Achs-Zelltyp | nicht auswertbar (nicht im Export) | nicht auswertbar |
+
+**Ursachen:** Verfehlt werden gemeinsame Achsen, weil ihre **Nutzer** nicht gefunden werden, nicht weil Achsen falsch
+verbunden würden (0 falsche Zusammenlegungen). MEVD17.2: Die Nutzer gemeinsamer Achsen werden im Programmcode kaum
+statisch adressiert – Ghidra fand für 1 252 gesuchte Adressen (beide Segmente) nur 29 statische Verweise; die
+Adressen entstehen zur Laufzeit. MSD80: 1 162 Tabellenaufrufe haben zwei oder mehr Achsen-Vorabsuchen auf demselben
+Pfad, ergeben aber keinen verwertbaren Achsdeskriptor (leere, doppelte oder nicht als Achse lesbare Vorabsuchen).
+**Nicht umgesetzt:** Achsen über gleiche Werte zusammenlegen (verboten, kein Speicherbeleg).
+
+### 8.3 Datenfluss (TriCore)
+
+Keine neue Datenflussregel. Für Achsen hilft der begrenzte Datenfluss nicht: Bei MEVD17.2 fehlt die statische
+Adresse der Nutzer (siehe 8.2), bei MSD80 scheitern die Vorabsuchen vor der Datenflussstufe. Eine Erweiterung lohnt
+erst mit einer Adressrechnung über Basisregister und Indizes (Laufzeitadressen); das ist nicht begonnen.
+Laufzeit und Speicher der Funktionsebene: `identify()` auf allen Referenzobjekten eines Vollabbilds (10 000–20 000
+Tabellen, unter Parallellast gemessen) PR #30 0,5 / 3,1 / 5,9 s, neu 0,6 / 3,5 / 6,2 s; Spitzenspeicher unverändert
+(29 / 152 / 210 MB).
+
+### 8.4 Technische Gruppe, Hypothese, bestätigte Funktion; Oberfläche
+
+Getrennt dargestellt: technische Gruppe („Unbekannte Funktionsgruppe N“, nur Struktur/Programmcode), Hypothese
+(„Vermutet“, „Stark gestützt“ – immer „nicht bestätigt“) und bestätigte Funktion (eigene geprüfte Definition).
+
+- **Detailansicht:** Achsen mit Status, Adresse, Punktzahl und Quelle; gemeinsame Achse mit den anderen Nutzern;
+  Widersprüche des Achsobjekts; Funktionsstatus mit Belegen, „Funktion unbekannt“ mit Grund, zurückgehaltene
+  Funktionen, Widersprüche, fehlender Beleg.
+- **Funktionsgraph:** Abschnitt „Achsenreferenzen: N gespeichert · N fest · N ungeklärt“ mit widersprüchlichen
+  Achsobjekten und ungeklärten Referenzen; Abschnitte „Widersprüchlich (Funktion unbekannt)“ und „Zurückgehalten
+  (Funktion unbekannt, Belege reichen nicht)“; jeder nicht bestätigte Name trägt „(Status, nicht bestätigt)“.
+- **Filter** (in der bestehenden Belegauswahl, kein Umbau): „Gemeinsame Achse“, „Achsenreferenz ungeklärt“,
+  „Funktion unbekannt“, „Funktion vermutet“, „Widersprüchliche Funktionsbelege“.
+
+### 8.5 Kennlinien und Achsen (1D): „?“ statt falscher Sicherheit
+
+Ausgewertet wird jetzt auch, ob ein falscher Typ mit „?“ markiert war. Unterschieden: **technisch falscher Typ**
+(Breite, Vorzeichen, Byte-Reihenfolge widersprechen der Definition), **falsche sichtbare Rohinterpretation** und
+**nicht bestimmbarer Typ** (beide Lesarten ergeben dieselben Zahlen: „nicht auswertbar“, z. B. Vorzeichen ohne
+gesetztes oberstes Bit; MEVD17.2 20 367, MSD80 32 893 exakte Funde mit technisch anderem, aber wertgleichem Typ).
+
+**Befund (PR #30):** Falsche Vorzeichen waren fast immer markiert, falsche Byte-Reihenfolge und falsche Breite **nie**.
+Ursachen: (a) Die 16-Bit-Achsen von Datensätzen außerhalb der Byte-Reihenfolge-Abstimmung (flache Werte, die am
+nächsten Kopf enden) behielten die zuerst probierte Lesart (big), obwohl die Mehrheit des Abbilds little ist und beide
+Lesarten steigen – alle falschen Byte-Reihenfolgen exakter 1D-Funde (MEVD17.2 414, MSD80 332). (b) Die Werte einer
+Kennlinie `n, X[n], W[n]` wurden als 16 Bit gelesen, auch wenn kein Datensatz direkt dahinter beginnt; dann sind
+8-Bit-Werte gleich möglich – 603 von 631 bzw. 877 von 877 falschen Breiten (an MEVD17.2 entworfen, an MSD80 geprüft).
+
+**Regeln (umgesetzt, nur Markierung, keine Typänderung):** (a) `ENDIAN_AXES_OPEN`: solche Achsen tragen „Byte-
+Reihenfolge nicht belegt (gegen die Mehrheit der Datensätze gelesen, beide Lesarten steigen)“. (b) `CURVE_WIDTH_OPEN`:
+Kennlinienwerte ohne Datensatzkopf direkt hinter den 16-Bit-Werten tragen „Wertebreite offen“. Werte, Adressen,
+Formen, Typen und Achsen aller Funde sind in allen 58 Entwicklungsabbildern unverändert.
+
+| exakte 1D-Funde, falsch und mit „?“ markiert | rc1 | PR #30 | neu |
+|---|---:|---:|---:|
+| Vorzeichen falsch: markiert / unmarkiert – MEVD17.2 | 0 / 1 219 | 1 210 / 9 | 1 210 / 9 |
+| Vorzeichen falsch: markiert / unmarkiert – MSD80 | 0 / 2 382 | 2 334 / 48 | 2 334 / 48 |
+| Byte-Reihenfolge falsch: markiert / unmarkiert – MEVD17.2 | 0 / 414 | 0 / 414 | 414 / 0 |
+| Byte-Reihenfolge falsch: markiert / unmarkiert – MSD80 | 0 / 332 | 0 / 332 | 332 / 0 |
+| Breite falsch: markiert / unmarkiert – MEVD17.2 | 0 / 623 | 0 / 623 | 573 / 50 |
+| Breite falsch: markiert / unmarkiert – MSD80 | 0 / 910 | 0 / 910 | 875 / 35 |
+| exakte 1D-Funde mit irgendeinem „?“ – MEVD17.2 / MSD80 | 0 / 16 | 2 123 / 3 089 | 3 555 / 4 073 |
+
+Preis: Auch richtige Lesarten erhalten ein „?“, wo die Werte es nicht entscheiden (z. B. 1 682 bzw. 962 richtige
+16-Bit-Kennlinien ohne Kopf dahinter). Ein „?“ ist eine offene Frage, kein Fehler. **Gemessen, nicht umgesetzt:**
+Beginnt direkt hinter 8-Bit-Werten ein Datensatz (und nicht hinter 16-Bit-Werten), waren 16 Bit in allen Fällen falsch
+(MEVD17.2 160, MSD80 281, 0 richtig); ein Umstellen auf 8 Bit wäre eine Typänderung und bleibt für die nächste Runde.
+
+### 8.6 Erkennung: Vergleich rc1 / PR #30 / neu
+
+Entwicklungsdaten (58 Abbilder) und Holdout (105 Abbilder, nur Regression):
+
+| | rc1 | PR #30 | neu |
+|---|---:|---:|---:|
+| Entwicklung: exakt (von 52 508) | 32 058 | 32 058 | 32 058 |
+| Entwicklung: Verwechslungen | 5 316 | 5 113 | 5 113 |
+| Entwicklung: teilweise / unklar / nicht bewertbar | 2 197 / 305 / 1 743 | 2 196 / 305 / 1 658 | 2 196 / 305 / 1 658 |
+| Entwicklung: Datentyp richtig unter exakten | 95,8 % | 95,8 % | 95,8 % |
+| Holdout: exakt (von 91 370) / Verwechslungen | 52 701 / 10 743 | 52 701 / 10 541 | 52 701 / 10 541 |
+| 1D exakt (Entwicklung) MEVD17.2 / MSD80 | 39 798 / 63 175 | 39 798 / 63 175 | 39 798 / 63 175 |
+| Codebeziehungen, Funktionsgruppen | – | wie § 7 | unverändert (kein Code geändert) |
+
+Alle Funde (Lage, Form, Typ, Byte-Reihenfolge, Achsadressen und -werte) sind zwischen PR #30 und neu in allen 58
+Entwicklungs- und 105 Holdout-Abbildern identisch; geändert haben sich nur die „?“-Markierungen. 0 exakte Kennfelder
+verloren. Holdout, nur Regression: falsche Byte-Reihenfolgen exakter 1D-Funde jetzt zu 92 % markiert (3 930 von 4 268),
+falsche Breiten zu 90 % (1 735 von 1 934); 0 falsche Achsenzusammenlegungen. Die Markierungszahl von PR #30 auf dem
+Holdout wurde nicht gemessen (älterer Export ohne Markierung).
+
+Laufzeit und Speicher (Vollabbilder, je Version 3 Zeitläufe und 2 Speicherläufe abwechselnd, ohne Fremdlast,
+24.11.2026):
+
+| Abbild | rc1 Median (min–max) | PR #30 | neu | Spitzenspeicher rc1 / PR #30 / neu |
+|---|---:|---:|---:|---:|
+| MSD80-N53/N54 | 13,72 s (13,61–14,03) | 14,34 s (14,07–14,76) | 14,01 s (13,83–14,08) | 87,2 / 87,2 / 87,2 MB |
+| MSV90-N52 | 14,63 s (14,47–14,77) | 14,64 s (14,45–14,69) | 14,64 s (14,46–14,98) | 86,3 / 86,3 / 86,3 MB |
+
+Die Unterschiede liegen in der Streuung; ein Rechner, ein Tag, zwei Abbilder.
+
+### 8.7 Lokales Testverfahren für Tester (`tools/tester_report.py`)
+
+Für neue Daten ohne Datenweitergabe: Ein Tester misst lokal mit eigener Datei und eigener Definition (Erkennung,
+Achsenreferenzen, Funktionsidentifikation unter Ankeraufteilungen). Das Werkzeug zeigt zuerst den **vollständigen**
+Export als Vorschau und schreibt nichts. Gespeichert wird nur mit einem Zustimmungscode, der an genau diesen Inhalt
+gebunden ist (geänderter Inhalt → neue Vorschau). Der Export enthält nur Zählwerte, Programmversion und die vom Tester
+eingetragene Linie – keine Namen, Adressen, Dateinamen, Größen, Hashes, Pfade oder Zeitstempel; eine Prüfung weist
+Felder dieser Art und alle Listen zurück. Nichts wird gesendet; die Weitergabe entscheidet der Tester.
+
+### 8.8 Neue Daten
+
+Gezielte Suche (24.11.2026, andere Begriffe als zuvor: Forschungsdatensätze, Demo-Steuergeräte, offene
+Steuergeräte-Projekte; keine privaten Daten übertragen): Gefunden wurden eine Sammlung von Original-Abbildern mit
+A2L-/XDF-Definitionen ohne Herkunfts- oder Rechteangabe (eine MIT-Lizenzangabe des Sammlers ersetzt kein
+Nutzungsrecht an Herstellersoftware) und ein Forschungsprojekt mit einem Getriebesteuergeräte-Abbild ohne
+Rechteangabe und nur synthetischer A2L. **Beide ungeeignet, nichts heruntergeladen.** Offene Projekte (rusEFI/FOME)
+liefern keine A2L/HEX-Paare. Die Lücke bleibt; das Testverfahren in § 8.7 ist der Weg zu neuen Messwerten.
+
+### 8.9 Softwarequalität
+
+| Prüfung | Ergebnis (24.11.2026) |
+|---|---|
+| pytest vollständig, lokal Python 3.13, je Lauf eigenes isoliertes Testprofil | Endstand: 2 Läufe je 1 353 bestanden, 22 übersprungen, Exit-Code 0, 0 Qt-Meldungen „QLabel already deleted“. Zwei frühere Läufe ebenfalls grün, aber nicht gewertet: einer vor dem letzten neuen Test (1 352), bei einem wurde während des Laufs Quelltext geändert. |
+| übersprungene Tests (22) | 15 benötigen private, nie gebündelte Daten (lokale Referenz-Originale 9, eigene Abbilder/Proben 3, private Abbilder 3); 2 optionale Vergleichsdateien (eine lokale, eine öffentliche) nicht eingerichtet; 2 starten die echte Anwendung bzw. messen Zeiten nur mit `ECU_STUDIO_GUI_TESTS=1`; 2 schreiben Wegwerf-Registry-Schlüssel und laufen nur auf CI-Runnern; 1 braucht das Recht für symbolische Links |
+| CI (Python 3.11 / 3.12), CodeQL | nach dem Push im PR #30 (Ergebnis dort) |
+| GUI-Smoke (isoliertes Profil, ohne Bildschirm) | bestanden, 10 Prüfungen, 0 QLabel-Meldungen |
+| i18n | 2 400 Texte, 0 ohne Übersetzung |
+| Firmware-Guard, Modellsperre, zurückgezogene Modelle | Guard über Commit-/Push-Hooks, nicht umgangen; Modellsperre und zurückgezogene Modelle in der Testsuite grün |
+| Negativkontrollen (FOME, rusEFI, Speeduino) | 549 Funde, 0 sicher falsch; identisch mit PR #30 |
+| Regressionsgruppe (MS42/MS43/MSD80-XDF, synthetische Strukturen und Negativabbilder) | identisch mit PR #30 |
+| Registry | nur gelesen; Export vor und nach den Prüfungen verglichen, keine Wiederherstellung |
+| geschützte Arbeitskopie, Releases, Tags | unverändert |
+
+### 8.10 Grenzen
+
+- Alle Zahlen stammen aus zwei Linien eines Datengebers (MEVD17.2, MSD80, TriCore); andere Familien sind nicht gemessen.
+- Die Speicherlage-Regel setzt modulweise abgelegte Kalibrierung voraus; wo das nicht gilt, kostet sie Abdeckung.
+- Bei sehr wenigen Ankern (1 %) bleibt MEVD17.2 schwach (71,6 % Präzision); MSD80 verliert dort am meisten
+  Abdeckung (22 % der richtigen Namen).
+- Verdeckte Funktionen bleiben die schwerste Lage: Jeder Name ist dort falsch.
+- Gemeinsame Achsen bei MEVD17.2 werden weiter nicht gefunden; die Ursache liegt in der Erkennung der Nutzer.

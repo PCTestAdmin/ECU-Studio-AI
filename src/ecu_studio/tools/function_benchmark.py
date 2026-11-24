@@ -17,7 +17,9 @@ Splits (deterministic: a keyed hash, no random state):
               measures how often the layer names a function where it should say "Unbekannt".
 
 Counts (always with the number of evaluable tables): correct, wrong, unknown; per status and per
-evidence kind; ``reachable`` = hidden tables whose function occurs among the anchors at all.
+evidence kind; ``reachable`` = hidden tables whose function occurs among the anchors at all;
+``withheld`` = unreachable tables left "Unbekannt" (the right answer: their function is no anchor's).
+``precision`` = correct among named tables, ``coverage`` = correct among evaluable tables.
 """
 from __future__ import annotations
 
@@ -76,19 +78,30 @@ class Score:
     correct: int = 0
     wrong: int = 0
     unknown: int = 0
+    withheld: int = 0       # unreachable hidden tables that stayed "Unbekannt"
     by_status: Counter = dataclasses.field(default_factory=Counter)        # (status, 'correct'|'wrong'|'unknown')
     by_kind: Counter = dataclasses.field(default_factory=Counter)          # (kinds, 'correct'|'wrong')
     contradictions: int = 0
 
     def add(self, other: 'Score') -> None:
-        for f in ('evaluable', 'reachable', 'anchors', 'correct', 'wrong', 'unknown', 'contradictions'):
+        for f in ('evaluable', 'reachable', 'anchors', 'correct', 'wrong', 'unknown', 'withheld', 'contradictions'):
             setattr(self, f, getattr(self, f) + getattr(other, f))
         self.by_status.update(other.by_status)
         self.by_kind.update(other.by_kind)
 
+    @property
+    def precision(self) -> float | None:
+        named = self.correct + self.wrong
+        return round(self.correct / named, 4) if named else None
+
+    @property
+    def coverage(self) -> float | None:
+        return round(self.correct / self.evaluable, 4) if self.evaluable else None
+
     def as_dict(self) -> dict:
         out = {f: getattr(self, f) for f in ('evaluable', 'reachable', 'anchors', 'correct', 'wrong', 'unknown',
-                                              'contradictions')}
+                                              'withheld', 'contradictions')}
+        out['precision'], out['coverage'] = self.precision, self.coverage
         out['by_status'] = {f'{s}/{r}': n for (s, r), n in sorted(self.by_status.items())}
         out['by_kind'] = {f'{k}/{r}': n for (k, r), n in sorted(self.by_kind.items())}
         return out
@@ -109,10 +122,12 @@ def score(maps: list[MapDefinition], anchors: set[int], rels: list[F.Relation] |
         if i in anchors or not truth[i]:
             continue
         out.evaluable += 1
-        out.reachable += bool(truth[i] & anchor_functions)
+        reachable = bool(truth[i] & anchor_functions)
+        out.reachable += reachable
         out.contradictions += bool(h.contradictions)
         if not h.function:
             out.unknown += 1
+            out.withheld += not reachable
             out.by_status[h.status, 'unknown'] += 1
             continue
         verdict = 'correct' if h.function in truth[i] else 'wrong'

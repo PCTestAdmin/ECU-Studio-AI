@@ -121,3 +121,149 @@ def test_a2l_function_membership_is_read_from_def_characteristic():
     by = {m.name: m for m in res.maps}
     assert by['K1'].function == 'FN_LAMBDA' and by['K1'].function_source.startswith('A2L FUNCTION')
     assert by['K2'].function == ''        # only read by the function (REF), not defined by it
+
+
+# ---- abstention (quality phase 3): unknown is better than a wrong function ------------------------------
+
+def _hub(a, b, kind=AXIS, hub=('axis', 0x9000)):
+    return Relation(a, b, kind, 'Achse bei 0x9000', hub=hub)
+
+
+def test_rejected_hub_rule_stays_available_as_ablation(monkeypatch):
+    """Ablation switch (off by default, rejected on development data): one anchor among thirty users of a
+    shared axis is then no evidence for the other twenty-nine."""
+    import ecu_studio.core.function_id as F
+    monkeypatch.setattr(F, 'HUB_MIN_SHARE', .1)
+    maps = [table('A', 0, 'FN_A', verified=True)] + [table(f'x{k}', 0x100 * (k + 1), source='heuristic')
+                                                      for k in range(30)]
+    users = range(len(maps))
+    rels = [_hub(a, b) for a in users for b in users if a < b]
+    h = identify(maps, rels)
+    assert all(x.function == '' and x.status == UNKNOWN for x in h[1:])
+    assert any('nur 1 von 30' in c for c in h[1].candidates)
+    assert 'Funktion unbekannt' in h[1].describe()
+
+
+def test_a_shared_source_votes_when_enough_of_its_users_are_anchors():
+    maps = [table('A1', 0, 'FN_A', verified=True), table('A2', 0x100, 'FN_A', verified=True),
+            table('x', 0x200, source='heuristic')]
+    rels = [_hub(0, 1), _hub(0, 2), _hub(1, 2)]
+    h = identify(maps, rels)[2]
+    assert (h.function, h.status) == ('FN_A', SUSPECTED)
+    assert h.missing and 'Programmcode' in h.missing[0]
+
+
+def test_a_function_missing_among_the_nearest_anchors_is_held_back():
+    """The calibration is laid out by module: an axis to a far table of FN_A while the tables around
+    belong to FN_B and FN_C names nothing (the hidden table's true function may not be among the anchors)."""
+    far = table('A', 0x100000, 'FN_A', verified=True)
+    around = [table('B1', 0x1000, 'FN_B', verified=True), table('B2', 0x1100, 'FN_B', verified=True),
+              table('C1', 0x1300, 'FN_C', verified=True), table('C2', 0x1400, 'FN_C', verified=True)]
+    x = table('x', 0x1200, source='heuristic')
+    maps = [far, *around, x]
+    h = identify(maps, [Relation(0, 5, AXIS)])[5]
+    assert (h.function, h.status) == ('', UNKNOWN)
+    assert 'Speicherlage' in h.reasons[0] and h.candidates and h.evidence
+    near = table('A2', 0x1250, 'FN_A', verified=True)
+    h2 = identify(maps + [near], [Relation(0, 5, AXIS)])[5]
+    assert (h2.function, h2.status) == ('FN_A', SUSPECTED)
+
+
+def test_an_axis_whose_users_disagree_on_its_length_does_not_vote():
+    a = table('A', 0x100, 'FN_A', verified=True, axis_x_offset=0x900)
+    b = MapDefinition(name='x', offset=0x200, rows=4, cols=8, dtype='u8', source='heuristic', axis_x_offset=0x900)
+    rels = relations([a, b])
+    axis = [r for r in rels if r.kind == AXIS]
+    assert axis and 'uneinig' in axis[0].doubt
+    h = identify([a, b], rels)[1]
+    assert h.function == '' and any('uneinig' in c for c in h.contradictions)
+
+
+def test_identify_does_not_depend_on_the_order_of_the_tables():
+    maps = [table('A', 0, 'FN_A', verified=True), table('x', 0x100, source='heuristic'),
+            table('B', 0x200, 'FN_B', verified=True), table('y', 0x300, source='heuristic'),
+            table('A2', 0x400, 'FN_A', verified=True)]
+    rels = [Relation(0, 1, AXIS), Relation(3, 4, AXIS), Relation(2, 3, AXIS)]
+    first = {maps[h.index].name: (h.function, h.status) for h in identify(maps, rels)}
+    perm = [4, 3, 2, 1, 0]
+    where = {old: new for new, old in enumerate(perm)}
+    moved = [Relation(min(where[r.a], where[r.b]), max(where[r.a], where[r.b]), r.kind) for r in rels]
+    second = {m.name: (h.function, h.status) for m, h in zip([maps[k] for k in perm],
+                                                             identify([maps[k] for k in perm], moved))}
+    assert first == second
+
+
+# ---- self-check of relation kinds on the anchors of the same file (ablation switch, off by default) -----
+
+def _row(n, function_of, start=0):
+    """n tables in a row, 0x100 apart; function_of(k) -> function ('' = heuristic table without one)."""
+    return [table(f't{k}', start + 0x100 * k, function_of(k), verified=bool(function_of(k)),
+                  source='a2l' if function_of(k) else 'heuristic') for k in range(n)]
+
+
+def test_a_kind_that_disagrees_with_the_anchors_of_the_file_does_not_vote(monkeypatch):
+    """Shared axes that link tables of different functions in this file are no function evidence here."""
+    import ecu_studio.core.function_id as F
+    monkeypatch.setattr(F, 'SELF_CHECK', True)
+    maps = _row(24, lambda k: f'FN_{k % 2}' if k < 23 else '')
+    rels = [Relation(k, k + 1, AXIS) for k in range(22)] + [Relation(22, 23, AXIS)]
+    agree, checks = F.reliability(maps, rels)[AXIS]
+    assert checks >= F.MIN_CHECKS and agree < F.RELIABLE_SHARE * checks
+    h = identify(maps, rels)[23]
+    assert (h.function, h.status) == ('', UNKNOWN)
+    assert any('unzuverlässig' in c and f'von {checks}' in c for c in h.candidates)
+
+
+def test_a_kind_that_agrees_with_the_anchors_of_the_file_votes():
+    import ecu_studio.core.function_id as F
+    maps = _row(24, lambda k: 'FN_A' if k < 23 else '')
+    rels = [Relation(k, k + 1, AXIS) for k in range(23)]
+    agree, checks = F.reliability(maps, rels)[AXIS]
+    assert checks >= F.MIN_CHECKS and agree == checks
+    h = identify(maps, rels)[23]
+    assert (h.function, h.status) == ('FN_A', SUSPECTED)
+
+
+def test_an_untested_kind_follows_the_policy(monkeypatch):
+    """Too few anchors to check a kind: 'none' holds it back, 'local' asks the memory layout, 'vote' votes."""
+    import ecu_studio.core.function_id as F
+    monkeypatch.setattr(F, 'SELF_CHECK', True)
+    far = table('A', 0x100000, 'FN_A', verified=True)
+    around = [table('B1', 0x1000, 'FN_B', verified=True), table('B2', 0x1100, 'FN_B', verified=True),
+              table('C1', 0x1300, 'FN_C', verified=True), table('C2', 0x1400, 'FN_C', verified=True)]
+    x = table('x', 0x1200, source='heuristic')
+    maps, rels = [far, *around, x], [Relation(0, 5, AXIS)]
+    assert F.reliability(maps, rels)[AXIS] == (0, 0)
+    monkeypatch.setattr(F, 'LOCAL_CHECK', False)
+    expect = {'none': '', 'local': '', 'vote': 'FN_A'}
+    for policy, function in expect.items():
+        monkeypatch.setattr(F, 'UNTESTED', policy)
+        h = identify(maps, rels)[5]
+        assert h.function == function, policy
+        if policy == 'none':
+            assert any('nicht prüfbar' in c for c in h.candidates)
+    monkeypatch.setattr(F, 'UNTESTED', 'local')
+    near = table('A2', 0x1250, 'FN_A', verified=True)
+    assert identify(maps + [near], rels)[5].function == 'FN_A'
+
+
+def test_self_check_uses_only_the_files_own_definitions():
+    """A transferred (unchecked) name is no anchor and does not count as a check."""
+    import ecu_studio.core.function_id as F
+    maps = [table('A', 0, 'FN_A', verified=True),
+            table('B', 0x100, 'FN_A', source='transfer', label_origin='Namensübertragung (Referenz)')]
+    assert F.reliability(maps, [Relation(0, 1, AXIS)])[AXIS] == (0, 0)
+
+
+def test_layout_check_by_default_only_for_one_evidence_family():
+    """Default ('single'): a far function resting on one family is held back by the memory layout; with two
+    independent families (shared axis and program code) it is "Stark gestützt" without the layout check."""
+    import ecu_studio.core.function_id as F
+    assert F.LOCAL_CHECK == 'single' and not F.SELF_CHECK
+    far = table('A', 0x100000, 'FN_A', verified=True)
+    around = [table('B1', 0x1000, 'FN_B', verified=True), table('B2', 0x1100, 'FN_B', verified=True),
+              table('C1', 0x1300, 'FN_C', verified=True), table('C2', 0x1400, 'FN_C', verified=True)]
+    maps = [far, *around, table('x', 0x1200, source='heuristic')]
+    assert identify(maps, [Relation(0, 5, AXIS)])[5].function == ''
+    h = identify(maps, [Relation(0, 5, AXIS), Relation(0, 5, ROUTINE)])[5]
+    assert (h.function, h.status) == ('FN_A', STRONG)

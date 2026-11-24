@@ -115,7 +115,7 @@ def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
     """
     if m.source != 'heuristic' or m.verified:
         return []
-    from .axis_records import ENDIAN_OPEN
+    from .axis_records import ENDIAN_OPEN, ENDIAN_OPEN_AXES
     notes = m.notes or ''
     out = []
     if WIDTH_OPEN in notes:
@@ -123,7 +123,9 @@ def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
     if m.dtype_alternatives:
         out.append((SIGN, 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'))
     if ENDIAN_OPEN in notes and m.width > 1:
-        out.append((BYTE_ORDER, 'Byte-Reihenfolge nicht belegt (Datensätze dieses Abbilds uneinig; auch möglich: '
+        why = ('gegen die Mehrheit der Datensätze gelesen, beide Lesarten steigen' if ENDIAN_OPEN_AXES in notes
+               else 'Datensätze dieses Abbilds uneinig')
+        out.append((BYTE_ORDER, f'Byte-Reihenfolge nicht belegt ({why}; auch möglich: '
                     + ('little' if m.endian == 'big' else 'big') + ')'))
     if evidence_level(m) == DATA_PATTERN:
         out.append((PATTERN, 'Datentyp nur aus der Glätte der Werte geschätzt'))
