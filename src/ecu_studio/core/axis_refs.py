@@ -173,10 +173,11 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
     for d in axis_definitions:
         defs[d.offset].append(d)
     addresses = sorted(stored)
-    pool = [(at, _majority(stored[at])) for at in addresses]
     if near is not None:
         lo, hi = near
-        build = [at for at, n in pool if at <= hi and at + NEAR_POINT_BYTES * n > lo]
+        # The largest point count bounds the majority one: only addresses passing it need the exact test.
+        build = [at for at in addresses if at <= hi and at + NEAR_POINT_BYTES * max(n for _, _, n in stored[at]) > lo
+                 and at + NEAR_POINT_BYTES * _majority(stored[at]) > lo]
     else:
         build = addresses
     out = []
@@ -210,6 +211,11 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
         unapplied = all(v and len(set(v)) == 1 for v in values)
         out.append(AxisObject(at, points, sorted((r.table, r.axis) for r in refs), sources,
                               names[0] if len(names) == 1 else '', dtype, endian, aliases, issues, unapplied))
+    # Candidates for value-equal copies: stored axes whose bytes can equal those of a judged object, i.e. with
+    # the same point count (the compared length is COPY_POINT_BYTES x points). Only needed with image bytes.
+    wanted = {o.points for o in out} if data is not None else set()
+    pool = [(at, n) for at in addresses if any(k in wanted for _, _, k in stored[at])
+            for n in (_majority(stored[at]),) if n in wanted]
     _identities(out, data, pool)
     return out
 
@@ -241,7 +247,7 @@ def _stored_bytes(data: bytes, offset: int, points: int) -> bytes | None:
 
 def _identities(objs: list[AxisObject], data: bytes | None, pool: list[tuple[int, int]]) -> None:
     """Identity state of each object (see module doc). Equal bytes never join two objects.
-    ``pool``: (address, points) of every stored axis, the candidates for value-equal copies."""
+    ``pool``: (address, points) of the stored axes that can be value-equal copies of ``objs``."""
     by_bytes: dict[bytes, list[int]] = defaultdict(list)
     if data is not None:
         for at, n in pool:

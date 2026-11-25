@@ -40,6 +40,7 @@ from dataclasses import dataclass, field, replace
 from .model import MapDefinition
 
 AXIS_POINT_BYTES = 2
+MAX_CELL_BYTES = 8         # bound of a cell (model.FORMATS: at most 4) for the cheap pre-test in conflicts()
 CLEARED = 'manuell geklärt'      # identity of an unknown shared axis with a valid AxisClearance
 MIN_ORIGIN_CHARS = 20             # a clearance names its technical origin, not just "ok"
 CONFIRM_LINES = 30                # conflicts listed in one confirmation (the rest is counted)
@@ -115,9 +116,13 @@ def conflicts(maps: list[MapDefinition], m, positions, data: bytes | None = None
 
     out = []
     for other in maps:
-        if id(other) in own or other.offset > hi:      # cheap test first: ``length`` is computed
+        # Cheap tests first (``length`` is computed): a table starting after the write, or one without strides
+        # (length = rows x cols x cell width) that ends before it even with the widest cell, is not hit.
+        at = other.offset
+        if at > hi or (not other.major_stride_bits and not other.minor_stride_bits
+                       and at + other.rows * other.cols * MAX_CELL_BYTES <= lo) or id(other) in own:
             continue
-        h = hit(other.offset, other.offset + other.length)
+        h = hit(at, at + other.length)
         if h:
             out.append(Conflict('Werte', other.offset, other.offset + other.length, (other.name,), '', h,
                                 int(unchecked(other))))

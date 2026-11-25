@@ -74,3 +74,22 @@ def test_large_equal_groups_list_a_bounded_number_of_copies():
     objs = R.objects(maps, data=bytes(data))
     assert all(len(o.copies) == R.COPIES_LISTED and o.offset not in o.copies for o in objs)
     assert all(o.identity == R.VALUE_EQUAL for o in objs)
+
+
+def test_value_conflicts_equal_a_brute_force_check_also_with_strides():
+    """The cheap pre-test in conflicts() (rows x cols x widest cell) must never skip a hit table; tables with
+    strides are longer than that and always take the exact length."""
+    from dataclasses import replace
+    maps, data = _world(11)
+    strided = [replace(maps[k], name=f'S{k}', offset=0x1000 + 0x40 * k, major_stride_bits=64 * 8,
+                       axis_x_offset=None, axis_y_offset=None) for k in range(0, 40, 5)]
+    maps = maps + strided
+    rnd = random.Random(5)
+    for _ in range(300):
+        lo = rnd.randrange(0x1000, 0x3000)
+        positions = {lo, lo + rnd.randrange(0, 3)}
+        got = sorted((c.start, c.end) for c in conflicts(maps, None, positions, data) if c.kind == 'Werte')
+        want = sorted((m.offset, m.offset + m.length) for m in maps
+                      if any(m.offset <= p < m.offset + m.length for p in positions))
+        assert got == want
+    assert any(m.length > m.rows * m.cols * 8 for m in strided)
