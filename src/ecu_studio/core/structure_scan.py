@@ -50,6 +50,7 @@ POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
+CURVE_ORIGIN = 'TriCore-Kennlinienroutine + Datensatzkopf (ungeprüft)'
 POINTER_TRIPLE_ORIGIN = 'TriCore-Zeigertripel + Achsen (ungeprüft)'
 # Axes accepted through code only (tricore_refs.CODE_AXES, quality phase 4): the shape follows from the
 # code and the counts; the breakpoints say nothing about the quantity.
@@ -783,6 +784,21 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
                             f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
             evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
+        elif called and getattr(calls[off], 'curve', ''):
+            # Quality phase 5 (tricore_refs.CODE_CURVES): a curve routine receives the record head.
+            n = len(calls[off].sites)
+            if calls[off].curve == 'exact':
+                evidence = (f'Kennlinienroutine im Programmcode (TriCore, Aufrufstellen: {n}) erhält den Datensatzkopf '
+                            f'@ 0x{pair[0].header:X}: Anzahl und {pair[0].count} Stützstellen stehen vor den Werten; '
+                            f'Wertebreite {w} Byte: die Werte füllen die Lücke zum nächsten im Programmcode genannten '
+                            f'Objekt exakt.')
+            else:
+                evidence = (f'Kennlinienroutine im Programmcode (TriCore, Aufrufstellen: {n}) erhält den Datensatzkopf '
+                            f'@ 0x{pair[0].header:X}: Anzahl und {pair[0].count} Stützstellen stehen vor den Werten; '
+                            f'Wertebreite {w} Byte nur aus der Kennlinienroutine abgeleitet (bei ihren anderen Zielen '
+                            f'füllen Werte dieser Breite die Lücke zum nächsten genannten Objekt; ungeprüft).')
+            evidence += _cell_type_note(calls[off], dtype)
+            origin = CURVE_ORIGIN
         elif called and getattr(calls[off], 'pointer', False):
             evidence = (f'Zeigertripel im Programmspeicher @ 0x{calls[off].sites[0]:X} nennt Datenstart und Achsen: '
                         f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '

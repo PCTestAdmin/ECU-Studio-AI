@@ -54,10 +54,33 @@ def test_equal_readings_are_not_evidence_of_the_type():
 
 
 def test_code_call_sign_comes_from_the_load_instructions():
-    m = cand('candidate:code-call', dtype='s16')
+    m = cand('candidate:code-call', dtype='s16',
+             label_evidence=' Datentyp s16: Vorzeichen aus den Ladebefehlen der Interpolationsroutine.')
     sign = type_status(m, image([0xFFF0] * 16)).get(SIGN)
     assert sign.status == CODE and 'Ladebefehle' in sign.source
     assert type_status(m, image([1] * 16)).get(SIGN).status == CODE       # code evidence beats equal values
+
+
+def test_code_call_without_loaded_sign_is_not_code_evidence_for_the_sign():
+    """Quality phase 5: a call table whose routine does not show the sign (e.g. a curve from a curve routine)
+    must not say 'Ladebefehle der Interpolationsroutine'."""
+    m = cand('candidate:code-call', dtype='s16',
+             label_evidence=' Vorzeichen aus der Lesart ohne Überlauf benachbarter Zellen, sonst vorzeichenlos (ungeprüft).')
+    sign = type_status(m, image([0xFFF0] * 16)).get(SIGN)
+    assert sign.status not in (CODE, CONFIRMED) and 'Ladebefehle' not in sign.source
+
+
+def test_sign_is_never_settled_while_the_byte_order_is_open():
+    """Quality phase 5: the sign bit depends on the byte order; no 'sign derived / equal' next to an open order,
+    and the list shows a sign '?' as well."""
+    m = cand('candidate:nx,ny,x,y,z', notes=ENDIAN_OPEN)
+    st = type_status(m, image([1, 2, 3] * 5 + [4]))
+    assert st.get(BYTE_ORDER).status == ALTERNATIVE
+    assert st.get(SIGN).status == UNDETERMINED and 'Byte-Reihenfolge' in st.get(SIGN).source
+    assert 'Vorzeichen nicht belegt' in dtype_doubt(m)
+    loaded = cand('candidate:code-call', dtype='s16', notes=ENDIAN_OPEN,
+                  label_evidence=' Datentyp s16: Vorzeichen aus den Ladebefehlen der Interpolationsroutine.')
+    assert type_status(loaded, image([0xFFF0] * 16)).get(SIGN).status == CODE   # the access itself is signed
 
 
 def test_disagreeing_load_instructions_are_shown_as_contradiction():

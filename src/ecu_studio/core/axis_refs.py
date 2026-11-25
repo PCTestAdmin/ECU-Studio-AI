@@ -20,6 +20,21 @@ An object records what is known about its storage (point count, cell type and by
 definition gives them), where each statement comes from, and the contradictions between its users
 (different point counts, different cell types). A contradicted object is no evidence for a common
 function (core/function_id). Nothing here changes a table.
+
+Identity of a shared object (quality phase 5), given the image bytes:
+
+  eindeutig gemeinsam   every user comes from a definition that places the axis at this address
+  plausibel gemeinsam   the address comes from program code or data structure, the axis is applied
+                        (not all points equal) and no other stored axis holds the same bytes
+  wertgleich            (an object, shared or not, related to another address only by equal bytes):
+                        never one object; listed in ``copies``
+  unbekannt             contradicted, unapplied, a value-equal copy exists at another axis address,
+                        or the bytes were not checked
+
+Development data (MSD80 detections after quality phase 4, A2L for evaluation only): of the shared axes
+from code with an applied axis and no value-equal copy 1892 of 1892 were right, with a copy 669 of 683,
+unapplied 132 of 152. Only the first class is called plausible; precision and coverage are measured
+separately (docs/ENTWICKLUNG_NEXTGEN.md).
 """
 from __future__ import annotations
 
@@ -34,6 +49,12 @@ UNAPPLIED_NOTE = (' · nicht bedatet (alle Stützstellen gleich): gemeinsam nur 
 DEFINITION, CODE, STRUCTURE = 'Definition', 'Programmcode', 'Datenstruktur'
 DEFINITION_SOURCES = ('a2l', 'xdf', 'romraider', 'csv', 'definition', 'pack', 'exact-reference')
 TRICORE_ALIASES = (0x80000000, 0xA0000000)   # cached / uncached view of the same flash
+SURE, PLAUSIBLE, VALUE_EQUAL, UNKNOWN = 'eindeutig gemeinsam', 'plausibel gemeinsam', 'wertgleich', 'unbekannt'
+IDENTITIES = (SURE, PLAUSIBLE, VALUE_EQUAL, UNKNOWN)
+# Count keys in summary() (plain identifiers: the tester report allows no spaces in field names)
+IDENTITY_KEYS = {SURE: 'identity_sure', PLAUSIBLE: 'identity_plausible', VALUE_EQUAL: 'identity_value_equal',
+                 UNKNOWN: 'identity_unknown'}
+COPY_POINT_BYTES = 2   # axis cell type is not stored with a table: compare 2 bytes per point (exact for 16 bit)
 
 
 def _source(m: MapDefinition) -> str:
@@ -77,6 +98,11 @@ class AxisObject:
     # All users read equal points (an unapplied axis, e.g. all zero; quality phase 4): such axes exist as
     # value-equal copies at many addresses, so a common address from code is weaker evidence of sharing.
     unapplied: bool = False
+    # Identity (quality phase 5): SURE / PLAUSIBLE / UNKNOWN for a shared object, VALUE_EQUAL for an unshared one
+    # with copies, '' otherwise; ``copies`` = other stored axis addresses holding the same bytes.
+    identity: str = ''
+    identity_reason: str = ''
+    copies: tuple[int, ...] = ()
 
     @property
     def tables(self) -> list[int]:
@@ -96,8 +122,12 @@ class AxisObject:
         alias = (' · Adressen ' + ', '.join(f'0x{a:X}' for a in self.aliases)) if len(self.aliases) > 1 else ''
         users = f'{len(self.tables)} Kennfelder' if self.shared else '1 Kennfeld'
         state = ('Widerspruch: ' + '; '.join(self.issues)) if self.issues else 'widerspruchsfrei'
+        ident = ''
+        if self.identity:
+            ident = f' · Identität: {self.identity}' + (f' ({self.identity_reason})' if self.identity_reason else '')
         return (f'Achse{name} @ 0x{self.offset:X}: {self.points} Punkte{cell}, {users}, '
-                f'Beleg: {", ".join(self.sources)}{alias} – {state}' + (UNAPPLIED_NOTE if self.unapplied else ''))
+                f'Beleg: {", ".join(self.sources)}{alias} – {state}' + (UNAPPLIED_NOTE if self.unapplied else '')
+                + ident)
 
 
 def references(maps: list[MapDefinition]) -> list[AxisRef]:
@@ -119,12 +149,13 @@ def references(maps: list[MapDefinition]) -> list[AxisRef]:
 
 
 def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (), *,
-            ecu_base: int | None = None) -> list[AxisObject]:
+            ecu_base: int | None = None, data: bytes | None = None) -> list[AxisObject]:
     """Stored axis objects by storage address (file offset), with their users, sources and contradictions.
 
     ``axis_definitions``: axis objects of a definition (e.g. A2LLinkResult.axis_objects) giving the
     cell type and byte order of the stored points. ``ecu_base``: CPU address of file offset 0, to list
-    the TriCore cached/uncached aliases of each object.
+    the TriCore cached/uncached aliases of each object. ``data``: the image bytes, to find value-equal
+    copies; without them no shared axis from code or structure is plausible (identity 'unbekannt').
     """
     by_offset: dict[int, list[AxisRef]] = defaultdict(list)
     for r in references(maps):
@@ -166,7 +197,43 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
         unapplied = all(v and len(set(v)) == 1 for v in values)
         out.append(AxisObject(at, points, sorted((r.table, r.axis) for r in refs), sources,
                               names[0] if len(names) == 1 else '', dtype, endian, aliases, issues, unapplied))
+    _identities(out, data)
     return out
+
+
+def _stored_bytes(data: bytes, o: AxisObject) -> bytes | None:
+    end = o.offset + COPY_POINT_BYTES * o.points
+    return data[o.offset:end] if end <= len(data) else None
+
+
+def _identities(objs: list[AxisObject], data: bytes | None) -> None:
+    """Identity state of each object (see module doc). Equal bytes never join two objects."""
+    by_bytes: dict[bytes, list[int]] = defaultdict(list)
+    if data is not None:
+        for o in objs:
+            key = _stored_bytes(data, o)
+            if key is not None:
+                by_bytes[key].append(o.offset)
+    for o in objs:
+        key = _stored_bytes(data, o) if data is not None else None
+        o.copies = tuple(a for a in by_bytes.get(key, ()) if a != o.offset) if key is not None else ()
+        if not o.shared:
+            o.identity = VALUE_EQUAL if o.copies else ''
+            o.identity_reason = ('gleiche Bytes bei ' + ', '.join(f'0x{a:X}' for a in o.copies[:3])) if o.copies else ''
+            continue
+        if o.issues:
+            o.identity, o.identity_reason = UNKNOWN, 'Nutzer widersprechen sich'
+        elif o.sources == (DEFINITION,):
+            o.identity, o.identity_reason = SURE, 'Adresse aus der Definition'
+        elif o.unapplied:
+            o.identity, o.identity_reason = UNKNOWN, 'nicht bedatet'
+        elif data is None:
+            o.identity, o.identity_reason = UNKNOWN, 'Achsbytes nicht geprüft'
+        elif o.copies:
+            o.identity, o.identity_reason = UNKNOWN, ('wertgleiche Kopie bei ' +
+                                                      ', '.join(f'0x{a:X}' for a in o.copies[:3]))
+        else:
+            o.identity, o.identity_reason = PLAUSIBLE, 'gemeinsame Adresse aus ' + ', '.join(o.sources)
 
 
 def index(objs: list[AxisObject]) -> dict[int, list[AxisObject]]:
@@ -189,8 +256,10 @@ def summary(maps: list[MapDefinition], objs: list[AxisObject] | None = None) -> 
     out['shared'] = sum(o.shared for o in objs)
     out['shared_unapplied'] = sum(o.shared and o.unapplied for o in objs)
     out['contradictory'] = sum(o.contradictory for o in objs)
+    for state in IDENTITIES:
+        out[IDENTITY_KEYS[state]] = sum(o.identity == state for o in objs)
     return out
 
 
-__all__ = ['STORED', 'FIXED', 'OPEN', 'DEFINITION', 'CODE', 'STRUCTURE', 'AxisRef', 'AxisObject', 'references',
-           'objects', 'index', 'summary']
+__all__ = ['STORED', 'FIXED', 'OPEN', 'DEFINITION', 'CODE', 'STRUCTURE', 'SURE', 'PLAUSIBLE', 'VALUE_EQUAL',
+           'UNKNOWN', 'IDENTITIES', 'IDENTITY_KEYS', 'AxisRef', 'AxisObject', 'references', 'objects', 'index', 'summary']

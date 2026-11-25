@@ -61,13 +61,25 @@ class FunctionGraphDialog(QDialog):
         """Axis references by status (stored / fixed / unresolved) and contradicted axis objects
         (core/axis_refs): shared only by storage address, never by equal values."""
         from ..core import axis_refs
-        objs = axis_refs.objects(self.maps)
+        image = getattr(self.parent(), 'image', None)
+        objs = axis_refs.objects(self.maps, data=image.materialize() if image is not None else None)
         n = axis_refs.summary(self.maps, objs)
         top = QTreeWidgetItem(self.tree, [f"Achsenreferenzen: {n[axis_refs.STORED]} gespeichert · "
                                           f"{n[axis_refs.FIXED]} fest · {n[axis_refs.OPEN]} ungeklärt", '', ''])
         top.setToolTip(0, 'Kennfeld → Achsenreferenz → gespeichertes Achsenobjekt. Gemeinsam heißt: gleiche '
                           'Speicheradresse. Ungeklärt: keine Quelle nennt die Speicheradresse; sie wird nicht aus '
                           'Werten geraten.')
+        k = axis_refs.IDENTITY_KEYS
+        ident = QTreeWidgetItem(top, [f"Identität gemeinsamer Achsen: {n[k[axis_refs.SURE]]} eindeutig · "
+                                      f"{n[k[axis_refs.PLAUSIBLE]]} plausibel · {n[k[axis_refs.UNKNOWN]]} unbekannt · "
+                                      f"{n[k[axis_refs.VALUE_EQUAL]]} nur wertgleich", '', ''])
+        ident.setToolTip(0, 'Gleiche Werte begründen nie eine gemeinsame Achse. Unbekannt: nicht bedatet, '
+                            'wertgleiche Kopie an anderer Achsadresse oder Widerspruch; gemeinsame Bearbeitung '
+                            'solcher Achsbytes wird abgelehnt.')
+        unknown = [o for o in objs if o.identity == axis_refs.UNKNOWN]
+        for o in unknown[:MAX_ITEMS]:
+            item = QTreeWidgetItem(ident, [o.describe(), f'0x{o.offset:08X}', ''])
+            self._add_members(item, o.tables)
         bad = [o for o in objs if o.contradictory]
         node = QTreeWidgetItem(top, [f'Widersprüchliche Achsenobjekte ({len(bad)})', '', ''])
         for o in bad[:MAX_ITEMS]:

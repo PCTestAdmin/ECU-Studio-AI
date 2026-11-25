@@ -22,6 +22,38 @@ Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
   benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
   Funktionsgraph.
 
+### Qualitätsphase 5 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 10](docs/ENTWICKLUNG_NEXTGEN.md#10-qualitätsphase-5-25112026-code-kennlinien-achsidentität-sichere-bearbeitung).
+
+- **Kennlinien aus dem Programmcode (TriCore, experimentell):** Eine Routine, die Kennlinien aus ihrem eigenen
+  Datensatz (`n, X[n], W[n]`) interpoliert, wird als Kennlinienroutine erkannt, wenn bei mindestens 60 % ihrer Ziele
+  genau `n` Werte bis zum nächsten im Code genannten Objekt folgen. Jeder Aufruf benennt dann eine Kennlinie; die
+  Breite kommt aus der exakten Lücke oder ist mit „?“ als nur aus der Routine abgeleitet markiert. Das Vorzeichen
+  wird nicht aus der Routine übernommen. Achsen solcher Kennlinien nur zusammen mit der Kennlinie (Schalter
+  `CODE_CURVES`, `CURVE_ROUTINE_SIGN`, `CURVE_AXES_WITH_CURVE`). Entwicklungsdaten: exakte 1D-Funde MEVD17.2
+  44 801 → 50 829, MSD80 68 044 → 75 008, 0 verloren.
+- **Breitenregel „Doppellücke“:** Eine exakte 16-Bit-Passung, in deren Lücke auch zwei Bytetabellen passen, ist nur
+  eine schwache Stimme; einige Aufrufe derselben Routine entscheiden (`DOUBLE_GAP_WEAK`). Behebt 18 auf dem Holdout
+  verlorene Kennfelder (Regression, keine Validierung); Entwicklungsdaten unverändert.
+- **Achsidentität:** Gemeinsame Achsen tragen einen von vier Zuständen – eindeutig gemeinsam (Definition),
+  plausibel gemeinsam, wertgleich, unbekannt. Gleiche Werte begründen nie eine gemeinsame Achse; eine wertgleiche
+  Kopie an anderer Adresse macht die Identität „unbekannt“. Entwicklungsdaten: „plausibel gemeinsam“ 1 832 von 1 832
+  richtig, alle 34 falsch zusammengelegten Achsobjekte „unbekannt“.
+- **Sichere Bearbeitung:** Vor jedem Schreiben (Zelle, Fläche, Stapel, Rezept, Übertragung) werden Überschneidungen
+  mit anderen Kennfeldern und gemeinsamen Achsen mit allen betroffenen Kennfeldern und Adressen angezeigt und müssen
+  bestätigt werden. Schreiben in eine gemeinsame Achse mit unbekannter Identität wird abgelehnt. Keine automatische
+  Weitergabe; Original und Rückgängig/Wiederholen bleiben unverändert.
+- **Kennlinien-Datensätze widerlegen Muster mit Beginn im Datensatz** (`CURVE_RECORD_REFUTES_PITCH_START`): die 17 in
+  Qualitätsphase 4 verlorenen MSD80-1D-Funde sind zurück, ohne Adressregel.
+- **Vorzeichen folgt offener Byte-Reihenfolge:** Ist die Byte-Reihenfolge offen, ist auch das Vorzeichen offen („?“);
+  keine Anzeige „Vorzeichen bestätigt“ neben offener Byte-Reihenfolge mehr. Unmarkiert falsche Vorzeichen MEVD17.2
+  9 → 0.
+- **Endstand (Entwicklungsdaten):** exakte 2D-Kennfelder 35 226 → 35 276, Verwechslungen 4 478 → 4 117, 0 verloren;
+  1D 0 verloren. Holdout nur als Regression: 56 543 → 56 688 exakt, 0 verloren, Verwechslungen 9 744 → 9 150.
+- Das 8-Bit-Experiment für Kennlinien (`CURVE_U8_BY_HEAD`) bleibt aus (synthetisches Gegenbeispiel).
+
 ### Qualitätsphase 4 (25.11.2026, nicht veröffentlicht)
 
 Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:

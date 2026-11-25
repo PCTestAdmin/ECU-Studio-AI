@@ -1,6 +1,6 @@
 # Nächste Generation der Kennfelderkennung – Entwicklungsbericht (nach 1.21.0-rc1)
 
-Stand: 25.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8, Qualitätsphase 4: § 9). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
+Stand: 25.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8, Qualitätsphase 4: § 9, Qualitätsphase 5: § 10). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
 **Nichts davon ist veröffentlicht.** Die Zahlen stammen aus privaten A2L-/HEX-Referenzdaten eines Datengebers
 (BMW-Linien, siehe [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) § 2). Die Daten bleiben lokal; öffentlich sind nur
 zusammengefasste Zahlen. Kein Modelltraining. Alle Regeln wurden nur an den Entwicklungsdaten (58 Abbilder)
@@ -1007,3 +1007,193 @@ gehört zum Holdout und dient hier nur der Laufzeitmessung.
 - MEVD17.2: Kennlinien an Vorabsuche-Routinen und reine Lade-/Speicherzugriffe bleiben offen; gemeinsame Achsen
   werden dort weiter nicht gefunden.
 - Neue unabhängige Daten gibt es nicht. Der Testbericht ist der Weg dorthin, aber selbst keine Validierung.
+
+## 10. Qualitätsphase 5 (25.11.2026): Code-Kennlinien, Achsidentität, sichere Bearbeitung
+
+Herkunft aller Zahlen: **Entwicklungsdaten** (58 Abbilder), sofern nicht anders vermerkt; der bekannte Holdout
+(105 Abbilder) nur als Regression. Einordnung: **QP4** = Commit `fff35a9`; **neu** = dieser Stand; alles
+**entwicklungsgemessen, nicht unabhängig validiert**. Die A2L dient nur der Auswertung, nie als Eingang. Neue
+unabhängige Referenzen gab es nicht; der Holdout wird nicht als Validierung ausgegeben.
+
+### 10.1 Kennlinien aus dem Programmcode (`tricore_refs.CODE_CURVES`, P1)
+
+Ein Kennlinien-Datensatz `n, X[n], W[n]` beginnt wie eine Achse mit Anzahl. Eine Routine, die Kennlinien aus ihrem
+eigenen Datensatz interpoliert, wurde deshalb bisher als Vorabsuche gelernt, und die Werte hinter der Achse blieben
+unerkannt (MEVD17.2: Kennlinien an Vorabsuche-Routinen, § 9.11). Neu:
+
+- Eine Routine ist eine **Kennlinienroutine**, wenn bei mindestens 60 % ihrer verschiedenen Ziele hinter der Achse
+  genau `n` Werte einer Breite bis zum nächsten im Programmcode genannten Objekt liegen (mindestens `CODE_AXES_MIN`
+  Ziele). Eine Routine, die wenige gemeinsame Achsen oft durchsucht, bleibt eine Vorabsuche.
+- Jeder Aufruf benennt dann eine Kennlinie: Werte hinter der Achse, Breite aus der exakten Lücke („exakt“) oder,
+  wenn hinter den Werten kein genanntes Objekt folgt, nur aus der Routine („nur aus der Kennlinienroutine
+  abgeleitet“, mit „?“ an der Wertebreite). Liegt eine vom Code genannte Adresse innerhalb der Werte, wird nur diese
+  Kennlinie verworfen.
+- Das Vorzeichen wird **nicht** aus den Ladebefehlen der Routine übernommen (`CURVE_ROUTINE_SIGN = False`). Ablation
+  MSD80: mit dieser Übernahme 671 unmarkierte falsche Vorzeichen exakter 1D-Funde, ohne sie 48.
+- Die Achse einer Kennlinie wird nur zusammen mit einer angenommenen Kennlinie aufgenommen
+  (`scoped_scan.CURVE_AXES_WITH_CURVE`); Achsen nicht angenommener Kennlinien füllen nur Lücken. Ohne diese Regel
+  gingen 67 exakte 1D-Funde verloren, mit ihr 4 (diese holt § 10.3 zurück).
+
+Ergebnis (Entwicklungsdaten, Kennlinien mit Codeaufruf):
+
+| Linie | exakt (Start, Anzahl, Breite) | Start ohne Referenzobjekt (unklar) | andere Form |
+|---|---:|---:|---:|
+| MEVD17.2-N55 | 6 222 (alle neu) | 14 | 0 |
+| MSD80-N53/N54 | 11 131 (QP4: 3 213) | 132 (QP4: 94) | 648 (wie QP4) |
+
+Exakte 1D-Funde: MEVD17.2 44 801 → 50 829, MSD80 68 044 → 75 008; 0 verloren gegen QP4. Ein Teil der Werte ist
+nicht bedatet; die Zahl der exakten Funde überzeichnet den Nutzen für Anwender wie in § 9.11.
+
+**Regression auf dem Holdout gefunden und behoben (keine Validierung):** Mit Code-Kennlinien gingen auf dem
+Holdout 18 exakte 2D-Kennfelder in 7 Abbildern verloren (MEVD17.2.3-B38/B38I12, MSV90). Die Schalter-Ablation auf
+diesen 7 Abbildern grenzte die Ursache auf `CODE_CURVES` ein, die Zählung dann auf die Breitenwahl: Die neuen
+Kennlinienköpfe sind richtige Grenzen (keiner liegt in einem Referenzkennfeld), liegen aber in 7 Fällen genau bei der
+doppelten Länge einer 8-Bit-Tabelle. Damit „passt“ 16 Bit exakt, und diese Stimmen machen die Routine uneinig, sodass
+11 weitere Tabellen derselben Routinen keine Breite mehr erhielten. Das ist die bekannte Doppeldeutigkeit „zwei
+gleich große Bytetabellen hintereinander“ (Dokumentation von `cell_widths`). Regel (`tricore_refs.DOUBLE_GAP_WEAK`):
+Eine exakte 16-Bit-Passung, in deren Lücke auch zwei Bytetabellen passen, ist eine schwache Stimme; stimmen
+mindestens drei andere Aufrufe derselben Routine einig, entscheiden sie, sonst bleibt die exakte Passung. Wirkung:
+Entwicklungsdaten unverändert (alle 58 Abbilder identisch), Regressionsgruppe unverändert, Holdout 0 statt 18
+verloren, +18 exakt, +2 Verwechslungen. Die Regel wurde wegen eines Holdout-Befunds eingeführt; der Holdout ist für
+sie keine unabhängige Prüfung.
+
+### 10.2 Achsidentität (P2)
+
+**Klassen der 34 falsch zusammengelegten Achsobjekte (MSD80):** 8 Objekte ganz falsch, 26 gemischt (ein Teil der
+Nutzer richtig); 42 falsche Nutzer, alle mit Codeaufruf: 28 lesen nicht bedatete Achsbytes, 14 eine wertgleiche Kopie
+der Referenzachse an anderer Adresse. Trennendes Merkmal: Alle 34 falschen Objekte haben eine **wertgleiche Kopie**
+(gleiche `2·n` Achsbytes an einer anderen Achsadresse); unter den Objekten ohne Kopie (1 910) ist keines falsch.
+
+**Identitätsmodell (`core/axis_refs`)** mit vier Zuständen; gleiche Werte begründen nie eine Identität:
+
+| Zustand | Bedingung |
+|---|---|
+| eindeutig gemeinsam | gemeinsame Adresse nur aus Definitionen (A2L/XDF) |
+| plausibel gemeinsam | gemeinsame Adresse aus Code-Belegen, Achse bedatet, Nutzer widerspruchsfrei, keine wertgleiche Kopie |
+| wertgleich | nicht gemeinsam genutzt, aber gleiche Bytes an anderer Achsadresse (nur Hinweis) |
+| unbekannt | Nutzer widersprechen sich, nicht bedatet, wertgleiche Kopie vorhanden oder Bytes nicht geprüft |
+
+Messung (Entwicklungsdaten, gemeinsame Achsobjekte der Kandidaten; MEVD17.2 hat weiter keine):
+
+| | Objekte | richtig | falsch | nicht beurteilbar |
+|---|---:|---:|---:|---:|
+| plausibel gemeinsam | 1 856 | 1 832 | **0** | 24 |
+| unbekannt | 895 | 861 | **34** | – |
+
+Präzision „plausibel gemeinsam“: 1 832 von 1 832 beurteilten. Abdeckung: 1 832 von 2 693 richtigen Objekten (68 %)
+sind „plausibel“; 861 richtige stehen auf „unbekannt“, das ist der Preis. Alle 34 falschen Objekte sind „unbekannt“.
+„Eindeutig gemeinsam“ entsteht nur mit Definitionen und wurde hier nicht gemessen (Erkennung ohne Definitionen).
+
+**Bearbeitungssicherheit (`core/edit_guard`):** Jede Schreibaktion (Zelle, Fläche, Stapel, Rezept, intelligente
+Übertragung) prüft vor dem Schreiben die betroffenen Bytebereiche:
+
+- nur die ausgewählten, eindeutig bestimmten Bytes; keine automatische Übertragung auf andere Kennfelder;
+- Überschneidungen mit Werten anderer Kennfelder und mit gemeinsamen Achsen werden mit allen betroffenen Kennfeldern
+  und Adressen angezeigt und müssen bestätigt werden;
+- Schreiben in eine gemeinsame Achse mit Identität „unbekannt“ wird **abgelehnt**;
+- das Original bleibt unverändert, Rückgängig/Wiederholen bleibt konsistent; die Achsbearbeitung zeigt, welche
+  anderen Kennfelder dieselbe Achsadresse lesen.
+
+Tests (synthetisch): Identitätszustände, Konflikte, Ablehnung, Undo/Redo, Original unverändert, keine Weitergabe bei
+Achsbearbeitung, Map-Pack-Rundlauf, Tabellenmodell mit Prüfung.
+
+### 10.3 Kennlinien-Datensätze widerlegen Muster mit Beginn im Datensatz (P3)
+
+Die 17 in QP4 verlorenen MSD80-1D-Funde (§ 9.9) lagen unter Datenmuster-Funden, die erst **innerhalb** eines
+Kennlinien-Datensatzes beginnen. Neu (`scoped_scan.CURVE_RECORD_REFUTES_PITCH_START`): Ein reiner Datenmuster-Fund,
+dessen Start echt innerhalb der Spanne eines verketteten Kennlinien-Datensatzes liegt, wird verworfen. Keine
+Adressregel; dieselbe Begründung wie § 9.7. Wirkung zusammen mit § 10.5 ohne Code-Kennlinien: exakte 1D +120
+(MEVD17.2 +47, MSD80 +73), Verwechslungen 4 478 → 4 374, 0 verloren. Gegen PR #30 vor QP4 sind jetzt 0 MSD80-1D-Funde
+verloren (QP4: 17); die 18 MEVD17.2-Achsen bleiben verloren (Begründung § 9.9: dort lag keine Kennlinie).
+
+### 10.4 Experiment 8-Bit-Lesart über den Datensatzkopf (P4)
+
+Synthetisches Gegenbeispiel (`tests/test_curve_records.py`): Die letzten 16-Bit-Werte einer Kennlinie (6, 0, 400) vor
+einer fremden steigenden Tabelle sehen direkt hinter der 8-Bit-Lesart wie ein Datensatzkopf aus. `CURVE_U8_BY_HEAD`
+würde die 16-Bit-Kennlinie als 8 Bit lesen. Unabhängige Referenzen fehlen. Das Experiment bleibt **aus**.
+
+### 10.5 Datentyp: keine widersprüchliche Anzeige (P5)
+
+- **Vorzeichen folgt offener Byte-Reihenfolge** (`confidence.SIGN_FOLLOWS_BYTE_ORDER`): Ist die Byte-Reihenfolge
+  offen, ist auch das Vorzeichen offen („?“), weil das Vorzeichenbit von der Byte-Reihenfolge abhängt. Der
+  Datentyp-Status zeigt nicht mehr „Vorzeichen bestätigt“ neben „Byte-Reihenfolge alternativ“. Wirkung: 9 falsche
+  Vorzeichen neu markiert, 13 richtige zusätzlich mit „?“.
+- **Vorzeichen aus Codeaufruf** gilt nur als Code-Beleg, wenn es aus den Ladebefehlen der Routine stammt.
+- Ergebnis (exakte 1D-Funde, unmarkiert falsch, QP4 → neu): Breite MEVD17.2 32 → 27, MSD80 14 → 14; Vorzeichen
+  MEVD17.2 9 → 0, MSD80 48 → 48 (alles Achsen mit richtiger Byte-Reihenfolge; Klasse aus § 9.6 unverändert);
+  Byte-Reihenfolge 0 → 0.
+
+### 10.6 Gesamtvergleich und Ablation
+
+Entwicklungsdaten (58 Abbilder, 52 508 verifizierbare 2D-Kennfelder); „verloren“ je Abbild gegen QP4:
+
+| Stand | 2D exakt | Verwechslungen | 1D exakt MEVD17.2 / MSD80 | verloren 2D / 1D |
+|---|---:|---:|---:|---:|
+| rc1 (veröffentlicht) | 32 058 | 5 316 | 39 798 / 63 175 | – |
+| PR #30 vor QP4 | 32 058 | 5 113 | 39 798 / 63 175 | – |
+| QP4 | 35 226 | 4 478 | 44 801 / 68 044 | – |
+| + Code-Kennlinien, Vorzeichen aus Routine (verworfen) | 35 278 | 4 213 | nicht gezählt; MSD80: 671 unmarkierte falsche Vorzeichen | 0 / – |
+| + Code-Kennlinien, Vorzeichen offen | 35 278 | 4 213 | 50 785 / 74 904 | 0 / 67 |
+| + Kennlinienachsen nur mit Kennlinie | 35 276 | 4 202 | 50 790 / 74 967 | 0 / 4 |
+| + Datensatzspanne widerlegt Musterbeginn (§ 10.3) | 35 276 | 4 117 | 50 829 / 75 008 | 0 / 0 |
+| + Vorzeichen folgt Byte-Reihenfolge (§ 10.5), Doppellücke (§ 10.1) | 35 276 | 4 117 | 50 829 / 75 008 | 0 / 0 |
+| neu ohne Code-Kennlinien (§ 10.3, § 10.5, Doppellücke) | 35 226 | 4 374 | 44 848 / 68 117 | 0 / 0 |
+| **neu** | **35 276** | **4 117** | **50 829 / 75 008** | **0 / 0** |
+
+**Je Linie (2D exakt / Verwechslungen; rc1 → QP4 → neu):**
+
+| Linie | Datenrolle | rc1 | QP4 | neu |
+|---|---|---:|---:|---:|
+| MEVD17.2-N55 | Entwicklung | 11 578 / 1 934 | 13 345 / 1 815 | 13 382 / 1 654 |
+| MSD80-N53/N54 | Entwicklung | 20 480 / 3 382 | 21 881 / 2 663 | 21 894 / 2 463 |
+| MSD80-N43 | Holdout (Regression) | 12 450 / 1 575 | 13 162 / 1 276 | 13 162 / 1 174 |
+| MSV90-N52 | Holdout (Regression) | 12 658 / 2 560 | 13 883 / 2 352 | 13 883 / 2 303 |
+| MEVD17.2.3-B38 | Holdout (Regression) | 13 749 / 3 008 | 14 715 / 2 798 | 14 788 / 2 594 |
+| MEVD17.2.3-B38I12 | Holdout (Regression) | 3 500 / 1 136 | 3 735 / 1 088 | 3 751 / 1 004 |
+| MEVD17.2.3-B48 | Holdout (Regression) | 9 931 / 2 205 | 10 635 / 2 009 | 10 691 / 1 854 |
+| ME9-N40 | Holdout (Regression) | 413 / 259 | 413 / 221 | 413 / 221 |
+
+Holdout gesamt (nur Regression): exakt 52 701 → 56 543 → 56 688, Verwechslungen 10 743 → 9 744 → 9 150; gegen QP4
+und gegen rc1 0 exakte Kennfelder verloren. 1D exakt (QP4 → neu): B38 51 035 → 64 454, B38I12 12 364 → 17 120, B48
+43 913 → 49 780, MSD80-N43 40 193 → 43 958, MSV90 30 659 → 41 550, ME9 unverändert; 0 verloren. Unmarkiert falsche
+Breiten 116 → 95 (davon B38I12 0 → 3, neu), unmarkiert falsche Vorzeichen 67 → 44 (MSD80-N43 unverändert 44).
+
+Regressionsgruppe (15 Abbilder): gegen QP4 nur MSD80-I8A0S verändert (2D exakt 93 → 93, Funde 1 257 → 1 254, 1D
+exakt 202 → 219). Negativbestand (7 Abbilder, rusEFI, FOME, Speeduino): 549 Funde, 0 sicher falsch (wie QP4).
+
+### 10.7 Softwarequalität
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig (Python 3.13, isoliertes Profil: `ECU_STUDIO_TEST_PROFILE=1`, Einstellungen und `LOCALAPPDATA` im Temp-Ordner) | 1 434 bestanden, 22 übersprungen, Exit-Code 0, 0 Qt-Meldungen („QLabel already deleted“) |
+| neue Tests (nur synthetisch) | Code-Kennlinien (Routine, Gegenbeispiele, Schalter aus, Achsen, Breite „abgeleitet“, Doppellücke); Achsidentität und Bearbeitungssicherheit (12); 8-Bit-Gegenbeispiel; Vorzeichen bei offener Byte-Reihenfolge |
+| GUI-Smoke (isoliertes Profil, offscreen), dreimal nacheinander | je 10 Prüfungen bestanden, regulärer Qt-Abbau, Exit-Code 0, keine Fehlerausgabe |
+| i18n | 2 434 Texte, 0 ohne Übersetzung |
+| Firmware-Guard (Arbeitsbaum, vor Commit und Push) | OK |
+| Modellsperre | unverändert (Tests) |
+| Registry | Schlüssel „ECU Studio“ identisch mit der Sicherung vom Beginn der Phase; nur gelesen |
+| Geschützte Bereiche | Arbeitskopie `ECU-Studio-AI-v1.10` (`6e987c5`, 8 Änderungen), Tags, Releases, rc1 und Update-Kanal unverändert |
+| CI (Python 3.11/3.12), CodeQL | siehe Checks von PR #30 |
+
+Laufzeit und Speicher (Vollabbilder, je Version 3 Zeitläufe und 2 Speicherläufe abwechselnd, jeder in eigenem
+Prozess, ohne Fremdlast, 25.11.2026):
+
+| Abbild | rc1 Median (min–max) | QP4 | neu | Spitzenspeicher rc1 / QP4 / neu | exakt rc1 / QP4 / neu |
+|---|---:|---:|---:|---:|---:|
+| MSD80-N53/N54 | 14,51 s (14,39–15,42) | 15,38 s (14,34–15,69) | 14,79 s (14,07–15,03) | 86,3 / 87,2 / 86,3 MB | 620 / 707 / 708 |
+| MSV90-N52 | 15,55 s (15,44–15,59) | 15,47 s (15,20–15,58) | 15,81 s (14,48–15,86) | 86,3 / 86,3 / 86,3 MB | 526 / 599 / 599 |
+
+Kein messbarer Mehraufwand; die Unterschiede liegen in der Streuung (σ bis 0,8 s). Das MSV90-Abbild gehört zum
+Holdout und dient hier nur der Laufzeitmessung.
+
+### 10.8 Grenzen
+
+- Alle Zahlen stammen aus TriCore-Linien eines Datengebers; Code-Kennlinien wirken nur auf TriCore-Code.
+- Code-Kennlinien finden viele nicht bedatete Kennlinien; ihr Nutzen ist kleiner als die Zahl.
+- Achsidentität: 861 richtige gemeinsame Achsen stehen auf „unbekannt“ und sind damit für gemeinsame Bearbeitung
+  gesperrt. Das ist gewollt: Ohne Definition lassen sich wertgleiche Kopien nicht unterscheiden.
+- Die Doppellücken-Regel stammt aus einem Holdout-Befund und ist an den Entwicklungsdaten wirkungslos, also dort nicht
+  geprüft. Sie bringt auf dem Holdout 2 zusätzliche Verwechslungen.
+- 48 unmarkierte falsche Vorzeichen (MSD80-Achsen) und 41 unmarkierte falsche Breiten bleiben (Entwicklungsdaten).
+- Ein Testerablauf in der Oberfläche (P6) wurde nicht gebaut; der Testbericht bleibt ein Kommandozeilenwerkzeug.
+- Neue unabhängige Daten gibt es nicht.

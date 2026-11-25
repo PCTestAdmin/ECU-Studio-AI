@@ -321,6 +321,14 @@ class SmartTransferDialog(AsyncDialog):
         if QMessageBox.question(self,'Transfer bestätigen',f'{len(selected)} ausgewählte Kennfelder gemäß Zellvorschau übernehmen?',
                 QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes:
             return
+        # Edit guard: the selected target tables are the own objects; bytes of others need a confirmation.
+        targets={(self.plan.maps[i].target_offset,self.plan.maps[i].target) for i in selected if 0<=i<len(self.plan.maps)}
+        own=[m for m in self.window.maps if (m.offset,m.name) in targets]
+        positions={c.offset+j for i in selected if 0<=i<len(self.plan.maps)
+                   for c in self.plan.maps[i].cells for j in range(len(c.after))}
+        guard=getattr(self.window,'edit_allowed',None)
+        if guard is not None and not guard(own,positions):
+            return
         try:
             report=self.plan.report()
             apply_transfer(self.window.image,self.plan,selected,confirmed=True)
@@ -485,7 +493,7 @@ class LogAnalyzerDialog(AsyncDialog):
 
 
 class AxisDialog(QDialog):
-    def __init__(self,image,m,parent=None):
+    def __init__(self,image,m,parent=None,shared_note=''):
         super().__init__(parent)
         self.setWindowTitle('Physikalische Achsen und Log-Eingangssignale')
         self.image,self.m=image,m
@@ -505,6 +513,11 @@ class AxisDialog(QDialog):
         for title,field in (('X-Eingangssignal',self.xc),('X-Einheit',self.xu),('Y-Eingangssignal',self.yc),('Y-Einheit',self.yu)):
             form.addRow(title,field)
         form.addRow(QLabel('Die Werte beschreiben die Definition; Firmware-Achsbytes werden hier nicht verändert.'))
+        if shared_note:
+            # Shared axis: only this table's definition changes; the other users keep theirs (no propagation).
+            note=QLabel(shared_note)
+            note.setWordWrap(True)
+            form.addRow(note)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
@@ -531,11 +544,12 @@ class AxisDialog(QDialog):
 
 
 class SurfaceEditDialog(QDialog):
-    def __init__(self,image,m,cells,edited,parent=None):
+    def __init__(self,image,m,cells,edited,parent=None,guard=None):
         super().__init__(parent)
         self.setWindowTitle('Zellenauswahl bearbeiten · Vorschau')
         self.resize(850,570)
         self.image,self.m,self.cells,self.edited=image,m,cells,edited
+        self.guard=guard   # core/edit_guard check before writing (other tables / shared axes on these bytes)
         self.preview=None
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel(f'{m.name} · {len(cells)} ausgewählte Zellen'))
@@ -576,6 +590,9 @@ class SurfaceEditDialog(QDialog):
 
     def apply(self):
         if self.preview is None:
+            return
+        from ..core.edit_guard import update_positions
+        if self.guard is not None and not self.guard(self.m,update_positions(self.preview.updates)):
             return
         try:
             apply_batch(self.image,self.preview)
@@ -621,17 +638,19 @@ class SlicesView(QWidget):
 
 
 class MapEditorPane(QWidget):
-    def __init__(self,image,m,edited,parent=None):
+    def __init__(self,image,m,edited,parent=None,guard=None,axis_note=None):
         super().__init__(parent)
         self.definition=m
+        self.axis_note=axis_note   # callable(map) -> note on shared axes for the axis dialog
         layout=QVBoxLayout(self)
         self.model=MapTableModel()
+        self.model.guard=guard
         self.model.set_map(image,m)
         self.model.edited.connect(edited)
         buttons=QHBoxLayout()
         edit=QPushButton('Auswahl bearbeiten …')
         edit.clicked.connect(lambda:SurfaceEditDialog(image,m,
-            [(i.row(),i.column()) for i in self.table.selectionModel().selectedIndexes()],edited,self).exec())
+            [(i.row(),i.column()) for i in self.table.selectionModel().selectedIndexes()],edited,self,guard).exec())
         buttons.addWidget(edit)
         axes=QPushButton('Achsen / Log-Kanäle …')
         axes.clicked.connect(lambda:self.edit_axes(image,m,edited))
@@ -658,7 +677,7 @@ class MapEditorPane(QWidget):
         self.tabs.setCurrentWidget(self.table)
 
     def edit_axes(self,image,m,edited):
-        if AxisDialog(image,m,self).exec():
+        if AxisDialog(image,m,self,self.axis_note(m) if self.axis_note else '').exec():
             self.model.set_map(image,m)
             edited()
 

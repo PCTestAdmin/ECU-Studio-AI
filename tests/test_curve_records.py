@@ -131,3 +131,21 @@ def test_8_bit_values_by_head_is_an_experiment_and_off_by_default(monkeypatch):
     assert switched[at][:2] == [6, 'u8'] and switched[at][2] == ['width-derived']
     # negative: with a record behind the 16-bit values nothing switches
     assert switched[0x200 + 14][1] in ('u16', 's16')
+
+
+def test_8_bit_by_head_counterexample_a_16_bit_tail_reads_like_a_head(monkeypatch):
+    """Counterexample for CURVE_U8_BY_HEAD (quality phase 5, synthetic): the last 16-bit values of a curve
+    (6, 0, 400) followed by an unrelated rising table (900, 1600, ...) read like a record head right behind
+    the 8-bit values, and no record follows the 16-bit values. The rule would read this 16-bit curve as 8 bit,
+    so it stays off; by default the curve stays 16 bit with its width open ('?')."""
+    from ecu_studio.core import curve_records
+    lead = _curve([-30, -10, 0, 20, 40, 90])
+    a = _curve([50, 70, 90, 6, 0, 400])
+    tail = np.array([900, 1600, 2500, 3600, 4900, 6400], '<i2').tobytes()
+    image = _image(lead, a, tail)
+    at = 0x200 + len(lead) + 14
+    default = {o: rest for o, *rest in _found(image)}
+    assert default[at][:2] == [6, 'u16'] and 'width' in default[at][2]
+    monkeypatch.setattr(curve_records, 'CURVE_U8_BY_HEAD', True)
+    switched = {o: rest for o, *rest in _found(image)}
+    assert switched[at][:2] == [6, 'u8']          # the experiment is wrong here: the switch stays off

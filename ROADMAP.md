@@ -256,6 +256,24 @@ Quellen: [Open-Source-Vergleich](docs/OPEN_SOURCE_RECOGNITION_RESEARCH.md).
 | Familienvorlagen, Namen aus Wertebereichen (ZedSuite) | verworfen | widerspricht „Werte benennen keine Funktion“ |
 | Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
 
+#### Stand nach Qualitätsphase 5 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben. Zahlen:
+[Bericht § 10](docs/ENTWICKLUNG_NEXTGEN.md#10-qualitätsphase-5-25112026-code-kennlinien-achsidentität-sichere-bearbeitung).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Kennlinien aus dem Programmcode (Kennlinienroutinen, TriCore) | Draft-PR · entwicklungsgemessen · Holdout-Regression | exakte 1D-Funde MEVD17.2 44 801 → 50 829, MSD80 68 044 → 75 008, 0 verloren; 2D 35 226 → 35 276, Verwechslungen 4 478 → 4 117 |
+| Vorzeichen aus der Kennlinienroutine | verworfen | MSD80: 671 statt 48 unmarkierte falsche Vorzeichen |
+| Breitenregel „Doppellücke“ | Draft-PR · Holdout-Regression (Befund) | behebt 18 auf dem Holdout verlorene Kennfelder; an Entwicklungsdaten wirkungslos, dort nicht geprüft |
+| Achsidentität (eindeutig / plausibel / wertgleich / unbekannt) | Draft-PR · entwicklungsgemessen | „plausibel gemeinsam“ 1 832 von 1 832 richtig; alle 34 falschen Zusammenlegungen „unbekannt“; 861 richtige ebenfalls „unbekannt“ |
+| Bearbeitungssicherheit (Konflikte, Bestätigung, Ablehnung bei unklarer Identität) | Draft-PR | synthetisch getestet; keine automatische Weitergabe |
+| Datensatzspanne widerlegt Musterbeginn | Draft-PR · entwicklungsgemessen | die 17 in QP4 verlorenen MSD80-1D-Funde zurück; Verwechslungen −85 |
+| Vorzeichen folgt offener Byte-Reihenfolge | Draft-PR · entwicklungsgemessen | unmarkierte falsche Vorzeichen MEVD17.2 9 → 0 (13 richtige zusätzlich mit „?“); MSD80 48 unverändert |
+| 8-Bit-Lesart von Kennlinien | experimentell (aus) | synthetisches Gegenbeispiel; keine unabhängigen Referenzen |
+| Testerablauf in der Oberfläche | nur Idee | nicht gebaut |
+| Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
+
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 
 | | Vorhaben | Warum / Voraussetzung |

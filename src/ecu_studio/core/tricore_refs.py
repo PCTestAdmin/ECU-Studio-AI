@@ -733,6 +733,9 @@ class CallDescriptor:
     # 'function': axes from the only two prelookups of the calling routine before the call, not from
     # the call's own path (PRE_FUNCTION, quality phase 4)
     pre_scope: str = ''
+    # the call passes a curve record head (n, X[n], W[n]) to a curve routine (CODE_CURVES, quality phase 5):
+    # 'exact' = its n values fill the gap to the next code-named object, 'routine' = width from the routine only
+    curve: str = ''
 
 
 # Prelookups of the routine (quality phase 4; idea: BimmerStein MS41 runtime axes, which resolve axis state
@@ -856,6 +859,103 @@ def _function_prelookups(data, sites, entries, pre, post, found, states, axis, c
                 states.setdefault(d, set()).update(r[6])
         added.add(d)
     return added
+
+
+# Quality phase 5: curve routines among the prelookup routines. A curve record ``n, X[n], W[n]`` starts like a
+# count-prefixed axis, so routines that interpolate a curve from its own record are learned as prelookups
+# (development data, A2L for evaluation only: on MEVD17.2 12 of 14 such routines received curve record heads
+# only; MSD80 likewise, besides genuine axis searches). Code-named addresses tell them apart: behind the axis
+# of a curve record lie exactly its n values up to the next object the code names (n bytes for 8-bit values,
+# 2n for 16-bit), behind a standalone axis the next object follows at once. Development data: curve routines
+# showed one such fixed value block in 76 ... 100 % of their strictly readable targets, genuine axis searches in
+# 3 ... 4 %. A routine whose targets agree on one value width (CURVE_ROUTINE_SHARE of at least CODE_AXES_MIN
+# strict targets) is a curve routine of that width; each of its calls then names a curve: axis at the head,
+# n values of that width behind it, provided no code-named address lies inside the values.
+CODE_CURVES = True
+CURVE_ROUTINE_SHARE = .6
+# The sign of the values from the curve routine's loads (all loads of the value width agree). Rejected
+# (ablation, development data): on MSD80 the routines load 16-bit values signed while the reference declares
+# most of these curves unsigned (498 curves lost their sign mark), so the sign stays open and marked.
+CURVE_ROUTINE_SIGN = False
+
+
+def _value_block(n: int, gap: int) -> int | None:
+    """Value width (1 or 2) whose n cells fill ``gap`` bytes up to MAX_PAD; None if none or both fit."""
+    fit = [w for w in (1, 2) if n * w <= gap <= n * w + MAX_PAD]
+    return fit[0] if len(fit) == 1 else None
+
+
+def curve_routines(data: bytes, sites, pre, named: list[int], axis) -> dict[int, int]:
+    """{prelookup routine: value width} of routines whose targets are curve records (see CODE_CURVES)."""
+    import bisect
+    votes: dict[int, Counter] = {}
+    seen = set()
+    for c in sites:
+        # Distinct targets vote, not calls: an axis search names few shared axes many times.
+        if c.x_header is not None or c.callee not in pre or (c.callee, c.data) in seen:
+            continue
+        seen.add((c.callee, c.data))
+        ax = axis(c.data)
+        if ax is None or ax.header != c.data:
+            continue
+        i = bisect.bisect_left(named, ax.end)
+        if i >= len(named):
+            continue
+        votes.setdefault(c.callee, Counter())[_value_block(ax.count, named[i] - ax.end)] += 1
+    out = {}
+    for r, v in votes.items():
+        total = sum(v.values())
+        best = max((w for w in v if w is not None), key=lambda w: v[w], default=None)
+        if best is not None and total >= CODE_AXES_MIN and v[best] >= CURVE_ROUTINE_SHARE * total:
+            out[r] = best
+    return out
+
+
+def _add_code_curves(out, data, sites, h, entries, pre, code_widths, axis, lo, hi) -> None:
+    """Curve descriptors (data = first value, X axis, no Y) of calls to curve routines (CODE_CURVES)."""
+    import bisect
+    named = sorted({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
+    routines = curve_routines(data, sites, pre, named, axis)
+    if not routines:
+        return
+    signs = {}
+    for r, w in routines.items():
+        k = bisect.bisect_right(entries, r)
+        end = min(entries[k] if k < len(entries) else r + MAX_BODY, r + MAX_BODY)
+        loads = cell_loads(h, r, end)
+        # The sign of the values counts only when the axis is read with another width (else the axis
+        # loads mix in) and all loads of the value width agree.
+        same = {s for (lw, s) in loads if lw == w}
+        widths_axis = {lw for (lw, _) in loads if lw != w}
+        signs[r] = same.pop() if CURVE_ROUTINE_SIGN and len(same) == 1 and widths_axis and sum(n for (lw, _), n in loads.items()
+                                                                          if lw == w) >= MIN_CELL_LOADS else None
+    found: dict[int, list] = {}
+    for c in sites:
+        if c.x_header is not None or c.callee not in routines:
+            continue
+        w = routines[c.callee]
+        ax, state = axis(c.data), ''
+        if ax is None and c.callee in code_widths:
+            got = code_axis(data, c.data, code_widths[c.callee])
+            if got is not None:
+                ax, state = got
+        if ax is None or ax.header != c.data:
+            continue
+        values = ax.end
+        if not lo <= values < hi or values % w or values + ax.count * w > len(data):
+            continue
+        i = bisect.bisect_right(named, values)
+        if i < len(named) and named[i] < values + ax.count * w:
+            continue   # a code-named address inside the values: not one curve
+        exact = i < len(named) and named[i] - (values + ax.count * w) <= MAX_PAD
+        found.setdefault(values, []).append((ax, c.callee, c.site, state, exact))
+    for d, readings in found.items():
+        if d in out or len({(r[0].header, r[0].count, r[1]) for r in readings}) != 1:
+            continue
+        ax, callee, _, state, exact = readings[0]
+        out[d] = CallDescriptor(d, ax, None, callee, tuple(sorted({r[2] for r in readings})),
+                                cell_width=routines[callee], cell_signed=signs[callee],
+                                curve='exact' if exact else 'routine', axis_state=state)
 
 
 def _learned(votes: dict) -> dict:
@@ -1365,6 +1465,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_co
                                 registers=roles.get(callee, DEFAULT_ROLES),
                                 axis_state='+'.join(sorted({p for s in states.get(d, ()) for p in s.split('+') if p})),
                                 pre_scope='function' if d in function_level else '')
+    if CODE_CURVES and found:
+        _add_code_curves(out, data, sites, h, entries, pre, code_widths, axis, lo, hi)
     for d, (x, y, at) in triples.items():
         if d not in out:
             # No routine: the cell width comes from the gap to the next object (cell_widths);
@@ -1374,6 +1476,7 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_co
 
 
 MAX_PAD = 3   # alignment bytes allowed between a table and the next object
+DOUBLE_GAP_WEAK = True   # quality phase 5: an exact 16-bit fit that also holds two byte tables is a weak vote
 
 
 def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -> dict[int, int]:
@@ -1394,7 +1497,7 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
     """
     import bisect
     bounds = sorted(set(boundaries))
-    options = {}
+    options, weak = {}, set()
     for d, desc in descriptors.items():
         cells = desc.x_axis.count * (desc.y_axis.count if desc.y_axis else 1)
         k = bisect.bisect_right(bounds, d)
@@ -1411,15 +1514,29 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
             options[d] = exact if len(exact) == 1 else []
             continue
         options[d] = exact if len(exact) == 1 else fits
+        if DOUBLE_GAP_WEAK and exact == [2] and 1 in fits:
+            weak.add(d)
     votes: dict[int, Counter] = {}
+    strong: dict[int, Counter] = {}
     for d, opts in options.items():
         if len(opts) == 1 and not descriptors[d].prelookup:
             votes.setdefault(descriptors[d].callee, Counter())[opts[0]] += 1
+            if d not in weak:
+                strong.setdefault(descriptors[d].callee, Counter())[opts[0]] += 1
     routine = {c: v.most_common(1)[0][0] for c, v in votes.items()
                if len(v) == 1 and sum(v.values()) >= 3}
+    # Quality phase 5: a gap exactly twice a byte table also holds two byte tables in a row, so the exact
+    # 16-bit fit is a weak vote. A routine whose other calls agree (at least three) settles it; otherwise
+    # the exact fit stays. Found as a regression on the known holdout (new curve heads as boundaries);
+    # no effect on the development data.
+    decided = {c: v.most_common(1)[0][0] for c, v in strong.items()
+               if len(v) == 1 and sum(v.values()) >= 3}
+    routine.update(decided)
     out = {}
     for d, opts in options.items():
-        if len(opts) == 1:
+        if d in weak and descriptors[d].callee in decided:
+            out[d] = decided[descriptors[d].callee]
+        elif len(opts) == 1:
             out[d] = opts[0]
         elif len(opts) == 2 and descriptors[d].callee in routine:
             out[d] = routine[descriptors[d].callee]

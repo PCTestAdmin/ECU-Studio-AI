@@ -43,6 +43,8 @@ PROPERTY_LABELS = {WIDTH: 'Wertebreite', SIGN: 'Vorzeichen', BYTE_ORDER: 'Byte-R
 RAW, KNOWN, CHECKED = 'unbekannt', 'aus Definition', 'geprüft'
 # Breakpoint arrays: only a strictly rising reading is an axis, so the sign can follow from the values.
 AXIS_LAYOUTS = ('candidate:record-axis', 'candidate:count-axis')
+# Evidence text of a TriCore call table whose sign comes from the routine's loads (structure_scan._cell_type_note)
+LOADED_SIGN = 'Vorzeichen aus den Ladebefehlen der Interpolationsroutine'
 SCALING_LABELS = {RAW: 'Unbekannt: Rohwerte', KNOWN: 'Aus Definition', CHECKED: 'Vom Nutzer geprüft'}
 # Notes the A2L link writes when it keeps raw values (core/a2l.py)
 RAW_NOTE = 'nicht unterstützt: Rohwerte'
@@ -214,7 +216,9 @@ def type_status(m: MapDefinition, image: BinaryImage | None = None, conflicts=()
                                         'die Belege entscheiden das Vorzeichen nicht',
                                         tuple(m.dtype_alternatives),
                                         'Ladebefehle der Routine uneinig' if code_call else ''))
-        elif code_call:
+        elif code_call and LOADED_SIGN in (m.label_evidence or ''):
+            # Quality phase 5: only when the routine's loads gave the sign (structure_scan._cell_type_note); a
+            # call table whose routine does not show it falls through to the checks below.
             props.append(PropertyStatus(SIGN, sign_text, CODE, 'Ladebefehle der Interpolationsroutine'))
         elif top and m.record_layout in AXIS_LAYOUTS and image is not None and _only_rising(image, m):
             props.append(PropertyStatus(SIGN, sign_text, DERIVED, 'nur diese Lesart ergibt steigende Stützstellen'))
@@ -248,6 +252,12 @@ def type_status(m: MapDefinition, image: BinaryImage | None = None, conflicts=()
             props.append(PropertyStatus(BYTE_ORDER, m.endian, CODE, 'Prozessorarchitektur des Programmcodes'))
         else:
             props.append(PropertyStatus(BYTE_ORDER, m.endian, DERIVED, 'Zähler und Achsen des eigenen Datensatzes'))
+    # Quality phase 5: no "sign settled" while the byte order is open - the sign bit depends on it. Loads of the
+    # routine (CODE) show the signedness of the access and stay.
+    order = next((p for p in props if p.key == BYTE_ORDER), None)
+    if order is not None and order.status == ALTERNATIVE:
+        props = [dataclasses.replace(p, status=UNDETERMINED, source='hängt von der offenen Byte-Reihenfolge ab')
+                 if p.key == SIGN and p.status in (DERIVED, EQUAL, UNDETERMINED) else p for p in props]
     if contra:
         props = [dataclasses.replace(p, contradiction=p.contradiction or contra.get(p.key, '')) for p in props]
     return TypeStatus(props)

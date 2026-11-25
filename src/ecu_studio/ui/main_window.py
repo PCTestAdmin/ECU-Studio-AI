@@ -390,6 +390,7 @@ class Window(QMainWindow):
         self.raw2d=Raw2DView(self.jump,self.define_raw_selection)
         self.tabs.addTab(self.raw2d,'2D-Rohdaten')
         self.map_model=MapTableModel()
+        self.map_model.guard=self.edit_allowed
         self.map_model.edited.connect(self.on_edited)
         self.map_table=QTableView()
         self.map_table.setModel(self.map_model)
@@ -1316,7 +1317,8 @@ class Window(QMainWindow):
         index=next((i for i,x in enumerate(self.maps) if x is m),None)
         if index is None:return ''
         lines=[]
-        objs={o.offset:o for o in axis_refs.objects(self.maps)
+        data=self.image.materialize() if self.image is not None else None
+        objs={o.offset:o for o in axis_refs.objects(self.maps,data=data)
               if any(i==index for i,_ in o.users)}
         for r in axis_refs.references([m]):
             lines.append('\n'+r.describe())
@@ -1329,6 +1331,8 @@ class Window(QMainWindow):
                 if o.unapplied:
                     lines.append('\n  Nicht bedatet (alle Stützstellen gleich): gemeinsam nur über die Speicheradresse; '
                                  'wertgleiche Kopien an anderen Adressen sind möglich.')
+            if o.identity:
+                lines.append(f'\n  Identität: {o.identity} ({o.identity_reason})')
             if o.issues:
                 lines.append('\n  Widerspruch: '+'; '.join(o.issues))
         return ''.join(lines)
@@ -2694,7 +2698,7 @@ class Window(QMainWindow):
         if not self.image or not self.selected:
             QMessageBox.information(self,"Batchbearbeitung","Bitte ein Kennfeld auswählen.")
             return
-        dialog=BatchEditDialog(self.image,self.selected,self)
+        dialog=BatchEditDialog(self.image,self.selected,self,self.edit_allowed)
         if dialog.exec()==QDialog.DialogCode.Accepted:
             self.on_edited()
 
@@ -3789,7 +3793,7 @@ class Window(QMainWindow):
             if pane.definition is self.selected:
                 self.tabs.setCurrentWidget(pane)
                 return
-        pane=MapEditorPane(self.image,self.selected,self.on_edited,self)
+        pane=MapEditorPane(self.image,self.selected,self.on_edited,self,self.edit_allowed,self.shared_axis_note)
         pane.model.dark=self.theme=='dark'
         self.map_editors.append(pane)
         index=self.tabs.addTab(pane,self.selected.name)
@@ -3819,11 +3823,42 @@ class Window(QMainWindow):
         else:
             m,view=self.selected,self.map_table
         cells=[(i.row(),i.column()) for i in view.selectionModel().selectedIndexes()]
-        SurfaceEditDialog(self.image,m,cells,self.on_edited,self).exec()
+        SurfaceEditDialog(self.image,m,cells,self.on_edited,self,self.edit_allowed).exec()
 
     def edit_axes(self):
-        if self.image and self.selected and AxisDialog(self.image,self.selected,self).exec():
+        if self.image and self.selected and AxisDialog(self.image,self.selected,self,
+                                                       self.shared_axis_note(self.selected)).exec():
             self.on_edited()
+
+    def edit_allowed(self,tables,positions)->bool:
+        """Edit guard (core/edit_guard) before cell bytes of ``tables`` are written: bytes of other tables or
+        of a stored axis are shown with every affected table and address and need a confirmation; bytes of
+        an axis whose shared identity is unknown are refused."""
+        if self.image is None:
+            return False
+        from ..core.edit_guard import allowed,conflicts,confirmation_text,refusal_text
+        found=conflicts(self.maps,tables,positions,self.image.materialize())
+        if any(c.refused for c in found):
+            QMessageBox.warning(self,'Bearbeitung abgelehnt',refusal_text(found))
+            return False
+        return allowed(found,lambda f:QMessageBox.question(
+            self,'Andere Objekte betroffen',confirmation_text(f),
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes)
+
+    def shared_axis_note(self,m)->str:
+        """Note for the axis dialog: other tables reading the same stored axis keep their definition."""
+        from ..core import axis_refs
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:
+            return ''
+        others=sorted({self.maps[i].name for o in axis_refs.objects(self.maps) if o.shared and index in o.tables
+                       for i in o.tables if i!=index})
+        if not others:
+            return ''
+        more=f' (+{len(others)-5})' if len(others)>5 else ''
+        return ('Gemeinsame Achse: Nur die Definition dieses Kennfelds wird geändert; nicht übernommen für '
+                +', '.join(others[:5])+more+'.')
 
     def execute_recipe(self):
         if not self.require_image():
@@ -3836,7 +3871,10 @@ class Window(QMainWindow):
         try:
             if Path(p).stat().st_size>5*1024**2:
                 raise ValueError('Rezept zu groß')
-            preview=plan_recipe(self.image,self.maps,json.loads(Path(p).read_text(encoding='utf-8')))
+            recipe=json.loads(Path(p).read_text(encoding='utf-8'))
+            preview=plan_recipe(self.image,self.maps,recipe)
+            names={op.get('map') for op in recipe.get('operations',[]) if isinstance(op,dict)} if isinstance(recipe,dict) else set()
+            own=[m for m in self.maps if m.name in names]
             dialog=QDialog(self)
             dialog.setWindowTitle('Rezept · vollständige Byte-Vorschau')
             dialog.resize(900,600)
@@ -3849,7 +3887,8 @@ class Window(QMainWindow):
             buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(dialog.accept)
             buttons.rejected.connect(dialog.reject)
             layout.addWidget(buttons)
-            if dialog.exec():
+            from ..core.edit_guard import update_positions
+            if dialog.exec() and self.edit_allowed(own,update_positions(preview.updates)):
                 apply_batch(self.image,preview)
                 self.on_edited()
         except Exception as exc:

@@ -100,6 +100,9 @@ class MapTableModel(QAbstractTableModel):
         self.map: MapDefinition | None = None
         self.dark=False
         self._values_cache = {}
+        # Edit guard (core/edit_guard): callable(map, byte positions) -> bool, asked before a cell is
+        # written; it shows other tables or shared axes on these bytes and may refuse.
+        self.guard = None
 
     def set_map(self, image, selected):
         self.beginResetModel()
@@ -171,6 +174,10 @@ class MapTableModel(QAbstractTableModel):
             return False
         try:
             v = float(str(value).replace(",","."))
+            if self.guard is not None:
+                from ..core.edit_guard import written_positions
+                if not self.guard(self.map, written_positions(self.map, [(idx.row(), idx.column())])):
+                    return False
             self.image.write_physical(self.map,idx.row(),idx.column(),v)
         except (ValueError,OverflowError,IndexError):
             return False

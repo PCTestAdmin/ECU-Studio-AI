@@ -144,7 +144,7 @@ def measure(bin_path: str, reference: str, line: str, *, anchor: str | None = No
         image = BinaryImage.from_file(bin_path)
         maps = [m for m in _reference(reference, image, int(anchor, 0) if anchor else None) if m.rows * m.cols >= 2]
         counts = {'detection': {k: row.get(k) for k in DETECTION_KEYS} | {'seconds': round(row['seconds'])},
-                  'axis_references': axis_refs.summary(maps),
+                  'axis_references': axis_refs.summary(maps, axis_refs.objects(maps, data=image.materialize())),
                   'function_identification': function_counts(maps)}
     if not exact:
         counts = coarsen(counts)
