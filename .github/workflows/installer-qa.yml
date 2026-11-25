@@ -1,5 +1,7 @@
 name: Installer QA (release candidate)
 
+# 1.21.0-rc2: as for rc1; mode FromRc1 adds the path of rc1 testers: the published v1.21.0-rc1 updates itself to the
+# candidate from its own menu after the test channel was switched on.
 # 1.21.0-rc1: CANDIDATE and NEXT are release candidates. Mode NoOffer proves that neither the published v1.20.1 nor
 # the candidate offers a candidate on the stable channel; Chain updates the candidate to NEXT only after the test
 # channel was switched on in the menu. InApp (an old version updating itself to the candidate) is left out: by
@@ -21,8 +23,8 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE: '1.21.0-rc1'
-  NEXT: '1.21.0-rc2'
+  CANDIDATE: '1.21.0-rc2'
+  NEXT: '1.21.0-rc3'
 
 jobs:
   build:
@@ -76,7 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025]
-        mode: [Fresh, Update, NoOffer, Repair, Chain, Heal, Rollback, Blocked, Existing]
+        mode: [Fresh, Update, NoOffer, Repair, Chain, Heal, Rollback, Blocked, Existing, FromRc1]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
