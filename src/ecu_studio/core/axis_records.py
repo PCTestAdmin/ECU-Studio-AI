@@ -712,13 +712,16 @@ def record_axes(image: BinaryImage, m: MapDefinition) -> list[MapDefinition]:
                         # an open byte order of the record's axes stays open on the axis objects
                         open_ = ''.join(' ' + s.strip() for s in m.notes.split('.') if ENDIAN_OPEN in s)
                         open_ = (open_.strip() + '.') if open_ else ''
+                        from .curve_records import AXIS_WIDTH_NOTE, WIDTH_BOTH_OPEN, bytes_rise
                         return [MapDefinition(f'Achse {label} von 0x{m.offset:08X}', off, 1, count, dtype(w), order,
                                               source='heuristic', confidence=.44, record_layout=RECORD_AXIS_LAYOUT,
                                               candidate_region_start=header,
                                               label_origin='Stützstellen eines Kopf-Datensatzes (ungeprüft)',
                                               label_evidence=f'{label}-Achse des Datensatzes @ 0x{header:X} mit Anzahl-Kopf.',
                                               notes='Achsen-Hypothese aus nx,ny,X,Y,Z-Kopf; Einheit unbekannt.'
-                                              + (' ' + open_ if open_ and w == 2 else ''))
+                                              + (' ' + open_ if open_ and w == 2 else '')
+                                              + (AXIS_WIDTH_NOTE if w == 2 and WIDTH_BOTH_OPEN
+                                                 and bytes_rise(image.read(off, 2 * count), 0, count) else ''))
                                 for label, off, count, w in (('X', start, m.cols, xw), ('Y', start + m.cols * xw, m.rows, yw))]
     return []
 

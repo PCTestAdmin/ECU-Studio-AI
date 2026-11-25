@@ -26,8 +26,31 @@ CURVE_SIGN_OPEN = True
 CURVE_WIDTH_OPEN = True
 CURVE_WIDTH_NOTE = (' Wertebreite offen: auch eine 8-Bit-Tabelle gleicher Form ist möglich '
                     '(kein Datensatzkopf direkt hinter den 16-Bit-Werten; ungeprüft).')
+# Quality phase 4 (1-D error classes, development data, A2L for evaluation only): of the wrong widths that still
+# carried no "?", 28 were 8-bit curves whose 16-bit reading also ends at a head (by chance, inside the next
+# object) while a head or a count-prefixed axis begins right behind the 8-bit values as well (only a record
+# head is used: see below); 53 were 8-bit axes
+# read as 16-bit record axes whose bytes, read one by one, rise too. Both widths are then structurally possible:
+# the width stays open ("?"). Marking only; values, address and shape are unchanged.
+WIDTH_BOTH_OPEN = True
+WIDTH_BOTH_NOTE = (' Wertebreite offen: auch eine 8-Bit-Tabelle gleicher Form ist möglich '
+                   '(auch direkt hinter den 8-Bit-Werten beginnt ein Datensatz; ungeprüft).')
+AXIS_WIDTH_NOTE = (' Wertebreite offen: auch eine 8-Bit-Tabelle bzw. 8-Bit-Achse ist möglich '
+                   '(die Bytes steigen auch einzeln gelesen; ungeprüft).')
+# Experiment (quality phase 4, off: a type change). A head right behind the 8-bit values and none behind the
+# 16-bit values: read the values as 8 bit (quality phase 3 measured 16 bit wrong in all such cases, MEVD17.2
+# 160, MSD80 281, none right).
+CURVE_U8_BY_HEAD = False
+CURVE_U8_NOTE = (' Wertebreite 1 Byte: hinter der 8-Bit-Lesart beginnt ein Datensatzkopf, hinter der 16-Bit-Lesart '
+                 'keiner (Experiment; ungeprüft).')
 MIN_POINTS, MAX_POINTS = 4, 32
 GAP = 2   # alignment padding between packed records
+
+
+def bytes_rise(data: bytes, at: int, n: int) -> bool:
+    """The 2n bytes of a 16-bit axis, read one by one, rise strictly: an 8-bit axis reads the same way."""
+    raw = data[at:at + 2 * n]
+    return len(raw) == 2 * n and bool(np.all(np.diff(np.frombuffer(raw, np.uint8).astype(np.int16)) > 0))
 DOMINANCE = 2.5    # 16-bit map records of one byte order must outnumber the other (EDC17CP09 4:1, ME9.2.1 3.2:1)
 MIN_RECORDS = 30   # and be common: no record convention, no curve records (MS43: 18)
 
@@ -96,20 +119,36 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
             chained = behind or any(h - g in ends for g in range(0, GAP + 1))
             if not chained:
                 continue
-            raw_w = np.frombuffer(data[values:values + 2 * n], ('<' if endian == 'little' else '>') + 'u2')
-            top = bool(np.any(raw_w >= 0x8000))
-            dtype = 's16' if signed or top else 'u16'
+            heads8 = any(values + n + g in heads for g in range(0, GAP + 1))
+            u8 = CURVE_U8_BY_HEAD and heads8 and not behind
+            if u8:
+                raw_b = np.frombuffer(data[values:values + n], np.uint8)
+                top = bool(np.any(raw_b >= 0x80))
+                dtype, alternatives, width_note = 'u8', ['s8'] if CURVE_SIGN_OPEN and top else [], CURVE_U8_NOTE
+            else:
+                raw_w = np.frombuffer(data[values:values + 2 * n], ('<' if endian == 'little' else '>') + 'u2')
+                top = bool(np.any(raw_w >= 0x8000))
+                dtype, alternatives = 's16' if signed or top else 'u16', ['u16'] if CURVE_SIGN_OPEN and top else []
+                width_note = ''
+                if CURVE_WIDTH_OPEN and not behind:
+                    width_note = CURVE_WIDTH_NOTE
+                elif WIDTH_BOTH_OPEN and behind and heads8:
+                    # Only a record head counts: with any count-prefixed axis (axis_at) behind the 8-bit values,
+                    # development data gave 18 wrong widths caught for 311 right ones newly marked.
+                    width_note = WIDTH_BOTH_NOTE
             common = dict(source='heuristic', confidence=.44, candidate_region_start=h)
             out.append(MapDefinition(f'Kennlinien-Kandidat @ 0x{values:08X}', values, 1, n, dtype, endian,
-                                     dtype_alternatives=['u16'] if CURVE_SIGN_OPEN and top else [],
+                                     dtype_alternatives=alternatives,
                                      record_layout=CURVE_LAYOUT, axes_x=list(axis), axis_x_offset=h + 2,
                                      label_origin='Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)',
                                      label_evidence=f'{n} Stützstellen @ 0x{h + 2:X}, Werte @ 0x{values:X}.',
                                      notes='Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.'
-                                     + (CURVE_WIDTH_NOTE if CURVE_WIDTH_OPEN and not behind else ''), **common))
+                                     + width_note, **common))
             out.append(MapDefinition(f'Achse von 0x{values:08X}', h + 2, 1, n, 's16' if signed else 'u16', endian,
                                      record_layout=CURVE_AXIS_LAYOUT,
                                      label_origin='Stützstellen eines Kennlinien-Datensatzes (ungeprüft)',
                                      label_evidence=f'X-Achse des Datensatzes @ 0x{h:X} mit Anzahl-Kopf.',
-                                     notes='Achsen-Hypothese aus n,X,W-Kopf; Einheit unbekannt.', **common))
+                                     notes='Achsen-Hypothese aus n,X,W-Kopf; Einheit unbekannt.'
+                                     + (AXIS_WIDTH_NOTE if WIDTH_BOTH_OPEN and bytes_rise(data, h + 2, n) else ''),
+                                     **common))
     return out

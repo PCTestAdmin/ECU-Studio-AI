@@ -145,6 +145,23 @@ def refuted_by_loads(candidates,loaded):
     return [m for m in candidates if not (m.record_layout==PITCH_LAYOUT and _crosses(m,points))]
 
 
+# Quality phase 4: the head of a chained curve record (n, X[n], W[n]; structure evidence) that lies strictly
+# inside a smoothness-only run refutes the run, as a 2-D header record does (PITCH_NO_RECORDS). Applied after
+# ranking as a pure removal (see LOADED_REFUTES_PITCH). Development data (58 images, A2L for evaluation only):
+# confusions 5 138 -> 4 478, exact 2-D tables unchanged (0 lost); exact 1-D objects +1 381 (MEVD17.2) and
+# +3 239 (MSD80), 0 lost. Found while classifying the 1-D hits lost to code-backed axes: the extra tables moved
+# smoothness-only runs over chained curve records, which only fill gaps.
+CURVE_HEADS_REFUTE_PITCH=True
+
+
+def refuted_by_curve_heads(candidates,curves):
+    """The candidates without the smoothness-only runs that a chained curve record head lies strictly inside."""
+    heads=sorted({c.candidate_region_start for c in curves if c.candidate_region_start is not None})
+    if not CURVE_HEADS_REFUTE_PITCH or not heads:
+        return list(candidates)
+    return [m for m in candidates if not (m.record_layout==PITCH_LAYOUT and _crosses(m,heads))]
+
+
 PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
 SCANNERS=('discover','u8','u32','s16')
 
@@ -246,7 +263,11 @@ def scan_calibration_candidates(image: BinaryImage, *,
         known={ax.header for ax in axes}
         spans=[(ax.header,ax.end) for ax in axes]
         lookups=lookup_descriptors(raw,lo,hi,base) if arch.name==C16X else {}
-        pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()]
+        # Axes from routine-level prelookups (tricore_refs.PRE_FUNCTION) are weaker: they only count as part of
+        # an accepted table, never as axis candidates of their own (MEVD17.2 development: 16-18 curve records
+        # per image were displaced by such axes).
+        pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()
+                                      if getattr(c,'pre_scope','')!='function']
         for pair in pairs:
             for ax in pair:
                 # Values decide: a record's second count lies inside the span of its first axis.
@@ -293,6 +314,11 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # Legacy grid windows must not swallow a detected axis or referenced curve.
     merged=_merged(spans)
     kept=[m for m in ranked if not _overlaps_any(m.offset,m.offset+m.length,merged)]
+    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z']
+    all_curves=scan_curve_records(image,records,cancelled=cancelled)
+    before=len(kept)
+    kept=refuted_by_curve_heads(kept,all_curves)
+    if diagnostics is not None:diagnostics['curve_refuted_patterns']=before-len(kept)
     # Axes of accepted header records are axes too (EDC17 SWORD records, ME9, MED17 ...).
     taken=_merged([(m.offset,m.offset+m.length) for m in lines])
     extra=[a for m in kept for a in record_axes(image,m)
@@ -301,8 +327,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # line or a record axis (the record list gives byte order and chain neighbours).
     occupied=_merged([((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
                       for m in kept+lines+extra])
-    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z']
-    curves=[c for c in scan_curve_records(image,records,cancelled=cancelled)
+    curves=[c for c in all_curves
             if not _overlaps_any(c.candidate_region_start,c.offset+c.length,occupied)]
     seen=set()
     for c in curves:   # axis and values of one record, each once

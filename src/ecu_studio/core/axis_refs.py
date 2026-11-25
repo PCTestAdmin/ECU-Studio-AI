@@ -29,6 +29,8 @@ from .confidence import CODE as CODE_LEVEL, evidence_level
 from .model import MapDefinition
 
 STORED, FIXED, OPEN = 'gespeichert', 'fest', 'ungeklärt'
+UNAPPLIED_NOTE = (' · nicht bedatet (alle Stützstellen gleich): gemeinsam nur über die Speicheradresse; '
+                  'wertgleiche Kopien an anderen Adressen sind möglich')
 DEFINITION, CODE, STRUCTURE = 'Definition', 'Programmcode', 'Datenstruktur'
 DEFINITION_SOURCES = ('a2l', 'xdf', 'romraider', 'csv', 'definition', 'pack', 'exact-reference')
 TRICORE_ALIASES = (0x80000000, 0xA0000000)   # cached / uncached view of the same flash
@@ -72,6 +74,9 @@ class AxisObject:
     endian: str = ''
     aliases: tuple[int, ...] = ()                     # CPU addresses that name these bytes
     issues: list[str] = field(default_factory=list)
+    # All users read equal points (an unapplied axis, e.g. all zero; quality phase 4): such axes exist as
+    # value-equal copies at many addresses, so a common address from code is weaker evidence of sharing.
+    unapplied: bool = False
 
     @property
     def tables(self) -> list[int]:
@@ -92,7 +97,7 @@ class AxisObject:
         users = f'{len(self.tables)} Kennfelder' if self.shared else '1 Kennfeld'
         state = ('Widerspruch: ' + '; '.join(self.issues)) if self.issues else 'widerspruchsfrei'
         return (f'Achse{name} @ 0x{self.offset:X}: {self.points} Punkte{cell}, {users}, '
-                f'Beleg: {", ".join(self.sources)}{alias} – {state}')
+                f'Beleg: {", ".join(self.sources)}{alias} – {state}' + (UNAPPLIED_NOTE if self.unapplied else ''))
 
 
 def references(maps: list[MapDefinition]) -> list[AxisRef]:
@@ -157,8 +162,10 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
             aliases = tuple(seg + low for seg in TRICORE_ALIASES)
         sources = tuple(s for s in (DEFINITION, CODE, STRUCTURE) if any(r.source == s for r in refs))
         dtype, endian = types[0] if len(types) == 1 else ('', '')
+        values = [maps[r.table].axes_x if r.axis == 'X' else maps[r.table].axes_y for r in refs]
+        unapplied = all(v and len(set(v)) == 1 for v in values)
         out.append(AxisObject(at, points, sorted((r.table, r.axis) for r in refs), sources,
-                              names[0] if len(names) == 1 else '', dtype, endian, aliases, issues))
+                              names[0] if len(names) == 1 else '', dtype, endian, aliases, issues, unapplied))
     return out
 
 
@@ -180,6 +187,7 @@ def summary(maps: list[MapDefinition], objs: list[AxisObject] | None = None) -> 
         out[r.status] += 1
     out['objects'] = len(objs)
     out['shared'] = sum(o.shared for o in objs)
+    out['shared_unapplied'] = sum(o.shared and o.unapplied for o in objs)
     out['contradictory'] = sum(o.contradictory for o in objs)
     return out
 

@@ -727,9 +727,149 @@ class CallDescriptor:
     record: bool = False      # the call passes a record header (counts + axes) in front of the data
     registers: tuple = (4, (5, 6))   # (data register, axis registers) of the calls
     pointer: bool = False     # named by a pointer triple (data, X, Y) in memory, not by a call (1.21.0)
+    # '' = all axes strictly increasing; otherwise the code-backed readings of code_axis (quality phase 4):
+    # 'plateau' (repeated breakpoints) and/or 'blank' (all breakpoints equal, e.g. unapplied)
+    axis_state: str = ''
+    # 'function': axes from the only two prelookups of the calling routine before the call, not from
+    # the call's own path (PRE_FUNCTION, quality phase 4)
+    pre_scope: str = ''
 
 
-MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
+# Prelookups of the routine (quality phase 4; idea: BimmerStein MS41 runtime axes, which resolve axis state
+# cells over all predecessor paths - own implementation, no code taken). The sweep follows each path
+# forward and joins only near forward branches; a table call whose own path holds fewer than two
+# prelookups stays without axes. Here, for a table call no path names: the prelookup calls of the same
+# routine before the call, by address, with repeats folded. Exactly two different axes give X (earlier)
+# and Y (later); any other count (one, three, a return to an earlier axis) leaves the call open. Only for
+# data no other call names, so a path reading is never overruled. Development data (MSD80, two images,
+# A2L for evaluation only): 160 table calls with fewer than two prelookups on their path; the callers of
+# their routines held no further prelookups (0 resolved); the routine itself held exactly two axes in 22
+# calls of tables not yet named, all 22 with the reference axes; with more than two axes 2 of 25 had one
+# wrong axis, hence exactly two.
+PRE_FUNCTION = True
+
+
+# Code-backed axes (quality phase 4). axis_at and record_at demand strictly increasing breakpoints:
+# values decide whether a header is an axis. Where a learned routine reads the header, the code
+# already says so; repeated breakpoints at the end ("900, 900, 900") or unapplied axes (all equal)
+# are then real axes too. Development data: MSD80 8 857 table calls after two prelookups whose axes
+# both failed axis_at, the reference axes at exactly those two prelookups in 8 373 (plateau or blank
+# axes, the tables mostly unapplied zeros); MEVD17.2 one image: 192 map record heads passed to record
+# routines failed record_at with plausible counts, nearly all for a plateau axis.
+# Such a reading is accepted only with the axis width (prelookups) or record layout (records) the same
+# routine shows at its strictly readable calls: a 16-bit count 08 00 followed by zeros also reads as
+# an 8-bit count with zero values, and the width must not be chosen by the values.
+CODE_AXES = True
+CODE_AXES_MIN = 5          # strict calls of the routine that fix its width / layout (as MIN_ROLE_CALLS)
+CODE_AXES_SHARE = .9       # ... and the share of them in one width / layout
+
+
+def code_axis(data: bytes, header: int, width: int, *, count: int | None = None,
+              first: int | None = None) -> tuple[CountAxis, str] | None:
+    """(axis, state) of a count-prefixed axis read with a fixed width, accepting repeated breakpoints.
+
+    ``state`` is '' (strictly increasing), 'plateau' (never falling, some rise) or 'blank' (all equal).
+    The values are read unsigned and, when that falls, signed. Without ``count`` the count (same width
+    as the values) is read at ``header`` and the values follow it; records keep both counts in front of
+    both axes and pass ``count`` and the position of the ``first`` value instead.
+    """
+    if count is None:
+        if not 0 <= header or header + width > len(data):
+            return None
+        n, a = int.from_bytes(data[header:header + width], 'little'), header + width
+    else:
+        n, a = count, first
+    if not MIN_RECORD_POINTS <= n <= 32 or a % width or a + n * width > len(data):
+        return None
+    raw = data[a:a + n * width]
+    for kind in ('u', 'i'):
+        v = np.frombuffer(raw, np.dtype(kind + '1') if width == 1 else np.dtype('<' + kind + '2')).astype(np.int64)
+        d = np.diff(v)
+        if np.all(d >= 0):
+            state = '' if np.all(d > 0) else 'blank' if not np.any(d) else 'plateau'
+            return CountAxis(header, a, n, width, tuple(int(x) for x in v)), state
+    return None
+
+
+def code_record(data: bytes, head: int, layout: tuple[int, int, int]) -> tuple[CountAxis, CountAxis, str] | None:
+    """(X, Y, state) of a 2-D record at ``head`` read with a routine's learned layout (record_at layout)."""
+    cw, w1, w2 = layout
+    if head < 0 or head + 2 * cw > len(data) or head % cw:
+        return None
+    n1 = int.from_bytes(data[head:head + cw], 'little')
+    n2 = int.from_bytes(data[head + cw:head + 2 * cw], 'little')
+    x = code_axis(data, head, w1, count=n1, first=head + 2 * cw)
+    if x is None:
+        return None
+    y = code_axis(data, head + cw, w2, count=n2, first=x[0].end)
+    if y is None:
+        return None
+    return x[0], y[0], '+'.join(sorted({s for s in (x[1], y[1]) if s}))
+
+
+def _function_prelookups(data, sites, entries, pre, post, found, states, axis, code_widths, lo, hi) -> set:
+    """Add readings from the routine's own two prelookups (PRE_FUNCTION) to ``found``; the data offsets added."""
+    import bisect
+
+    def entry_of(at):
+        i = bisect.bisect_right(entries, at) - 1
+        return entries[i] if i >= 0 else None
+    by_entry: dict = {}
+    for c in sites:
+        if c.x_header is None and c.callee in pre:
+            by_entry.setdefault(entry_of(c.site), set()).add((c.site, c.data, c.callee))
+    # Returns end a routine; code reached without a direct call (no entry of its own) must not borrow the
+    # prelookups of the routine before it.
+    ats, lens, words, _ = sites.stream
+    ats, lens, words = (np.asarray(v, dtype=np.int64) for v in (ats, lens, words))
+    rets = np.sort(ats[((lens == 2) & (words & 0xFFFF == 0x9000)) | ((lens == 4) & (words == 0x0180000D))])
+    extra: dict[int, list] = {}
+    for c in sites:
+        if c.x_header is not None or c.callee not in post or c.data in found or not lo <= c.data < hi:
+            continue
+        entry = entry_of(c.site)
+        heads, first = [], None
+        for at, a, r in sorted(p for p in by_entry.get(entry, ()) if p[0] < c.site) if entry is not None else ():
+            if not heads or heads[-1][0] != a:
+                heads.append((a, r))
+                first = at if first is None else first
+        reading = None
+        if len(heads) == 2 and np.searchsorted(rets, first) == np.searchsorted(rets, c.site):
+            got = []
+            for a, r in heads:
+                ax, st = axis(a), ''
+                if ax is None and CODE_AXES and r in code_widths:
+                    ca = code_axis(data, a, code_widths[r])
+                    if ca is not None:
+                        ax, st = ca
+                got.append((ax, st))
+            if got[0][0] is not None and got[1][0] is not None:
+                reading = (got[0][0], got[1][0], c.callee, c.site, True, False, {s for _, s in got if s})
+        extra.setdefault(c.data, []).append(reading)
+    added = set()
+    for d, readings in extra.items():
+        if None in readings or len({(r[0].header, r[1].header) for r in readings}) != 1:
+            continue
+        found[d] = [r[:6] for r in readings]
+        for r in readings:
+            if r[6]:
+                states.setdefault(d, set()).update(r[6])
+        added.add(d)
+    return added
+
+
+def _learned(votes: dict) -> dict:
+    """{routine: value} where enough strict calls agree (CODE_AXES_MIN, CODE_AXES_SHARE)."""
+    out = {}
+    for r, c in votes.items():
+        total = sum(c.values())
+        value, n = c.most_common(1)[0]
+        if total >= CODE_AXES_MIN and n >= CODE_AXES_SHARE * total:
+            out[r] = value
+    return out
+
+
+MIN_ROLE_CALLS = 5      # calls before a routine's role (prelookup / table after prelookups) counts
 # Both shares are set on one MSD80 file only (development data, not independently validated).
 # Prelookup shares there are bimodal (none between 0.45 and 0.66), so .6 sits in a natural gap;
 # table-routine shares run continuously (0.30 ... 0.71), hence the extra code check in call_descriptors.
@@ -1119,6 +1259,27 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_co
     record_readings = {c.data: set(record_at(data, c.data)) for c in sites
                        if c.x_header is None and c.callee in records and lo <= c.data < hi}
     layouts = _record_layouts(sites, records, record_readings)
+    strict: dict[int, CountAxis | None] = {}
+
+    def axis(at):
+        if at not in strict:
+            strict[at] = axis_at(data, at)
+        return strict[at]
+    code_layouts: dict[int, tuple] = {}
+    code_widths: dict[int, int] = {}
+    if CODE_AXES:
+        votes: dict[int, Counter] = {}
+        for c in sites:
+            r = record_readings.get(c.data) if c.callee in records and c.x_header is None else None
+            if r and len(r) == 1:
+                votes.setdefault(c.callee, Counter())[_layout(*next(iter(r)))] += 1
+        code_layouts = _learned(votes)
+        votes = {}
+        for c in sites:
+            if c.x_header is None and c.callee in pre and (ax := axis(c.data)) is not None:
+                votes.setdefault(c.callee, Counter())[ax.width] += 1
+        code_widths = _learned(votes)
+    states: dict[int, set] = {}
     found: dict[int, list] = {}
     for c in sites:
         if not lo <= c.data < hi:
@@ -1132,19 +1293,40 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_co
                 x, y = next(iter(readings))
                 if lo <= y.end < hi:
                     found.setdefault(y.end, []).append((x, y, c.callee, c.site, False, True))
+            elif not readings and c.callee in code_layouts:
+                got = code_record(data, c.data, code_layouts[c.callee])
+                if got is not None and lo <= got[1].end < hi:
+                    x, y, state = got
+                    found.setdefault(y.end, []).append((x, y, c.callee, c.site, False, True))
+                    states.setdefault(y.end, set()).add(state)
             continue
         x_header, y_header, via = c.x_header, c.y_header, False
+        routines = (None, None)
         if x_header is None and c.callee in post:
-            axes = [a for r, a in c.pre if r in pre]
-            if len(axes) >= 2 and axes[-2] != axes[-1]:
-                x_header, y_header, via = axes[-2], axes[-1], True
-        x = axis_at(data, x_header) if x_header is not None else None
+            pairs = [(r, a) for r, a in c.pre if r in pre]
+            if len(pairs) >= 2 and pairs[-2][1] != pairs[-1][1]:
+                x_header, y_header, via = pairs[-2][1], pairs[-1][1], True
+                routines = (pairs[-2][0], pairs[-1][0])
+        x = axis(x_header) if x_header is not None else None
+        y = axis(y_header) if y_header is not None else None
+        state = set()
+        if via and (x is None or y is None):
+            # Axes of learned prelookup routines: repeated or equal breakpoints (code_axis).
+            for k, (head, routine) in enumerate(zip((x_header, y_header), routines)):
+                if (x, y)[k] is None and routine in code_widths:
+                    got = code_axis(data, head, code_widths[routine])
+                    if got is not None:
+                        x, y = (got[0], y) if k == 0 else (x, got[0])
+                        state.add(got[1])
         if x is None:
             continue
-        y = axis_at(data, y_header) if y_header is not None else None
         if via and y is None:
             continue
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
+        if state:
+            states.setdefault(c.data, set()).update(state)
+    function_level = _function_prelookups(data, sites, entries, pre, post, found, states, axis, code_widths,
+                                          lo, hi) if PRE_FUNCTION and post else set()
     triples = pointer_triples(data, sites.relocation, lo, hi) if POINTER_TRIPLES else {}
     if len({d for d in found}) < MIN_CALLS:
         if not triples:
@@ -1180,7 +1362,9 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_co
         cell = rec_cells[callee] if rec else cells[callee]
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
                                 all(r[4] for r in readings), *cell, record=rec,
-                                registers=roles.get(callee, DEFAULT_ROLES))
+                                registers=roles.get(callee, DEFAULT_ROLES),
+                                axis_state='+'.join(sorted({p for s in states.get(d, ()) for p in s.split('+') if p})),
+                                pre_scope='function' if d in function_level else '')
     for d, (x, y, at) in triples.items():
         if d not in out:
             # No routine: the cell width comes from the gap to the next object (cell_widths);

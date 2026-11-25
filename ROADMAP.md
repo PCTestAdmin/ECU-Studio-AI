@@ -17,7 +17,7 @@
 
 # Roadmap
 
-Stand: 24.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 25.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
@@ -232,6 +232,29 @@ gegengeprüft, nicht unabhängig validiert. Zahlen: [Bericht § 8](docs/ENTWICKL
 | Lokales Testverfahren | 🟠 | `tools/tester_report.py`: nur Zählwerte, Export erst nach Vorschau und inhaltsgebundener Zustimmung |
 | Datenfluss für Achsen | 📋 | keine neue Regel: hilft erst mit Adressrechnung für Laufzeitadressen |
 | Neue unabhängige Daten | 📋 | gezielte Suche 24.11.2026 ohne geeignete Paare (Herkunft/Rechte fehlen) |
+
+#### Stand nach Qualitätsphase 4 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung je Punkt: **rc1** (veröffentlicht) · **Draft-PR** (PR #30, nicht veröffentlicht) · **experimentell**
+(Schalter aus) · **entwicklungsgemessen** (nur Entwicklungsdaten) · **Holdout-Regression** (bekannter Holdout, nur
+„nichts kaputt“) · **unabhängig validiert** · **nur Idee** · **verworfen**. Zahlen:
+[Bericht § 9](docs/ENTWICKLUNG_NEXTGEN.md#9-qualitätsphase-4-25112026-open-source-vergleich-adressauflösung-achsen),
+Quellen: [Open-Source-Vergleich](docs/OPEN_SOURCE_RECOGNITION_RESEARCH.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Code-belegte Achsen (wiederholte und nicht bedatete Stützstellen) | Draft-PR · entwicklungsgemessen · Holdout-Regression | exakte 2D-Kennfelder 32 058 → 35 159, 0 verloren; meist nicht bedatete Kennfelder |
+| Vorabsuchen derselben Routine | Draft-PR · entwicklungsgemessen | +50 exakte Kennfelder (MSD80); Achsen nur als Teil einer angenommenen Tabelle |
+| Kennlinien-Datensätze widerlegen Datenmuster-Funde | Draft-PR · entwicklungsgemessen · Holdout-Regression | Verwechslungen 5 113 → 4 469 allein, 4 478 im Endstand; Holdout 10 541 → 9 744 |
+| MEVD17.2 dynamische Adressen | entwicklungsgemessen | Annahme „Laufzeitadressen“ weitgehend widerlegt: Köpfe statisch adressiert; Kennlinien an Vorabsuche-Routinen und reine Lade-/Speicherzugriffe offen; gemeinsame Achsen weiter 0 |
+| MSD80 gemeinsame Achsen | Draft-PR · entwicklungsgemessen | gefunden 2 238 → 2 701 (von 12 994); 34 falsch zusammengelegte Achsobjekte (vorher 0), nicht bedatete markiert |
+| 1D: „?“ statt stiller Fehlbreite | Draft-PR · entwicklungsgemessen | unmarkierte falsche Breiten 85 → 46 ohne zusätzlichen Preis; 57 falsche Vorzeichen klassifiziert (48 widersprechen der Monotonie, 9 Folgefehler) |
+| 8-Bit-Lesart von Kennlinien | experimentell | +972 richtige Breiten, 0 verloren; aus, weil Typänderung und nur an Entwicklungsdaten entworfen |
+| Testbericht für Tester | Draft-PR | geführter Ablauf, Rundung, geprüfte Linie, keine Pfade, kein Netzwerk; Anleitungen DE/EN; selbst keine Validierung |
+| Vorabsuchen im Aufrufer, Flash-Zeigertabellen, Basisregister mit einer Definition | verworfen | 0 bzw. 4 Auflösungen |
+| Serien gleicher Geometrie, Basiswahl nach Treffern (OpenRemap) | nur Idee | kein erwarteter Nutzen bei uns |
+| Familienvorlagen, Namen aus Wertebereichen (ZedSuite) | verworfen | widerspricht „Werte benennen keine Funktion“ |
+| Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

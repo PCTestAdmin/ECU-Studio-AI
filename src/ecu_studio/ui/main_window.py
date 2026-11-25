@@ -1326,6 +1326,9 @@ class Window(QMainWindow):
                 partners=[self.maps[i].name for i in o.tables if i!=index]
                 more=f' (+{len(partners)-5})' if len(partners)>5 else ''
                 lines.append(f'\n  Gemeinsame Achse (gleiche Speicheradresse). Teilt die Achse mit: '+', '.join(partners[:5])+more)
+                if o.unapplied:
+                    lines.append('\n  Nicht bedatet (alle Stützstellen gleich): gemeinsam nur über die Speicheradresse; '
+                                 'wertgleiche Kopien an anderen Adressen sind möglich.')
             if o.issues:
                 lines.append('\n  Widerspruch: '+'; '.join(o.issues))
         return ''.join(lines)

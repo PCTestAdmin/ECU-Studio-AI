@@ -22,6 +22,42 @@ Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
   benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
   Funktionsgraph.
 
+### Qualitätsphase 4 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 9](docs/ENTWICKLUNG_NEXTGEN.md#9-qualitätsphase-4-25112026-open-source-vergleich-adressauflösung-achsen).
+Fünf Open-Source-Projekte wurden im Quelltext verglichen; kein Code übernommen
+([Quellen und Lizenzen](docs/OPEN_SOURCE_RECOGNITION_RESEARCH.md)).
+
+- **Code-belegte Achsen (TriCore, experimentell):** Liest eine erkannte Interpolationsroutine einen Kopf als Achse,
+  gilt er auch mit wiederholten Stützstellen am Ende oder ganz ohne Bedatung (alle gleich) als Achse – nur wenn
+  dieselbe Routine an mindestens 5 streng lesbaren Aufrufen zu mindestens 90 % dieselbe Breite bzw. denselben
+  Datensatzaufbau zeigt. Die Werte wählen die Breite nie; der Fund nennt den Grund (Schalter `CODE_AXES`).
+  Entwicklungsdaten: exakte 2D-Kennfelder 32 058 → 35 159 (MEVD17.2 +1 767, MSD80 +1 334), 0 verloren; überwiegend
+  nicht bedatete Kennfelder.
+- **Vorabsuchen derselben Routine:** Ein Tabellenaufruf ohne benannte Achsen übernimmt die einzigen zwei
+  verschiedenen Achsensuchen derselben Routine davor (kein Rücksprung dazwischen); sonst bleibt er offen. Solche
+  Achsen verdrängen keine anderen Funde (Schalter `PRE_FUNCTION`). Allein +50 exakte Kennfelder (MSD80).
+- **Mehr „?“ statt stiller Fehlbreite:** 16-Bit-Datensatzachsen, deren Bytes auch einzeln steigen, und Kennlinien,
+  hinter deren 8-Bit-Lesart ebenfalls ein Datensatzkopf beginnt, tragen jetzt „Wertebreite offen“
+  (`WIDTH_BOTH_OPEN`). Unmarkierte falsche Breiten exakter 1D-Funde 85 → 46, ohne zusätzliches „?“ an richtigen
+  Breiten. Die 8-Bit-Lesung solcher Kennlinien ist ein ausgeschaltetes Experiment
+  (`CURVE_U8_BY_HEAD`).
+- **Kennlinien-Datensätze widerlegen Datenmuster-Funde:** Liegt der Kopf eines verketteten Kennlinien-Datensatzes
+  innerhalb eines reinen Datenmuster-Fundes, wird dieser verworfen (Schalter `CURVE_HEADS_REFUTE_PITCH`).
+  Entwicklungsdaten: Verwechslungen 5 113 → 4 469, exakte Kennlinien und Achsen +4 553, nichts verloren.
+- **Endstand Qualitätsphase 4 (Entwicklungsdaten):** exakte 2D-Kennfelder 32 058 → 35 226, Verwechslungen 5 113 →
+  4 478, 0 exakte Kennfelder verloren; exakte 1D-Funde +9 907, 35 verloren (Ursachen im Bericht). Holdout nur als
+  Regression: 52 701 → 56 543 exakt, 0 verloren.
+- **Nicht bedatete gemeinsame Achsen markiert:** Lesen alle Nutzer eines gemeinsamen Achsobjekts gleiche
+  Stützstellen, weist die Detailansicht darauf hin, dass wertgleiche Kopien an anderen Adressen möglich sind.
+  Entwicklungsdaten (MSD80): 34 falsch zusammengelegte Achsobjekte, vorher 0 – Kehrseite der zusätzlich gefundenen
+  Achsen, überwiegend nicht bedatet.
+- **Testbericht für Tester überarbeitet:** geführter Ablauf `--assistent` (drei Fragen, Vorschau, Speichern nur nach
+  „ja“), geprüfte Linienangabe (keine Software-/Fahrgestellnummern, Adressen, Dateinamen), Gesamtzahlen standardmäßig
+  gerundet, Fehlermeldungen ohne Pfade, strengere Prüfung des Exports; Format `ecu-studio-tester-report/2`. Kein
+  Netzwerkzugriff. Anleitungen: [englisch](docs/BETA_TESTER_GUIDE.md), [deutsch](docs/BETA_TESTER_ANLEITUNG.md).
+
 ### Qualitätsphase 3 (24.11.2026, nicht veröffentlicht)
 
 Zahlen aus Entwicklungsdaten, nicht unabhängig validiert: [Bericht § 8](docs/ENTWICKLUNG_NEXTGEN.md#8-qualitätsphase-3-24112026-zuverlässige-funktionsidentifikation-und-achsenerkennung).

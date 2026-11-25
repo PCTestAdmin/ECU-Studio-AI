@@ -1,6 +1,6 @@
 # Nächste Generation der Kennfelderkennung – Entwicklungsbericht (nach 1.21.0-rc1)
 
-Stand: 24.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
+Stand: 25.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8, Qualitätsphase 4: § 9). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
 **Nichts davon ist veröffentlicht.** Die Zahlen stammen aus privaten A2L-/HEX-Referenzdaten eines Datengebers
 (BMW-Linien, siehe [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) § 2). Die Daten bleiben lokal; öffentlich sind nur
 zusammengefasste Zahlen. Kein Modelltraining. Alle Regeln wurden nur an den Entwicklungsdaten (58 Abbilder)
@@ -544,7 +544,8 @@ gelesen; `axis_refs` ordnet sie nur ein. Aliasing (gleiche Achse unter zwei A2L-
 **Ursachen:** Verfehlt werden gemeinsame Achsen, weil ihre **Nutzer** nicht gefunden werden, nicht weil Achsen falsch
 verbunden würden (0 falsche Zusammenlegungen). MEVD17.2: Die Nutzer gemeinsamer Achsen werden im Programmcode kaum
 statisch adressiert – Ghidra fand für 1 252 gesuchte Adressen (beide Segmente) nur 29 statische Verweise; die
-Adressen entstehen zur Laufzeit. MSD80: 1 162 Tabellenaufrufe haben zwei oder mehr Achsen-Vorabsuchen auf demselben
+Adressen entstehen zur Laufzeit. *(Korrektur Qualitätsphase 4, § 9.4: weitgehend widerlegt. Gesucht wurde nach
+Datenstarts; der Code adressiert aber die Datensatzköpfe, und die meisten davon statisch.)* MSD80: 1 162 Tabellenaufrufe haben zwei oder mehr Achsen-Vorabsuchen auf demselben
 Pfad, ergeben aber keinen verwertbaren Achsdeskriptor (leere, doppelte oder nicht als Achse lesbare Vorabsuchen).
 **Nicht umgesetzt:** Achsen über gleiche Werte zusammenlegen (verboten, kein Speicherbeleg).
 
@@ -676,3 +677,333 @@ liefern keine A2L/HEX-Paare. Die Lücke bleibt; das Testverfahren in § 8.7 ist 
   Abdeckung (22 % der richtigen Namen).
 - Verdeckte Funktionen bleiben die schwerste Lage: Jeder Name ist dort falsch.
 - Gemeinsame Achsen bei MEVD17.2 werden weiter nicht gefunden; die Ursache liegt in der Erkennung der Nutzer.
+
+## 9. Qualitätsphase 4 (25.11.2026): Open-Source-Vergleich, Adressauflösung, Achsen
+
+Herkunft aller Zahlen: **Entwicklungsdaten** (58 Abbilder), sofern nicht anders vermerkt; der bekannte Holdout
+(105 Abbilder) nur als Regression. Einordnung: **PR #30 vor QP4** = Commit `0110130`; **neu** = dieser Stand;
+alles **entwicklungsgemessen, nicht unabhängig validiert**. Die A2L dient nur der Auswertung, nie als Eingang.
+
+### 9.1 Open-Source-Vergleich
+
+Fünf Projekte wurden im Quelltext gelesen (nicht ausgeführt), mit Commit, Datei und Zeile:
+[OPEN_SOURCE_RECOGNITION_RESEARCH.md](OPEN_SOURCE_RECOGNITION_RESEARCH.md). Das Ergebnis:
+
+- Neu für uns waren zwei Ideen: Achsen mit gleichen Stützstellen (PPD Maps) und die Auflösung von Achsenzuständen
+  über mehrere Pfade (BimmerStein MS41). Beide sind als eigene Umsetzung eingebaut (§ 9.2, § 9.3).
+- Die Rollenfindung über gültige Aufrufe, der Typ aus Ladebefehlen und die Breite nur aus exakten Lücken
+  (Denso-Werkzeug) bestätigen bereits vorhandene Regeln.
+- Kennfeldnamen aus Wertebereichen und Familienvorlagen (ZedSuite) sind verworfen.
+- Es wurde kein Code übernommen.
+
+Die wirksamste Regel dieser Phase (§ 9.7) stammt nicht aus den Projekten. Sie ergab sich aus der Pflicht, jeden
+verlorenen exakten Treffer zu erklären.
+
+### 9.2 Code-belegte Achsen (`tricore_refs.CODE_AXES`, P1 und P2)
+
+**Befund:** Bisher galt eine Achse nur als Achse, wenn ihre Stützstellen streng steigen. Liest eine erkannte
+Interpolationsroutine einen Kopf als Achse, sagt aber schon der Code, dass dort eine Achse liegt. Wiederholte
+Stützstellen am Ende („900, 900, 900“) und nicht bedatete Achsen (alle gleich) sind dann ebenfalls Achsen.
+
+**Regel:** Eine solche Lesart wird nur angenommen, wenn die Breite (Vorabsuche) bzw. der Datensatzaufbau
+(Datensatzroutine) feststeht. Beides muss dieselbe Routine an mindestens 5 streng lesbaren Aufrufen zeigen, zu
+mindestens 90 % einheitlich. Die Werte wählen die Breite nie. Der Fund trägt in der Detailansicht den Hinweis
+„Achsen nur durch den Programmcode belegt …, Stützstellen nicht streng steigend: wiederholte Stützstellen / alle
+Stützstellen gleich (nicht bedatet)“.
+
+| Entwicklungsdaten, 2D exakt | PR #30 vor QP4 | nur Code-Achsen | neu (alle Regeln) |
+|---|---:|---:|---:|
+| MEVD17.2 Vollabbilder (9 894 verifizierbar) | 6 741 | 8 508 | 8 508 |
+| MSD80 Vollabbilder (15 613) | 13 389 | 14 723 | 14 790 |
+| Kalibrierabbilder beider Linien (27 001) | 11 928 | 11 928 | 11 928 |
+| Summe (52 508) | 32 058 | 35 159 | 35 226 |
+| verlorene exakte Kennfelder | – | 0 | 0 |
+| Verwechslungen | 5 113 | 5 124 | 4 478 |
+
+Die neuen Funde sind überwiegend nicht bedatete Kennfelder (Nullen) mit nicht bedateten Achsen. Ihre Lage, Form und
+Achsen sind aber richtig. Die 11 zusätzlichen Verwechslungen der Code-Achsen allein kommen alle aus reinen
+Datenmuster-Funden, deren Lage sich durch die belegten Kennfelder verschiebt, keine aus einem Codeaufruf. Den
+Rückgang auf 4 478 bewirkt § 9.7.
+
+### 9.3 Vorabsuchen derselben Routine (`tricore_refs.PRE_FUNCTION`, P2)
+
+**Analyse der MSD80-Vorabsuchen** (19 Vollabbilder, 19 347 Tabellenaufrufe nach Vorabsuchen, je Aufrufpfad
+gezählt; vorher = PR #30 vor QP4, nachher = neu):
+
+| Klasse (Pfad des Aufrufs) | Aufrufe | vorher Deskriptor | nachher mit Deskriptor: Achsen richtig / teilweise / keine Referenztabelle | nachher offen |
+|---|---:|---:|---:|---:|
+| zwei streng lesbare Achsen | 6 353 | 4 721 | 4 128 / 36 (+ 369 falsch, unverändert) / 290 | 1 530 |
+| beide Achsen nicht streng lesbar | 8 857 | 0 | 8 435 / 209 / 5 | 208 |
+| eine Achse nicht streng lesbar | 1 164 | 0 | 330 / 4 / 3 | 827 |
+| letzte zwei Vorabsuchen gleich | 415 | 0 | 90 / 0 / 12 | 313 |
+| keine Vorabsuche auf dem Pfad | 1 215 | 0 | 502 / 0 / 5 | 708 |
+| nur eine Vorabsuche auf dem Pfad | 1 343 | 0 | 407 / 0 / 36 | 900 |
+
+„Vorher Deskriptor“ der ersten Zeile umfasst auch 182 Deskriptoren über einen anderen Weg; 1 632 Aufrufe fielen
+später weg (Formkonflikt, Breite, Überlappung). „Teilweise“ heißt: eine der beiden Achsen weicht von der Referenz ab
+(meist eine wertgleiche Kopie, siehe § 9.5). Ein Deskriptor wird erst zum Fund, wenn die Zellbreite die Lücke exakt
+füllt. Die Zählung je Aufrufpfad stammt aus einem Prüfskript, das die Routinenrollen ohne gelernte Registerrollen
+bestimmt; die Klassen sind daher Näherungen.
+
+Die Zählung oben gilt je Aufrufpfad und ist deshalb nicht direkt mit den 1 162 Aufrufen aus § 8.2 vergleichbar. Die
+größte Klasse („beide Achsen nicht streng lesbar“, 8 857) löst fast vollständig § 9.2 (208 offen); bei „eine Achse
+nicht streng lesbar“ bleiben 827 von 1 164 offen.
+
+**Prototyp „Aufrufer“ (verworfen):** Zuerst geprüft wurde, ob die Vorabsuchen bei Aufrufen ohne zwei Vorabsuchen
+im **Aufrufer** der Routine liegen (Gedanke aus BimmerStein). Auf zwei Abbildern ergab das 0 Auflösungen bei 160
+Aufrufen. Die Aufrufer enthalten keine weiteren Vorabsuchen.
+
+**Regel (umgesetzt):** Für einen Tabellenaufruf, den kein Pfad benennt, zählen die Vorabsuchen derselben Routine vor
+dem Aufruf, nach Adresse geordnet, Wiederholungen zusammengefasst. Genau zwei verschiedene Achsen ergeben X (früher)
+und Y (später). Alles andere bleibt offen: eine Achse, drei Achsen, ein Rücksprung zu einer früheren Achse oder ein
+`ret` dazwischen. Die Regel gilt nur für Daten, die kein anderer Aufruf benennt; eine Pfad-Lesart wird nie
+überstimmt. Messung beim Entwurf (zwei MSD80-Abbilder): 22 neue Tabellen mit genau zwei Achsen, alle 22 mit den
+Referenzachsen. Mit mehr als zwei Achsen wären es 2 von 25 mit einer falschen Achse gewesen, deshalb nur genau zwei.
+
+**Ergebnis:** Allein +50 exakte Kennfelder (nur MSD80; MEVD17.2 unverändert), 0 verloren, +7 Verwechslungen (reine
+Datenmuster-Funde); zusammen mit § 9.2 +67. Die Achsen solcher Deskriptoren werden nur als Teil einer angenommenen
+Tabelle verwendet, nie als eigene Achsenkandidaten. In einer früheren Fassung verdrängten sie bei MEVD17.2 16–18
+Kennlinien-Datensätze je Abbild; das wurde vor der Endmessung behoben.
+
+### 9.4 MEVD17.2: dynamische Adressen (P1)
+
+Die Annahme der Aufgabe lautete, dass die Nutzer gemeinsamer Achsen bei MEVD17.2 erst zur Laufzeit adressiert
+werden (§ 8.2: Ghidra fand 29 statische Verweise auf 1 252 Adressen). Diese Annahme ist **weitgehend widerlegt**:
+
+- Ghidra hatte nach **Datenstarts** gesucht. Der Code nennt aber den **Datensatzkopf** (`n1, n2, X[n1], Y[n2], Z`;
+  Kopf = erste Achse − 2).
+- In einem Vollabbild werden rund 812 von 1 158 Kennfeldern und 705 von 1 359 Kennlinien über ihren Kopf statisch
+  adressiert (`movh.a`/`lea`, globale Basisregister).
+
+Warum diese Köpfe bisher keinen Fund ergaben (ein Abbild, Zählungen):
+
+- 192 Kennfeldköpfe, an Datensatzroutinen übergeben, scheiterten an streng steigenden Achsen, fast immer wegen
+  wiederholter Stützstellen. **Behoben durch § 9.2:** MEVD17.2 +1 767 exakte Kennfelder, falsche Achsadressen
+  unverändert 36.
+- Rund 613 Kennlinien je Abbild gehen an Routinen, die als Vorabsuche eingestuft sind. Sie werden nicht als
+  Kennlinie benannt: **offen**, nächster Schritt.
+- Rund 238 Kennfelder und 458 Kennlinien werden nur über Lade- und Speicherbefehle angesprochen, nicht über einen
+  Interpolationsaufruf: **offen**.
+
+**Echte Laufzeitadressen** sind selten. Zwei Prototypen ohne Nutzen:
+
+- **Flash-Zeigertabellen:** 0 Treffer.
+- **„Basisregister mit genau einer Definition in der Routine“:** 4 aufgelöste Adressen auf zwei Abbildern;
+  verworfen.
+
+Kennzahlen P1 (MEVD17.2, Entwicklungsdaten, PR #30 vor QP4 → neu):
+
+| Kennzahl | Wert |
+|---|---|
+| zusätzlich aufgelöste Ausdrücke | keine echten Laufzeitadressen; die Köpfe waren bereits statisch aufgelöst |
+| zusätzliche exakte Kennfelder | +1 767 (§ 9.2) |
+| richtige / falsche Achsadressen | 31 302 → 35 658 / 36 → 36 |
+| neue Verwechslungen | Vollabbilder 1 009 → 1 005 (mit § 9.7) |
+| gemeinsame Achsen gefunden | 0 → 0 (von 1 466) |
+| ungelöst mit Grund | Kennlinien an Vorabsuche-Routinen (~613 je Abbild), Lade-/Speicherzugriffe (~696 je Abbild) |
+
+Gemeinsame Achsen bleiben bei MEVD17.2 unauffindbar. Die Kennfelder tragen ihre Achsen im eigenen Datensatz.
+Gemeinsame Achsen sind dort eigene Achsobjekte (A2L `AXIS_PTS`), deren Nutzer über die oben offenen Wege
+angesprochen werden.
+
+### 9.5 Achsen: gefundene und falsche Zuordnungen (P2)
+
+| MSD80, Entwicklungsdaten | PR #30 vor QP4 | neu |
+|---|---:|---:|
+| gemeinsame Referenzachsen gefunden / nur einmal / verfehlt (von 12 994) | 2 238 / 338 / 10 418 | 2 701 / 493 / 9 800 |
+| Achsadresse der Funde richtig / falsch | 54 388 / 203 | 58 830 / 249 |
+| falsch zusammengelegte Achsobjekte (betroffene Kennfelder) | 0 (0) | 34 (42) |
+
+Analyse der falschen Achsen:
+
+- **46 neue falsche Achsadressen,** alle auf neu gefundenen Tabellen; keine bisherige Tabelle wurde schlechter.
+  Bei 38 davon sind die Bytes unserer Achse gleich denen der Referenzachse (wertgleiche Kopie an anderer Adresse).
+  28 sind nicht bedatete Achsen.
+- **Falsche Zusammenlegungen:** Achsobjekte, deren Stützstellen alle gleich sind, waren in 20 von 124 Fällen falsch
+  zusammengelegt (16 %); Achsen mit echten Werten nur in 14 von 2 599 (0,5 %).
+- **Maßnahme (Markierung, keine Änderung):** Ein gemeinsames Achsobjekt, dessen Nutzer alle gleiche Stützstellen
+  lesen, trägt „nicht bedatet (alle Stützstellen gleich): gemeinsam nur über die Speicheradresse; wertgleiche Kopien
+  an anderen Adressen sind möglich“ (`axis_refs.AxisObject.unapplied`, Detailansicht, Funktionsgraph).
+
+Damit gilt die Aussage „0 falsche Zusammenlegungen“ aus § 8 nicht mehr: Die 34 Fälle sind die Kehrseite der
+zusätzlich gefundenen Achsen. Der größere Teil betrifft nicht bedatete Achsen und ist markiert.
+
+### 9.6 Kennlinien und Achsen (1D): Fehlerklassen (P3)
+
+Klassifiziert wurden die 85 unmarkierten falschen Breiten aus § 8.5 (Entwicklungsdaten):
+
+| Klasse | Anzahl | Maßnahme |
+|---|---:|---|
+| 8-Bit-Achse als 16-Bit-Datensatzachse gelesen; die Bytes steigen auch einzeln | 53 | „?“: Breite offen (neu) |
+| 8-Bit-Kennlinie als s16 gelesen (nur das Vorzeichen markiert); hinter den 8-Bit-Werten beginnt eine Achse | 18 | nicht markierbar ohne hohen Preis (siehe unten) |
+| 8-Bit-Kennlinie; hinter der 16-Bit-Lesart liegt zufällig ein Datensatzkopf | 10 | „?“ nur, wenn auch hinter den 8-Bit-Werten ein Datensatzkopf beginnt |
+| in einem Wertblock | 4 | keine |
+
+**Preis der Markierung:**
+
+- Die Achsenregel markierte 39 falsche Breiten und 0 richtige.
+- Eine Kennlinienregel, die auch bloße Anzahl-Achsen hinter den 8-Bit-Werten gelten ließ, markierte 18 falsche,
+  aber 311 richtige Breiten. Deshalb zählt nur ein Datensatzkopf.
+
+| exakte 1D-Funde | PR #30 vor QP4 | neu |
+|---|---:|---:|
+| unmarkierte falsche Breiten / falsche Vorzeichen – MEVD17.2 | 50 / 9 | 32 / 9 |
+| unmarkierte falsche Breiten / falsche Vorzeichen – MSD80 | 35 / 48 | 14 / 48 |
+| richtige Breiten mit „?“ – MEVD17.2 / MSD80 | 1 654 / 1 024 | 1 780 / 1 144 |
+
+Die neue Breitenregel allein markiert keine richtige Breite zusätzlich (Ablation § 9.9: 1 654 / 1 024 unverändert).
+Die höhere Zahl im Endstand kommt von den 4 553 zusätzlich gefundenen Kennlinien und Achsen aus § 9.7, die nach der
+Regel aus § 8.5 markiert werden.
+
+**Die 57 unmarkierten falschen Vorzeichen:**
+
+- **48 MSD80-Achsen:** Nur vorzeichenlos gelesen steigen sie; die Definition nennt sie vorzeichenbehaftet, dann
+  stiegen sie nicht. Hier widerspricht die Definition der Monotonie einer Interpolationsachse. Unsere Lesart ist
+  strukturell belegt und bleibt ohne „?“.
+- **9 MEVD17.2-Achsen:** Folgefehler der Byte-Reihenfolge, die bereits mit „?“ markiert ist.
+
+**Statusbegriffe:** Die Status Bestätigt / Codebelegt / Abgeleitet / Alternativ / Wertgleich / Unbestimmt bleiben
+unverändert (`type_status`).
+
+**8-Bit-Experiment (`curve_records.CURVE_U8_BY_HEAD`, Standard aus, Typänderung):** Beginnt direkt hinter den
+8-Bit-Werten ein Datensatzkopf und keiner hinter den 16-Bit-Werten, werden die Werte als 8 Bit gelesen. Gemessen
+gegen den Stand ohne § 9.7:
+
+| 8-Bit-Experiment, Entwicklungsdaten | MEVD17.2 | MSD80 |
+|---|---:|---:|
+| positive Beispiele: Breite jetzt richtig (exakte 1D-Funde) | +382 | +590 |
+| negative Beispiele: bisher richtige Breite jetzt falsch (verlorene exakte Treffer) | 0 | 0 |
+| falsche Breiten gesamt | 618 → 236 | 910 → 394 |
+| unmarkierte falsche Breiten | 32 → 32 | 14 → 14 |
+
+Das Experiment bleibt **aus**: Es ändert den Datentyp, und die Regel ist nur an diesen Daten entworfen. Es ist der
+Kandidat für die nächste Phase, sobald eine Linie außerhalb der Entwicklungsdaten es prüfen kann. Eingeschaltet
+trägt jeder so gelesene Fund „Wertebreite 1 Byte … (Experiment; ungeprüft)“ und ein „?“ bei der Breite; er ist nie
+bestätigt.
+
+### 9.7 Kennlinien-Datensätze widerlegen Datenmuster-Funde (`scoped_scan.CURVE_HEADS_REFUTE_PITCH`)
+
+**Befund:** Mit § 9.2 und § 9.3 gingen 102 exakte 1D-Funde verloren (MEVD17.2 37, MSD80 65). 72 davon überdeckte ein
+reiner Datenmuster-Fund (Zeilenabstand, keine Referenztabelle an seinem Start). Die neuen Kennfelder hatten solche
+Funde verschoben. Kennlinien-Datensätze (`n, X[n], W[n]` in einer Datensatzkette) füllen seit rc1 nur Lücken und
+verloren deshalb gegen jede Fläche.
+
+**Regel:** Liegt der Kopf eines verketteten Kennlinien-Datensatzes echt innerhalb eines reinen Datenmuster-Fundes,
+ist der Fund keine einzelne Tabelle und wird verworfen. Das ist dieselbe Begründung wie bei Kennfeld-Datensatzköpfen
+(`PITCH_NO_RECORDS`, seit 1.21.0). Die Regel wirkt nach der Rangfolge als reine Entfernung, damit kein schwächerer
+Fund nachrückt. Belegte Funde (Programmcode, Datensatzkopf) sind nie betroffen.
+
+| Entwicklungsdaten | ohne Regel (QP4 sonst) | mit Regel | nur diese Regel gegen PR #30 vor QP4 |
+|---|---:|---:|---:|
+| exakte 2D-Kennfelder | 35 226 | 35 226 (0 verloren) | 32 058 → 32 058 |
+| Verwechslungen | 5 138 | 4 478 | 5 113 → 4 469 |
+| exakte 1D-Funde MEVD17.2 / MSD80 | 43 420 / 64 805 | 44 801 / 68 044 | 39 798 / 63 175 → 41 160 / 66 366 |
+| verlorene exakte 1D-Funde | – | 0 | 0 |
+| unmarkierte falsche Breiten / Vorzeichen | unverändert | unverändert | unverändert |
+
+Die Regel wirkt auch auf reinen Kalibrierabbildern ohne Programmcode (MSD80 2 174 → 1 849, MEVD17.2 925 → 810
+Verwechslungen). Neu gefundene 1D-Objekte mit falscher Breite (MEVD17.2 +44, MSD80 +78) tragen alle ein „?“.
+19 neue 1D-Funde liegen innerhalb eines anderen Referenzobjekts (MSD80), 147 außerhalb aller (nicht bewertbar).
+
+### 9.8 Testbericht für Tester (P4)
+
+Überprüfung von `tools/tester_report.py`. Die Schwachstellen und ihre Behebung:
+
+1. **Freitext:** Die Linie war ungeprüfter Freitext und hätte eine Softwarenummer oder einen Dateinamen tragen
+   können. Jetzt erlaubt: nur 2–40 einfache Zeichen; abgewiesen werden Ziffernfolgen ab 6 Stellen, Hex-Adressen,
+   Fahrgestellnummern, Pfade und die eigenen Dateinamen.
+2. **Wiedererkennbarkeit:** Exakte Gesamtzahlen können zusammen mit Linie und Version einen Softwarestand
+   kennzeichnen. Jetzt sind Werte ab 100 standardmäßig auf zwei Stellen gerundet; mit `--exakt` und Hinweis entfällt
+   die Rundung. Die Vorschau warnt ausdrücklich vor kleinen Stichproben.
+3. **Fehlermeldungen:** Sie konnten Pfade enthalten. Jetzt erscheint nur die Fehlerart; die volle Meldung zeigt
+   `--details`, nur lokal. Protokollausgaben und Warnungen sind während der Messung abgeschaltet.
+4. **Bedienung für Nicht-Programmierer:** Neu ist der geführte Ablauf `--assistent`: drei Fragen, Vorschau,
+   Speichern nur nach „ja“, nie Überschreiben.
+5. **Prüfung des Exports:** Sie weist jetzt auch unbekannte Felder, Bytes, Listen und gerundet erklärte, aber
+   ungerundete Zahlen zurück.
+
+Das Werkzeug enthält keinen Netzwerkcode. Jeder Bericht trägt „Keine unabhängige Validierung.“ Die Anleitungen:
+[BETA_TESTER_GUIDE.md](BETA_TESTER_GUIDE.md) (englisch), [BETA_TESTER_ANLEITUNG.md](BETA_TESTER_ANLEITUNG.md)
+(deutsch). Tests mit synthetischen und manipulierten Eingaben: leere, abgeschnittene und zufällige Datei, kaputte
+CSV, fehlende Datei, private Linie, Überschreiben, gefälschter Export. Das Werkzeug ist nicht in rc1 enthalten;
+Tester brauchen einen Testbuild dieses Zweigs.
+
+### 9.9 Gesamtvergleich und Ablation
+
+Entwicklungsdaten (58 Abbilder, 52 508 verifizierbare 2D-Kennfelder); „verloren“ je Abbild gegen PR #30 vor QP4:
+
+| Stand | 2D exakt | Verwechslungen | 1D exakt MEVD17.2 / MSD80 | verloren 2D / 1D |
+|---|---:|---:|---:|---:|
+| rc1 (veröffentlicht) | 32 058 | 5 316 | 39 798 / 63 175 | – |
+| PR #30 vor QP4 | 32 058 | 5 113 | 39 798 / 63 175 | – |
+| nur Code-Achsen (§ 9.2) | 35 159 | 5 124 | 43 420 / 64 850 | 0 / 57 |
+| nur Vorabsuchen derselben Routine und Breitenregel (§ 9.3, § 9.6) | 32 108 | 5 120 | 39 798 / 63 156 | 0 / 19 |
+| nur Kennlinien-Regel (§ 9.7) | 32 058 | 4 469 | 41 160 / 66 366 | 0 / 0 |
+| QP4 ohne Kennlinien-Regel | 35 226 | 5 138 | 43 420 / 64 805 | 0 / 102 |
+| **neu (Kombination)** | **35 226** | **4 478** | **44 801 / 68 044** | **0 / 35** |
+| neu ohne § 9.7, mit 8-Bit-Experiment | 35 226 | 5 138 | 43 802 / 65 395 | 0 / 102 |
+
+**Die 35 verlorenen exakten 1D-Funde** (gewonnen: 9 907):
+
+- **MEVD17.2, 18 Achsen:** Jede war in PR #30 nur die X-Achse einer falsch gelesenen Kennlinie; hinter ihr liegt
+  laut Referenz eine weitere Achse (9) oder ein Kennfeld (9), keine Kennlinienwerte. Jetzt belegt dort ein neu
+  gefundenes Kennfeld mit Codeaufruf die Stelle, und die falsche Kennlinie fällt samt Achse weg.
+- **MSD80, 13 (7 Kennlinien, 6 Achsen):** von einem reinen Datenmuster-Fund überdeckt, der erst innerhalb des
+  Datensatzes beginnt (der Kopf liegt davor, § 9.7 greift nicht).
+- **MSD80, 4:** neben neuen Kennfeldern mit Codeaufruf, ohne Fund an der Stelle.
+
+**Je Familie (Kriterien: 0 verlorene exakte 2D-Kennfelder, keine neue unmarkierte falsche Lesart, Verwechslungen
+nicht höher):**
+
+| Familie / Linie | Datenrolle | 2D exakt | Verwechslungen | Kriterien erfüllt |
+|---|---|---:|---:|---|
+| MEVD17.2-N55 | Entwicklung | 11 578 → 13 345 | 1 934 → 1 815 | ja |
+| MSD80-N53/N54 | Entwicklung | 20 480 → 21 881 | 3 179 → 2 663 | ja |
+| MSD80-N43 | Holdout (Regression) | 12 450 → 13 162 | 1 495 → 1 276 | ja |
+| MSV90-N52 | Holdout (Regression) | 12 658 → 13 883 | 2 438 → 2 352 | ja |
+| MEVD17.2.3 (B38, B38I12, B48) | Holdout (Regression) | 27 180 → 29 085 | 6 349 → 5 895 | ja, außer B38I12-Vollabbilder: Verwechslungen 583 → 585 |
+| ME9-N40 | Holdout (Regression) | 413 → 413 | 259 → 221 | ja |
+| Regressionsgruppe (15 Abbilder, u. a. MS42, MS43, synthetische) | Regression | nur MSD80-I8A0S verändert: 86 → 93 | – | ja |
+| Negativbestand (7 Abbilder, rusEFI, FOME, Speeduino) | Negativkontrolle | 549 Funde, 0 sicher falsch (wie QP3) | – | ja |
+
+Holdout gesamt (nur Regression, keine Validierung): exakt 52 701 → 56 543, 0 verloren, Verwechslungen
+10 541 → 9 744. Die Regeln wurden nur an den Entwicklungsdaten entschieden; der Holdout bestätigt nichts, er zeigt
+nur, dass nichts kaputtging.
+
+### 9.10 Softwarequalität
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig (Python 3.13, isoliertes Profil: `ECU_STUDIO_TEST_PROFILE=1`, Einstellungen und `LOCALAPPDATA` im Temp-Ordner) | 1 412 bestanden, 22 übersprungen, Exit-Code 0, 0 Qt-Meldungen („QLabel already deleted“) |
+| neue Tests (nur synthetisch) | Code-Achsen und Vorabsuchen derselben Routine inkl. Gegenbeispiele (drei Achsen, `ret` dazwischen, zu wenige strenge Aufrufe); Kennlinien-Regel (Kopf am Start, Codebeleg bleibt, Schalter aus); Breitenmarkierung (positiv und negativ); nicht bedatete Achsobjekte; Testbericht mit manipulierten Eingaben |
+| GUI-Smoke (isoliertes Profil, offscreen) | 10 Prüfungen bestanden, regulärer Qt-Abbau (Exit-Code 0) |
+| i18n | 2 410 Texte, 0 ohne Übersetzung |
+| Firmware-Guard (Arbeitsbaum, vor Commit und Push) | OK; keine Firmware, A2L, Hashes oder Kennfeldinhalte im Repository |
+| Modellsperre | unverändert (Tests) |
+| Registry | Schlüssel „ECU Studio“ identisch mit der Sicherung vom Beginn der Phase; nur gelesen |
+| Geschützte Bereiche | Arbeitskopie `ECU-Studio-AI-v1.10` (`6e987c5`, 8 Änderungen), Tags, Releases, rc1 und Update-Kanal unverändert |
+| CI (Python 3.11/3.12), CodeQL | siehe Checks von PR #30 |
+
+Laufzeit und Speicher (Vollabbilder, je Version 3 Zeitläufe und 2 Speicherläufe abwechselnd, jeder in eigenem
+Prozess, 25.11.2026):
+
+| Abbild | rc1 Median (min–max) | PR #30 vor QP4 | neu | Spitzenspeicher rc1 / PR #30 / neu | exakt rc1 / PR #30 / neu |
+|---|---:|---:|---:|---:|---:|
+| MSD80-N53/N54 | 14,20 s (12,67–14,87) | 14,28 s (13,25–15,08) | 13,75 s (13,09–14,19) | 87,2 / 87,2 / 87,2 MB | 620 / 620 / 707 |
+| MSV90-N52 | 14,32 s (14,22–14,78) | 14,62 s (13,95–15,23) | 14,37 s (13,88–14,73) | 86,3 / 86,3 / 86,3 MB | 526 / 526 / 599 |
+
+Kein messbarer Mehraufwand; die Streuung war an diesem Tag größer als bei § 8 (σ bis 1,1 s). Das MSV90-Abbild
+gehört zum Holdout und dient hier nur der Laufzeitmessung.
+
+### 9.11 Grenzen
+
+- Alle Zahlen stammen aus TriCore-Linien eines Datengebers. Andere Familien sind nicht gemessen; § 9.2 und § 9.3
+  wirken nur auf TriCore-Code. § 9.7 wirkt auf jede Familie mit 16-Bit-Datensätzen, war aber in der
+  Regressionsgruppe außerhalb von MSD80 ohne Wirkung.
+- Code-belegte Achsen finden vor allem **nicht bedatete** Kennfelder. Ihr Nutzen für Anwender ist kleiner, als die
+  Zahl der exakten Funde vermuten lässt.
+- Wertgleiche Kopien nicht bedateter Achsen lassen sich ohne Definition nicht unterscheiden. Sie werden markiert,
+  nicht aufgelöst; 34 Achsobjekte sind falsch zusammengelegt.
+- MEVD17.2: Kennlinien an Vorabsuche-Routinen und reine Lade-/Speicherzugriffe bleiben offen; gemeinsame Achsen
+  werden dort weiter nicht gefunden.
+- Neue unabhängige Daten gibt es nicht. Der Testbericht ist der Weg dorthin, aber selbst keine Validierung.

@@ -75,3 +75,17 @@ def test_a_wrongly_shared_axis_does_not_spread_a_function():
             table('B', 0x200, cols=8, x=0x900, source='heuristic')]
     h = identify(maps, relations(maps))[1]
     assert h.function == '' and h.contradictions
+
+
+def test_shared_unapplied_axis_is_marked_not_hidden():
+    """Quality phase 4: an axis whose points are all equal (unapplied) exists as value-equal copies; a common
+    address stays a shared object, but it is marked as weaker evidence."""
+    blank = [0, 0, 0, 0]
+    maps = [table('A', 0x100, x=0x900, axes_x=blank), table('B', 0x200, x=0x900, axes_x=blank),
+            table('C', 0x300, x=0x940, axes_x=[0, 10, 20, 30]), table('D', 0x400, x=0x940, axes_x=[0, 10, 20, 30])]
+    objs = {o.offset: o for o in R.objects(maps)}
+    assert objs[0x900].shared and objs[0x900].unapplied and 'nicht bedatet' in objs[0x900].describe()
+    assert objs[0x940].shared and not objs[0x940].unapplied and 'nicht bedatet' not in objs[0x940].describe()
+    assert R.summary(maps)['shared_unapplied'] == 1
+    # no values known for a user: not called unapplied
+    assert not R.objects([table('E', 0x100, x=0x900), table('F', 0x200, x=0x900, axes_x=blank)])[0].unapplied

@@ -51,6 +51,12 @@ CALL_LAYOUT = 'candidate:code-call'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
 POINTER_TRIPLE_ORIGIN = 'TriCore-Zeigertripel + Achsen (ungeprüft)'
+# Axes accepted through code only (tricore_refs.CODE_AXES, quality phase 4): the shape follows from the
+# code and the counts; the breakpoints say nothing about the quantity.
+CODE_AXES_NOTE = (' Achsen nur durch den Programmcode belegt (Routine liest sie als Achse), Stützstellen nicht '
+                  'streng steigend: ')
+PRE_FUNCTION_NOTE = 'Achsen aus den einzigen zwei Achsensuchen derselben Routine vor dem Aufruf'
+CODE_AXES_STATES = {'plateau': 'wiederholte Stützstellen', 'blank': 'alle Stützstellen gleich (nicht bedatet)'}
 _MOV_IMM = re.compile(rb"\xE6[\xF0-\xFF]..", re.S)
 
 
@@ -764,10 +770,17 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
         referenced = score >= ANCHOR_SCORE
         if called and calls[off].prelookup:
             n = len(calls[off].sites)
-            evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt den Datenstart; '
-                        f'Achsen aus den beiden vorangehenden Achsensuchen desselben Codepfads: '
-                        f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
-                        f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
+            if getattr(calls[off], 'pre_scope', '') == 'function':
+                evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt den '
+                            f'Datenstart; Achsen aus den einzigen zwei Achsensuchen derselben Routine vor dem Aufruf '
+                            f'(der einzelne Codepfad ist nicht belegt): X @ 0x{pair[0].header:X} '
+                            f'({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} ({pair[1].count} Punkte); '
+                            f'Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
+            else:
+                evidence = (f'Interpolationsaufruf im Programmcode (TriCore, Aufrufstellen: {n}) übergibt den Datenstart; '
+                            f'Achsen aus den beiden vorangehenden Achsensuchen desselben Codepfads: '
+                            f'X @ 0x{pair[0].header:X} ({pair[0].count} Punkte), Y @ 0x{pair[1].header:X} '
+                            f'({pair[1].count} Punkte); Zellbreite {w} Byte füllt die Lücke zum nächsten Objekt exakt.')
             evidence += _cell_type_note(calls[off], dtype)
             origin = PRELOOKUP_ORIGIN
         elif called and getattr(calls[off], 'pointer', False):
@@ -831,6 +844,9 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             evidence = ('Startadresse im Programmcode referenziert (Seite+Offset-Ladebefehle); '
                         if referenced else '') + f'Zeilenabstand {c} Werte aus Datenwiederholung abgeleitet.'
             origin = 'Code-Referenz + Zeilenabstand (ungeprüft)' if referenced else 'Zeilenabstand-Analyse (ungeprüft)'
+        state = getattr(calls[off], 'axis_state', '') if called else ''
+        if state:
+            evidence += CODE_AXES_NOTE + ', '.join(CODE_AXES_STATES[s] for s in state.split('+')) + '.'
         m = MapDefinition(
             name=f'Strukturkandidat @ 0x{off:08X}', offset=off, rows=rows, cols=c, dtype=dtype, endian=endian,
             source='heuristic', confidence=round(min(.45, .45 * (score - ANCHOR_SCORE if referenced else score / 8)), 3),
