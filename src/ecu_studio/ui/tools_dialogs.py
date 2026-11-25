@@ -337,8 +337,14 @@ class BatchEditDialog(QDialog):
     def do_apply(self):
         if self.plan is None:return
         from ..core.edit_guard import update_positions
-        if self.guard is not None and not self.guard(self.map,update_positions(self.plan.updates)):return
-        try:apply_batch(self.image,self.plan)
+        approval=None
+        if self.guard is not None:
+            approval=self.guard(self.map,update_positions(self.plan.updates))
+            if not approval:return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.image,self.map,update_positions(self.plan.updates))
+        try:apply_batch(self.image,self.plan,approval=approval)
         except Exception as exc:
             QMessageBox.warning(self,'Bearbeitung abgebrochen',str(exc));return
         self.accept()

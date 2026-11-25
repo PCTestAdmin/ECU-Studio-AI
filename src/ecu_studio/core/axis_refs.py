@@ -55,6 +55,7 @@ IDENTITIES = (SURE, PLAUSIBLE, VALUE_EQUAL, UNKNOWN)
 IDENTITY_KEYS = {SURE: 'identity_sure', PLAUSIBLE: 'identity_plausible', VALUE_EQUAL: 'identity_value_equal',
                  UNKNOWN: 'identity_unknown'}
 COPY_POINT_BYTES = 2   # axis cell type is not stored with a table: compare 2 bytes per point (exact for 16 bit)
+NEAR_POINT_BYTES = 4   # objects(near=...): widest cell an axis point can have, so no touched object is left out
 
 
 def _source(m: MapDefinition) -> str:
@@ -99,7 +100,7 @@ class AxisObject:
     # value-equal copies at many addresses, so a common address from code is weaker evidence of sharing.
     unapplied: bool = False
     # Identity (quality phase 5): SURE / PLAUSIBLE / UNKNOWN for a shared object, VALUE_EQUAL for an unshared one
-    # with copies, '' otherwise; ``copies`` = other stored axis addresses holding the same bytes.
+    # with copies, '' otherwise; ``copies`` = other stored axis addresses holding the same bytes (at most COPIES_LISTED).
     identity: str = ''
     identity_reason: str = ''
     copies: tuple[int, ...] = ()
@@ -149,28 +150,40 @@ def references(maps: list[MapDefinition]) -> list[AxisRef]:
 
 
 def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (), *,
-            ecu_base: int | None = None, data: bytes | None = None) -> list[AxisObject]:
+            ecu_base: int | None = None, data: bytes | None = None,
+            near: tuple[int, int] | None = None) -> list[AxisObject]:
     """Stored axis objects by storage address (file offset), with their users, sources and contradictions.
 
     ``axis_definitions``: axis objects of a definition (e.g. A2LLinkResult.axis_objects) giving the
     cell type and byte order of the stored points. ``ecu_base``: CPU address of file offset 0, to list
     the TriCore cached/uncached aliases of each object. ``data``: the image bytes, to find value-equal
     copies; without them no shared axis from code or structure is plausible (identity 'unbekannt').
+    ``near``: (first, last) byte position of a write; only objects whose points (up to NEAR_POINT_BYTES each)
+    touch that range are returned, with the same identity as in the full list (copies are still searched
+    among all stored axes). The write check uses this so a cell edit does not rebuild every axis object.
     """
-    by_offset: dict[int, list[AxisRef]] = defaultdict(list)
-    for r in references(maps):
-        if r.status == STORED:
-            by_offset[r.offset].append(r)
+    # Stored references as plain tuples (table, axis, points); AxisRef objects (the same ones references()
+    # gives) are made only for the objects built, so objects(near=...) stays cheap with many tables.
+    stored: dict[int, list[tuple[int, str, int]]] = defaultdict(list)
+    for i, m in enumerate(maps):
+        for axis, at, n in (('X', m.axis_x_offset, m.cols), ('Y', m.axis_y_offset, m.rows)):
+            if n > 1 and at is not None:
+                stored[at].append((i, axis, n))
     defs: dict[int, list[MapDefinition]] = defaultdict(list)
     for d in axis_definitions:
         defs[d.offset].append(d)
+    addresses = sorted(stored)
+    pool = [(at, _majority(stored[at])) for at in addresses]
+    if near is not None:
+        lo, hi = near
+        build = [at for at, n in pool if at <= hi and at + NEAR_POINT_BYTES * n > lo]
+    else:
+        build = addresses
     out = []
-    for at in sorted(by_offset):
-        refs = by_offset[at]
-        counts: dict[int, int] = defaultdict(int)
-        for r in refs:
-            counts[r.points] += 1
-        points = max(counts, key=lambda c: (counts[c], c))
+    for at in build:
+        refs = [AxisRef(i, axis, n, STORED, at, _source(maps[i]),
+                        maps[i].axis_x_ref if axis == 'X' else maps[i].axis_y_ref) for i, axis, n in stored[at]]
+        points, counts = _points(r.points for r in refs)
         names = sorted({r.name for r in refs if r.name})
         types = sorted({(d.dtype, d.endian) for d in defs.get(at, ())})
         issues = []
@@ -182,9 +195,9 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
         if len(types) > 1:
             issues.append('Definitionen nennen verschiedene Zelltypen (' +
                           ', '.join(f'{t} {e}' for t, e in types) + ')')
-        inside = sorted({maps[i].name for i in range(len(maps))
-                         if maps[i].offset <= at < maps[i].offset + maps[i].length
-                         and any(r.table == i for r in refs)})
+        # Only users of this axis count; looping over them (not over all tables) keeps this linear.
+        inside = sorted({maps[i].name for i in {r.table for r in refs}
+                         if maps[i].offset <= at < maps[i].offset + maps[i].length})
         if inside:
             issues.append('Achse liegt im Wertebereich von ' + ', '.join(inside[:3]))
         aliases = ()
@@ -197,26 +210,51 @@ def objects(maps: list[MapDefinition], axis_definitions: list[MapDefinition] = (
         unapplied = all(v and len(set(v)) == 1 for v in values)
         out.append(AxisObject(at, points, sorted((r.table, r.axis) for r in refs), sources,
                               names[0] if len(names) == 1 else '', dtype, endian, aliases, issues, unapplied))
-    _identities(out, data)
+    _identities(out, data, pool)
     return out
 
 
-def _stored_bytes(data: bytes, o: AxisObject) -> bytes | None:
-    end = o.offset + COPY_POINT_BYTES * o.points
-    return data[o.offset:end] if end <= len(data) else None
+def _majority(users: list[tuple[int, str, int]]) -> int:
+    """_points(...)[0] for stored tuples; most addresses have users that agree, which needs no counting."""
+    first = users[0][2]
+    if all(n == first for _, _, n in users):
+        return first
+    return _points(n for _, _, n in users)[0]
 
 
-def _identities(objs: list[AxisObject], data: bytes | None) -> None:
-    """Identity state of each object (see module doc). Equal bytes never join two objects."""
+def _points(points) -> tuple[int, dict[int, int]]:
+    """Point count most users read (ties: the larger), and the count per point count."""
+    counts: dict[int, int] = defaultdict(int)
+    for n in points:
+        counts[n] += 1
+    return max(counts, key=lambda c: (counts[c], c)), counts
+
+
+# ``copies`` lists at most this many other addresses (messages show three); empty means: no copy.
+COPIES_LISTED = 8
+
+
+def _stored_bytes(data: bytes, offset: int, points: int) -> bytes | None:
+    end = offset + COPY_POINT_BYTES * points
+    return data[offset:end] if end <= len(data) else None
+
+
+def _identities(objs: list[AxisObject], data: bytes | None, pool: list[tuple[int, int]]) -> None:
+    """Identity state of each object (see module doc). Equal bytes never join two objects.
+    ``pool``: (address, points) of every stored axis, the candidates for value-equal copies."""
     by_bytes: dict[bytes, list[int]] = defaultdict(list)
     if data is not None:
-        for o in objs:
-            key = _stored_bytes(data, o)
+        for at, n in pool:
+            key = _stored_bytes(data, at, n)
             if key is not None:
-                by_bytes[key].append(o.offset)
-    for o in objs:
-        key = _stored_bytes(data, o) if data is not None else None
-        o.copies = tuple(a for a in by_bytes.get(key, ()) if a != o.offset) if key is not None else ()
+                by_bytes[key].append(at)
+    keys = [_stored_bytes(data, o.offset, o.points) if data is not None else None for o in objs]
+    for o, key in zip(objs, keys):
+        # Bounded: listing every member of a large equal-bytes group made this quadratic (quality phase 6:
+        # 600 ms per cell edit with 3,000 tables). One object per address, so the first COPIES_LISTED + 1
+        # members always hold COPIES_LISTED others when the group is that large.
+        group = by_bytes.get(key, ()) if key is not None else ()
+        o.copies = tuple(a for a in group[:COPIES_LISTED + 1] if a != o.offset)[:COPIES_LISTED]
         if not o.shared:
             o.identity = VALUE_EQUAL if o.copies else ''
             o.identity_reason = ('gleiche Bytes bei ' + ', '.join(f'0x{a:X}' for a in o.copies[:3])) if o.copies else ''

@@ -412,7 +412,7 @@ def correction_preview(steps, skipped_crc) -> str:
     return '\n'.join(lines)
 
 
-def apply_correction(image, steps, *, require_oem_validation: bool = True) -> dict:
+def apply_correction(image, steps, *, require_oem_validation: bool = True, approval=None) -> dict:
     """Write a plan from plan_correction as ONE undo step, re-verify, roll back on any doubt.
 
     All compensation words are committed in a single transaction, so one undo
@@ -425,7 +425,7 @@ def apply_correction(image, steps, *, require_oem_validation: bool = True) -> di
     # Per-byte (offset, before, after) edits across all steps, applied atomically.
     changes = [(off + i, old[i], new[i]) for off, old, new in steps
                for i in range(len(new)) if old[i] != new[i]]
-    if not image.commit(changes, label='EDC17/MED17-Prüfsummenkorrektur'):
+    if not image.commit(changes, label='EDC17/MED17-Prüfsummenkorrektur', approval=approval):
         return check_current(image)
     result = check_current(image)
     if result['mismatches']:

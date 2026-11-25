@@ -155,6 +155,13 @@ CURVE_HEADS_REFUTE_PITCH=True
 # Quality phase 5: the axis of a code-named curve (tricore_refs.CODE_CURVES) becomes an axis candidate only when
 # the curve itself is accepted (ablation switch).
 CURVE_AXES_WITH_CURVE=True
+# Quality phase 6: the axis of a code-named curve that was NOT accepted only fills a gap when it has at least
+# three points, the general rule of axis_arrays ("two-point arrays are common by chance"): a lone two-point
+# count axis has nothing that confirms its width or sign. HOLDOUT-DERIVED: the three new unmarked width errors
+# of quality phase 5 (one holdout line) were exactly such two-point gap fillers (an 8-bit axis read as 16-bit
+# under a 16-bit count); development data has no two-point gap filler at all, so the rule is not confirmed there
+# (0 changes). All 106 gap fillers with three or more points (development 51, holdout 55) matched the reference.
+ORPHAN_MIN_POINTS=3
 # Quality phase 5 (P3): a smoothness-only run that STARTS inside a chained curve record (behind its head, before
 # the end of its values) is refuted as well; before, only a head strictly inside the run counted, so runs starting
 # within the record covered its curve (development data: 13 + 4 exact 1-D objects lost that way). Ablation switch.
@@ -307,7 +314,7 @@ def scan_calibration_candidates(image: BinaryImage, *,
         for c in calls.values():
             if getattr(c,'curve','') and c.data in accepted:
                 add_axis(c.x_axis)
-            elif getattr(c,'curve','') and c.x_axis.header not in known:
+            elif getattr(c,'curve','') and c.x_axis.header not in known and c.x_axis.count>=ORPHAN_MIN_POINTS:
                 orphans.append(c.x_axis)
         axes.sort(key=lambda ax:ax.header)
     if jobs is not None:
@@ -369,10 +376,12 @@ def scan_calibration_candidates(image: BinaryImage, *,
         # gap that no table, line, record axis or curve record covers.
         filled=[((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
                 for m in kept+lines+extra]
+        added=[]
         for a in axis_definitions(sorted({ax.header:ax for ax in orphans}.values(),key=lambda ax:ax.header)):
             s=a.candidate_region_start if a.candidate_region_start is not None else a.offset
             if not _overlaps_any(s,a.offset+a.length,_merged(filled)):
-                extra.append(a);filled.append((s,a.offset+a.length))
+                extra.append(a);filled.append((s,a.offset+a.length));added.append(a.offset)
+        if diagnostics is not None:diagnostics['curve_orphan_axes']=added
     before=len(kept)
     kept=refuted_by_loads(kept,getattr(calls,'loaded',()))
     if diagnostics is not None:diagnostics['loaded_refuted_patterns']=before-len(kept)

@@ -16,8 +16,12 @@ def plan_surface_edit(image: BinaryImage, m: MapDefinition, mode: str, *,
     m.validate(image.size)
     if m.equation:
         raise ValueError('Keine geprüfte Inverse für nichtlineare Formel')
-    selected = sorted(set(cells if cells is not None else
-                           ((r,c) for r in range(m.rows) for c in range(m.cols))))
+    if cells is not None and any(not isinstance(cell,(list,tuple)) or len(cell)!=2
+                                 or any(type(v) is not int for v in cell) for cell in cells):
+        raise ValueError('Ungültige Zellenauswahl')
+    # Cells from a JSON recipe arrive as lists: normalised to (row, col) before deduplication.
+    selected = sorted(set(tuple(cell) for cell in cells) if cells is not None else
+                      {(r,c) for r in range(m.rows) for c in range(m.cols)})
     if not selected or any(not (0<=r<m.rows and 0<=c<m.cols) for r,c in selected):
         raise ValueError('Ungültige Zellenauswahl')
     if not math.isfinite(amount):
@@ -102,11 +106,19 @@ def plan_recipe(image: BinaryImage, maps: list[MapDefinition], recipe: dict) -> 
     if not isinstance(operations,list) or not 1<=len(operations)<=500:
         raise ValueError('1–500 Rezeptschritte erforderlich')
     scratch=BinaryImage(image.materialize())
-    for op in operations:
+    # Quality phase 6: two steps that write the same bytes contradict each other (the result would depend on
+    # the order, e.g. "set 10" then "set 20", or two definitions of the same memory); refused as a whole.
+    written={}
+    for step,op in enumerate(operations,1):
         found=[m for m in maps if m.name==op.get('map')]
         if len(found)!=1 or not found[0].verified:
             raise ValueError('Rezept benötigt eine eindeutige, bestätigte Kennfelddefinition')
         preview=plan_surface_edit(scratch,found[0],op['mode'],cells=op.get('cells'),amount=float(op.get('amount',0)))
+        for offset,payload in preview.updates:
+            for p in range(offset,offset+len(payload)):
+                if written.setdefault(p,step)!=step:
+                    raise ValueError(f'Rezept widersprüchlich: Schritt {written[p]} und Schritt {step} schreiben '
+                                     f'dieselben Bytes (0x{p:X}) – Schritte zusammenfassen')
         apply_batch(scratch,preview)
     updates=[(pos,new) for pos,old,new in scratch.changed_ranges()]
     return BatchPreview(0,0,0,0,len(scratch._undo),scratch.dirty_bytes,updates,image.digest,

@@ -379,6 +379,7 @@ class Window(QMainWindow):
         self.tabs.setMovable(True)
         self.hex_model=HexTableModel()
         self.hex_model.edited.connect(self.on_edited)
+        self.hex_model.guard=self.edit_allowed
         self.hex_table=QTableView()
         self.hex_table.setModel(self.hex_model)
         self.hex_table.setFont(QFont('Consolas',10))
@@ -853,6 +854,7 @@ class Window(QMainWindow):
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
+        act(tools,"Kennfelderkennung überprüfen (lokaler Test) …",self.open_tester_assistant)
         act(tools,"Speicheratlas öffnen",lambda:self.tabs.setCurrentWidget(self.memory_atlas),"Ctrl+Shift+M")
         act(tools,"Änderungs-Matrix / Impact-Explorer",self.impact_matrix,"Ctrl+Shift+I")
         act(tools,"Prüfbericht / Workflow-Check",self.workflow_check)
@@ -1093,6 +1095,10 @@ class Window(QMainWindow):
                 worker.requestInterruption()
         self.image=image
         self.maps=maps
+        # Quality phase 6: every transaction of this image is checked by the write policy (core/edit_guard),
+        # whichever dialog, model or script produced it.
+        from ..core.edit_guard import guarded
+        guarded(image,lambda:self.maps)
         self.bookmarks=bookmarks
         self.snapshots=[]
         self.reviews=[]
@@ -2451,6 +2457,11 @@ class Window(QMainWindow):
            'Typen erscheinen direkt im Kennfeldkatalog. XDF-Namen sind '
            'quellengebundene Bezeichnungen, keine Garantie der Firmware-Kompatibilität.')
 
+    def open_tester_assistant(self):
+        """Local recognition check with own firmware and definition (reads files only, sends nothing)."""
+        from .tester_assistant import TesterAssistant
+        TesterAssistant(self).exec()
+
     def audit_map_values(self):
         """Independent read-only decoder audit; does not certify map semantics."""
         if not self.require_image():return
@@ -2953,7 +2964,10 @@ class Window(QMainWindow):
                 f'{preview.changed_bytes} Bytes für {scope} durch Stand \"{snap["label"]}\" ersetzen?\n'
                 'Alle übrigen Bytes bleiben bei Kennfeldübernahme erhalten. Ein Undo-Schritt.')
             if ans!=QMessageBox.StandardButton.Yes:return
-            try:apply_restore(self.image,preview)
+            # Edit guard: a restore writes saved bytes back; the restored table(s) are its own objects.
+            approval=self.edit_allowed([m] if m else list(self.maps),{p for p,_,_ in preview.changes})
+            if not approval:return
+            try:apply_restore(self.image,preview,approval=approval)
             except Exception as exc:self.warning('Übernahme fehlgeschlagen',exc);return
             self.on_edited();display()
             self.statusBar().showMessage(f'Versionsstand {snap["label"]}: {preview.changed_bytes} Bytes übernommen',7000)
@@ -3270,7 +3284,10 @@ class Window(QMainWindow):
         cancel.setDefault(True)
         cancel.clicked.connect(dialog.reject)
         def apply_session():
-            try:result=apply_correction(self.image,plan,profile=self.checksum_profile)
+            # Edit guard: checksum fields belong to no table; any table or axis on these bytes is shown first.
+            approval=self.edit_allowed([],set(plan.positions))
+            if not approval:return
+            try:result=apply_correction(self.image,plan,profile=self.checksum_profile,approval=approval)
             except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
             self.integrity_report=result
             self.integrity_revision=self.image.revision
@@ -3830,21 +3847,34 @@ class Window(QMainWindow):
                                                        self.shared_axis_note(self.selected)).exec():
             self.on_edited()
 
-    def edit_allowed(self,tables,positions)->bool:
-        """Edit guard (core/edit_guard) before cell bytes of ``tables`` are written: bytes of other tables or
-        of a stored axis are shown with every affected table and address and need a confirmation; bytes of
-        an axis whose shared identity is unknown are refused."""
+    def edit_allowed(self,tables,positions):
+        """Edit guard (core/edit_guard) before bytes are written (``tables``: the edited tables, may be empty):
+        bytes of other tables or of a stored axis are shown with every affected table and address and need a
+        confirmation; bytes of an axis whose shared identity is unknown are refused - a second confirmation
+        does not lift that, only a technical clarification of the axis. Returns the approval the write must
+        carry (BinaryImage.commit checks it again right before writing) or None."""
         if self.image is None:
-            return False
-        from ..core.edit_guard import allowed,conflicts,confirmation_text,refusal_text
-        found=conflicts(self.maps,tables,positions,self.image.materialize())
-        if any(c.refused for c in found):
-            QMessageBox.warning(self,'Bearbeitung abgelehnt',refusal_text(found))
-            return False
-        return allowed(found,lambda f:QMessageBox.question(
+            return None
+        from ..core.edit_guard import confirmation_text,refusal_text,guarded
+        policy=getattr(self.image,'write_policy',None) or guarded(self.image,lambda:self.maps)
+        approval,found=policy.approve(self.image,tables,positions,lambda f:QMessageBox.question(
             self,'Andere Objekte betroffen',confirmation_text(f),
             QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes)
+        if approval is None and any(c.refused for c in found):
+            box=QMessageBox(QMessageBox.Icon.Warning,'Bearbeitung abgelehnt',refusal_text(found),
+                            QMessageBox.StandardButton.Close,self)
+            clarify=box.addButton('Achse technisch klären …',QMessageBox.ButtonRole.ActionRole)
+            box.exec()
+            if box.clickedButton() is clarify:
+                self.clarify_axis(next(c for c in found if c.refused))
+        return approval
+
+    def clarify_axis(self,conflict):
+        """Record a technical clarification of a stored axis of unknown identity (core/edit_guard.AxisClearance):
+        storage range, point count, cell width, users and origin must all be stated and must match."""
+        from .next_dialogs import AxisClearanceDialog
+        AxisClearanceDialog(self,self.image.write_policy,self.image,conflict).exec()
 
     def shared_axis_note(self,m)->str:
         """Note for the axis dialog: other tables reading the same stored axis keep their definition."""
@@ -3888,9 +3918,11 @@ class Window(QMainWindow):
             buttons.rejected.connect(dialog.reject)
             layout.addWidget(buttons)
             from ..core.edit_guard import update_positions
-            if dialog.exec() and self.edit_allowed(own,update_positions(preview.updates)):
-                apply_batch(self.image,preview)
-                self.on_edited()
+            if dialog.exec():
+                approval=self.edit_allowed(own,update_positions(preview.updates))
+                if approval:
+                    apply_batch(self.image,preview,approval=approval)
+                    self.on_edited()
         except Exception as exc:
             self.warning('Rezept abgelehnt',exc)
 

@@ -138,3 +138,49 @@ def test_a_gap_of_two_byte_tables_follows_the_routine(monkeypatch):
     assert widths[0x1040] == 1 and widths[0x2000] == 2
     monkeypatch.setattr(tricore_refs, 'DOUBLE_GAP_WEAK', False)
     assert tricore_refs.cell_widths(desc, bounds)[0x1040] == 2
+
+
+def _with_rejected_curves(monkeypatch, data):
+    """Two code-named curves the structure scan rejects because the next code-named object (a table call) starts
+    inside their values, behind a 2-point and a 4-point 16-bit count axis. The 2-point axis has the pattern of
+    the quality phase 5 holdout errors: read as bytes it rises (00 FF), read as signed 16-bit it is monotone
+    (-256, 0); the reference stored 8-bit values there."""
+    import ecu_studio.core.scoped_scan as S
+    from ecu_studio.core.axis_arrays import CountAxis
+    from ecu_studio.core.tricore_refs import CallDescriptor
+    img = bytearray(data)
+    two, four = 0xD000, 0xD100
+    img[two:two + 6] = (2).to_bytes(2, 'little') + bytes([0x00, 0xFF, 0x00, 0x00])
+    img[four:four + 10] = (4).to_bytes(2, 'little') + np.array([10, 20, 40, 80], '<u2').tobytes()
+    real = S.call_descriptors
+
+    def calls(raw, *a, **k):
+        out = real(raw, *a, **k)
+        out[two + 6] = CallDescriptor(two + 6, CountAxis(two, two + 2, 2, 2, (-256, 0)), None, CURVE_ROUTINE,
+                                      (0x100,), curve='routine', cell_width=2)
+        out[four + 10] = CallDescriptor(four + 10, CountAxis(four, four + 2, 4, 2, (10, 20, 40, 80)), None,
+                                        CURVE_ROUTINE, (0x104,), curve='routine', cell_width=2)
+        table = next(c for c in out.values() if not c.curve and c.y_axis is not None)
+        for nxt in (two + 8, four + 12):   # a table call naming an address inside the curve values
+            out[nxt] = CallDescriptor(nxt, table.x_axis, table.y_axis, table.callee, (0x108,))
+        return out
+    monkeypatch.setattr(S, 'call_descriptors', calls)
+    return bytes(img), two + 2, four + 2
+
+
+def test_a_lone_two_point_axis_of_a_rejected_curve_is_no_candidate(monkeypatch):
+    """Quality phase 6 (holdout-derived, see scoped_scan.ORPHAN_MIN_POINTS): the axis of a code-named curve that
+    the structure scan rejected fills a gap only with three or more points; two points can fit any width."""
+    import ecu_studio.core.scoped_scan as S
+    data, _, _ = curve_image()
+    data, two, four = _with_rejected_curves(monkeypatch, data)
+    diag = {}
+    found = {m.offset: m for m in scan_calibration_candidates(BinaryImage(data), use_definitions=False,
+                                                               diagnostics=diag)}
+    assert four in diag['curve_orphan_axes'] and four in found and found[four].rows * found[four].cols == 4
+    assert two not in diag['curve_orphan_axes'] and two not in found
+    monkeypatch.setattr(S, 'ORPHAN_MIN_POINTS', 2)     # switch back: the 2-point axis comes in as 16-bit
+    diag = {}
+    found = {m.offset: m for m in scan_calibration_candidates(BinaryImage(data), use_definitions=False,
+                                                               diagnostics=diag)}
+    assert two in diag['curve_orphan_axes'] and found[two].width == 2

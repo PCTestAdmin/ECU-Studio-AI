@@ -12,7 +12,21 @@ Diese Anleitung ist für Menschen, die messen möchten, wie gut ECU Studio Kennf
 
 Verwende nur Dateien, die du nutzen darfst. Gib keine Firmware oder Definitionen weiter. Der Bericht enthält beides nicht.
 
-## So geht's (geführter Ablauf)
+## Am einfachsten: im Programm (ab dem Testbuild nach Qualitätsphase 6)
+
+Menü **Werkzeuge → Kennfelderkennung überprüfen (lokaler Test) …** öffnet einen Assistenten mit sieben Schritten:
+
+1. **Einführung** – was gemessen wird und was nicht.
+2. **Firmware wählen** – die Datei wird nur gelesen und geprüft. Abgelehnt werden z. B. leere Dateien, Textdateien, Intel-HEX/S-Record, ZIP, WinOLS-Projekte, Definitionen und Programmdateien, jeweils mit Grund.
+3. **Definition wählen** (A2L, XDF oder CSV) und **Steuergerätelinie** eingeben, dann **Passung prüfen**. Passt die Definition nicht zur Firmware (z. B. andere Software), geht es nicht weiter.
+4. **Analyse** – läuft im Hintergrund. Die Kennfeldsuche bekommt nur die Firmware, nicht die Definition. **Analyse abbrechen** oder das Fenster schließen stoppt sie; nichts wird gespeichert.
+5. **Ergebnis** – Trefferquote (wie viele Kennfelder der Definition genau gefunden wurden), Datentyp und Achsen der Treffer, Funktionszuordnung. Eine Präzision wird nicht berechnet, weil eine eigene Definition selten vollständig ist; Kandidaten, die nicht in der Definition stehen, gelten als „nicht bewertbar“, nicht als falsch.
+6. **Export** – Vorschau genau des Dateiinhalts. Werte ab 100 sind gerundet (umschaltbar auf exakte Werte, höheres Wiedererkennungsrisiko). Gespeichert wird nur nach Häkchen „Ich habe den Inhalt geprüft …“ und Wahl eines Dateinamens; vorhandene Dateien werden nie überschrieben.
+7. **Feedback** (freiwillig) – nur feste Antworten, keine freie Texteingabe; ebenfalls nur nach Vorschau und Zustimmung gespeichert.
+
+Der Bericht ist derselbe wie beim Kommandozeilen-Assistenten unten. ECU Studio sendet nichts; ob und wem du die Datei gibst, entscheidest du.
+
+## So geht's (geführter Ablauf in der Eingabeaufforderung)
 
 1. Öffne die Windows-Eingabeaufforderung: Windows-Taste drücken, `cmd` eingeben, Enter.
 2. Füge diese Zeile ein und drücke Enter. Hast du ECU Studio woanders installiert, passe den Ordner an.

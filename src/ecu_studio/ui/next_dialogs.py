@@ -327,11 +327,17 @@ class SmartTransferDialog(AsyncDialog):
         positions={c.offset+j for i in selected if 0<=i<len(self.plan.maps)
                    for c in self.plan.maps[i].cells for j in range(len(c.after))}
         guard=getattr(self.window,'edit_allowed',None)
-        if guard is not None and not guard(own,positions):
-            return
+        approval=None
+        if guard is not None:
+            approval=guard(own,positions)
+            if not approval:
+                return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.window.image,own,positions)
         try:
             report=self.plan.report()
-            apply_transfer(self.window.image,self.plan,selected,confirmed=True)
+            apply_transfer(self.window.image,self.plan,selected,confirmed=True,approval=approval)
             report['selected_maps']=selected
             self.window.image.journal.append({'label':'Smart Map Transfer · Freigabe','report':report})
             self.window.on_edited()
@@ -492,6 +498,75 @@ class LogAnalyzerDialog(AsyncDialog):
                 self.error(exc)
 
 
+class AxisClearanceDialog(QDialog):
+    """Technical clarification of one stored axis whose shared identity is unknown (core/edit_guard).
+
+    Nothing is prefilled: storage range, point count, cell width, the tables reading the axis and the origin of
+    the check must be stated and must match what the tables read. A wrong or generic statement is rejected;
+    the clearance is bound to this firmware and to the layout of the axis users."""
+    def __init__(self,parent,policy,image,conflict):
+        super().__init__(parent)
+        self.setWindowTitle('Gemeinsame Achse technisch klären')
+        self.policy,self.image,self.conflict=policy,image,conflict
+        self.clearance=None
+        layout=QVBoxLayout(self)
+        info=QLabel('Die Erkennung kann nicht belegen, welche Kennfelder diese gespeicherte Achse lesen. '
+                    'Eine Freigabe ist nur nach einer eigenen technischen Prüfung möglich (z. B. passende geprüfte '
+                    'Definition oder Adress- und Layoutprüfung im Programmcode). Alle Angaben müssen zur Datei passen.\n\n'
+                    +conflict.describe())
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        form=QFormLayout()
+        self.start=QLineEdit();self.start.setPlaceholderText('z. B. 0x1A2B0')
+        self.end=QLineEdit();self.end.setPlaceholderText('letztes Byte, z. B. 0x1A2BF')
+        self.points=QLineEdit();self.points.setPlaceholderText('Anzahl Stützstellen')
+        self.width=QComboBox();self.width.addItems(['— wählen —','1 Byte','2 Byte','4 Byte'])
+        form.addRow('Speicherbereich Anfang',self.start)
+        form.addRow('Speicherbereich Ende',self.end)
+        form.addRow('Punktzahl',self.points)
+        form.addRow('Zellbreite',self.width)
+        layout.addLayout(form)
+        layout.addWidget(QLabel('Zuordnung: alle Kennfelder, die diese Bytes als Achse lesen'))
+        self.tables=[]
+        for name in conflict.tables:
+            box=QCheckBox(name)
+            self.tables.append(box)
+            layout.addWidget(box)
+        layout.addWidget(QLabel('Herkunft der Prüfung'))
+        self.origin=QPlainTextEdit()
+        self.origin.setPlaceholderText('Womit wurde die Achse geprüft? (mindestens 20 Zeichen)')
+        layout.addWidget(self.origin)
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def values(self):
+        def number(text):
+            text=text.strip()
+            return int(text,16) if text.lower().startswith('0x') else int(text)
+        start,end,points=number(self.start.text()),number(self.end.text()),number(self.points.text())
+        width=(0,1,2,4)[self.width.currentIndex()]
+        if not width:
+            raise ValueError('Zellbreite wählen')
+        if end-start+1!=points*width:
+            raise ValueError(f'Speicherbereich ({end-start+1} Byte) passt nicht zu {points} Punkten à {width} Byte')
+        return start,points,width,[b.text() for b in self.tables if b.isChecked()],self.origin.toPlainText()
+
+    def save(self):
+        try:
+            start,points,width,tables,origin=self.values()
+            self.clearance=self.policy.add_clearance(self.image,offset=start,points=points,width=width,
+                                                     tables=tables,origin=origin)
+        except ValueError as exc:
+            QMessageBox.warning(self,'Klärung nicht übernommen',str(exc))
+            return
+        QMessageBox.information(self,'Achse geklärt','Die Klärung gilt für diese Datei und diese Zuordnung. '
+                                'Ändern sich Datei, Layout oder Nutzer der Achse, verfällt sie. Die Bearbeitung '
+                                'jetzt erneut ausführen; sie wird weiterhin mit allen Nutzern angezeigt.')
+        self.accept()
+
+
 class AxisDialog(QDialog):
     def __init__(self,image,m,parent=None,shared_note=''):
         super().__init__(parent)
@@ -592,10 +667,16 @@ class SurfaceEditDialog(QDialog):
         if self.preview is None:
             return
         from ..core.edit_guard import update_positions
-        if self.guard is not None and not self.guard(self.m,update_positions(self.preview.updates)):
-            return
+        approval=None
+        if self.guard is not None:
+            approval=self.guard(self.m,update_positions(self.preview.updates))
+            if not approval:
+                return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.image,self.m,update_positions(self.preview.updates))
         try:
-            apply_batch(self.image,self.preview)
+            apply_batch(self.image,self.preview,approval=approval)
             self.edited()
             self.accept()
         except Exception as exc:

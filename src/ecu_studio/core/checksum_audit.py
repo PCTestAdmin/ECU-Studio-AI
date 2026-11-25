@@ -265,18 +265,21 @@ def correction_preview(steps: list[CorrectionStep]) -> str:
 
 
 def apply_checksum_correction(image: BinaryImage, profile: ChecksumProfile,
-                              steps: list[CorrectionStep]) -> dict:
-    """Write a plan from plan_checksum_correction and verify; rolled back on any doubt."""
+                              steps: list[CorrectionStep], *, approval=None) -> dict:
+    """Write a plan from plan_checksum_correction as ONE transaction and verify; rolled back on any doubt."""
     fresh = plan_checksum_correction(image, profile)
     if [(s.slot, s.storage_offset, s.new) for s in fresh] != [(s.slot, s.storage_offset, s.new) for s in steps]:
         raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
-    before = {s.storage_offset: image.read(s.storage_offset, len(s.new)) for s in steps}
+    changes = []
     for s in steps:
-        image.write(s.storage_offset, s.new)
+        old = image.read(s.storage_offset, len(s.new))
+        changes += [(s.storage_offset + i, o, n) for i, (o, n) in enumerate(zip(old, s.new)) if o != n]
+    # Quality phase 6: one transaction (one undo step, one write-policy check); rolled back as a whole.
+    written = image.commit(changes, label='Prüffeld-Korrektur', approval=approval)
     result = verify_checksums(image, profile)
     if not result['verified']:
-        for offset, old in before.items():
-            image.write(offset, old)
+        if written:
+            image.undo()
         raise ValueError('Nach der Korrektur stimmen nicht alle Prüffelder – zurückgesetzt')
     return result
 

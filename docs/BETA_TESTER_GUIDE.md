@@ -12,7 +12,21 @@ This guide is for people who want to measure how well ECU Studio detects tables 
 
 Use only files you are allowed to use. Do not pass on firmware or definitions. The report contains neither.
 
-## How it works (guided mode)
+## Easiest: inside the program (test builds after quality phase 6)
+
+The menu **Tools → Check map detection (local test) …** opens an assistant with seven steps:
+
+1. **Introduction** – what is measured and what is not.
+2. **Choose firmware** – the file is only read and checked. Empty files, text files, Intel HEX/S-Record, ZIP, WinOLS projects, definitions and program files, for example, are refused with a reason.
+3. **Choose definition** (A2L, XDF or CSV), enter the **ECU line**, then **Check fit**. If the definition does not fit the firmware (e.g. other software), you cannot continue.
+4. **Analysis** – runs in the background. The map search only receives the firmware, not the definition. **Cancel analysis** or closing the window stops it; nothing is saved.
+5. **Result** – recall (how many of the definition's maps were found exactly), data type and axes of the hits, function assignment. Precision is not calculated because your own definition is rarely complete; candidates that are not in the definition count as "not evaluable", not as wrong.
+6. **Export** – preview of exactly the file content. Values from 100 upwards are rounded (switchable to exact values, higher risk of recognition). Saving only happens after ticking "I have checked the content …" and choosing a file name; existing files are never overwritten.
+7. **Feedback** (voluntary) – fixed answers only, no free text; also saved only after preview and consent.
+
+The report is the same as from the command-line assistant below. ECU Studio sends nothing; whether and to whom you pass on the file is your decision.
+
+## How it works (guided mode in the command prompt)
 
 1. Open the Windows command prompt: press the Windows key, type `cmd` and press Enter.
 2. Paste this line and press Enter. If you installed ECU Studio somewhere else, adjust the folder.

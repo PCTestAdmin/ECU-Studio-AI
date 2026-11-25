@@ -66,8 +66,8 @@ def plan_map_transform(image: BinaryImage, m: MapDefinition, *, mode: str, amoun
                         image.digest, image.revision, tuple((p,image.read(p,len(b))) for p,b in updates))
 
 
-def apply_batch(image: BinaryImage, preview: BatchPreview) -> None:
-    """All-or-nothing batch write, represented by ONE undo record."""
+def apply_batch(image: BinaryImage, preview: BatchPreview, *, approval=None) -> None:
+    """All-or-nothing batch write, represented by ONE undo record (``approval``: see BinaryImage.commit)."""
     changes=[]
     if preview.source_digest and preview.source_digest != image.digest:
         raise ValueError('Vorschau gehört zu einer anderen Originaldatei')
@@ -87,7 +87,7 @@ def apply_batch(image: BinaryImage, preview: BatchPreview) -> None:
             prior=image.byte(index)
             if prior != value: changes.append((index,prior,value))
     if not changes:return
-    image.commit(changes, label='Bereichsbearbeitung', expected_revision=preview.revision)
+    image.commit(changes, label='Bereichsbearbeitung', expected_revision=preview.revision, approval=approval)
 
 
 def catalogue_check(maps: list[MapDefinition], file_size: int) -> dict:

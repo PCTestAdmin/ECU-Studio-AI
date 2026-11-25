@@ -915,7 +915,7 @@ def recheck(image: BinaryImage, before: bytes, after: bytes, plan: CorrectionPla
 
 
 def apply_correction(image: BinaryImage, plan: CorrectionPlan, *,
-                     profile: ChecksumProfile | None = None) -> IntegrityReport:
+                     profile: ChecksumProfile | None = None, approval=None) -> IntegrityReport:
     """Write the plan into the session as ONE undo step, re-check, roll back on any doubt."""
     if not plan.steps:
         raise ValueError('Nichts zu korrigieren')
@@ -923,7 +923,7 @@ def apply_correction(image: BinaryImage, plan: CorrectionPlan, *,
     after = corrected_bytes(image, plan)
     report = recheck(image, before, after, plan, profile=profile)    # before anything is written
     changes = [(p, before[p], after[p]) for p in sorted(plan.positions)]
-    image.commit(changes, label='Prüfsummenkorrektur', expected_revision=plan.revision)
+    image.commit(changes, label='Prüfsummenkorrektur', expected_revision=plan.revision, approval=approval)
     if image.read(0, image.size) != after:
         image.undo()
         raise ValueError('Korrektur nicht vollständig übernommen – zurückgesetzt')
