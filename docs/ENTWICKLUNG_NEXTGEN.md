@@ -1197,3 +1197,242 @@ Holdout und dient hier nur der Laufzeitmessung.
 - 48 unmarkierte falsche Vorzeichen (MSD80-Achsen) und 41 unmarkierte falsche Breiten bleiben (Entwicklungsdaten).
 - Ein Testerablauf in der Oberfläche (P6) wurde nicht gebaut; der Testbericht bleibt ein Kommandozeilenwerkzeug.
 - Neue unabhängige Daten gibt es nicht.
+
+## 11. Qualitätsphase 6 (25.11.2026): Schreibsicherheit, Erkennungsqualität, Tester-Assistent, Vorbereitung rc2
+
+Herkunft aller Zahlen: **Entwicklungsdaten** (58 Abbilder), sofern nicht anders vermerkt; der bekannte Holdout
+(105 Abbilder) nur als Regression. Einordnung: **rc1** = veröffentlichte Vorabversion; **QP5** = Commit `103edbf`;
+**neu** = Commit `5c9e262` (gewertete Läufe; `52a4f83` ändert nur die Schreibprüfung, Entwicklungsdaten dort
+byte-identisch nachgemessen), alles **entwicklungsgemessen, nicht unabhängig validiert**. Die A2L
+dient nur der Auswertung, nie als Eingang. Neue unabhängige Referenzen gab es nicht (§ 11.8).
+
+Verbindliche Entscheidungen dieser Phase: Code-Kennlinien und Doppellücken-Regel bleiben an, 8-Bit-Lesart von
+Kennlinien bleibt aus, Vorzeichen folgt offener Byte-Reihenfolge bleibt; rechte gemeinsame Achsen dürfen
+„unbekannt“ bleiben; eine Ablehnung bei unbekannter Achsidentität hebt keine zweite Bestätigung auf.
+
+### 11.1 Benchmark-Vorprüfung (P7)
+
+Ein gewerteter Lauf misst nur noch den Stand, den er messen soll (`tools/run_provenance.py`):
+
+- Vor dem Lauf: Importpfad von `ecu_studio` = erwarteter Quellbaum, Commit = erwarteter Commit, keine nicht
+  committeten Änderungen im Paket; sonst Abbruch mit Grund. Ein bewusster Lauf aus dem Arbeitsbaum braucht
+  `--allow-dirty` und ist im Ergebnis so gekennzeichnet.
+- Im Ergebnis: Benchmark-Version, Programmversion, Importpfad, Commit, Änderungsstand, Prüfsumme des Quellbaums,
+  Python, Plattform, alle Erkennungsschalter, Datenrolle. Nach dem Lauf: Hat sich der Quellbaum während des Laufs
+  geändert (`source_changed`)?
+- Vergleiche nennen, warum zwei Läufe nicht vergleichbar sind (andere Benchmark-Version, Datenrolle, Schalter).
+
+Anlass: In QP5 lief ein Vergleich versehentlich gegen das installierte rc1-Paket (relativer `PYTHONPATH`). In dieser
+Phase hat die Vorprüfung selbst einen Fehler gefunden: Eine Messung der Funktionsidentifikation lief noch, als der
+Quellcode geändert wurde; sie wurde **verworfen** und vom sauberen Commit wiederholt.
+
+### 11.2 Schreibsicherheit (P2)
+
+Prüfung aller Schreibwege, Ergebnis in [EDIT_SAFETY_REVIEW.md](EDIT_SAFETY_REVIEW.md). Vorher prüften einzelne Dialoge;
+Hexansicht, Wiederherstellung, Checksummen- und Tabellenkorrektur, Skripte und Werkzeuge schrieben ungeprüft. Neu:
+
+- **Eine zentrale Schutzschicht:** Jedes Byte läuft über `BinaryImage.commit`; ein Abbild mit Schreibrichtlinie
+  (`core/edit_guard.WritePolicy`, im Hauptfenster immer gesetzt) prüft unmittelbar vor dem Schreiben gegen die
+  aktuellen Kennfelder. Ohne Freigabe wird jedes Schreiben abgelehnt, das ein anderes Objekt berührt; eine
+  Freigabe gilt nur für diese Bytes, diesen Stand des Abbilds und die bestätigten Konflikte.
+- **Ablehnung bleibt Ablehnung:** Schreiben in eine gemeinsame Achse mit Identität „unbekannt“ wird abgelehnt; eine
+  weitere Bestätigung hebt das nicht auf. Freigabe nur durch eine **technische Klärung** mit Speicherbereich,
+  Punktzahl, Zellbreite, Nutzern und Herkunft (mindestens 20 Zeichen, keine Floskel); alle Angaben müssen zum
+  Abbild passen. Die Klärung verfällt, wenn Firmware (Original), Layout oder Nutzer der Achse sich ändern.
+- **Transaktionen:** Checksummen- und Tabellenkorrekturen schreiben in einem Schritt und nehmen ihn zurück, wenn die
+  Nachprüfung scheitert. Rezepte, in denen zwei Schritte dieselben Bytes schreiben, werden vor dem Schreiben
+  abgelehnt. Flächenbearbeitung nimmt Zellen auch als JSON-Listen (vorher Typfehler).
+- **Kosten:** siehe § 11.9 (zunächst quadratisch, behoben).
+
+Tests nur mit synthetischen Dateien (`tests/test_write_policy.py`, 18 Tests, und weitere): jede Schreibart mit und
+ohne Freigabe, veraltete Freigabe, Ablehnung trotz Bestätigung, Klärung mit falschen Angaben, Verfall der Klärung,
+Rücknahme bei gescheiterter Prüfung, widersprüchliches Rezept, Undo/Redo, Original unverändert.
+
+### 11.3 Verwaiste Kennlinienachsen (P1, B38I12)
+
+Die drei in QP5 neuen unmarkierten Breitenfehler (Holdout, MEVD17.2.3-B38I12) waren alle **zweipunktige**
+Achsen nicht angenommener Code-Kennlinien, die nur Lücken füllten (8-Bit-Achse unter einem 16-Bit-Zähler als
+16 Bit gelesen). Alle verwaisten Lückenfüller mit mindestens drei Punkten stimmten (Entwicklungsdaten 51, Holdout 55).
+Allgemeine Regel (`scoped_scan.ORPHAN_MIN_POINTS = 3`, wie `axis_arrays`: „zweipunktige Felder entstehen oft
+zufällig“): Eine verwaiste Achse füllt eine Lücke nur mit mindestens drei Punkten. Keine Adress- oder
+Softwarestandsregel. **Holdout-abgeleitet**: Entwicklungsdaten haben keinen zweipunktigen Lückenfüller, die Regel
+ist dort nicht geprüft. Synthetisches Gegenbeispiel: `tests/test_tricore_code_curves.py`. Wirkung: § 11.6.
+
+### 11.4 Doppellücken-Regel: Gegenbeispiele (P6)
+
+`tests/test_double_gap_rule.py` (13 synthetische Fälle) prüft die Grenzen der Regel aus § 10.1: echte 16-Bit-Tabelle
+ohne Gegenstimmen, Vorrang der Zellbreite aus dem Code, zwei benachbarte Bytetabellen, Polsterbytes, scheinbares
+Zwischenobjekt, gemischte Breiten, widersprechende Stimmen, zu wenige Stimmen, andere Routine, anderes Layout,
+Vorabsuche, Schalter aus. **Bekannte Grenze (als Test festgehalten):** Stimmen drei andere Aufrufe derselben
+Routine übereinstimmend falsch, folgt die Regel ihnen. Die Regel bleibt an (Entscheidung), als holdout-abgeleitet.
+
+### 11.5 Kennlinien und Achsen (1D): verbleibende Fehler (C)
+
+- **41 unmarkierte falsche Breiten:** 33 liegen in Klassen (Linie, Layout, Breite, Punktzahl), die zusammen
+  17 031 richtige Funde enthalten (MEVD17.2 Kennlinien-Datensatz w2 n3–4: 5 falsch / 875 richtig; MEVD17.2
+  Datensatzachse w2 n>4: 14 / 13 182; MSD80 Datensatzachse w2 n3–4: 14 / 2 974). Die andere Breite ergibt in
+  keinem Fall eine steigende Folge. **Nicht markierbar** ohne viele richtige Funde mit „?“ zu versehen.
+- **48 unmarkierte falsche Vorzeichen (MSD80):** alle 16-Bit-Achsen mit 8 Punkten, die nur vorzeichenlos steigen.
+  Dieselbe Form tragen 1 379 richtige (Zählerachsen) bzw. 832 richtige (Datensatzachsen); in derselben Formklasse
+  29 richtige gegen 26 falsche. Codeladebefehle sind bei MSD80 als Vorzeichenquelle verworfen (§ 10.1). **Keine
+  Regel.**
+- **Gemeinsame Achsen MEVD17.2 (0 von 1 466):** Alle 1 466 sind eigene Achsobjekte (AXIS_PTS). Ihre Nutzertabellen
+  werden zu 9 433 gar nicht gefunden (4 197 Kennlinien, 5 236 Kennfelder); 337 nur als Glätte-Kandidat ohne
+  Achsadresse. Ursache ist die Erkennung der Nutzer, nicht die Verknüpfung; eine Verknüpfungsregel hilft nicht.
+
+### 11.6 Gesamtvergleich rc1 / QP5 / neu
+
+Alle gewerteten Läufe vom Commit `5c9e262` mit Vorprüfung (Importpfad, Commit, sauberer Quellbaum; Quellbaum während
+des Laufs unverändert). Entwicklungsdaten (58 Abbilder):
+
+| Stand | 2D exakt | Verwechslungen | 1D exakt MEVD17.2 / MSD80 | 1D verloren gegen den Vorstand |
+|---|---:|---:|---:|---:|
+| rc1 (veröffentlicht) | 32 058 | 5 316 | 39 798 / 63 175 | – |
+| QP5 (`103edbf`) | 35 276 | 4 117 | 50 829 / 75 008 | gegen rc1: 18 (MEVD17.2, § 9.9) / 0 |
+| **neu** | **35 276** | **4 117** | **50 829 / 75 008** | gegen QP5: 0 / 0 (auch 0 gewonnen) |
+
+Je Linie (2D exakt / Verwechslungen, rc1 → neu): MEVD17.2-N55 11 578 / 1 934 → 13 382 / 1 654, MSD80-N53/N54
+20 480 / 3 382 → 21 894 / 2 463; gegen QP5 unverändert. Unmarkiert falsche Typen exakter 1D-Funde (QP5 → neu):
+Breite MEVD17.2 27 → 27, MSD80 14 → 14; Vorzeichen MEVD17.2 0 → 0, MSD80 48 → 48; Byte-Reihenfolge 0 → 0.
+Die Entwicklungsdaten sind durch QP6 also **nicht verändert** (erwartet: § 11.3 hat dort keinen Anwendungsfall).
+
+Holdout (105 Abbilder, **nur Regression**): 2D exakt 52 701 (rc1) → 56 688 (QP5) → 56 688 (neu), Verwechslungen
+10 743 → 9 150 → 9 150; 1D exakt gegen QP5 unverändert, 0 verloren, 0 gewonnen. Unmarkiert falsche Breiten
+**MEVD17.2.3-B38I12 3 → 0** (Ziel von § 11.3), alle anderen Linien gleich (B38 32, B48 49, MSV90 10, MSD80-N43 1);
+unmarkiert falsche Vorzeichen unverändert (MSD80-N43 44). Die Regel ist dafür eingeführt worden; der Holdout ist für
+sie keine unabhängige Prüfung.
+
+Regressionsgruppe (15 Abbilder): gegen QP5 alle 15 unverändert. Negativbestand (7 Abbilder, rusEFI, FOME,
+Speeduino): 549 Funde, 0 sicher falsch (wie QP5).
+
+### 11.7 Funktionsidentifikation neu gemessen (C)
+
+Neu gemessen vom Commit `5c9e262` mit Vorprüfung (Quellbaum während des Laufs unverändert), drei Salze summiert,
+richtig / falsch (Präzision unter benannten). Ein erster Lauf wurde verworfen, weil während seiner Laufzeit der
+Quellcode geändert wurde (§ 11.1). Die Funktionsebene (`core/function_id.py`) ist seit QP3 unverändert.
+
+**Konfiguration „Basis“** (Beziehungen gemeinsame Achse und Nachbarschaft, ohne Code-Beziehungen; je A2L das erste
+Abbild):
+
+| Aufteilung | MEVD17.2 *n* | MEVD17.2 | MSD80 *n* | MSD80 |
+|---|---:|---:|---:|---:|
+| Anker 50 % | 319 862 | 71 823 / 83 (99,9 %) | 344 841 | 69 189 / 2 370 (96,7 %) |
+| Anker 25 % | 480 168 | 29 116 / 60 (99,8 %) | 518 264 | 56 581 / 1 741 (97,0 %) |
+| Anker 10 % | 576 002 | 7 955 / 261 (96,8 %) | 620 893 | 46 507 / 1 429 (97,0 %) |
+| Anker 5 % | 608 214 | 3 458 / 424 (89,1 %) | 654 639 | 41 627 / 1 069 (97,5 %) |
+| Anker 1 % | 633 539 | 671 / 384 (63,6 %) | 682 113 | 33 986 / 212 (99,4 %) |
+| Anker 0 % | 640 008 | 0 / 0 | 689 130 | 0 / 0 |
+| Speicherblöcke 50 % (räumlich getrennt) | 335 385 | 190 / 121 (61,1 %) | 447 929 | 7 927 / 141 (98,3 %) |
+| Speicherblöcke 10 % | 577 507 | 14 / 26 | 596 855 | 7 367 / 69 (99,1 %) |
+| ganze Funktionen 50 % (verdeckt) | 265 996 | 0 / 430 | 365 444 | 0 / 5 563 |
+| ganze Funktionen 10 % | 602 043 | 0 / 682 | 631 631 | 0 / 2 192 |
+
+Offenes Set (verdeckte Funktionen): Jeder vergebene Name ist dort falsch; die Zahl falscher Namen ist der Maßstab.
+Die Basis entspricht der Zeile „Basis“ des QP3-Laufs (MEVD17.2 50 %: 71 823 richtig wie damals, falsch 131 → 83
+durch die Speicherlage-Regel aus § 8.1).
+
+**Konfiguration „Code“** (zusätzlich Beziehungen aus dem Programmcode, je A2L das erste Vollabbild; das ist die
+Konfiguration der Tabelle in § 8.1): Messung vom Commit `52a4f83` läuft; Ergebnis folgt in diesem Abschnitt.
+
+### 11.8 Unabhängige Referenzdaten (D)
+
+Neue Suche (25.11.2026) nach rechtmäßig nutzbaren A2L-/Firmware-Paaren anderer Familien (EDC17, MED17, EDC16, MD1,
+MG1, Simos18, SID, MSD81, DSG), ohne die erfolglosen Suchen vom 15.11.2026 zu wiederholen: Forschungsdatensätze
+(Zenodo), ASAM- und Herstellerbeispiele, akademische Arbeiten. **Ergebnis: kein Paar.** Gefunden wurden nur Leser
+und Spezifikationen ohne Firmware: asap2Go calibrationReader (MIT), FMI-LS-XCP (CC BY-SA / BSD), ein MathWorks-
+ASAP2-Beispiel ohne HEX; ein Zenodo-Datensatz ohne Steuergeräte-Firmware. Quellen:
+<https://github.com/asap2Go/calibrationReader>, <https://zenodo.org/records/18771497>,
+<https://www.asam.net/standards/detail/mcd-2-mc/wiki/>, <https://fmi-standard.org/fmi-ls-xcp/1.0.0>,
+<https://www.mathworks.com/help/ecoder/ug/ASAP2_example.html>. Nichts wurde heruntergeladen.
+
+Voraussetzungen für eine unabhängige Validierung bleiben: Original und passende Definition je Softwarestand,
+dokumentierte Herkunft und Nutzungsrecht, vor der ersten Auswertung eingefroren, Auswertung nur mit Zählwerten.
+Der Tester-Assistent (§ 11.10) ist der Weg dorthin; ein einzelner Bericht ist keine unabhängige Validierung.
+
+### 11.9 Kosten der Schreibprüfung (Review-Befund)
+
+Befund des Reviews (§ 11.12): Die erste Fassung der Schreibprüfung baute bei **jeder** Zellbearbeitung zweimal
+(Freigabe und Prüfung vor dem Schreiben) alle Achsobjekte aller Kennfelder neu; die Kopienliste wertgleicher Achsen
+und die Prüfung „Achse liegt im Wertebereich“ waren quadratisch. Behoben, ohne das Ergebnis zu ändern:
+
+- Kopienliste je Achse auf 8 Adressen begrenzt (Meldungen nennen 3); leer heißt weiterhin „keine Kopie“.
+- „Achse im Wertebereich“ prüft nur die Nutzer der Achse statt aller Kennfelder.
+- Ein Schreibzugriff baut nur Achsobjekte nahe dem geschriebenen Bereich (bis 4 Byte je Stützstelle); Kopien
+  werden weiter unter allen gespeicherten Achsen gleicher Punktzahl gesucht.
+- Billige Vorprüfung vor der exakten Länge: Ein Kennfeld ohne Schrittweiten, das selbst mit der breitesten Zelle
+  vor dem Schreibbereich endet, wird übersprungen.
+
+Gleichheit mit der vollständigen Prüfung: Brute-Force-Vergleich auf zufälligen synthetischen Kennfeldsätzen mit
+wertgleichen Kopien, nicht bedateten Achsen, Achsen im Wertebereich und Kennfeldern mit Schrittweiten
+(`tests/test_axis_refs_near.py`).
+
+Kosten je Zellbearbeitung (Freigabe + geprüftes Schreiben), ohne Fremdlast:
+
+| Kennfeldsatz | erste Fassung | neu |
+|---|---:|---:|
+| synthetisch, 3 000 Kennfelder, jede Achse von 3 Kennfeldern geteilt (ungünstigster Fall) | 613 ms | 18 ms |
+| synthetisch, 20 000 Kennfelder (ungünstigster Fall) | – | 90 ms |
+| MEVD17.2, A2L-verknüpft (19 504–20 943 Kennfelder, rund 3 600 gespeicherte Achsreferenzen), Median über 20 Zellen je Definition, 4 Definitionen | 66–78 ms (Zwischenstand nach den ersten drei Punkten) | 60–64 ms (Maximum 152 ms) |
+
+Die erste Fassung wurde an echten Definitionen nicht vollständig gemessen; die Größenordnung zeigt der synthetische
+Fall. Rund 60 ms je Eingabe sind kaum spürbar; Stapel- und Flächenbearbeitung prüfen einmal je Transaktion.
+
+**Laufzeit und Speicher der Erkennung** (Vollabbilder, je Version 3 Zeitläufe und 2 Speicherläufe abwechselnd, jeder
+in eigenem Prozess, ohne Fremdlast, 25.11.2026; Vorprüfung des Quellbaums je Lauf):
+
+| Abbild | rc1 Median (min–max) | QP5 | neu | Spitzenspeicher rc1 / QP5 / neu | exakt rc1 / QP5 / neu |
+|---|---:|---:|---:|---:|---:|
+| MSD80-N53/N54 | 15,05 s (14,97–15,75) | 15,52 s (14,97–15,92) | 15,68 s (14,98–16,10) | 87,2 / 87,2 / 87,2 MB | 620 / 708 / 708 |
+| MSV90-N52 | 15,73 s (15,24–16,70) | 16,54 s (15,63–16,59) | 16,41 s (15,12–16,67) | 86,3 / 86,3 / 86,3 MB | 526 / 599 / 599 |
+
+Kein messbarer Unterschied; die Abweichungen liegen in der Streuung (σ bis 0,8 s). Das MSV90-Abbild gehört zum
+Holdout und dient hier nur der Laufzeitmessung.
+
+### 11.10 Tester-Assistent in der Oberfläche (B)
+
+**Werkzeuge → Kennfelderkennung überprüfen (lokaler Test) …** (`ui/tester_assistant.py`, gemeinsamer Kern mit dem
+Kommandozeilenwerkzeug in `tools/tester_core.py`), sieben Schritte:
+
+1. Einführung (was gemessen wird, was nicht);
+2. Firmware wählen – abgelehnt mit Grund: fehlend, zu klein, über 128 MiB, unlesbar, Container (Intel-HEX,
+   S-Record, ZIP, WinOLS-Projekt, Definition, Programmdatei), Textdatei, nur Füllbytes;
+3. Definition (A2L/XDF/CSV) und Steuergerätelinie, Passungsprüfung (mindestens 80 % der Objekte im Abbild, eine
+   2D-Tabelle, Achsen überwiegend monoton); ohne Passung kein Weiter;
+4. Analyse im Hintergrund mit Fortschritt und Abbruch; die Kennfeldsuche bekommt nur die Firmware;
+5. Ergebnis: Trefferquote, Datentyp und Achsen der Treffer, Funktionszuordnung; keine Präzision (eigene
+   Definitionen sind selten vollständig: Kandidaten außerhalb der Definition sind „nicht bewertbar“);
+6. Export mit Vorschau genau des Dateiinhalts, gerundet ab 100 (umschaltbar), Speichern nur nach Häkchen und
+   Dateiwahl, nie überschreibend, Schema- und Inhaltsprüfung vor dem Schreiben;
+7. freiwilliges Feedback mit festen Antworten, ebenfalls nur nach Vorschau und Zustimmung.
+
+Keine Übertragung, kein Netzwerkcode, kein automatisches GitHub-Issue. 19 Tests (synthetische Dateien, Oberfläche
+offscreen): Ablehnungsgründe, Passung, Abbruch, Schließen während der Analyse, Export nur mit Zustimmung,
+Inhalt = Vorschau, nie überschreiben, Feedback ohne Freitext.
+
+### 11.11 Softwarequalität
+
+| Prüfung | Ergebnis |
+|---|---|
+| pytest vollständig (Python 3.13, isoliertes Profil: `ECU_STUDIO_TEST_PROFILE=1`, Einstellungen und `LOCALAPPDATA` im Temp-Ordner, `faulthandler_timeout` gegen hängende Dialoge), Commit `52a4f83` | 1 513 bestanden, 22 übersprungen, Exit-Code 0, 0 Qt-Meldungen („already deleted“) |
+| dabei gefunden und behoben | GUI-Smoke schrieb ohne Freigabe in das geschützte Abbild (zwei Stellen, jetzt mit Freigabe); Benchmark-CLI-Test lief aus dem geänderten Arbeitsbaum (jetzt ausdrücklich `--allow-dirty`); ein modaler Dialog blockierte einen Integrationstest (Freigabe ohne Rückfrage, wo kein Dialog möglich ist) |
+| neue Tests (nur synthetisch) | Schreibrichtlinie 18, Tester-Assistent 19, Benchmark-Herkunft 9, Doppellücke 13, Achsobjekte nahe einem Schreibzugriff 5, verwaiste Kennlinienachse 1 |
+| GUI-Smoke (isoliertes Profil, offscreen), dreimal nacheinander | je 10 Prüfungen bestanden, Exit-Code 0, keine Fehlerausgabe |
+| i18n | 2 568 Texte, 0 ohne Übersetzung |
+| Firmware-Guard (Arbeitsbaum, vor jedem Commit) | OK |
+| Registry | Schlüssel „ECU Studio“ byte-identisch mit der Sicherung vom Beginn der Phase; nur gelesen |
+| Produktive Installation | 1.20.1, unverändert seit 14.11.2026 (nur gelesen) |
+| Geschützte Bereiche | Arbeitskopie `ECU-Studio-AI-v1.10` (`6e987c5`, 8 Änderungen), Tags (kein neuer), Releases, Update-Kanal, QA-/Probelauf-/Diagnosezweige unverändert |
+| CI (Python 3.11/3.12), CodeQL | siehe Checks von PR #30 |
+
+### 11.12 Code-Review PR #30 und rc2-Vorbereitung (E)
+
+Review mit Risikostufen, Versionsplan, Signaturstatus und Testbuild: [RELEASE_READINESS_RC2.md](RELEASE_READINESS_RC2.md);
+Release-Notes-Entwurf ohne Messwerte: [RELEASE_NOTES_1.21.0-rc2.md](RELEASE_NOTES_1.21.0-rc2.md).
+
+### 11.13 Grenzen
+
+- Alle Zahlen stammen aus TriCore-Linien eines Datengebers; neue unabhängige Daten gibt es nicht.
+- Zwei Regeln (Doppellücke, Mindestpunktzahl verwaister Achsen) sind holdout-abgeleitet und an den
+  Entwicklungsdaten wirkungslos.
+- 41 Breiten- und 48 Vorzeichenfehler bleiben unmarkiert; gemeinsame Achsen bei MEVD17.2 bleiben unerkannt.
+- Die Schreibprüfung nimmt 2 Byte je Achsstützstelle an (Review M1).

@@ -26,7 +26,7 @@ Prüfberichte.
 | 🟢 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** · 14.11.2026 | **aktuelle Version** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)) |
 | 🧪 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** · 20.11.2026 | **veröffentlichte Vorabversion** (GitHub-Pre-Release, nicht „Latest“) für freiwillige Tests, keine stabile Version; der stabile Update-Kanal bietet sie nicht an ([Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md)) |
 | 📋 | **1.21.0** | **geplante stabile Version, nicht veröffentlicht**; ihr Inhalt ist bisher als Vorabversion 1.21.0-rc1 veröffentlicht ([PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
-| 🟠 | **Nach 1.21.0-rc1** | **in Entwicklung, nicht veröffentlicht**: nächste Generation der Kennfelderkennung (Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, [Bericht](docs/ENTWICKLUNG_NEXTGEN.md)) |
+| 🟠 | **Nach 1.21.0-rc1** | **in Entwicklung, nicht veröffentlicht**: nächste Generation der Kennfelderkennung (Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, [Bericht](docs/ENTWICKLUNG_NEXTGEN.md)); als Vorabversion **1.21.0-rc2 vorbereitet, nicht freigegeben** ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)) |
 
 Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
 gemessen und veröffentlicht ist.
@@ -273,6 +273,23 @@ Einordnung wie oben. Zahlen:
 | 8-Bit-Lesart von Kennlinien | experimentell (aus) | synthetisches Gegenbeispiel; keine unabhängigen Referenzen |
 | Testerablauf in der Oberfläche | nur Idee | nicht gebaut |
 | Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
+
+#### Stand nach Qualitätsphase 6 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben. Zahlen:
+[Bericht § 11](docs/ENTWICKLUNG_NEXTGEN.md#11-qualitätsphase-6-25112026-schreibsicherheit-erkennungsqualität-tester-assistent-vorbereitung-rc2).
+Release-Entscheidung: [Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Zentrale Schreibprüfung (alle Schreibwege, Ablehnung bei unbekannter Achsidentität, technische Klärung mit Verfall) | Draft-PR | synthetisch getestet; Kosten je Zelle linear (§ 11.9) |
+| Verwaiste Kennlinienachsen erst ab drei Stützstellen | Draft-PR · Holdout-Regression (Befund) | Holdout: unmarkiert falsche Breiten B38I12 3 → 0, sonst unverändert; Entwicklungsdaten unverändert, dort nicht geprüft |
+| Doppellücken-Regel | Draft-PR · synthetische Gegenbeispiele | 13 Fälle, bekannte Grenze festgehalten |
+| Restliche 1D-Typfehler, gemeinsame Achsen MEVD17.2 | untersucht | keine Regel ohne Fehlmarkierung; Ursache MEVD17.2: Nutzertabellen nicht gefunden |
+| Tester-Assistent in der Oberfläche | Draft-PR | sieben Schritte, nur Zählwerte, keine Übertragung |
+| Benchmark-Vorprüfung (Importpfad, Commit, Quellbaum, Herkunft) | Draft-PR | ein verunreinigter Lauf erkannt und verworfen |
+| 1.21.0-rc2 | 📋 vorbereitet, nicht veröffentlicht | Review, Versionsplan, Signaturstatus (nicht signiert), Release-Notes-Entwurf, Testbuild nur auf Runnern |
+| Unabhängige Validierung | – (nicht erreicht) | erneute Suche ohne Paar; keine neuen rechtmäßig nutzbaren Daten |
 
 ### Danach (Reihenfolge = Priorität, ohne Termine)
 

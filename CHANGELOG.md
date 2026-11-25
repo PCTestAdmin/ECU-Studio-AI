@@ -1,3 +1,23 @@
+## 1.21.0-rc2 – Release Candidate (Vorabversion; geplant, nicht veröffentlicht)
+
+Vorabversion zum Testen, nicht für den produktiven Einsatz. Inhalt: die Entwicklung nach 1.21.0-rc1 (Abschnitt
+darunter, Draft-PR #30). Alle automatisch erkannten Kennfelder, Achsen und Funktionsnamen bleiben **ungeprüfte
+Vorschläge**. Messwerte stehen bewusst nicht hier: Sie stammen aus privaten Referenzdaten eines Datengebers und sind
+nicht unabhängig bestätigt ([Entwicklungsbericht](docs/ENTWICKLUNG_NEXTGEN.md)).
+
+- **Mehr Belege aus dem Programmcode (TriCore, experimentell):** direkt geladene Adressen widerlegen Datenmuster,
+  Achsen und Kennlinien aus Interpolationsroutinen, Breite aus Lücken mit mehreren Aufrufen derselben Routine.
+- **Mehr „?“ statt stiller Wahl:** Wertebreite, Vorzeichen und Byte-Reihenfolge mit Status und Beleg; offene
+  Byte-Reihenfolge macht auch das Vorzeichen offen.
+- **Achsen und Funktionen mit Beleg:** Achsenreferenzen, vier Zustände der Achsidentität (gleiche Werte verbinden
+  nie zwei Achsen), Funktionshypothesen mit Status (Prototyp), Prüffilter und Funktionsgraph.
+- **Sichere Bearbeitung:** Jede Änderung wird unmittelbar vor dem Schreiben zentral geprüft; betroffene Kennfelder
+  und Achsen werden genannt und müssen bestätigt werden; Schreiben in gemeinsame Achsen unbekannter Identität wird
+  abgelehnt, bis die Achse technisch geklärt ist.
+- **Lokaler Erkennungstest für Tester:** Assistent unter Werkzeuge, nur Zählwerte, Export nur nach Vorschau und
+  Zustimmung, nichts wird gesendet.
+- **Nicht signiert** (weder Authenticode noch Update-Signatur); Prüfung per SHA-256.
+
 ## Nach 1.21.0-rc1 (in Entwicklung, nicht veröffentlicht)
 
 Entwicklungszweig `feat/post-rc1-recognition-nextgen`, Draft-PR. Messung und Grenzen:
@@ -21,6 +41,35 @@ Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
   gemeinsamer Achse, gleicher Coderoutine oder direkter Nachbarschaft zu Tabellen mit bekannter Funktion. Werte
   benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
   Funktionsgraph.
+
+### Qualitätsphase 6 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 11](docs/ENTWICKLUNG_NEXTGEN.md#11-qualitätsphase-6-25112026-schreibsicherheit-erkennungsqualität-tester-assistent-vorbereitung-rc2).
+
+- **Zentrale Schreibprüfung:** Alle Schreibwege (Zelle, Hexansicht, Fläche, Stapel, Rezept, Übertragung,
+  Wiederherstellung, Checksummen- und Tabellenkorrektur, Skripte) laufen über eine Prüfung unmittelbar vor dem
+  Schreiben. Ohne Freigabe wird jedes Schreiben abgelehnt, das andere Kennfelder oder gespeicherte Achsen berührt.
+  Eine Ablehnung bei unbekannter Achsidentität hebt keine zweite Bestätigung auf; nur eine technische Klärung mit
+  Speicherbereich, Punktzahl, Zellbreite, Nutzern und Herkunft, die verfällt, wenn sich Firmware, Layout oder
+  Nutzer ändern. Korrekturen schreiben als eine Transaktion; widersprüchliche Rezepte werden abgelehnt.
+- **Schreibprüfung schnell genug für große Definitionen:** Die erste Fassung brauchte je Zelle bei vielen
+  Kennfeldern spürbar Zeit (synthetisch 3 000 Kennfelder: 613 ms); jetzt wächst der Aufwand nur linear und prüft nur
+  Achsen nahe dem Schreibbereich, mit gleichem Ergebnis.
+- **Verwaiste Kennlinienachsen** füllen Lücken nur mit mindestens drei Stützstellen (`ORPHAN_MIN_POINTS`, allgemeine
+  Regel, holdout-abgeleitet): behebt die drei in QP5 neuen unmarkierten Breitenfehler; Entwicklungsdaten
+  unverändert. Holdout nur als Regression: unmarkiert falsche Breiten MEVD17.2.3-B38I12 3 → 0, sonst
+  alles gleich (2D und 1D exakt, 0 verloren).
+- **Tester-Assistent:** Werkzeuge → Kennfelderkennung überprüfen (lokaler Test) … – sieben Schritte, Analyse im
+  Hintergrund mit Abbruch, Export nur nach Vorschau, Häkchen und Dateiwahl, freiwilliges Feedback mit festen
+  Antworten; keine Übertragung. Gleicher Bericht wie das Kommandozeilenwerkzeug.
+- **Benchmark-Vorprüfung:** Gewertete Läufe prüfen Importpfad, Commit und unveränderten Quellbaum und speichern ihre
+  Herkunft; ein Lauf, während dessen sich der Quellcode änderte, wurde verworfen und wiederholt.
+- **Untersucht, keine Regel möglich:** 41 unmarkierte falsche Breiten und 48 Vorzeichen (in Klassen mit Tausenden
+  richtiger Funde gleicher Form), gemeinsame Achsen MEVD17.2 (Nutzertabellen werden nicht gefunden).
+- **Doppellücken-Regel:** 13 synthetische Gegenbeispiele, bekannte Grenze als Test festgehalten.
+- **Release-Vorbereitung 1.21.0-rc2:** Review von PR #30, Versionsplan, tatsächlicher Signaturstatus, Release-Notes-
+  Entwurf ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)). Nichts veröffentlicht.
 
 ### Qualitätsphase 5 (25.11.2026, nicht veröffentlicht)
 
