@@ -42,7 +42,7 @@ Every self-test and GUI smoke run of an installed version must leave the program
 Writes $Out\results.json; exit code 1 if any check failed.
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'NoOffer', 'Repair', 'Chain', 'Heal', 'Rollback', 'Blocked', 'Existing')][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet('Fresh', 'Update', 'InApp', 'NoOffer', 'Repair', 'Chain', 'Heal', 'Rollback', 'Blocked', 'Existing', 'FromRc1')][string]$Mode,
     [Parameter(Mandatory = $true)][string]$Package,
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Repository = 'PCTestAdmin/ECU-Studio-AI',
@@ -53,7 +53,7 @@ param(
 )
 # 1.21.0: the stable release users update from is v1.20.1 (Update, Chain, NoOffer); Repair, Heal and Blocked keep
 # v1.20.0, whose old updater (ZIP route) and blanket uninstall rules are the hard cases for the candidate's setup.
-if (-not $OldTag) { $OldTag = @{ Update = 'v1.20.1'; InApp = 'v1.20.0'; NoOffer = 'v1.20.1'; Repair = 'v1.20.0'; Chain = 'v1.20.1'; Heal = 'v1.20.0'; Blocked = 'v1.20.0' }[$Mode] }
+if (-not $OldTag) { $OldTag = @{ Update = 'v1.20.1'; InApp = 'v1.20.0'; NoOffer = 'v1.20.1'; Repair = 'v1.20.0'; Chain = 'v1.20.1'; Heal = 'v1.20.0'; Blocked = 'v1.20.0'; FromRc1 = 'v1.21.0-rc1' }[$Mode] }
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory $Out -Force | Out-Null
 $qa = $PSScriptRoot
@@ -794,6 +794,42 @@ if ($Mode -eq 'Chain') {
     Check-Uninstalled 'Kette 3'
     Check-UserFile 'Kette 3'
     Check 'Kette 3: Benutzerdaten erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
+}
+
+if ($Mode -eq 'FromRc1') {
+    # 1.21.0-rc2: the path of rc1 testers. The published v1.21.0-rc1 (installed with its setup) switches the test
+    # channel on in its own menu and updates itself to the candidate: verified setup.exe (installer route), no ZIP.
+    $old = Get-Release $OldTag @('*-setup.exe*')
+    $oldVersion = $OldTag.TrimStart('v')
+    Check "Installation $OldTag" ((Install (Get-ChildItem "$old\*-setup.exe").FullName "$Out\install-old.log") -eq 0)
+    Check "$OldTag installiert" ((Get-Content "$install\VERSION.txt").Trim() -eq $oldVersion)
+    E2E $install 'seed' "$Out\user" "Benutzerdaten mit $OldTag angelegt"
+    New-Item -ItemType Directory "$HOME\.ecu_studio_ai" -Force | Out-Null
+    'private Notiz des Benutzers' | Set-Content -Encoding utf8 "$HOME\.ecu_studio_ai\qa-private-note.txt"
+    $noteBefore = (Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash
+    $userFiles = @("$Out\user\alt.ecustudio", "$Out\user\alt.bin")
+    $userBefore = $userFiles | ForEach-Object { (Get-FileHash $_).Hash }
+    New-UserFile "vor Update ($OldTag)"
+    $oldTree = Get-TreeHash $install
+
+    Invoke-InAppUpdate ([string](Resolve-Path $Package)) $oldVersion $version 'rc1' -TestChannel
+    Check "$OldTag -> $version`: Update über den geprüften Installer, nicht über das ZIP" (
+        (Count-Requests '*-setup.exe.sha256') -ge 1 -and (Count-Requests '*-setup.exe') -ge 1 -and (Count-Requests '*.zip') -eq 0)
+    Check "$OldTag -> $version`: Updater meldet Installer-Weg" ($script:inappLog -match 'Update per Installer installiert') ''
+    Check-Installed "nach Update von $OldTag"
+    Check-PackageInstalled "nach Update von $OldTag" $zip
+    Check "nach Update von $OldTag`: Sicherung = $OldTag (SHA-256 aller Dateien)" ((Get-Content "$install.backup\VERSION.txt" -ErrorAction SilentlyContinue) -eq $oldVersion -and
+        -not (Compare-Object $oldTree (Get-TreeHash "$install.backup")))
+    Check-UserFile "nach Update von $OldTag"
+    Check-Running "nach Update von $OldTag"
+    E2E $install 'compat' "$Out\user" "nach Update: Projekt und Einstellungen aus $OldTag"
+    Check "nach Update von $OldTag`: Projekt und BIN des Benutzers unverändert" (-not (Compare-Object $userBefore ($userFiles | ForEach-Object { (Get-FileHash $_).Hash })))
+    Check "nach Update von $OldTag`: private Datei in .ecu_studio_ai unverändert" ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
+
+    Check 'Deinstallation' ((Uninstall) -eq 0)
+    Check-Uninstalled "nach Update von $OldTag"
+    Check-UserFile "nach Deinstallation (Update von $OldTag)"
+    Check 'Benutzerdaten nach Deinstallation erhalten' ((Get-FileHash "$HOME\.ecu_studio_ai\qa-private-note.txt").Hash -eq $noteBefore)
 }
 
 if ($Mode -eq 'Heal') {
