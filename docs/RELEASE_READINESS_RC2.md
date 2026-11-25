@@ -95,14 +95,43 @@ gewerteten Läufe vom sauberen Commit mit Vorprüfung; Quellbaum während jedes 
 | Regressionsgruppe (15) / Negativbestand (7) | unverändert / 549 Funde, 0 sicher falsch |
 | Laufzeit und Speicher der Erkennung | kein messbarer Unterschied zu rc1 und QP5 |
 | Schreibprüfung je Zelle, MEVD17.2 (rund 20 000 Kennfelder) | Median 60–64 ms |
+| Funktionsidentifikation (Prototyp), Konfiguration mit Code-Beziehungen, gegen QP3 | mehr richtige Namen in beiden Linien; im offenen Set (verdeckte Funktionen) etwas mehr falsche: MEVD17.2 497 → 520, MSD80 5 713 → 5 803 |
 | Registry, produktive Installation, Tags, Releases | unverändert (nur gelesen) |
 
 ## 5. Isolierter Testbuild und Installer-QA
 
 Lokal wird nichts installiert. Testbuild und Installer-Prüfungen laufen auf frischen GitHub-Windows-Runnern in zwei
 Zweigen, die nie gemergt, getaggt oder veröffentlicht werden: `release-dry-run/1.21.0-rc2` (Release-Workflow ohne
-Veröffentlichung) und `qa/1.21.0-rc2` (Installer-QA). Ergebnisse: Abschnitt wird nach den Läufen ergänzt.
+Veröffentlichung) und `qa/1.21.0-rc2` (Installer-QA). Beide Zweige liegen auf dem Stand von PR #30 nach QP6; der
+Probelauf trägt zusätzlich nur die Release-Einträge (Version, CHANGELOG-Überschrift, Kopf der Notes), die QA nur
+ihre Testskripte.
+
+| Lauf (25.11.2026) | Ergebnis |
+|---|---|
+| Release-Workflow, Probelauf | **erfolgreich**: Build mit Tests auf dem Runner (1 515 bestanden, 20 übersprungen), Release-Notes-Prüfung (Kanal `prerelease`), Paket `ECU-Studio-AI-1.21.0-rc2-setup.exe` und `…-windows-x64.zip` mit SHA-256, Update-Test auf Windows Server 2022 und 2025; Job `publish-plan`: „würde mit `--prerelease --latest=false` veröffentlicht (Latest vorher: v1.20.1)“; Job `publish` **übersprungen** |
+| Signatur im Probelauf | Build meldet „Kein Signaturschlüssel konfiguriert – Dateien bleiben unsigniert“; keine `.sig`, kein Authenticode (wie § 2) |
+| Installer-QA, 10 Modi × Windows Server 2022/2025 | **20 von 20 Läufen bestanden, 1 160 Einzelprüfungen, 0 fehlgeschlagen**: Neuinstallation (96), Update von 1.20.1 (55), kein Angebot einer Vorabversion im stabilen Kanal (80), Reparatur über 1.20.0 (30), Kette rc2 → rc3 über den Testkanal (80), Heilung nach Update durch den alten Updater (26), Rücksicherung (42), gesperrte Ordner (52), vorhandene Installation (49), **neu: Update der veröffentlichten 1.21.0-rc1 über deren Testkanal** (70: Download der rc1 geprüft, Testkanal im Menü eingeschaltet, Rückfrage nennt Risiken, Update über den geprüften Installer, kein ZIP, Sicherung = rc1, Projekt, BIN und private Datei des Benutzers unverändert, Deinstallation lässt Benutzerdaten stehen) |
+| Tests (Python 3.11/3.12) und CodeQL auf PR #30, Probelauf- und QA-Zweig | grün |
+| Tags und Releases danach | unverändert: kein `v1.21.0-rc2`, Latest weiter v1.20.1, rc1 weiter Pre-Release |
+
+Die Testpakete bleiben Artefakte der Läufe (Aufbewahrungsfrist von GitHub); sie werden nicht veröffentlicht.
 
 ## 6. Antwort und Blocker
 
-Wird nach den Läufen aus § 5 ergänzt.
+**Technisch:** bereit für eine öffentliche, ausdrücklich experimentelle Vorabversion. Build, Tests, Installer- und
+Update-Wege einschließlich des Wegs der rc1-Tester sind auf frischen Runnern geprüft; der Release-Workflow würde nur
+ein Pre-Release erzeugen und Latest nicht berühren; die neue Schreibprüfung ist an echten Definitionen schnell genug.
+
+**Fachlich:** nur mit den in den Notes genannten Einschränkungen. Alle Gütezahlen stammen aus den Daten eines
+Datengebers (zwei TriCore-Linien), der Holdout ist bekannt; zwei Regeln sind holdout-abgeleitet; 41 Breiten- und
+48 Vorzeichenfehler bleiben unmarkiert; gemeinsame Achsen bei MEVD17.2 werden nicht gefunden. Eine rc2 darf deshalb
+keine Gütezahl als allgemeine Erkennungsleistung ausgeben (die Notes tun das nicht).
+
+| Blocker | für rc2 (experimentell) | für 1.21.0 stabil |
+|---|---|---|
+| Ausdrückliche Freigabe (Merge, Tag, Veröffentlichung) | **ja – fehlt** | ja |
+| Unabhängige Validierung mit neuen, rechtmäßigen Daten (H2) | nein, offen benannt | **ja** |
+| Achszelltyp in der Schreibprüfung (M1) | nein | empfohlen vor stabil |
+| Code-Signatur | nein (rc1 ebenso unsigniert, offen benannt) | empfohlen |
+
+Ohne Freigabe geschieht nichts davon: kein Merge, kein Tag, keine Veröffentlichung, keine Änderung des Update-Kanals.

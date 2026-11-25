@@ -1332,7 +1332,29 @@ Die Basis entspricht der Zeile „Basis“ des QP3-Laufs (MEVD17.2 50 %: 71 823 
 durch die Speicherlage-Regel aus § 8.1).
 
 **Konfiguration „Code“** (zusätzlich Beziehungen aus dem Programmcode, je A2L das erste Vollabbild; das ist die
-Konfiguration der Tabelle in § 8.1): Messung vom Commit `52a4f83` läuft; Ergebnis folgt in diesem Abschnitt.
+Konfiguration der Tabelle in § 8.1), gemessen vom Commit `52a4f83` mit Vorprüfung (Quellbaum während des Laufs
+unverändert), gleiche Aufteilungen und *n* wie § 8.1:
+
+| Aufteilung | MEVD17.2 *n* | MEVD17.2 QP3 | MEVD17.2 neu | MSD80 *n* | MSD80 QP3 | MSD80 neu |
+|---|---:|---:|---:|---:|---:|---:|
+| Anker 50 % | 319 862 | 74 306 / 92 | 76 356 / 109 (99,9 %) | 345 437 | 73 938 / 2 486 | 76 004 / 2 486 (96,8 %) |
+| Anker 25 % | 480 168 | 32 607 / 79 | 35 724 / 136 (99,6 %) | 517 371 | 63 851 / 1 641 | 67 060 / 1 654 (97,6 %) |
+| Anker 10 % | 576 002 | 10 474 / 288 | 12 391 / 363 (97,2 %) | 620 573 | 52 101 / 1 143 | 54 418 / 1 156 (97,9 %) |
+| Anker 5 % | 608 214 | 4 985 / 494 | 6 146 / 502 (92,4 %) | 654 822 | 45 404 / 969 | 46 971 / 990 (97,9 %) |
+| Anker 1 % | 633 539 | 991 / 393 | 1 156 / 444 (72,3 %) | 682 329 | 35 987 / 339 | 36 139 / 316 (99,1 %) |
+| Speicherblöcke 50 % | 335 385 | 812 / 127 | 734 / 151 (82,9 %) | 390 707 | 14 813 / 152 | 14 790 / 168 (98,9 %) |
+| Speicherblöcke 10 % | 577 507 | 351 / 28 | 286 / 44 (86,7 %) | 612 124 | 2 486 / 14 | 2 540 / 15 (99,4 %) |
+| ganze Funktionen 50 % (verdeckt, nur falsch) | 265 996 | 0 / 497 | 0 / 520 | 365 444 | 0 / 5 713 | 0 / 5 803 |
+| ganze Funktionen 10 % | 602 043 | – | 0 / 821 | 631 631 | – | 0 / 2 408 |
+
+Einordnung: Mit Ankern nennt die Funktionsebene in beiden Linien mehr richtige Namen (bei 50–10 % MEVD17.2
++1 917 bis +3 117, MSD80 +2 066 bis +3 209); die falschen steigen bei MEVD17.2 um 8–75, bei MSD80 bleiben sie gleich
+oder ändern sich um bis zu 23. **Mehr falsche** Namen gibt es bei räumlich getrennten Speicherblöcken von MEVD17.2
+(127 → 151 bei 50 %, weniger richtige) und bei verdeckten Funktionen (offenes Set): MEVD17.2 497 → 520, MSD80
+5 713 → 5 803 (+5 % bzw. +2 %). Da `core/function_id.py` seit QP3
+unverändert ist und die Konfiguration „Basis“ die QP3-Zahlen wiederholt, kommen die Änderungen aus den
+Code-Beziehungen, also aus der in QP4/QP5 erweiterten Codeanalyse. Kein Eingriff in dieser Phase; der
+Funktionsgraph bleibt ein Prototyp mit Status je Vorschlag.
 
 ### 11.8 Unabhängige Referenzdaten (D)
 
@@ -1422,7 +1444,8 @@ Inhalt = Vorschau, nie überschreiben, Feedback ohne Freitext.
 | Registry | Schlüssel „ECU Studio“ byte-identisch mit der Sicherung vom Beginn der Phase; nur gelesen |
 | Produktive Installation | 1.20.1, unverändert seit 14.11.2026 (nur gelesen) |
 | Geschützte Bereiche | Arbeitskopie `ECU-Studio-AI-v1.10` (`6e987c5`, 8 Änderungen), Tags (kein neuer), Releases, Update-Kanal, QA-/Probelauf-/Diagnosezweige unverändert |
-| CI (Python 3.11/3.12), CodeQL | siehe Checks von PR #30 |
+| CI (Python 3.11/3.12), CodeQL | grün auf `b7dbe08` (PR #30) |
+| Testbuild und Installer-QA auf GitHub-Runnern | siehe [RELEASE_READINESS_RC2.md § 5](RELEASE_READINESS_RC2.md): Probelauf erfolgreich, Veröffentlichung übersprungen; Installer-QA 20 von 20 Läufen, 1 160 Prüfungen, 0 fehlgeschlagen |
 
 ### 11.12 Code-Review PR #30 und rc2-Vorbereitung (E)
 
