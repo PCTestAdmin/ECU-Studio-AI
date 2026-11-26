@@ -1,6 +1,6 @@
-## 1.21.0-rc2 – Release Candidate (Vorabversion; geplant, nicht veröffentlicht)
+## 1.21.0-rc2 – Release Candidate (experimentelle Vorabversion; geplant, nicht veröffentlicht)
 
-Vorabversion zum Testen, nicht für den produktiven Einsatz. Inhalt: die Entwicklung nach 1.21.0-rc1 (Abschnitt
+Experimentelle Vorabversion zum Testen, nicht für den produktiven Einsatz. Inhalt: die Entwicklung nach 1.21.0-rc1 (Abschnitt
 darunter, Draft-PR #30). Alle automatisch erkannten Kennfelder, Achsen und Funktionsnamen bleiben **ungeprüfte
 Vorschläge**. Messwerte stehen bewusst nicht hier: Sie stammen aus privaten Referenzdaten eines Datengebers und sind
 nicht unabhängig bestätigt ([Entwicklungsbericht](docs/ENTWICKLUNG_NEXTGEN.md)).
@@ -14,6 +14,14 @@ nicht unabhängig bestätigt ([Entwicklungsbericht](docs/ENTWICKLUNG_NEXTGEN.md)
 - **Sichere Bearbeitung:** Jede Änderung wird unmittelbar vor dem Schreiben zentral geprüft; betroffene Kennfelder
   und Achsen werden genannt und müssen bestätigt werden; Schreiben in gemeinsame Achsen unbekannter Identität wird
   abgelehnt, bis die Achse technisch geklärt ist.
+- **Zellbreite gespeicherter Achsen (Release-Fix):** Die Schreibprüfung schützt jede gespeicherte Achse mit ihrer
+  tatsächlichen Zellbreite (u8/s8, u16/s16, u32/s32/f32) statt pauschal 2 Byte je Stützstelle; vorher war die obere
+  Hälfte von 32-Bit- und Float-Achsen ungeschützt. Der Zelltyp ist ein eigenes Merkmal (A2L `AXIS_PTS`/
+  `RECORD_LAYOUT`, XDF mit Stützstellenabstand, Erkennung; im Definitionsdialog ausdrücklich zu wählen), nie der
+  Datentyp der Werte. Unbekannte Breite (ältere Projekte und Map-Packs) wird mit 4 Byte geschützt, widersprüchliche
+  Breiten werden angezeigt und gemeinsame Achsen dann abgelehnt; die Kopiensuche vergleicht die volle Breite. Eine
+  technische Klärung verwendet ihre Zellbreite, kann eine belegte nicht verkleinern und verfällt mit Firmware,
+  Layout, Zellbreite oder Nutzern. Erkennungsergebnisse unverändert.
 - **Lokaler Erkennungstest für Tester:** Assistent unter Werkzeuge, nur Zählwerte, Export nur nach Vorschau und
   Zustimmung, nichts wird gesendet.
 - **Nicht signiert** (weder Authenticode noch Update-Signatur); Prüfung per SHA-256.

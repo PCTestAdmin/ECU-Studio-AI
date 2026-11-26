@@ -1,6 +1,6 @@
 # Nächste Generation der Kennfelderkennung – Entwicklungsbericht (nach 1.21.0-rc1)
 
-Stand: 25.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8, Qualitätsphase 4: § 9, Qualitätsphase 5: § 10). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
+Stand: 26.11.2026 (Qualitätsphase 2: § 7, Qualitätsphase 3: § 8, Qualitätsphase 4: § 9, Qualitätsphase 5: § 10, Qualitätsphase 6: § 11, rc2-Release-Fix: § 12). Zweig `feat/post-rc1-recognition-nextgen` (Basis: `v1.21.0-rc1`, Commit `c27796c`), Draft-PR.
 **Nichts davon ist veröffentlicht.** Die Zahlen stammen aus privaten A2L-/HEX-Referenzdaten eines Datengebers
 (BMW-Linien, siehe [ENTWICKLUNG_1.21.0.md](ENTWICKLUNG_1.21.0.md) § 2). Die Daten bleiben lokal; öffentlich sind nur
 zusammengefasste Zahlen. Kein Modelltraining. Alle Regeln wurden nur an den Entwicklungsdaten (58 Abbilder)
@@ -1458,4 +1458,64 @@ Release-Notes-Entwurf ohne Messwerte: [RELEASE_NOTES_1.21.0-rc2.md](RELEASE_NOTE
 - Zwei Regeln (Doppellücke, Mindestpunktzahl verwaister Achsen) sind holdout-abgeleitet und an den
   Entwicklungsdaten wirkungslos.
 - 41 Breiten- und 48 Vorzeichenfehler bleiben unmarkiert; gemeinsame Achsen bei MEVD17.2 bleiben unerkannt.
-- Die Schreibprüfung nimmt 2 Byte je Achsstützstelle an (Review M1).
+- Die Schreibprüfung nahm 2 Byte je Achsstützstelle an (Review M1); behoben im rc2-Release-Fix (§ 12).
+
+## 12. rc2-Release-Fix (26.11.2026): Zellbreite gespeicherter Achsen
+
+Commit `edd926c`. Behebt den Review-Befund M1 ([RELEASE_READINESS_RC2.md](RELEASE_READINESS_RC2.md)) vor einer
+möglichen Vorabversion 1.21.0-rc2. **Keine Erkennungsarbeit:** Erkennungsregeln und -schwellen sind unverändert;
+neu ist nur, dass Erkenner, A2L- und XDF-Import die Zellbreite der Achsen, die sie ohnehin lesen, am Kennfeld
+mitgeben. Umsetzung und Regeln: [EDIT_SAFETY_REVIEW.md § 4a](EDIT_SAFETY_REVIEW.md).
+
+### 12.1 Änderung
+
+- Je Kennfeld neue Merkmale `axis_x/y_dtype` (u8/s8/u16/s16/u32/s32/f32 oder leer = unbekannt),
+  `axis_x/y_type_source` und `axis_x/y_step` (Stützstellenabstand); gespeichert in Projekt und Map-Pack, alte
+  Dateien ohne diese Felder laden mit „unbekannt“.
+- Achsobjekt der Schreibprüfung mit Breite, Typstatus, Quellen, größter Punktzahl und Abstand; geschützter Bereich
+  aus diesen Angaben statt fest 2 Byte je Punkt.
+- Unbekannte Breite: Schutz mit 4 Byte je Punkt; widersprüchliche Breiten: größte geschützt, angezeigt, gemeinsame
+  Achse abgelehnt; feste Achse ohne Adresse: kein Bereich.
+- Technische Klärung an Firmware, Adresse, Punktzahl, Breite, Layout, Nutzer und Herkunft gebunden; sie kann eine
+  bekannte Breite nicht verkleinern und verfällt, sobald sich eine dieser Angaben ändert.
+- Definitionsdialog: Zelltyp der Achse ausdrücklich wählbar; 25 neue Oberflächentexte (deutsch/englisch).
+
+### 12.2 Tests (synthetisch)
+
+`tests/test_axis_cell_width.py`, 39 Tests, nur synthetische Abbilder: alle sieben Typen, obere Hälfte von
+32-Bit-Achsen, unbekannte und widersprüchliche Breiten, widersprüchliche Punktzahlen, gemeinsame und wertgleiche
+Achsen, Kopiensuche über die volle Breite, Klärung (nicht verkleinernd, nicht bis in Werte, verfällt), feste Achse,
+Abbildende, ungültige Eingaben, Überlappungen, Transaktion/Rückgängig/Wiederholen, Stapel- und Hex-Schreiben,
+alte Projekte und Map-Packs, A2L (ULONG, FLOAT32_IEEE, UBYTE, UWORD), XDF (32 Bit, mit Stride), Brute-Force-Vergleich
+gegen die optimierte Prüfung, veraltete Freigabe nach Breitenänderung. Vollständige Suite: 1 551 bestanden,
+22 übersprungen, 0 Fehler.
+
+### 12.3 Erkennung unverändert (gewertete Läufe vom Commit `edd926c`, Quellbaum unverändert)
+
+| Datensatz | Vergleich mit QP6 |
+|---|---|
+| Entwicklungsdaten, 58 Abbilder | 58 von 58 Ergebnisdateien byte-identisch; 2D exakt 35 276, Verwechslungen 4 117; 1D exakt MEVD17.2 50 829, MSD80 75 008 |
+| Holdout, 105 Abbilder (nur Regression) | 105 von 105 Ergebnisdateien byte-identisch; 2D exakt 56 688 |
+| Funktionsidentifikation (beide Konfigurationen) | Ergebnisdateien byte-identisch |
+| Regressionsgruppe / Negativbestand | 15 von 15 unverändert / 549 Funde, 0 sicher falsch |
+
+### 12.4 Kosten der Schreibprüfung
+
+Echte MEVD17.2-Definitionen (Entwicklungsdaten), je 20 Stichproben, zwei abwechselnde Messläufe in derselben
+Sitzung: vor dem Fix (`c51fe2b`) Median 57–72 ms je Zelle, nach dem Fix (`edd926c`) 60–74 ms. Kein messbarer
+Unterschied. Gemeldete Konflikte in den Stichproben 2/2/5 → 0: Die alte 2-Byte-Annahme ließ 8-Bit-Achsen bis in
+die Werte der eigenen Tabelle reichen; das waren Fehlmeldungen.
+
+### 12.5 Echte Definitionen (nur Zählwerte)
+
+In einer MEVD17.2-Definition mit rund 19 500 Kennfeldern: 3 177 gespeicherte Achsobjekte, davon 618 mit 1 Byte,
+2 553 mit 2 Byte und 6 mit 4 Byte je Punkt, alle mit belegtem Typ. Die 6 32-Bit-Achsen waren vorher nur zur Hälfte
+geschützt.
+
+### 12.6 Grenzen
+
+- Achsen ohne Typangabe (alte Projekte, Packs, manuelle Definitionen ohne Wahl) werden mit 4 Byte je Punkt
+  geschützt; das kann zusätzliche Rückfragen auslösen, nie weniger Schutz.
+- Die Erkennungsheuristiken (`axis_records`, `curve_records`, `scoped_scan`) arbeiten weiter mit ihren 16-Bit-
+  bzw. wertbasierten Breitenannahmen; sie beanspruchen keinen geschützten Bereich und blieben bewusst unverändert.
+- Float64-Achsen werden nicht unterstützt.

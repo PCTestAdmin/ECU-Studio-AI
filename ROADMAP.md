@@ -26,7 +26,7 @@ Prüfberichte.
 | 🟢 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** · 14.11.2026 | **aktuelle Version** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)) |
 | 🧪 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** · 20.11.2026 | **veröffentlichte Vorabversion** (GitHub-Pre-Release, nicht „Latest“) für freiwillige Tests, keine stabile Version; der stabile Update-Kanal bietet sie nicht an ([Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md)) |
 | 📋 | **1.21.0** | **geplante stabile Version, nicht veröffentlicht**; ihr Inhalt ist bisher als Vorabversion 1.21.0-rc1 veröffentlicht ([PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
-| 🟠 | **Nach 1.21.0-rc1** | **in Entwicklung, nicht veröffentlicht**: nächste Generation der Kennfelderkennung (Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, [Bericht](docs/ENTWICKLUNG_NEXTGEN.md)); als Vorabversion **1.21.0-rc2 vorbereitet, nicht freigegeben** ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)) |
+| 🟠 | **Nach 1.21.0-rc1** | **in Entwicklung, nicht veröffentlicht**: nächste Generation der Kennfelderkennung (Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, [Bericht](docs/ENTWICKLUNG_NEXTGEN.md)); als experimentelle Vorabversion **1.21.0-rc2 vorbereitet (einschließlich Release-Fix Zellbreite der Achsen), nicht freigegeben** ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)) |
 
 Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
 gemessen und veröffentlicht ist.
@@ -291,7 +291,46 @@ Release-Entscheidung: [Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
 | 1.21.0-rc2 | 📋 vorbereitet, nicht veröffentlicht | Review, Versionsplan, Signaturstatus (nicht signiert), Release-Notes-Entwurf, Testbuild nur auf Runnern |
 | Unabhängige Validierung | – (nicht erreicht) | erneute Suche ohne Paar; keine neuen rechtmäßig nutzbaren Daten |
 
-### Danach (Reihenfolge = Priorität, ohne Termine)
+#### rc2-Release-Fix (26.11.2026, PR #30, nicht veröffentlicht)
+
+Letzter Schreibsicherheits-Fix vor rc2, keine Erkennungsarbeit. Einzelheiten:
+[Schreibsicherheit § 4a](docs/EDIT_SAFETY_REVIEW.md#4a-zellbreite-gespeicherter-achsen-rc2-release-fix),
+[Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Zellbreite gespeicherter Achsen in der Schreibprüfung (vorher fest 2 Byte je Stützstelle) | Draft-PR | eigenes Merkmal aus A2L/XDF/Erkennung; unbekannt = 4 Byte, Widerspruch = abgelehnt; Klärung nutzt ihre Breite; 39 synthetische Tests; Erkennung unverändert |
+
+### 1.21.0-rc2 (experimentelle Vorabversion)
+
+| Punkt | Stand |
+|---|---|
+| Abschluss der sechs Qualitätsphasen (Erkennung, Achsidentität, Funktionsebene, Tester-Assistent, Schreibprüfung) | 🟠 im Draft-PR #30 |
+| Letzter Schreibsicherheits-Fix: Zellbreite gespeicherter Achsen | 🟠 umgesetzt und getestet ([§ 4a](docs/EDIT_SAFETY_REVIEW.md#4a-zellbreite-gespeicherter-achsen-rc2-release-fix)) |
+| Probelauf und Installer-QA für rc2 auf frischen Runnern | siehe [Vorlage rc2](docs/RELEASE_READINESS_RC2.md) |
+| Veröffentlichung als Pre-Release (nie „Latest“, stabiler Kanal bietet sie nicht an) | ⛔ nur nach ausdrücklicher Freigabe |
+| Danach: Rückmeldungen und lokale Testberichte der Tester sammeln | 📋 |
+
+### 1.21.0 stabil
+
+Keine großen Qualitätsphasen mehr. Bekannte Sicherheitsprobleme gelten nicht dadurch als behoben, dass eine Warnung
+angezeigt wird.
+
+| Punkt | Voraussetzung |
+|---|---|
+| Rückmeldungen und Testberichte zu rc2 auswerten | Tester mit eigener Firmware und Definition |
+| Echte Blocker beheben (Datenverlust, Absturz, Schreibsicherheit, Installer, Update) | nur belegte Fehler, keine neue Erkennungsarbeit |
+| Schreibsicherheit erneut prüfen | alle Schreibwege, synthetische Gegenbeispiele |
+| Installations- und Update-Wege erneut prüfen | frische Runner; Update von 1.20.1 und von rc2; stabiler Kanal |
+| Unabhängige Validierung im Umfang der standardmäßig eingeschalteten Funktionen | neue, rechtmäßig nutzbare Referenzdaten; ohne sie bleiben Funktionen experimentell oder ausgeschaltet |
+| Abschließende Stable-Prüfung und ausdrückliche Freigabe | ⛔ |
+
+### 1.22.0 und später (Reihenfolge = Priorität, ohne Termine)
+
+Themen: KI-Modelle und Training nur mit rechtmäßig nutzbaren Daten (nie mit privaten Daten des Datengebers), mehr
+Referenzen, EDC16/EDC17/MED17, MD1/MG1, Simos/SID, Getriebesteuergeräte, Funktionsidentifikation, gemeinsame Achsen
+bei MEVD17.2, Skalierung und Einheitenerkennung, weitere Prozessorarchitekturen, Werkzeuge für Tuner,
+Open-Source-Vergleiche, Signaturstrategie (Authenticode und Update-Signatur).
 
 | | Vorhaben | Warum / Voraussetzung |
 |:--:|---|---|
@@ -309,6 +348,10 @@ Release-Entscheidung: [Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
 | 12 | **TunerStudio-Abstimmungen öffnen** | Speeduino/rusEFI: Definition (.ini) ist öffentlich |
 | 13 | **Signierte Updates aktivieren, Code-Signatur** | Schlüssel bzw. Zertifikat einrichten ([Anleitung](docs/RELEASE.md)) |
 | 14 | **Dokumentation** | Zweisprachiges Handbuch, Seite je Steuergerät, Anleitungen mit Aufnahmen synthetischer Dateien |
+| 15 | **Funktionsidentifikation und gemeinsame Achsen MEVD17.2** | Nutzertabellen gemeinsamer Achsen erkennen; Funktionsebene über den Prototyp hinaus |
+| 16 | **Skalierung und Einheiten** | Faktor, Offset und Einheit für Funde ohne Definition; nur mit Beleg |
+| 17 | **KI-Modelle und Training** | nur mit rechtmäßig nutzbaren Trainingsdaten; keine privaten Daten des Datengebers |
+| 18 | **Weitere Architekturen und Open-Source-Vergleiche** | jenseits TriCore; Vergleich mit offenen Werkzeugen wie in Qualitätsphase 4 |
 
 ---
 

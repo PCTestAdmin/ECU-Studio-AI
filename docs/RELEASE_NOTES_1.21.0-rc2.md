@@ -1,7 +1,7 @@
 # ECU Studio AI 1.21.0-rc2 – Release Notes
 
-**Release Candidate (Vorabversion) – geplant, noch nicht veröffentlicht.**
-**Release candidate (pre-release) – planned, not published yet.**
+**Experimentelle Vorabversion (Release Candidate) – geplant, noch nicht veröffentlicht.**
+**Experimental pre-release (release candidate) – planned, not published yet.**
 
 Inhalt: [PR #30](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/30). Messwerte, Datensätze und ihr
 Validierungsstatus: [Entwicklungsbericht nach 1.21.0-rc1](ENTWICKLUNG_NEXTGEN.md). Freigabestand:
@@ -18,6 +18,21 @@ bevor Bytes geschrieben werden. Alle automatisch erkannten Kennfelder, Achsen un
 **ungeprüfte Vorschläge**. Messwerte nennen diese Notes bewusst nicht: Sie stammen aus privaten Referenzdaten eines
 Datengebers und sind **nicht unabhängig bestätigt**. Sie stehen mit Datensatz und Validierungsstatus im
 Entwicklungsbericht.
+
+### Auf einen Blick
+
+- **Schreibprüfung mit echter Zellbreite der Achsen:** gespeicherte Achsen werden mit ihrer tatsächlichen Breite
+  (8, 16 oder 32 Bit, Float32) geschützt, nicht mehr pauschal mit 2 Byte je Stützstelle.
+- **Zentrale Schreibprüfung** für jede Änderung von Bytes, mit Ablehnung statt Bestätigung bei unklaren gemeinsamen
+  Achsen.
+- **Lokaler Erkennungstest mit Assistent** in der Oberfläche (Werkzeuge-Menü).
+- **Datenschutzfreundliche Testerberichte:** nur gerundete Zählwerte, Vorschau vor dem Speichern, nichts wird gesendet.
+- **Erkennung ohne Definition:** mehr Belege aus dem Programmcode (TriCore, experimentell), mehr offene Datentypen
+  mit „?“, Achsidentität und Funktionshypothesen mit Beleg.
+- **Stabilität:** Schreibprüfung auch bei sehr großen Definitionen ohne spürbare Wartezeit je Eingabe; Analyse im
+  Assistenten abbrechbar, Schließen während der Analyse sicher.
+- **Geprüfte Installations- und Update-Wege** auf frischen Windows-Server-2022/2025-Systemen, einschließlich des
+  Updates von 1.21.0-rc1 über den Testkanal.
 
 ### Kennfelderkennung ohne Definition
 
@@ -56,6 +71,14 @@ Entwicklungsbericht.
 - **Abgelehnt statt bestätigt:** Schreiben in eine gemeinsame Achse mit unbekannter Identität wird abgelehnt; eine
   weitere Bestätigung hebt das nicht auf. Freigegeben wird nur nach einer technischen Klärung mit Speicherbereich,
   Punktzahl, Zellbreite, Nutzern und Herkunft. Die Klärung verfällt, wenn sich Firmware, Layout oder Nutzer ändern.
+- **Zellbreite gespeicherter Achsen (neu in rc2):** Der Zelltyp einer Achse ist ein eigenes Merkmal und kommt aus
+  der Definition (A2L-`AXIS_PTS`/`RECORD_LAYOUT`, XDF einschließlich Stützstellenabstand) oder aus der Erkennung,
+  die die Achse mit dieser Breite gelesen hat – nie aus dem Datentyp der Kennfeldwerte. Geschützt wird der
+  tatsächliche Speicherbereich; Schreiben in die obere Hälfte einer 32-Bit- oder Float-Achse ist jetzt ein
+  Achskonflikt. Ist die Breite unbekannt (etwa in Projekten aus älteren Versionen), wird vorsichtig mit 4 Byte je
+  Stützstelle geschützt; widersprechen sich Breiten, wird der Widerspruch angezeigt und eine gemeinsame Achse
+  abgelehnt. Eine Klärung verwendet ihre Zellbreite, kann eine belegte Breite nicht verkleinern und verfällt auch,
+  wenn sich die Breite ändert. Im Definitionsdialog muss der Zelltyp einer Achse ausdrücklich gewählt werden.
 - **Widersprüchliche Rezepte** (zwei Schritte schreiben dieselben Bytes) werden vor dem Schreiben abgelehnt.
 - Original, Rückgängig und Wiederholen bleiben unverändert; es wird nichts auf andere Adressen kopiert.
 
@@ -81,7 +104,11 @@ Entwicklungsbericht.
 
 ### Bekannte Einschränkungen
 
-- **Testversion:** keine Empfehlung für produktive Fahrzeugkalibrierungen.
+- **Testversion:** keine Empfehlung für produktive Fahrzeugkalibrierungen. Keine Zusage zur Erkennungsgenauigkeit
+  und keine Zertifizierung für bestimmte Firmware oder Steuergeräte.
+- **Achsen ohne Typangabe** (z. B. aus Projekten von rc1 oder älter) werden mit 4 Byte je Stützstelle geschützt; das
+  kann zusätzliche Rückfragen oder Ablehnungen auslösen. Abhilfe: Definition neu importieren oder den Zelltyp im
+  Definitionsdialog angeben.
 - **Keine neue unabhängige Validierung:** Alle Verbesserungen sind nur an den Referenzdaten eines Datengebers
   gemessen. Nach der ersten Holdout-Messung wurden diese Daten nur noch als Regressionstest verwendet. Unabhängige
   Referenzdaten anderer Steuergerätefamilien fehlen weiterhin.
@@ -91,7 +118,7 @@ Entwicklungsbericht.
   sind.
 - **Datentypen:** Ein Teil falscher Breiten und Vorzeichen bei Achsen und Kennlinien bleibt unmarkiert, weil die Werte
   beide Lesarten nicht unterscheiden. Ein Datentyp ohne „?“ ist ebenfalls nur ein Vorschlag.
-- **Bearbeitung großer Definitionen:** Die Schreibprüfung kostet bei sehr vielen Kennfeldern spürbar Zeit je Zelle.
+- **Bearbeitung großer Definitionen:** Die Schreibprüfung kostet bei sehr vielen Kennfeldern etwas Zeit je Zelle.
 - **Checksummen nur teilweise unterstützt**, **keine allgemein vertrauenswürdige OEM-Signaturvalidierung** und
   **keine automatische Flashfreigabe**.
 - Kein Modelltraining mit den privaten Firmwaredaten des Datengebers.
@@ -106,6 +133,20 @@ questions with "?" more often, shows the evidence for axes and functions, and ch
 are written. All automatically detected maps, axes and function names remain **unchecked suggestions**. These notes
 deliberately give no measurements: they come from private reference data of one data provider and are **not
 independently confirmed**. They are listed with data set and validation status in the development report.
+
+### At a glance
+
+- **Write check with the real cell width of axes:** stored axes are protected with their actual width (8, 16 or 32 bit,
+  float32), no longer with a flat 2 bytes per breakpoint.
+- **Central write check** for every change of bytes, refusing instead of confirming when a shared axis is unclear.
+- **Local detection test with an assistant** in the user interface (Tools menu).
+- **Privacy-friendly tester reports:** rounded counts only, preview before saving, nothing is sent.
+- **Detection without a definition:** more evidence from program code (TriCore, experimental), more open data types
+  marked with "?", axis identity and function hypotheses with evidence.
+- **Stability:** the write check stays responsive per input even with very large definitions; the analysis in the
+  assistant can be cancelled and closing during the analysis is safe.
+- **Tested installation and update paths** on fresh Windows Server 2022/2025 systems, including the update from
+  1.21.0-rc1 through the test channel.
 
 ### Map detection without a definition
 
@@ -144,6 +185,14 @@ independently confirmed**. They are listed with data set and validation status i
 - **Refused instead of confirmed:** writing into a shared axis of unknown identity is refused; another confirmation
   does not lift that. It is released only after a technical clarification with storage range, point count, cell
   width, users and origin. The clarification expires when firmware, layout or users change.
+- **Cell width of stored axes (new in rc2):** the cell type of an axis is a property of its own and comes from the
+  definition (A2L `AXIS_PTS`/`RECORD_LAYOUT`, XDF including the distance between breakpoints) or from the detection
+  that read the axis with that width – never from the data type of the map values. The actual storage range is
+  protected; writing into the upper half of a 32-bit or float axis is now an axis conflict. When the width is unknown
+  (for example in projects from older versions), it is protected cautiously with 4 bytes per breakpoint; when widths
+  contradict each other, the contradiction is shown and a shared axis is refused. A clarification uses its cell
+  width, cannot narrow a stated width and also expires when the width changes. In the definition dialog the cell type
+  of an axis must be chosen explicitly.
 - **Contradicting recipes** (two steps write the same bytes) are refused before writing.
 - Original, undo and redo are unchanged; nothing is copied to other addresses.
 
@@ -168,7 +217,11 @@ independently confirmed**. They are listed with data set and validation status i
 
 ### Known limitations
 
-- **Test version:** not a recommendation for production vehicle calibrations.
+- **Test version:** not a recommendation for production vehicle calibrations. No promise of detection accuracy and
+  no certification for any particular firmware or ECU.
+- **Axes without a type** (for example from projects of rc1 or older) are protected with 4 bytes per breakpoint; this
+  can cause additional questions or refusals. Remedy: import the definition again or set the cell type in the
+  definition dialog.
 - **No new independent validation:** all improvements were measured only on the reference data of one data provider.
   After the first holdout measurement these data were used as a regression test only. Independent reference data of
   other ECU families are still missing.
@@ -177,7 +230,7 @@ independently confirmed**. They are listed with data set and validation status i
   stay "unknown" and cannot be written until they are clarified technically.
 - **Data types:** some wrong widths and signs of axes and curves stay unmarked, because the values do not tell the two
   readings apart. A data type without "?" is a suggestion too.
-- **Editing large definitions:** with very many maps the write check costs noticeable time per cell.
+- **Editing large definitions:** with very many maps the write check takes some time per cell.
 - **Checksums only partly supported**, **no generally trustworthy OEM signature validation** and **no automatic flash
   release**.
 - No model training with the data provider's private firmware data.
