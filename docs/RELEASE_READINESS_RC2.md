@@ -69,6 +69,7 @@ Keine offenen.
 | N1 | Tester-Assistent: Abbruch ist kooperativ; das Schließen wartet auf den nächsten Prüfpunkt der Analyse. | getestet (Abbruch, Schließen während der Analyse). |
 | N2 | `run_provenance` ruft `git` auf; im installierten Programm ohne Git bleibt der Commit leer. | nur für Entwickler-Benchmarks; kein Programmpfad. |
 | N3 | Die Breitenregel „Doppellücke“ und die Mindestpunktzahl verwaister Achsen stammen aus Holdout-Befunden; an den Entwicklungsdaten wirkungslos. | als holdout-abgeleitet dokumentiert; Gegenbeispieltests synthetisch. |
+| N4 | Tester-Assistent: Kam das Analyseergebnis an, während der Hintergrund-Thread noch endete, blieb das Fenster auf der Analyseseite (Seitenwechsel während des Laufs gesperrt); „Weiter“ funktionierte danach. Gefunden im rc2-Probelauf (ein Testfehler unter Python 3.12). | **behoben** (`1713b31`): Der Lauf gilt bis zur Behandlung des Thread-Endes im Fenster; die Ergebnisseite öffnet von dort. Deterministischer Test. Keine Auswirkung auf Messwerte oder Export. |
 
 ### Ohne Befund geprüft
 
@@ -86,11 +87,13 @@ Keine offenen.
 
 Einzelheiten mit Datensatz und Validierungsstatus: [Entwicklungsbericht § 11–12](ENTWICKLUNG_NEXTGEN.md). Alle
 gewerteten Läufe vom sauberen Commit mit Vorprüfung; Quellbaum während jedes Laufs unverändert. Die Zeilen unten
-sind **am 26.11.2026 nach dem Release-Fix neu gemessen** (Commit `edd926c`), nicht aus QP6 übernommen.
+sind **am 26.11.2026 nach dem Release-Fix neu gemessen** (Commit `edd926c`), nicht aus QP6 übernommen. Der
+spätere Commit `1713b31` ändert nur `ui/tester_assistant.py` (N4), keinen Erkennungs- oder Schreibcode; Tests,
+GUI-Smoke und i18n wurden danach wiederholt.
 
 | Prüfung | Ergebnis |
 |---|---|
-| pytest vollständig, isoliertes Profil (`edd926c`) | 1 551 bestanden, 22 übersprungen, 0 Fehler (QP6: 1 513; neu 39 Tests der Achszellbreite, ein angepasster) |
+| pytest vollständig, isoliertes Profil (`1713b31`) | 1 553 bestanden, 22 übersprungen, 0 Fehler (QP6: 1 513; neu 39 Tests der Achszellbreite und 1 Test des Tester-Assistenten, § 5.1) |
 | Übersprungen (22), jeweils begründet | private Referenzdaten nicht eingebunden (Tests, die nur lokal mit Datengeber-Dateien laufen), Oberflächen-Zeitmessung und Paketprüfung nur mit `ECU_STUDIO_GUI_TESTS` bzw. gebautem Paket, symbolische Links ohne Windows-Recht, Registry-Tests nur auf CI-Runnern |
 | GUI-Smoke, dreimal | je 10 Prüfungen bestanden, keine Fehlerausgabe |
 | i18n | 2 592 Texte, 0 ohne Übersetzung (25 neue) |
@@ -108,17 +111,38 @@ sind **am 26.11.2026 nach dem Release-Fix neu gemessen** (Commit `edd926c`), nic
 
 Lokal wird nichts installiert. Testbuild und Installer-Prüfungen laufen auf frischen GitHub-Windows-Runnern in
 Zweigen, die nie gemergt, getaggt oder veröffentlicht werden. Für den Stand **nach dem Release-Fix** wurden beide
-Läufe neu gestartet, auf neuen Zweigen (die Zweige vom 25.11. bleiben unverändert stehen):
-`release-dry-run/1.21.0-rc2-fix` (Release-Workflow ohne Veröffentlichung) und `qa/1.21.0-rc2-fix` (Installer-QA).
-Beide liegen auf dem Stand von PR #30 nach dem Release-Fix; der Probelauf trägt zusätzlich nur die
-Release-Einträge (Version, CHANGELOG-Überschrift, Kopf der Notes), die QA nur ihre Testskripte.
+Läufe neu gestartet, auf neuen Zweigen (die Zweige vom 25.11. bleiben unverändert stehen). Jeder Zweig liegt auf
+dem Stand von PR #30; der Probelauf trägt zusätzlich nur die Release-Einträge (Version, CHANGELOG-Überschrift, Kopf
+der Notes), die QA nur ihre Testskripte unter `.github/`.
 
 ### 5.1 Läufe nach dem Release-Fix (26.11.2026)
 
+**Erste Runde** (`release-dry-run/1.21.0-rc2-fix`, `qa/1.21.0-rc2-fix`, Stand `1965d55`): Release-Workflow
+erfolgreich, Installer-QA 20 von 20 Läufen (1 160 Prüfungen, 0 fehlgeschlagen) – aber der Test-Workflow des
+Probelaufzweigs schlug unter Python 3.12 mit **einem Fehler** fehl (`test_analysis_runs_in_background_and_matches_the_command_line`,
+1 551 bestanden). Ursache war ein echter Wettlauf im Tester-Assistenten (Befund N4, § 3): Das Ergebnis der Analyse
+kam im Fenster an, während der Hintergrund-Thread noch endete; der Seitenwechsel wurde abgelehnt, die Ergebnisseite
+öffnete nicht von selbst. Behoben in `1713b31` mit einem Test, der diese Reihenfolge erzwingt (vorher rot, nachher
+grün). Weil sich damit das ausgelieferte Programm ändert, wurden Probelauf und QA vollständig wiederholt:
+
+**Zweite Runde** (`release-dry-run/1.21.0-rc2-fix2` → `f51cc19`, `qa/1.21.0-rc2-fix2` → `ce2fd94`, Stand `1713b31`):
+
 | Lauf (26.11.2026) | Ergebnis |
 |---|---|
-| Release-Workflow, Probelauf | *läuft* |
-| Installer-QA, 10 Modi × Windows Server 2022/2025 | *läuft* |
+| Versionen | Tag-Prüfung: `v1.21.0-rc2`, Kanal `prerelease`, Version `1.21.0-rc2`, Windows-Dateiversion `1.21.0.2`, PEP 440 `1.21.0rc2`; Version jeder gebauten Datei gleich dem Tag |
+| Release-Wächter (Negativtest) | alle Negativfälle abgelehnt, RC nur als Pre-Release, stabiler Kanal ohne RC |
+| Release-Notes-Prüfung | „ECU Studio AI v1.21.0-rc2 (Vorabversion / Pre-release)“, 164 Zeilen DE + EN, Kanal `prerelease` |
+| Build mit Tests auf dem Runner (Python 3.13) | 1 555 bestanden, 20 übersprungen; EXE-Smoke-Test, Start ohne Python im Pfad |
+| Pakete | `ECU-Studio-AI-1.21.0-rc2-setup.exe` und `…-windows-x64.zip` je mit `.sha256`; Prüfsummen nachgerechnet: stimmen. Keine `.sig`, keine Attestierung (Probelauf) |
+| Signatur | „Kein Signaturschlüssel konfiguriert – Dateien bleiben unsigniert“ (wie § 2) |
+| Update-Test Windows Server 2022 / 2025 | bestanden (Installer über das letzte Release, Apps & Features, Deinstallation lässt nur Benutzerdateien) |
+| `publish-plan` (liest nur die Release-Liste) | „v1.21.0-rc2 würde mit `--prerelease --latest=false` veröffentlicht (Latest vorher: v1.20.1)“ |
+| `publish` | **übersprungen** (kein Tag) |
+| Installer-QA, 10 Modi × Windows Server 2022/2025 | **20 von 20 Läufen, 1 160 Einzelprüfungen, 0 fehlgeschlagen**: Neuinstallation (96), Update von 1.20.1 (55), kein Angebot im stabilen Kanal – NoOffer (80), Reparatur über 1.20.0 (30), Kette rc2 → rc3 (80), Heilung nach altem Updater (26), Rücksicherung (42), gesperrte Ordner (52), vorhandene Installation (49), Update der veröffentlichten rc1 über deren Testkanal – FromRc1 (70) |
+| Tests 3.11 / 3.12 auf PR #30 (`1713b31`), Probelauf- und QA-Zweig | grün, je 1 553 bestanden, 22 übersprungen |
+| CodeQL auf PR #30 (`1713b31`) | grün |
+| `release.yml` | unverändert seit `v1.21.0-rc1`; `.github/` im PR unverändert gegenüber `main` |
+| Tags und Releases danach | unverändert: kein `v1.21.0-rc2`, Latest weiter v1.20.1, rc1 weiter Pre-Release |
 
 ### 5.2 Läufe vor dem Release-Fix (25.11.2026, Stand QP6, nur zum Vergleich)
 
@@ -134,20 +158,23 @@ Die Testpakete bleiben Artefakte der Läufe (Aufbewahrungsfrist von GitHub); sie
 
 ## 6. Antwort und Blocker
 
-**Technisch:** *Antwort nach Abschluss der Läufe in § 5.1.* Stand vor diesen Läufen: Der einzige als Empfehlung
-offene Schreibsicherheitsbefund (M1) ist behoben, die Erkennung ist byte-identisch mit QP6, die Kosten der
-Schreibprüfung sind unverändert.
+**Technisch:** bereit für eine öffentliche, ausdrücklich experimentelle Vorabversion. Der Schreibsicherheitsbefund
+M1 ist behoben und synthetisch vollständig getestet; die Erkennung ist byte-identisch mit QP6; die Kosten der
+Schreibprüfung sind unverändert. Der im Probelauf gefundene Fehler des Tester-Assistenten (N4) ist behoben, danach
+wurden Probelauf und Installer-QA vollständig wiederholt: alles grün, Veröffentlichung nur als Pre-Release geplant,
+Latest unberührt (§ 5.1).
 
 **Fachlich:** nur mit den in den Notes genannten Einschränkungen. Alle Gütezahlen stammen aus den Daten eines
 Datengebers (zwei TriCore-Linien), der Holdout ist bekannt; zwei Regeln sind holdout-abgeleitet; 41 Breiten- und
 48 Vorzeichenfehler bleiben unmarkiert; gemeinsame Achsen bei MEVD17.2 werden nicht gefunden. Eine rc2 darf deshalb
 keine Gütezahl als allgemeine Erkennungsleistung ausgeben (die Notes tun das nicht).
 
-| Blocker | für rc2 (experimentell) | für 1.21.0 stabil |
-|---|---|---|
-| Ausdrückliche Freigabe (Merge, Tag, Veröffentlichung) | **ja – fehlt** | ja |
-| Unabhängige Validierung mit neuen, rechtmäßigen Daten (H2) | nein, offen benannt | **ja** |
-| Achszelltyp in der Schreibprüfung (M1) | **behoben** (`edd926c`) | behoben |
-| Code-Signatur | nein (rc1 ebenso unsigniert, offen benannt) | empfohlen |
+| Einordnung | Punkte |
+|---|---|
+| **Technisch blockierend für rc2** | keine. Einzige offene Voraussetzung ist die ausdrückliche Freigabe (Merge, Tag, Veröffentlichung). |
+| **Akzeptierte Einschränkung für rc2** (in den Notes genannt) | keine unabhängige Validierung (H2); Daten eines Datengebers, Holdout bekannt; zwei holdout-abgeleitete Regeln; 41 Breiten- und 48 Vorzeichenfehler unmarkiert (M5); gemeinsame Achsen MEVD17.2 nicht gefunden (M4); unbekannte Identität sperrt auch richtige gemeinsame Achsen (M3); Achsen ohne Typangabe mit 4 Byte je Punkt geschützt (mögliche zusätzliche Rückfragen); nicht signiert (weder Authenticode noch Update-Signatur) |
+| **Für 1.21.0 stabil erforderlich** | Rückmeldungen zu rc2 ausgewertet; belegte Blocker behoben; Schreibsicherheit und Installations-/Update-Wege erneut geprüft; unabhängige Validierung im Umfang der standardmäßig eingeschalteten Funktionen (sonst bleiben sie experimentell oder ausgeschaltet); Code-Signatur empfohlen; ausdrückliche Freigabe |
+| **Für 1.22.0 geplant** | siehe [ROADMAP](../ROADMAP.md) „1.22.0 und später“: unabhängige Validierung, MEVD17.2.3/MSV90, weitere Familien, Checksummen, gemeinsame Achsen MEVD17.2, Signaturstrategie |
+| Erledigt in dieser Runde | M1 Achszellbreite (`edd926c`), N4 Tester-Assistent (`1713b31`) |
 
 Ohne Freigabe geschieht nichts davon: kein Merge, kein Tag, keine Veröffentlichung, keine Änderung des Update-Kanals.

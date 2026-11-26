@@ -1487,8 +1487,8 @@ mitgeben. Umsetzung und Regeln: [EDIT_SAFETY_REVIEW.md § 4a](EDIT_SAFETY_REVIEW
 Achsen, Kopiensuche über die volle Breite, Klärung (nicht verkleinernd, nicht bis in Werte, verfällt), feste Achse,
 Abbildende, ungültige Eingaben, Überlappungen, Transaktion/Rückgängig/Wiederholen, Stapel- und Hex-Schreiben,
 alte Projekte und Map-Packs, A2L (ULONG, FLOAT32_IEEE, UBYTE, UWORD), XDF (32 Bit, mit Stride), Brute-Force-Vergleich
-gegen die optimierte Prüfung, veraltete Freigabe nach Breitenänderung. Vollständige Suite: 1 551 bestanden,
-22 übersprungen, 0 Fehler.
+gegen die optimierte Prüfung, veraltete Freigabe nach Breitenänderung. Vollständige Suite (`edd926c`): 1 551
+bestanden, 22 übersprungen, 0 Fehler; nach § 12.7 (`1713b31`): 1 553 bestanden, 22 übersprungen, 0 Fehler.
 
 ### 12.3 Erkennung unverändert (gewertete Läufe vom Commit `edd926c`, Quellbaum unverändert)
 
@@ -1519,3 +1519,14 @@ geschützt.
 - Die Erkennungsheuristiken (`axis_records`, `curve_records`, `scoped_scan`) arbeiten weiter mit ihren 16-Bit-
   bzw. wertbasierten Breitenannahmen; sie beanspruchen keinen geschützten Bereich und blieben bewusst unverändert.
 - Float64-Achsen werden nicht unterstützt.
+
+### 12.7 Fehler im Tester-Assistenten, gefunden im Probelauf
+
+Der erste rc2-Probelauf nach dem Fix scheiterte im Test-Workflow unter Python 3.12 an einem Test des
+Tester-Assistenten (1 Fehler, alle anderen bestanden). Ursache: Das Ergebnissignal der Analyse kann das Fenster
+erreichen, während der Hintergrund-Thread noch endet; der Seitenwechsel zur Ergebnisseite wurde dann abgelehnt
+(während eines Laufs gesperrt), das Fenster blieb auf der Analyseseite. Behoben in `1713b31`: Ein Lauf gilt, bis das
+Fenster das Ende des Threads behandelt hat, und die Ergebnisseite öffnet von dort. Ein neuer Test hält den Thread nach
+seinem Ergebnis absichtlich offen und erzwingt so die Reihenfolge (vor der Behebung rot, danach grün; fünf
+Wiederholungen der Testdatei grün). Keine Auswirkung auf Messwerte, Export oder Erkennung; Probelauf und
+Installer-QA wurden danach vollständig wiederholt ([RELEASE_READINESS_RC2.md § 5.1](RELEASE_READINESS_RC2.md)).
