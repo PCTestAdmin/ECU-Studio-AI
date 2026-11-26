@@ -463,7 +463,8 @@ class A2LCatalog:
                         break
                     counts[name], axis_values[name] = len(rec['X']), ('raw', rec['X'], desc.head[2])
                     shared_axes.append((f'{ref[0]}', rec['X_at'], len(rec['X'])))
-                    shared_at[name] = (ref[0], rec['X_at'][0])
+                    shared_at[name] = (ref[0], rec['X_at'][0], rec['X_at'][1],
+                                       f'A2L AXIS_PTS {ref[0]} (RECORD_LAYOUT {pts.layout})')
                 elif kind == 'STD_AXIS':
                     axis_values[name] = ('std', maxpts, desc.head[2])
                 else:
@@ -531,11 +532,19 @@ class A2LCatalog:
                               axes_x=axes.get('X', []), axes_y=axes.get('Y', []),
                               scaling_source=scaling_source, function=' / '.join(owners),
                               function_source='A2L FUNCTION (DEF_CHARACTERISTIC)' if owners else '')
-            # Where each axis is stored: inline in the record, or a shared AXIS_PTS object.
+            # Where each axis is stored: inline in the record, or a shared AXIS_PTS object; with the cell type
+            # the record layout gives for the axis points (it can differ from the value type).
             for name in 'XY':
-                ref, at = shared_at.get(name, ('', rec[name + '_at'][0] if name + '_at' in rec else None))
+                if name in shared_at:
+                    ref, at, adt, origin = shared_at[name]
+                elif name + '_at' in rec:
+                    ref, (at, adt), origin = '', rec[name + '_at'], f'A2L RECORD_LAYOUT {ch.layout}'
+                else:
+                    ref, at, adt, origin = '', None, '', ''
                 setattr(m, f'axis_{name.lower()}_offset', at)
                 setattr(m, f'axis_{name.lower()}_ref', ref)
+                setattr(m, f'axis_{name.lower()}_dtype', adt if at is not None else '')
+                setattr(m, f'axis_{name.lower()}_type_source', origin if at is not None else '')
             try:
                 m.validate(size)
             except ValueError:

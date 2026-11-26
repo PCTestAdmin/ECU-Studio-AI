@@ -403,6 +403,7 @@ def _x_axis_possible(buf: bytes, counts: np.ndarray, starts: np.ndarray, phase: 
 
 # Axis widths (X, Y): MSD80 records mix them (16-bit X with 8-bit Y and the reverse; 1.21.0).
 AXIS_WIDTHS = ((1, 1), (2, 2), (1, 2), (2, 1))
+RECORD_TYPE_SOURCE = 'Datensatz-Erkennung (Anzahl-Kopf + Achsen in dieser Breite gelesen)'
 # Value types; s8 since 1.21.0 (signed byte tables, e.g. MSD80 _REC_MAP_52_UBYTE_s1_s2_s2).
 DATA_TYPES = ('u8', 's8', 'u16', 's16', 'u32')
 
@@ -566,6 +567,10 @@ def scan_axis_records(image: BinaryImage, *, max_results=40, cancelled=None, inc
                                         dtype,storage,source='heuristic',confidence=.44,
                                         axes_x=x,axes_y=y,
                                         axis_x_offset=axis_start,axis_y_offset=axis_start+cols*xw,
+                                        # The record was read with these axis cell types (not the value type).
+                                        axis_x_dtype=('s' if kind=='i' else 'u')+str(8*xw),
+                                        axis_y_dtype=('s' if kind=='i' else 'u')+str(8*yw),
+                                        axis_x_type_source=RECORD_TYPE_SOURCE,axis_y_type_source=RECORD_TYPE_SOURCE,
                                         record_layout='candidate:nx,ny,x,y,z',
                                         candidate_region_start=header,
                                         axes_info='Rohachsen aus Count/Axis-Hypothese; Einheiten und Orientierung ungeprüft',

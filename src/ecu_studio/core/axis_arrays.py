@@ -28,6 +28,13 @@ class CountAxis:
     def end(self) -> int:
         return self.offset + self.count * self.width
 
+    @property
+    def dtype(self) -> str:
+        """Cell type the points were read with (width as read; the sign is not established)."""
+        if self.width == 4:
+            return 'f32' if any(isinstance(v, float) for v in self.values) else 'u32'
+        return 'u8' if self.width == 1 else 'u16'
+
 
 def _increasing(v: np.ndarray) -> bool:
     d = np.diff(v)

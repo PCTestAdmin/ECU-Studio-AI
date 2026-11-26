@@ -4,13 +4,13 @@ touches may be missing. Synthetic tables only."""
 import random
 
 from ecu_studio.core import axis_refs as R
-from ecu_studio.core.edit_guard import AXIS_POINT_BYTES, conflicts
+from ecu_studio.core.edit_guard import conflicts
 from ecu_studio.core.model import MapDefinition
 
 
 def _fields(o):
     return (o.offset, o.points, o.users, o.sources, o.name, o.dtype, o.endian, o.aliases, o.issues, o.unapplied,
-            o.identity, o.identity_reason, o.copies)
+            o.identity, o.identity_reason, o.copies, o.width, o.type_state, o.type_sources, o.span_points, o.step)
 
 
 def _world(seed):
@@ -44,8 +44,7 @@ def test_near_objects_equal_the_full_list():
             near = R.objects(maps, data=data, near=(lo, hi))
             by_offset = {o.offset: o for o in full}
             assert all(_fields(o) == _fields(by_offset[o.offset]) for o in near)
-            touched = {o.offset for o in full
-                       if o.offset <= hi and o.offset + AXIS_POINT_BYTES * o.points > lo}
+            touched = {o.offset for o in full if o.offset <= hi and o.end > lo}
             assert touched <= {o.offset for o in near}
 
 
@@ -62,8 +61,8 @@ def test_write_conflicts_unchanged_by_the_window():
     for o in full[:15]:
         positions = {o.offset + 1}
         got = [(c.kind, c.start, c.end, c.identity) for c in conflicts(maps, None, positions, data) if c.kind == 'Achse']
-        want = [('Achse', x.offset, x.offset + AXIS_POINT_BYTES * x.points, x.identity if x.shared else '')
-                for x in full if x.offset <= o.offset + 1 < x.offset + AXIS_POINT_BYTES * x.points]
+        want = [('Achse', x.offset, x.end, x.identity if x.shared else '')
+                for x in full if x.offset <= o.offset + 1 < x.end]
         assert got == want
 
 

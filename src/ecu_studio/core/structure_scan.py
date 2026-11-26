@@ -48,6 +48,7 @@ REFERENCE_LAYOUT = 'candidate:code-reference'
 PITCH_LAYOUT = 'candidate:row-pitch'
 POINTER_LAYOUT = 'candidate:pointer-descriptor'
 CALL_LAYOUT = 'candidate:code-call'
+AXIS_TYPE_SOURCE = 'Achse mit Anzahl-Kopf, aus Code-Referenz (in dieser Breite gelesen)'
 PRELOOKUP_ORIGIN = 'TriCore-Aufruf + Achsensuche (ungeprüft)'
 RECORD_ORIGIN = 'TriCore-Aufruf + Datensatzkopf (ungeprüft)'
 CURVE_ORIGIN = 'TriCore-Kennlinienroutine + Datensatzkopf (ungeprüft)'
@@ -880,6 +881,10 @@ def scan_structures(image: BinaryImage, start: int = 0, end: int | None = None, 
             m.axes_y = [float(v) for v in pair[1].values] if pair[1] else []
             m.axis_x_offset = pair[0].offset
             m.axis_y_offset = pair[1].offset if pair[1] else None
+            # Cell type the axis points were read with (code reference / count head), not the value type.
+            m.axis_x_dtype, m.axis_x_type_source = pair[0].dtype, AXIS_TYPE_SOURCE
+            if pair[1]:
+                m.axis_y_dtype, m.axis_y_type_source = pair[1].dtype, AXIS_TYPE_SOURCE
             hints = [f'X {quantity_hint(pair[0])}'] + ([f'Y {quantity_hint(pair[1])}'] if pair[1] else [])
             m.axes_info = (f'Rohachsen aus Code-Referenz: X @ 0x{pair[0].offset:X}'
                            + (f', Y @ 0x{pair[1].offset:X}' if pair[1] else '')

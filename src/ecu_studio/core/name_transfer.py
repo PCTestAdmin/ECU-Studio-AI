@@ -32,7 +32,7 @@ from __future__ import annotations
 import bisect
 from dataclasses import dataclass, replace
 import numpy as np
-from .model import BinaryImage, MapDefinition
+from .model import FORMATS, BinaryImage, MapDefinition
 from .axis_groups import relocated_axis
 
 WINDOW = 32
@@ -182,8 +182,11 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                 'Ungeprüft: Funktion und Skalierung am Zielstand bestätigen.')
         # Axes and a stored header move with the map only where the target confirms them.
         region = m.candidate_region_start
-        ax = relocated_axis(source, target, m.axis_x_offset, m.cols, shift)
-        ay = relocated_axis(source, target, m.axis_y_offset, m.rows, shift)
+        # Compared with the stated axis cell width (unknown: the widest cell, so more bytes must agree).
+        ax = relocated_axis(source, target, m.axis_x_offset, m.cols, shift,
+                            FORMATS[m.axis_x_dtype][1] if m.axis_x_dtype in FORMATS else 0, m.axis_x_step)
+        ay = relocated_axis(source, target, m.axis_y_offset, m.rows, shift,
+                            FORMATS[m.axis_y_dtype][1] if m.axis_y_dtype in FORMATS else 0, m.axis_y_step)
         dropped = tuple(name for name, old, new in (('X', m.axis_x_offset, ax), ('Y', m.axis_y_offset, ay))
                         if old is not None and new is None)
         if dropped:
@@ -193,6 +196,9 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                         candidate_region_start=region + shift if region is not None and region + shift >= 0 else None,
                         axis_x_offset=ax, axis_y_offset=ay,
                         axes_x=[] if 'X' in dropped else m.axes_x, axes_y=[] if 'Y' in dropped else m.axes_y,
+                        # a dropped axis has no stored bytes at the target: its cell type goes with it
+                        **{f'axis_{k.lower()}_{f}': v for k in dropped
+                           for f, v in (('dtype', ''), ('type_source', ''), ('step', 0))},
                         label_origin=f'Namensübertragung · {evidence}', label_evidence=note,
                         notes=(m.notes + ' ' + note).strip())
         out.append(Transfer(m, moved, evidence, shift, axes_dropped=dropped))

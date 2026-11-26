@@ -30,16 +30,19 @@ Undo/redo replay transactions that were checked when they were made; loading a p
 Neither is checked again. A physical axis edit always changes the axis for every table that reads these
 bytes; nothing is copied to other addresses.
 
-The axis cell type is not part of a table definition, so an axis is taken as 2 bytes per point: an
-8-bit axis is over-covered (a warning too many), a 16-bit one is exact. Nothing here writes.
+Protected ranges (1.21.0-rc2). A stored axis covers its largest point count x its cell width
+(core/axis_refs: stated by the users or the definition; unknown -> the widest cell the program can represent,
+4 bytes; contradicting widths -> the widest, and the object is contradicted). A table covers its values with its
+own type and, where other types are open (``dtype_alternatives``), with the widest of them. A technical
+clarification may state the width only where nobody states one; it never changes a stated width and must not
+reach into the values of a table reading the axis. Nothing here writes.
 """
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field, replace
-from .model import MapDefinition
+from .model import FORMATS, MapDefinition
 
-AXIS_POINT_BYTES = 2
 MAX_CELL_BYTES = 8         # bound of a cell (model.FORMATS: at most 4) for the cheap pre-test in conflicts()
 CLEARED = 'manuell geklärt'      # identity of an unknown shared axis with a valid AxisClearance
 MIN_ORIGIN_CHARS = 20             # a clearance names its technical origin, not just "ok"
@@ -60,6 +63,7 @@ class Conflict:
     identity: str = ''        # shared axis: identity state from core/axis_refs ('' = not shared), or CLEARED
     hit: tuple[int, int] = (0, 0)   # first and last written byte inside the range
     unverified: int = 0       # users that are unchecked detections (their reading of these bytes is open)
+    cell: str = ''            # stored axis: how its cell width is known ('' = stated and uncontradicted)
 
     @property
     def refused(self) -> bool:
@@ -75,8 +79,9 @@ class Conflict:
         what = 'Werte von' if self.kind == 'Werte' else 'gespeicherte Achse von'
         state = f' – gemeinsame Achse, Identität: {self.identity}' if self.identity else ''
         open_ = f'; davon {self.unverified} ungeprüfte Erkennung(en)' if self.unverified else ''
+        cell = f' – {self.cell}' if self.cell else ''
         return (f'Bytes 0x{self.hit[0]:X}–0x{self.hit[1]:X} liegen in {what} {names} '
-                f'(0x{self.start:X}–0x{self.end - 1:X}){state}{open_}')
+                f'(0x{self.start:X}–0x{self.end - 1:X}){state}{cell}{open_}')
 
 
 def written_positions(m: MapDefinition, cells) -> set[int]:
@@ -95,11 +100,39 @@ def _own(m) -> list:
     return list(m) if isinstance(m, (list, tuple, set)) else [m]
 
 
-def conflicts(maps: list[MapDefinition], m, positions, data: bytes | None = None) -> list[Conflict]:
+def value_length(m: MapDefinition) -> int:
+    """Bytes the values of ``m`` can occupy: its own type and every other type still open for it."""
+    length = m.length
+    for alt in m.dtype_alternatives or ():
+        if alt in FORMATS and FORMATS[alt][1] > m.width:
+            try:
+                length = max(length, replace(m, dtype=alt).length)
+            except (ValueError, KeyError):
+                pass
+    return length
+
+
+def axis_range(o) -> tuple[int, int]:
+    """Protected byte range [start, end) of a stored axis object (core/axis_refs.AxisObject)."""
+    return o.offset, o.end
+
+
+def _cell_note(o) -> str:
+    from .axis_refs import TYPE_CONTRADICTED, TYPE_UNKNOWN
+    if o.type_state == TYPE_UNKNOWN:
+        return f'Zellbreite der Achse unbekannt: geschützt mit {o.width} Byte je Punkt'
+    if o.type_state == TYPE_CONTRADICTED:
+        return f'Zellbreiten der Nutzer widersprechen sich: geschützt mit {o.width} Byte je Punkt'
+    return ''
+
+
+def conflicts(maps: list[MapDefinition], m, positions, data: bytes | None = None, *,
+              cleared: dict[int, int] | None = None) -> list[Conflict]:
     """Foreign byte ranges hit by writing ``positions`` into table ``m`` (one table, several, or none).
 
     ``data``: the current image bytes, needed to tell a shared axis apart from value-equal copies; without
-    them no code-named shared axis counts as established (core/axis_refs)."""
+    them no code-named shared axis counts as established (core/axis_refs). ``cleared``: address -> cell width of
+    valid technical clarifications (applied only where no width is stated)."""
     from .project_store import DETECTED_SOURCES
     own = {id(x) for x in _own(m)}
     positions = sorted(set(positions))
@@ -122,18 +155,19 @@ def conflicts(maps: list[MapDefinition], m, positions, data: bytes | None = None
         if at > hi or (not other.major_stride_bits and not other.minor_stride_bits
                        and at + other.rows * other.cols * MAX_CELL_BYTES <= lo) or id(other) in own:
             continue
-        h = hit(at, at + other.length)
+        end = at + value_length(other)
+        h = hit(at, end)
         if h:
-            out.append(Conflict('Werte', other.offset, other.offset + other.length, (other.name,), '', h,
-                                int(unchecked(other))))
+            out.append(Conflict('Werte', other.offset, end, (other.name,), '', h, int(unchecked(other))))
     from .axis_refs import objects
-    for o in objects(maps, data=data, near=(lo, hi)):   # AXIS_POINT_BYTES <= axis_refs.NEAR_POINT_BYTES
-        start, end = o.offset, o.offset + AXIS_POINT_BYTES * o.points
+    # objects(near=...) keeps every object whose range (largest point count x widest cell) touches the write.
+    for o in objects(maps, data=data, near=(lo, hi), cleared=cleared):
+        start, end = axis_range(o)
         h = hit(start, end)
         if h:
             names = tuple(maps[i].name for i in o.tables)
             out.append(Conflict('Achse', start, end, names, o.identity if o.shared else '', h,
-                                sum(unchecked(maps[i]) for i in o.tables)))
+                                sum(unchecked(maps[i]) for i in o.tables), _cell_note(o)))
     return out
 
 
@@ -192,10 +226,19 @@ class AxisClearance:
     axis_digest: str          # SHA-256 of the axis bytes in the original file (record of what was checked)
     layout: tuple
 
+    @property
+    def end(self) -> int:
+        return self.offset + self.points * self.width
+
     def holds(self, image_digest: str, maps: list[MapDefinition]) -> bool:
-        """Still valid: same firmware (original bytes) and the same users of the axis with the same layout.
-        Edits of the axis itself keep it (they are what the clearance permits)."""
+        """Still valid: same firmware (original bytes) and the same users of the axis with the same layout,
+        including the axis cell type they state. Edits of the axis itself keep it (they are what the
+        clearance permits)."""
         return image_digest == self.image_digest and _layout(maps, self.offset) == self.layout
+
+    def covers(self, c: 'Conflict') -> bool:
+        """The conflict is exactly the range this clearance checked (start, points x width)."""
+        return c.kind == 'Achse' and (c.start, c.end) == (self.offset, self.end)
 
 
 def _digest(data: bytes, offset: int, points: int, width: int) -> str:
@@ -204,13 +247,19 @@ def _digest(data: bytes, offset: int, points: int, width: int) -> str:
 
 
 def _layout(maps: list[MapDefinition], offset: int) -> tuple:
-    """Users of the stored axis at ``offset`` with everything that decides how they read it."""
+    """Users of the stored axis at ``offset`` with everything that decides how they read it (values, axis
+    points, axis cell type and its source)."""
     out = []
     for m in maps:
         for axis, at, n in (('X', m.axis_x_offset, m.cols), ('Y', m.axis_y_offset, m.rows)):
             if at == offset and n > 1:
-                out.append((m.name, m.offset, m.rows, m.cols, m.dtype, m.endian, axis, n))
+                dtype, source, step = ((m.axis_x_dtype, m.axis_x_type_source, m.axis_x_step) if axis == 'X'
+                                       else (m.axis_y_dtype, m.axis_y_type_source, m.axis_y_step))
+                out.append((m.name, m.offset, m.rows, m.cols, m.dtype, m.endian, axis, n, dtype, source, step))
     return tuple(sorted(out))
+
+
+CELL_WIDTHS = tuple(sorted({spec[1] for spec in FORMATS.values()}))
 
 
 def make_clearance(maps: list[MapDefinition], data: bytes, image_digest: str, *, offset: int, points: int,
@@ -218,17 +267,39 @@ def make_clearance(maps: list[MapDefinition], data: bytes, image_digest: str, *,
     """Record a technical check of the stored axis at ``offset``; every statement must match the image.
 
     Raises ValueError when the range, point count, cell width or users do not match what the tables read, or
-    the origin is missing or generic: a clearance is never a blanket switch."""
-    from .axis_refs import objects
+    the origin is missing or generic: a clearance is never a blanket switch. Users that contradict each other
+    (point counts, cell widths) must be corrected first. A stated cell width cannot be changed by a clearance;
+    where none is stated the clearance states it, and the axis must then end before the values of every table
+    reading it."""
+    from .axis_refs import TYPE_UNKNOWN, objects
+    if type(offset) is not int or type(points) is not int or type(width) is not int:
+        raise ValueError('Adresse, Punktzahl und Zellbreite müssen ganze Zahlen sein')
     obj = next((o for o in objects(maps, data=data) if o.offset == offset), None)
     if obj is None:
         raise ValueError(f'Keine gespeicherte Achse bei 0x{offset:X}')
+    blocking = [i for i in obj.issues if i.startswith(('Punktzahlen widersprechen', 'Zellbreiten widersprechen',
+                                                       'Abstände der Stützstellen widersprechen',
+                                                       'Definitionen nennen verschiedene Zelltypen'))]
+    if obj.step:
+        raise ValueError('Achse mit Abstand zwischen den Stützstellen: nur über die Definition klärbar')
+    if blocking:
+        raise ValueError('Widerspruch zuerst in den Definitionen klären: ' + '; '.join(blocking))
     if points != obj.points:
         raise ValueError(f'Punktzahl {points} passt nicht: die Nutzer lesen {obj.points} Punkte')
-    if width not in (1, 2, 4):
-        raise ValueError('Zellbreite muss 1, 2 oder 4 Byte sein')
-    if offset + points * width > len(data):
+    if width not in CELL_WIDTHS:
+        raise ValueError('Zellbreite muss ' + ', '.join(map(str, CELL_WIDTHS[:-1])) + f' oder {CELL_WIDTHS[-1]} '
+                         'Byte sein')
+    if obj.type_state != TYPE_UNKNOWN and width != obj.width:
+        raise ValueError(f'Zellbreite {width} Byte widerspricht der belegten Zellbreite {obj.width} Byte ('
+                         + '; '.join(obj.type_sources[:2]) + '); eine Klärung ändert keine belegte Zellbreite')
+    end = offset + points * width
+    if offset < 0 or end > len(data):
         raise ValueError('Achse reicht über das Abbild hinaus')
+    for i in obj.tables:
+        m = maps[i]
+        if m.offset < end and offset < m.offset + value_length(m):
+            raise ValueError(f'Mit {width} Byte je Punkt reicht die Achse in die Werte von {m.name} '
+                             f'(0x{m.offset:X}) – Zellbreite oder Punktzahl prüfen')
     names = tuple(sorted(maps[i].name for i in obj.tables))
     if tuple(sorted(set(tables))) != names:
         raise ValueError('Zuordnung passt nicht: Nutzer dieser Achse sind ' + ', '.join(names))
@@ -254,11 +325,12 @@ class WritePolicy:
         """Conflicts of writing ``positions`` (tables ``own`` edited), with valid clearances applied."""
         maps = self.maps()
         data = image.materialize()
-        found = conflicts(maps, own, positions, data)
         valid = [c for c in self.clearances if c.holds(image.digest, maps)]
         self.clearances[:] = valid             # a clearance that no longer holds is discarded
-        cleared = {c.offset for c in valid}
-        return [replace(c, identity=CLEARED) if c.refused and c.start in cleared else c for c in found]
+        found = conflicts(maps, own, positions, data, cleared={c.offset: c.width for c in valid})
+        # A refused axis is cleared only when the clearance checked exactly this range (start, points x width).
+        return [replace(c, identity=CLEARED) if c.refused and any(cl.covers(c) for cl in valid) else c
+                for c in found]
 
     def approve(self, image, own, positions, confirm=None) -> tuple[Approval | None, list[Conflict]]:
         """(approval, conflicts) for writing ``positions``. Refused conflicts give no approval; other conflicts
@@ -316,6 +388,6 @@ def guarded(image, maps_provider) -> WritePolicy:
     return policy
 
 
-__all__ = ['AXIS_POINT_BYTES', 'Approval', 'AxisClearance', 'CLEARED', 'Conflict', 'EditRefused', 'WritePolicy',
-           'allowed', 'conflicts', 'confirmation_text', 'guarded', 'make_clearance', 'refusal_text', 'silent_approval',
-           'update_positions', 'written_positions']
+__all__ = ['Approval', 'AxisClearance', 'CELL_WIDTHS', 'CLEARED', 'Conflict', 'EditRefused', 'WritePolicy',
+           'allowed', 'axis_range', 'conflicts', 'confirmation_text', 'guarded', 'make_clearance', 'refusal_text',
+           'silent_approval', 'update_positions', 'value_length', 'written_positions']

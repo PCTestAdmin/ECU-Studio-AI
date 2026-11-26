@@ -140,6 +140,9 @@ def scan_curve_records(image: BinaryImage, map_records: list[MapDefinition] = ()
             out.append(MapDefinition(f'Kennlinien-Kandidat @ 0x{values:08X}', values, 1, n, dtype, endian,
                                      dtype_alternatives=alternatives,
                                      record_layout=CURVE_LAYOUT, axes_x=list(axis), axis_x_offset=h + 2,
+                                     # the record (16-bit count, X[n], values) is read with 16-bit axis points
+                                     axis_x_dtype='s16' if signed else 'u16',
+                                     axis_x_type_source='Kennlinien-Datensatz (16-Bit-Anzahl und 16-Bit-Achse)',
                                      label_origin='Kennlinien-Datensatz: Anzahl + monotone Achse, in einer Datensatz-Kette (ungeprüft)',
                                      label_evidence=f'{n} Stützstellen @ 0x{h + 2:X}, Werte @ 0x{values:X}.',
                                      notes='Kennlinie aus Kopf-Datensatz; Einheit und Skalierung unbekannt.'
