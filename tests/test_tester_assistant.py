@@ -156,6 +156,34 @@ def test_analysis_runs_in_background_and_matches_the_command_line(app, tmp_path)
     assert dlg.report == T.measure(str(b), str(ref), 'Synthetisch', exact=True)
 
 
+def test_results_page_opens_when_the_result_arrives_before_the_thread_has_ended(app, tmp_path, monkeypatch):
+    """Regression (rc2 dry run, Python 3.12 runner): the result signal reached the window while the analysis thread
+    was still ending; the page switch was refused and the assistant stayed on the analysis page. Here the thread is
+    held open after its result on purpose, which makes that order certain."""
+    dlg, b, ref = _ready(app, tmp_path)
+    hold, release = {'on': True}, threading.Event()
+    original = A.Job.run
+
+    def run(self):
+        original(self)
+        if hold['on']:
+            release.wait(30)                     # the thread outlives its result signal
+    monkeypatch.setattr(A.Job, 'run', run)
+    dlg.go(3)
+    dlg.start_analysis()
+    end = time.monotonic() + 60
+    while dlg.counts is None and time.monotonic() < end:
+        app.processEvents()
+        time.sleep(.01)
+    assert dlg.counts is not None and dlg.running()
+    assert dlg.stack.currentIndex() == 3 and not dlg.back.isEnabled()   # nothing moves while the thread lives
+    hold['on'] = False
+    release.set()
+    _settle(app, dlg)
+    assert dlg.stack.currentIndex() == 4
+    assert dlg.start_button.isEnabled() and dlg.back.isEnabled()
+
+
 def test_scanner_never_receives_the_definition(app, tmp_path, monkeypatch):
     import ecu_studio.core.scoped_scan as S
     seen = []

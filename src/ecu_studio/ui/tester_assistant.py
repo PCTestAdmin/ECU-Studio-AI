@@ -99,6 +99,8 @@ class TesterAssistant(QDialog):
         self.report = None
         self.shown_code = None
         self.job = None
+        self._job_active = False        # True from start until the window has handled the thread's end
+        self._show_results = False      # open the results page once the analysis thread has ended
         self.generation = 0
         self._pending_close = False
         self.saved: list[Path] = []
@@ -325,7 +327,9 @@ class TesterAssistant(QDialog):
         self.next.setEnabled(i < self.stack.count() - 1 and self.can_leave(i))
 
     def running(self) -> bool:
-        return self.job is not None and self.job.isRunning()
+        # Until _finished has run: the result signal can arrive while the thread is still ending, and the end of
+        # the thread is only known to the window once its 'finished' signal has been handled.
+        return self.job is not None and (self._job_active or self.job.isRunning())
 
     # -------------------------------------------------------------------------------------------- inputs
     def pick_firmware(self):
@@ -412,7 +416,7 @@ class TesterAssistant(QDialog):
         self.counts = counts
         self.progress.setValue(len(core.STEPS))
         self.analysis_status.setText('Analyse abgeschlossen.')
-        self.go(4)
+        self._show_results = True       # the thread may still be ending; _finished opens the results page
 
     def cancel_analysis(self):
         if self.running():
@@ -430,6 +434,7 @@ class TesterAssistant(QDialog):
         self.job.failed.connect(lambda text: current() and status.setText(text))
         self.job.stopped.connect(lambda: current() and status.setText('Abgebrochen. Nichts wurde gespeichert.'))
         self.job.finished.connect(self._finished)
+        self._job_active = True
         self.job.start()
         self.update_nav()
 
@@ -438,15 +443,21 @@ class TesterAssistant(QDialog):
         self.analysis_status.setText(f'Schritt {i + 1} von {len(core.STEPS)}: {text} …')
 
     def _finished(self):
+        self._job_active = False
         self.start_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
         self.update_nav()
         if self._pending_close:
-            self._pending_close = False
+            self._pending_close = self._show_results = False
             super().reject()
+            return
+        if self._show_results:
+            self._show_results = False
+            self.go(4)
 
     def _reset_results(self):
         self.counts = self.report = self.shown_code = None
+        self._show_results = False
         if hasattr(self, 'preview'):
             self.preview.document().setPlainText('')
             self.consent_box.setChecked(False)
