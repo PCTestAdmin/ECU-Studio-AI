@@ -1,7 +1,7 @@
 # ECU Studio AI 1.21.0-rc2 – Release Notes
 
-**Experimentelle Vorabversion (Release Candidate) – geplant, noch nicht veröffentlicht.**
-**Experimental pre-release (release candidate) – planned, not published yet.**
+**Experimentelle Vorabversion (Release Candidate) vom 26.11.2026 – zum Testen, nicht für den produktiven Einsatz.**
+**Experimental pre-release (release candidate) of 26.11.2026 – for testing, not for production use.**
 
 Inhalt: [PR #30](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/30). Messwerte, Datensätze und ihr
 Validierungsstatus: [Entwicklungsbericht nach 1.21.0-rc1](ENTWICKLUNG_NEXTGEN.md). Freigabestand:
