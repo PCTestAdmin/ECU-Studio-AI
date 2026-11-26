@@ -144,7 +144,7 @@ def plan_restore(image: BinaryImage, snap: dict, selected_map: MapDefinition | N
                            selected_map.name if selected_map else None)
 
 
-def apply_restore(image: BinaryImage, preview: RevisionPreview) -> bool:
+def apply_restore(image: BinaryImage, preview: RevisionPreview, *, approval=None) -> bool:
     """Restore in one undo step; reject stale previews without partial writes."""
     if not preview.changes:
         return False
@@ -153,7 +153,7 @@ def apply_restore(image: BinaryImage, preview: RevisionPreview) -> bool:
         if pos <= last or not 0 <= pos < image.size or image.byte(pos) != before or not 0 <= after <= 255:
             raise ValueError('Vorschau ist veraltet oder inkonsistent – erneut vergleichen')
         last = pos
-    return image.commit(preview.changes, label='Version wiederherstellen: '+preview.label)
+    return image.commit(preview.changes, label='Version wiederherstellen: '+preview.label, approval=approval)
 
 
 def validate_snapshot_set(image: BinaryImage, snapshots: Any) -> list[dict]:

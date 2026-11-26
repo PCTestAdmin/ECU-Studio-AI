@@ -321,9 +321,23 @@ class SmartTransferDialog(AsyncDialog):
         if QMessageBox.question(self,'Transfer bestätigen',f'{len(selected)} ausgewählte Kennfelder gemäß Zellvorschau übernehmen?',
                 QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes:
             return
+        # Edit guard: the selected target tables are the own objects; bytes of others need a confirmation.
+        targets={(self.plan.maps[i].target_offset,self.plan.maps[i].target) for i in selected if 0<=i<len(self.plan.maps)}
+        own=[m for m in self.window.maps if (m.offset,m.name) in targets]
+        positions={c.offset+j for i in selected if 0<=i<len(self.plan.maps)
+                   for c in self.plan.maps[i].cells for j in range(len(c.after))}
+        guard=getattr(self.window,'edit_allowed',None)
+        approval=None
+        if guard is not None:
+            approval=guard(own,positions)
+            if not approval:
+                return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.window.image,own,positions)
         try:
             report=self.plan.report()
-            apply_transfer(self.window.image,self.plan,selected,confirmed=True)
+            apply_transfer(self.window.image,self.plan,selected,confirmed=True,approval=approval)
             report['selected_maps']=selected
             self.window.image.journal.append({'label':'Smart Map Transfer · Freigabe','report':report})
             self.window.on_edited()
@@ -484,8 +498,77 @@ class LogAnalyzerDialog(AsyncDialog):
                 self.error(exc)
 
 
+class AxisClearanceDialog(QDialog):
+    """Technical clarification of one stored axis whose shared identity is unknown (core/edit_guard).
+
+    Nothing is prefilled: storage range, point count, cell width, the tables reading the axis and the origin of
+    the check must be stated and must match what the tables read. A wrong or generic statement is rejected;
+    the clearance is bound to this firmware and to the layout of the axis users."""
+    def __init__(self,parent,policy,image,conflict):
+        super().__init__(parent)
+        self.setWindowTitle('Gemeinsame Achse technisch klären')
+        self.policy,self.image,self.conflict=policy,image,conflict
+        self.clearance=None
+        layout=QVBoxLayout(self)
+        info=QLabel('Die Erkennung kann nicht belegen, welche Kennfelder diese gespeicherte Achse lesen. '
+                    'Eine Freigabe ist nur nach einer eigenen technischen Prüfung möglich (z. B. passende geprüfte '
+                    'Definition oder Adress- und Layoutprüfung im Programmcode). Alle Angaben müssen zur Datei passen.\n\n'
+                    +conflict.describe())
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        form=QFormLayout()
+        self.start=QLineEdit();self.start.setPlaceholderText('z. B. 0x1A2B0')
+        self.end=QLineEdit();self.end.setPlaceholderText('letztes Byte, z. B. 0x1A2BF')
+        self.points=QLineEdit();self.points.setPlaceholderText('Anzahl Stützstellen')
+        self.width=QComboBox();self.width.addItems(['— wählen —','1 Byte','2 Byte','4 Byte'])
+        form.addRow('Speicherbereich Anfang',self.start)
+        form.addRow('Speicherbereich Ende',self.end)
+        form.addRow('Punktzahl',self.points)
+        form.addRow('Zellbreite',self.width)
+        layout.addLayout(form)
+        layout.addWidget(QLabel('Zuordnung: alle Kennfelder, die diese Bytes als Achse lesen'))
+        self.tables=[]
+        for name in conflict.tables:
+            box=QCheckBox(name)
+            self.tables.append(box)
+            layout.addWidget(box)
+        layout.addWidget(QLabel('Herkunft der Prüfung'))
+        self.origin=QPlainTextEdit()
+        self.origin.setPlaceholderText('Womit wurde die Achse geprüft? (mindestens 20 Zeichen)')
+        layout.addWidget(self.origin)
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def values(self):
+        def number(text):
+            text=text.strip()
+            return int(text,16) if text.lower().startswith('0x') else int(text)
+        start,end,points=number(self.start.text()),number(self.end.text()),number(self.points.text())
+        width=(0,1,2,4)[self.width.currentIndex()]
+        if not width:
+            raise ValueError('Zellbreite wählen')
+        if end-start+1!=points*width:
+            raise ValueError(f'Speicherbereich ({end-start+1} Byte) passt nicht zu {points} Punkten à {width} Byte')
+        return start,points,width,[b.text() for b in self.tables if b.isChecked()],self.origin.toPlainText()
+
+    def save(self):
+        try:
+            start,points,width,tables,origin=self.values()
+            self.clearance=self.policy.add_clearance(self.image,offset=start,points=points,width=width,
+                                                     tables=tables,origin=origin)
+        except ValueError as exc:
+            QMessageBox.warning(self,'Klärung nicht übernommen',str(exc))
+            return
+        QMessageBox.information(self,'Achse geklärt','Die Klärung gilt für diese Datei und diese Zuordnung. '
+                                'Ändern sich Datei, Layout oder Nutzer der Achse, verfällt sie. Die Bearbeitung '
+                                'jetzt erneut ausführen; sie wird weiterhin mit allen Nutzern angezeigt.')
+        self.accept()
+
+
 class AxisDialog(QDialog):
-    def __init__(self,image,m,parent=None):
+    def __init__(self,image,m,parent=None,shared_note=''):
         super().__init__(parent)
         self.setWindowTitle('Physikalische Achsen und Log-Eingangssignale')
         self.image,self.m=image,m
@@ -505,6 +588,11 @@ class AxisDialog(QDialog):
         for title,field in (('X-Eingangssignal',self.xc),('X-Einheit',self.xu),('Y-Eingangssignal',self.yc),('Y-Einheit',self.yu)):
             form.addRow(title,field)
         form.addRow(QLabel('Die Werte beschreiben die Definition; Firmware-Achsbytes werden hier nicht verändert.'))
+        if shared_note:
+            # Shared axis: only this table's definition changes; the other users keep theirs (no propagation).
+            note=QLabel(shared_note)
+            note.setWordWrap(True)
+            form.addRow(note)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
@@ -531,11 +619,12 @@ class AxisDialog(QDialog):
 
 
 class SurfaceEditDialog(QDialog):
-    def __init__(self,image,m,cells,edited,parent=None):
+    def __init__(self,image,m,cells,edited,parent=None,guard=None):
         super().__init__(parent)
         self.setWindowTitle('Zellenauswahl bearbeiten · Vorschau')
         self.resize(850,570)
         self.image,self.m,self.cells,self.edited=image,m,cells,edited
+        self.guard=guard   # core/edit_guard check before writing (other tables / shared axes on these bytes)
         self.preview=None
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel(f'{m.name} · {len(cells)} ausgewählte Zellen'))
@@ -577,8 +666,17 @@ class SurfaceEditDialog(QDialog):
     def apply(self):
         if self.preview is None:
             return
+        from ..core.edit_guard import update_positions
+        approval=None
+        if self.guard is not None:
+            approval=self.guard(self.m,update_positions(self.preview.updates))
+            if not approval:
+                return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.image,self.m,update_positions(self.preview.updates))
         try:
-            apply_batch(self.image,self.preview)
+            apply_batch(self.image,self.preview,approval=approval)
             self.edited()
             self.accept()
         except Exception as exc:
@@ -621,17 +719,19 @@ class SlicesView(QWidget):
 
 
 class MapEditorPane(QWidget):
-    def __init__(self,image,m,edited,parent=None):
+    def __init__(self,image,m,edited,parent=None,guard=None,axis_note=None):
         super().__init__(parent)
         self.definition=m
+        self.axis_note=axis_note   # callable(map) -> note on shared axes for the axis dialog
         layout=QVBoxLayout(self)
         self.model=MapTableModel()
+        self.model.guard=guard
         self.model.set_map(image,m)
         self.model.edited.connect(edited)
         buttons=QHBoxLayout()
         edit=QPushButton('Auswahl bearbeiten …')
         edit.clicked.connect(lambda:SurfaceEditDialog(image,m,
-            [(i.row(),i.column()) for i in self.table.selectionModel().selectedIndexes()],edited,self).exec())
+            [(i.row(),i.column()) for i in self.table.selectionModel().selectedIndexes()],edited,self,guard).exec())
         buttons.addWidget(edit)
         axes=QPushButton('Achsen / Log-Kanäle …')
         axes.clicked.connect(lambda:self.edit_axes(image,m,edited))
@@ -658,7 +758,7 @@ class MapEditorPane(QWidget):
         self.tabs.setCurrentWidget(self.table)
 
     def edit_axes(self,image,m,edited):
-        if AxisDialog(image,m,self).exec():
+        if AxisDialog(image,m,self,self.axis_note(m) if self.axis_note else '').exec():
             self.model.set_map(image,m)
             edited()
 

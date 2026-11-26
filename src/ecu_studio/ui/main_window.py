@@ -11,6 +11,7 @@ from bisect import bisect_left, bisect_right
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, Signal, QModelIndex, QSettings, QSize, QTimer
+import shiboken6
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget,
@@ -45,6 +46,7 @@ from ..app_settings import app_settings
 from ..core.confidence import (LEVELS as EVIDENCE_LEVELS, dtype_doubt, evidence_level, missing_evidence, overlap_note,
                                overlapping, type_doubts)
 from ..core.type_readings import readings as type_readings
+from ..core.type_status import summary as type_summary
 from ..core.review_checklist import rejected_keys, is_rejected, rejected_before
 from ..recognition.bundled_definitions import matching_source
 from ..core.workflows import catalogue_check, export_map_pack, import_map_pack
@@ -86,6 +88,10 @@ from .catalogue import CatalogueModel
 
 TIER_FILTERS=('Alle Belege',*EVIDENCE_LEVELS,'Geprüft / aus Definition','Noch nicht manuell geprüft',
               'Datentyp nicht belegt (?)','Überschneidet andere Einträge')
+# Review aids (quality phase 3): shared axes, open axis references, function status (core/axis_refs, function_id)
+AXIS_FILTERS=('Gemeinsame Achse','Achsenreferenz ungeklärt')
+FUNCTION_FILTERS=('Funktion unbekannt','Funktion vermutet','Widersprüchliche Funktionsbelege')
+TIER_FILTERS=TIER_FILTERS+AXIS_FILTERS+FUNCTION_FILTERS
 
 
 def tier_matches(m,choice:str,overlaps:bool=False)->bool:
@@ -373,6 +379,7 @@ class Window(QMainWindow):
         self.tabs.setMovable(True)
         self.hex_model=HexTableModel()
         self.hex_model.edited.connect(self.on_edited)
+        self.hex_model.guard=self.edit_allowed
         self.hex_table=QTableView()
         self.hex_table.setModel(self.hex_model)
         self.hex_table.setFont(QFont('Consolas',10))
@@ -384,6 +391,7 @@ class Window(QMainWindow):
         self.raw2d=Raw2DView(self.jump,self.define_raw_selection)
         self.tabs.addTab(self.raw2d,'2D-Rohdaten')
         self.map_model=MapTableModel()
+        self.map_model.guard=self.edit_allowed
         self.map_model.edited.connect(self.on_edited)
         self.map_table=QTableView()
         self.map_table.setModel(self.map_model)
@@ -846,6 +854,7 @@ class Window(QMainWindow):
         act(tools,"2D-ORI/MOD-Kurvenansicht",lambda:self.tabs.setCurrentWidget(self.curve_view))
         act(tools,"Kennfeldkatalog prüfen (Duplikate/Überlappungen)",self.inspect_catalogue)
         act(tools,"Kennfeldwerte und Achsen prüfen (CSV) …",self.audit_map_values)
+        act(tools,"Kennfelderkennung überprüfen (lokaler Test) …",self.open_tester_assistant)
         act(tools,"Speicheratlas öffnen",lambda:self.tabs.setCurrentWidget(self.memory_atlas),"Ctrl+Shift+M")
         act(tools,"Änderungs-Matrix / Impact-Explorer",self.impact_matrix,"Ctrl+Shift+I")
         act(tools,"Prüfbericht / Workflow-Check",self.workflow_check)
@@ -1075,7 +1084,7 @@ class Window(QMainWindow):
     def load_state(self,image,maps,bookmarks,notes,project_path):
         self.last_scan_report=None
         self.last_fusion=None
-        QTimer.singleShot(0,self.update_identity_banner)
+        QTimer.singleShot(0,self,self.update_identity_banner)
         for pane in self.map_editors:
             self.tabs.removeTab(self.tabs.indexOf(pane))
             pane.deleteLater()
@@ -1086,6 +1095,10 @@ class Window(QMainWindow):
                 worker.requestInterruption()
         self.image=image
         self.maps=maps
+        # Quality phase 6: every transaction of this image is checked by the write policy (core/edit_guard),
+        # whichever dialog, model or script produced it.
+        from ..core.edit_guard import guarded
+        guarded(image,lambda:self.maps)
         self.bookmarks=bookmarks
         self.snapshots=[]
         self.reviews=[]
@@ -1105,7 +1118,7 @@ class Window(QMainWindow):
         self.saved_fingerprint = self.project_state()
         self.statusBar().showMessage("Datei geladen · Original unverändert",5000)
         self.update_local_suggestions()
-        QTimer.singleShot(0,self._auto_integrity)
+        QTimer.singleShot(0,self,self._auto_integrity)
 
     def clear_map_editor(self):
         """No selected map: nothing of a previous map or file stays visible, and nothing can be applied to it."""
@@ -1179,6 +1192,7 @@ class Window(QMainWindow):
         else:indices.sort(key=lambda i:self.maps[i].offset)
         patch_offsets=sorted(self.image._patches) if self.image else []
         overlaps=overlapping(self.maps) if tier==TIER_FILTERS[7] else {}
+        review=self._review_selection(tier)
         visible=[]
         for i in indices:
             m=self.maps[i]
@@ -1192,7 +1206,9 @@ class Window(QMainWindow):
             elif category=="Favoriten":
                 if not m.favorite:continue
             elif category not in ("Alle Typen", "Mit Definition", "Nur Suchkandidaten", "Verifiziert") and m.kind!=category:continue
-            if not tier_matches(m,tier,bool(overlaps.get(i))):continue
+            if review is not None:
+                if i not in review:continue
+            elif not tier_matches(m,tier,bool(overlaps.get(i))):continue
             visible.append(i)
         self.axis_group_index=group_index(shared_axis_groups(self.maps))
         self.catalog_model.set_context(self.maps,visible,patch_offsets,self.axis_group_index)
@@ -1239,6 +1255,12 @@ class Window(QMainWindow):
             options=type_readings(self.image,m)
             if len(options)>1:
                 alt += '\nLesarten derselben Bytes (Rohwerte min … max): ' + ' · '.join(r.describe() for r in options)
+        # after 1.21.0-rc1: status and source of width, sign, byte order and conversion; function membership
+        fusion_conflicts=[t for off,texts in (getattr(self,'last_fusion',None) or {}).get('conflicts',{}).items()
+                          if m.offset<=off<m.offset+m.length for t in texts]
+        alt += '\n' + '\n'.join(type_summary(m, self.image, fusion_conflicts))
+        function_text = self._function_hypothesis(m)
+        alt += ('\n' + function_text) if function_text else ''
         strength =(f"\nRegelstärke / Referenzwert: {m.type_score:.2f} (KEINE Wahrscheinlichkeit)"
                     if m.type_score else "")
         self.identification_detail.setText(
@@ -1256,14 +1278,69 @@ class Window(QMainWindow):
             self.tabs.setCurrentWidget(self.map_table)
         self.view2d.update();self.view3d.update();self.curve_view.canvas.update()
 
-    def _shared_axis_text(self, m) -> str:
-        """Shared stored axes of the selected map and its partner maps (first five)."""
+    def _function_hypotheses(self) -> list:
+        """Function hypotheses of all tables (core/function_id), recomputed only when tables, functions or
+        axes change."""
+        from ..core.function_id import code_links, identify, relations
+        # Code relations only when the function graph already computed them for this image (no slow
+        # analysis on every selection).
+        code=(self._code_flow if self.image is not None and getattr(self,'_code_flow_key',None)
+              ==(id(self.image),self.image.size) else None)
+        key=(tuple((x.offset,x.length,x.function,x.verified,x.source,x.axis_x_offset,x.axis_y_offset,x.rows,x.cols)
+                   for x in self.maps),id(code))
+        if getattr(self,'_function_key',None)!=key:
+            rels=relations(self.maps)+(code_links(self.maps,code[1]) if code else [])
+            self._function_key,self._function_hyps=key,identify(self.maps,rels)
+        return self._function_hyps
+
+    def _function_hypothesis(self, m) -> str:
+        """Function of the selected table with status, evidence, reason for "unbekannt", held-back candidates
+        and contradictions; '' when there is nothing to say (no relation at all)."""
         index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:return ''
+        h=self._function_hypotheses()[index]
+        return h.describe() if h.function or h.contradictions or h.candidates or h.reasons else ''
+
+    def _review_selection(self, choice:str):
+        """Indices for the review filters on axes and functions; None for the other filters."""
+        if choice in AXIS_FILTERS:
+            from ..core import axis_refs
+            if choice==AXIS_FILTERS[0]:
+                return {i for o in axis_refs.objects(self.maps) if o.shared for i in o.tables}
+            return {r.table for r in axis_refs.references(self.maps) if r.status==axis_refs.OPEN}
+        if choice in FUNCTION_FILTERS:
+            from ..core.function_id import SUSPECTED
+            hyps=self._function_hypotheses()
+            if choice==FUNCTION_FILTERS[0]:return {h.index for h in hyps if not h.function}
+            if choice==FUNCTION_FILTERS[1]:return {h.index for h in hyps if h.function and h.status==SUSPECTED}
+            return {h.index for h in hyps if h.contradictions}
+        return None
+
+    def _shared_axis_text(self, m) -> str:
+        """Axis references of the selected map (stored / fixed / open), the stored axis objects with their
+        source and contradictions, and the partner maps of a shared axis (first five)."""
+        from ..core import axis_refs
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:return ''
         lines=[]
-        for g in getattr(self,'axis_group_index',{}).get(index,()):
-            partners=[self.maps[i].name for i in g.indices if i!=index]
-            more=f' (+{len(partners)-5})' if len(partners)>5 else ''
-            lines.append(f'\n{g.describe()}\nTeilt die Achse mit: '+', '.join(partners[:5])+more)
+        data=self.image.materialize() if self.image is not None else None
+        objs={o.offset:o for o in axis_refs.objects(self.maps,data=data)
+              if any(i==index for i,_ in o.users)}
+        for r in axis_refs.references([m]):
+            lines.append('\n'+r.describe())
+            o=objs.get(r.offset) if r.status==axis_refs.STORED else None
+            if o is None:continue
+            if o.shared:
+                partners=[self.maps[i].name for i in o.tables if i!=index]
+                more=f' (+{len(partners)-5})' if len(partners)>5 else ''
+                lines.append(f'\n  Gemeinsame Achse (gleiche Speicheradresse). Teilt die Achse mit: '+', '.join(partners[:5])+more)
+                if o.unapplied:
+                    lines.append('\n  Nicht bedatet (alle Stützstellen gleich): gemeinsam nur über die Speicheradresse; '
+                                 'wertgleiche Kopien an anderen Adressen sind möglich.')
+            if o.identity:
+                lines.append(f'\n  Identität: {o.identity} ({o.identity_reason})')
+            if o.issues:
+                lines.append('\n  Widerspruch: '+'; '.join(o.issues))
         return ''.join(lines)
 
     def show_raw2d(self):
@@ -2380,6 +2457,11 @@ class Window(QMainWindow):
            'Typen erscheinen direkt im Kennfeldkatalog. XDF-Namen sind '
            'quellengebundene Bezeichnungen, keine Garantie der Firmware-Kompatibilität.')
 
+    def open_tester_assistant(self):
+        """Local recognition check with own firmware and definition (reads files only, sends nothing)."""
+        from .tester_assistant import TesterAssistant
+        TesterAssistant(self).exec()
+
     def audit_map_values(self):
         """Independent read-only decoder audit; does not certify map semantics."""
         if not self.require_image():return
@@ -2627,7 +2709,7 @@ class Window(QMainWindow):
         if not self.image or not self.selected:
             QMessageBox.information(self,"Batchbearbeitung","Bitte ein Kennfeld auswählen.")
             return
-        dialog=BatchEditDialog(self.image,self.selected,self)
+        dialog=BatchEditDialog(self.image,self.selected,self,self.edit_allowed)
         if dialog.exec()==QDialog.DialogCode.Accepted:
             self.on_edited()
 
@@ -2882,7 +2964,10 @@ class Window(QMainWindow):
                 f'{preview.changed_bytes} Bytes für {scope} durch Stand \"{snap["label"]}\" ersetzen?\n'
                 'Alle übrigen Bytes bleiben bei Kennfeldübernahme erhalten. Ein Undo-Schritt.')
             if ans!=QMessageBox.StandardButton.Yes:return
-            try:apply_restore(self.image,preview)
+            # Edit guard: a restore writes saved bytes back; the restored table(s) are its own objects.
+            approval=self.edit_allowed([m] if m else list(self.maps),{p for p,_,_ in preview.changes})
+            if not approval:return
+            try:apply_restore(self.image,preview,approval=approval)
             except Exception as exc:self.warning('Übernahme fehlgeschlagen',exc);return
             self.on_edited();display()
             self.statusBar().showMessage(f'Versionsstand {snap["label"]}: {preview.changed_bytes} Bytes übernommen',7000)
@@ -3017,7 +3102,7 @@ class Window(QMainWindow):
             profile=load_checksum_profile(path,self.image)
             self.checksum_profile=profile
             self.integrity_report=None
-            QTimer.singleShot(0,self._auto_integrity)
+            QTimer.singleShot(0,self,self._auto_integrity)
             result=audit_export(self.image,self.maps,profile)
             QMessageBox.information(self,'Checksummenprofil geladen',
                 f'{len(profile.slots)} geprüfte Bereichsdefinitionen importiert.\n'
@@ -3101,8 +3186,11 @@ class Window(QMainWindow):
                 progress.close()
             if self._integrity_rerun and self.image is image:
                 self._integrity_rerun=False
-                QTimer.singleShot(0,self._auto_integrity)
+                QTimer.singleShot(0,self,self._auto_integrity)
+        # The worker's signals reach these closures even after the window was deleted (no context
+        # object): then nothing of the window may be touched.
         def done(report):
+            if not shiboken6.isValid(self):return
             finish()
             if self.image is not image:return
             self.integrity_report=report
@@ -3111,10 +3199,12 @@ class Window(QMainWindow):
             if show:self.show_integrity_report()
             if then and self._integrity_fresh():then(report)
         def failed(message):
+            if not shiboken6.isValid(self):return
             finish()
             self._show_integrity_state()
             if show or then:self.warning('Checksummenprüfung fehlgeschlagen',message)
         def cancelled():
+            if not shiboken6.isValid(self):return
             finish()
             self._show_integrity_state()
             self.statusBar().showMessage('Checksummenprüfung abgebrochen · nichts geändert',5000)
@@ -3194,7 +3284,10 @@ class Window(QMainWindow):
         cancel.setDefault(True)
         cancel.clicked.connect(dialog.reject)
         def apply_session():
-            try:result=apply_correction(self.image,plan,profile=self.checksum_profile)
+            # Edit guard: checksum fields belong to no table; any table or axis on these bytes is shown first.
+            approval=self.edit_allowed([],set(plan.positions))
+            if not approval:return
+            try:result=apply_correction(self.image,plan,profile=self.checksum_profile,approval=approval)
             except ValueError as exc:self.warning('Korrektur nicht übernommen',exc);return
             self.integrity_report=result
             self.integrity_revision=self.image.revision
@@ -3288,15 +3381,32 @@ class Window(QMainWindow):
         if not self.require_image():return
         from ..core.function_graph import build_function_graph
         from .function_graph_dialog import FunctionGraphDialog
-        try:graph=build_function_graph(self.image,self.maps,*self._code_window())
+        try:
+            graph=build_function_graph(self.image,self.maps,*self._code_window())
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:code=self._code_relations()
+            finally:QApplication.restoreOverrideCursor()
         except Exception as exc:
             self.warning('Funktionsgraph fehlgeschlagen',exc);return
-        if not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']:
+        if (not graph['groups'] and not graph['shared_axes'] and not graph['axis_hints']
+                and not any(m.function for m in self.maps) and not (code and code[1])):
             QMessageBox.information(self,'Funktionsgraph','Keine Code-Verweise und keine gemeinsamen Achsen gefunden. '
-                                    'Code-Verweise werden derzeit für C16x (Siemens MS4x, Bosch ME7) ausgewertet; '
-                                    'gemeinsame Achsen brauchen bekannte Achsadressen.')
+                                    'Code-Verweise werden für C16x (Siemens MS4x, Bosch ME7) und experimentell für '
+                                    'TriCore-Interpolationsaufrufe ausgewertet; gemeinsame Achsen brauchen bekannte '
+                                    'Achsadressen.')
             return
-        FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m)).exec()
+        FunctionGraphDialog(self,self.maps,graph,lambda m:self.select_map(m),code).exec()
+
+    def _code_relations(self):
+        """(uses, code relations) of the TriCore data-flow analysis (core/tricore_flow), once per image;
+        None for images without such program code."""
+        key=(id(self.image),self.image.size)
+        if getattr(self,'_code_flow_key',None)!=key:
+            from ..core.tricore_flow import code_relations
+            data=self.image.read(0,self.image.size)
+            uses,rels=code_relations(data)
+            self._code_flow_key,self._code_flow=key,((uses,rels) if uses else None)
+        return self._code_flow
 
     def show_signal_trace(self):
         if not self.require_image():return
@@ -3628,6 +3738,8 @@ class Window(QMainWindow):
             QApplication.restoreOverrideCursor()
             self.warning('Namensübertragung',exc);return
         QApplication.restoreOverrideCursor()
+        if getattr(result,'refused',''):
+            QMessageBox.information(self,'Namen aus Schwesterstand',result.refused);return
         # Second, independent argument for the place: this file's own scan found the same table there.
         detected=[m for m in self.maps if m.source=='heuristic']
         if detected:confirm_by_detection(result,detected)
@@ -3698,7 +3810,7 @@ class Window(QMainWindow):
             if pane.definition is self.selected:
                 self.tabs.setCurrentWidget(pane)
                 return
-        pane=MapEditorPane(self.image,self.selected,self.on_edited,self)
+        pane=MapEditorPane(self.image,self.selected,self.on_edited,self,self.edit_allowed,self.shared_axis_note)
         pane.model.dark=self.theme=='dark'
         self.map_editors.append(pane)
         index=self.tabs.addTab(pane,self.selected.name)
@@ -3728,11 +3840,55 @@ class Window(QMainWindow):
         else:
             m,view=self.selected,self.map_table
         cells=[(i.row(),i.column()) for i in view.selectionModel().selectedIndexes()]
-        SurfaceEditDialog(self.image,m,cells,self.on_edited,self).exec()
+        SurfaceEditDialog(self.image,m,cells,self.on_edited,self,self.edit_allowed).exec()
 
     def edit_axes(self):
-        if self.image and self.selected and AxisDialog(self.image,self.selected,self).exec():
+        if self.image and self.selected and AxisDialog(self.image,self.selected,self,
+                                                       self.shared_axis_note(self.selected)).exec():
             self.on_edited()
+
+    def edit_allowed(self,tables,positions):
+        """Edit guard (core/edit_guard) before bytes are written (``tables``: the edited tables, may be empty):
+        bytes of other tables or of a stored axis are shown with every affected table and address and need a
+        confirmation; bytes of an axis whose shared identity is unknown are refused - a second confirmation
+        does not lift that, only a technical clarification of the axis. Returns the approval the write must
+        carry (BinaryImage.commit checks it again right before writing) or None."""
+        if self.image is None:
+            return None
+        from ..core.edit_guard import confirmation_text,refusal_text,guarded
+        policy=getattr(self.image,'write_policy',None) or guarded(self.image,lambda:self.maps)
+        approval,found=policy.approve(self.image,tables,positions,lambda f:QMessageBox.question(
+            self,'Andere Objekte betroffen',confirmation_text(f),
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes)
+        if approval is None and any(c.refused for c in found):
+            box=QMessageBox(QMessageBox.Icon.Warning,'Bearbeitung abgelehnt',refusal_text(found),
+                            QMessageBox.StandardButton.Close,self)
+            clarify=box.addButton('Achse technisch klären …',QMessageBox.ButtonRole.ActionRole)
+            box.exec()
+            if box.clickedButton() is clarify:
+                self.clarify_axis(next(c for c in found if c.refused))
+        return approval
+
+    def clarify_axis(self,conflict):
+        """Record a technical clarification of a stored axis of unknown identity (core/edit_guard.AxisClearance):
+        storage range, point count, cell width, users and origin must all be stated and must match."""
+        from .next_dialogs import AxisClearanceDialog
+        AxisClearanceDialog(self,self.image.write_policy,self.image,conflict).exec()
+
+    def shared_axis_note(self,m)->str:
+        """Note for the axis dialog: other tables reading the same stored axis keep their definition."""
+        from ..core import axis_refs
+        index=next((i for i,x in enumerate(self.maps) if x is m),None)
+        if index is None:
+            return ''
+        others=sorted({self.maps[i].name for o in axis_refs.objects(self.maps) if o.shared and index in o.tables
+                       for i in o.tables if i!=index})
+        if not others:
+            return ''
+        more=f' (+{len(others)-5})' if len(others)>5 else ''
+        return ('Gemeinsame Achse: Nur die Definition dieses Kennfelds wird geändert; nicht übernommen für '
+                +', '.join(others[:5])+more+'.')
 
     def execute_recipe(self):
         if not self.require_image():
@@ -3745,7 +3901,10 @@ class Window(QMainWindow):
         try:
             if Path(p).stat().st_size>5*1024**2:
                 raise ValueError('Rezept zu groß')
-            preview=plan_recipe(self.image,self.maps,json.loads(Path(p).read_text(encoding='utf-8')))
+            recipe=json.loads(Path(p).read_text(encoding='utf-8'))
+            preview=plan_recipe(self.image,self.maps,recipe)
+            names={op.get('map') for op in recipe.get('operations',[]) if isinstance(op,dict)} if isinstance(recipe,dict) else set()
+            own=[m for m in self.maps if m.name in names]
             dialog=QDialog(self)
             dialog.setWindowTitle('Rezept · vollständige Byte-Vorschau')
             dialog.resize(900,600)
@@ -3758,9 +3917,12 @@ class Window(QMainWindow):
             buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(dialog.accept)
             buttons.rejected.connect(dialog.reject)
             layout.addWidget(buttons)
+            from ..core.edit_guard import update_positions
             if dialog.exec():
-                apply_batch(self.image,preview)
-                self.on_edited()
+                approval=self.edit_allowed(own,update_positions(preview.updates))
+                if approval:
+                    apply_batch(self.image,preview,approval=approval)
+                    self.on_edited()
         except Exception as exc:
             self.warning('Rezept abgelehnt',exc)
 

@@ -53,7 +53,8 @@ def test_axes_count_as_correct_only_when_linear_and_same_length():
 def test_cli_writes_json_and_markdown(tmp_path):
     manifest = tmp_path / 'm.json'
     manifest.write_text(json.dumps([_pair(tmp_path, 'cli', 4)]), encoding='utf-8')
-    main([str(manifest), '--out', str(tmp_path / 'r.json'), '--markdown', str(tmp_path / 'r.md')])
+    main([str(manifest), '--out', str(tmp_path / 'r.json'), '--markdown', str(tmp_path / 'r.md'),
+          '--allow-dirty'])   # ad-hoc run from a working tree; measured runs refuse that
     assert json.loads((tmp_path / 'r.json').read_text(encoding='utf-8'))['rows'][0]['name'] == 'cli'
     assert (tmp_path / 'r.md').read_text(encoding='utf-8').startswith('| Paar |')
 

@@ -23,6 +23,7 @@ class HexTableModel(QAbstractTableModel):
         self.image: BinaryImage | None = None
         self.dark=False
         self.radix=16
+        self.guard = None   # edit guard: callable(tables, positions) -> approval or None (main window)
 
     def set_image(self, image: BinaryImage | None):
         self.beginResetModel()
@@ -79,8 +80,18 @@ class HexTableModel(QAbstractTableModel):
             return False
         if self.radix==10 and (not value.isdecimal() or not 0<=int(value)<=255):
             return False
+        pos = idx.row()*16+idx.column()
+        approval = None
+        if self.guard is not None:
+            # Edit guard (quality phase 6): a raw byte inside a table or a stored axis needs the same check.
+            approval = self.guard([], {pos})
+            if not approval:
+                return False
+        else:
+            from ..core.edit_guard import silent_approval
+            approval = silent_approval(self.image, [], {pos})   # no question possible: only unaffected bytes
         try:
-            self.image.write(idx.row()*16+idx.column(), bytes([int(value,self.radix)]))
+            self.image.write(pos, bytes([int(value,self.radix)]), approval=approval)
         except ValueError:
             return False
         self.dataChanged.emit(idx,idx)
@@ -100,6 +111,9 @@ class MapTableModel(QAbstractTableModel):
         self.map: MapDefinition | None = None
         self.dark=False
         self._values_cache = {}
+        # Edit guard (core/edit_guard): callable(map, byte positions) -> bool, asked before a cell is
+        # written; it shows other tables or shared axes on these bytes and may refuse.
+        self.guard = None
 
     def set_map(self, image, selected):
         self.beginResetModel()
@@ -171,7 +185,17 @@ class MapTableModel(QAbstractTableModel):
             return False
         try:
             v = float(str(value).replace(",","."))
-            self.image.write_physical(self.map,idx.row(),idx.column(),v)
+            approval = None
+            if self.guard is not None:
+                from ..core.edit_guard import written_positions
+                approval = self.guard(self.map, written_positions(self.map, [(idx.row(), idx.column())]))
+                if not approval:
+                    return False
+            else:
+                from ..core.edit_guard import silent_approval, written_positions
+                approval = silent_approval(self.image, self.map,
+                                           written_positions(self.map, [(idx.row(), idx.column())]))
+            self.image.write_physical(self.map,idx.row(),idx.column(),v,approval=approval)
         except (ValueError,OverflowError,IndexError):
             return False
         self.dataChanged.emit(idx,idx)

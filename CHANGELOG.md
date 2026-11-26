@@ -1,3 +1,211 @@
+## 1.21.0-rc2 – Release Candidate (experimentelle Vorabversion; geplant, nicht veröffentlicht)
+
+Experimentelle Vorabversion zum Testen, nicht für den produktiven Einsatz. Inhalt: die Entwicklung nach 1.21.0-rc1 (Abschnitt
+darunter, Draft-PR #30). Alle automatisch erkannten Kennfelder, Achsen und Funktionsnamen bleiben **ungeprüfte
+Vorschläge**. Messwerte stehen bewusst nicht hier: Sie stammen aus privaten Referenzdaten eines Datengebers und sind
+nicht unabhängig bestätigt ([Entwicklungsbericht](docs/ENTWICKLUNG_NEXTGEN.md)).
+
+- **Mehr Belege aus dem Programmcode (TriCore, experimentell):** direkt geladene Adressen widerlegen Datenmuster,
+  Achsen und Kennlinien aus Interpolationsroutinen, Breite aus Lücken mit mehreren Aufrufen derselben Routine.
+- **Mehr „?“ statt stiller Wahl:** Wertebreite, Vorzeichen und Byte-Reihenfolge mit Status und Beleg; offene
+  Byte-Reihenfolge macht auch das Vorzeichen offen.
+- **Achsen und Funktionen mit Beleg:** Achsenreferenzen, vier Zustände der Achsidentität (gleiche Werte verbinden
+  nie zwei Achsen), Funktionshypothesen mit Status (Prototyp), Prüffilter und Funktionsgraph.
+- **Sichere Bearbeitung:** Jede Änderung wird unmittelbar vor dem Schreiben zentral geprüft; betroffene Kennfelder
+  und Achsen werden genannt und müssen bestätigt werden; Schreiben in gemeinsame Achsen unbekannter Identität wird
+  abgelehnt, bis die Achse technisch geklärt ist.
+- **Zellbreite gespeicherter Achsen (Release-Fix):** Die Schreibprüfung schützt jede gespeicherte Achse mit ihrer
+  tatsächlichen Zellbreite (u8/s8, u16/s16, u32/s32/f32) statt pauschal 2 Byte je Stützstelle; vorher war die obere
+  Hälfte von 32-Bit- und Float-Achsen ungeschützt. Der Zelltyp ist ein eigenes Merkmal (A2L `AXIS_PTS`/
+  `RECORD_LAYOUT`, XDF mit Stützstellenabstand, Erkennung; im Definitionsdialog ausdrücklich zu wählen), nie der
+  Datentyp der Werte. Unbekannte Breite (ältere Projekte und Map-Packs) wird mit 4 Byte geschützt, widersprüchliche
+  Breiten werden angezeigt und gemeinsame Achsen dann abgelehnt; die Kopiensuche vergleicht die volle Breite. Eine
+  technische Klärung verwendet ihre Zellbreite, kann eine belegte nicht verkleinern und verfällt mit Firmware,
+  Layout, Zellbreite oder Nutzern. Erkennungsergebnisse unverändert.
+- **Lokaler Erkennungstest für Tester:** Assistent unter Werkzeuge, nur Zählwerte, Export nur nach Vorschau und
+  Zustimmung, nichts wird gesendet.
+- **Nicht signiert** (weder Authenticode noch Update-Signatur); Prüfung per SHA-256.
+
+## Nach 1.21.0-rc1 (in Entwicklung, nicht veröffentlicht)
+
+Entwicklungszweig `feat/post-rc1-recognition-nextgen`, Draft-PR. Messung und Grenzen:
+[ENTWICKLUNG_NEXTGEN.md](docs/ENTWICKLUNG_NEXTGEN.md). Alle automatisch erkannten Kennfelder bleiben **ungeprüfte
+Vorschläge**; kein Modelltraining, keine automatische Flashfreigabe.
+
+- **Weniger Fehlzuordnungen durch Codebelege (TriCore, experimentell):** Adressen, die der Programmcode direkt über
+  ein globales Basisregister lädt, beginnen je ein eigenes Objekt. Eine nur aus dem Werteverlauf gefundene Fläche,
+  in der eine solche Adresse innen liegt, wird verworfen (Schalter `LOADED_REFUTES_PITCH`).
+- **Codebeleg wird nicht verdrängt:** Ein Kandidat mit Programmcode-Beleg gewinnt eine Überschneidung gegen einen
+  reinen Datenmuster-Fund auch dann, wenn er innerhalb einer früher beginnenden glatten Fläche liegt. Gespeicherte
+  Datensatzköpfe behalten die bisherige Ausnahme (Schalter `CODE_EVIDENCE_ALWAYS_WINS`).
+- **Datentyp mit Status und Quelle:** Wertebreite, Vorzeichen und Byte-Reihenfolge je mit „bestätigt“,
+  „abgeleitet“, „alternativ“ oder „unbestimmt“ und dem Beleg (Detailansicht). Achsen und Kennlinien halten das andere
+  Vorzeichen offen („?“), wenn die Werte es nicht entscheiden.
+- **Umrechnung mit Herkunft:** Faktor, Offset und Einheit nennen ihre Quelle (z. B. A2L `COMPU_METHOD` mit Art).
+  Erkannte Tabellen und nicht unterstützte Umrechnungen bleiben ausdrücklich Rohwerte. A2L-Grenzen
+  (LowerLimit/UpperLimit) werden gelesen und können nur widersprechen, nie bestätigen.
+- **Funktionsebene (Prototyp):** A2L `FUNCTION`/`DEF_CHARACTERISTIC` wird gelesen. Für Tabellen ohne Definition
+  eine Funktionshypothese mit Status (Bestätigt, Stark gestützt, Vermutet, Unbekannt) und Belegen – nur aus
+  gemeinsamer Achse, gleicher Coderoutine oder direkter Nachbarschaft zu Tabellen mit bekannter Funktion. Werte
+  benennen nie eine Funktion; ohne Beleg bleibt sie „Unbekannt“. Anzeige in der Detailansicht und im
+  Funktionsgraph.
+
+### Qualitätsphase 6 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 11](docs/ENTWICKLUNG_NEXTGEN.md#11-qualitätsphase-6-25112026-schreibsicherheit-erkennungsqualität-tester-assistent-vorbereitung-rc2).
+
+- **Zentrale Schreibprüfung:** Alle Schreibwege (Zelle, Hexansicht, Fläche, Stapel, Rezept, Übertragung,
+  Wiederherstellung, Checksummen- und Tabellenkorrektur, Skripte) laufen über eine Prüfung unmittelbar vor dem
+  Schreiben. Ohne Freigabe wird jedes Schreiben abgelehnt, das andere Kennfelder oder gespeicherte Achsen berührt.
+  Eine Ablehnung bei unbekannter Achsidentität hebt keine zweite Bestätigung auf; nur eine technische Klärung mit
+  Speicherbereich, Punktzahl, Zellbreite, Nutzern und Herkunft, die verfällt, wenn sich Firmware, Layout oder
+  Nutzer ändern. Korrekturen schreiben als eine Transaktion; widersprüchliche Rezepte werden abgelehnt.
+- **Schreibprüfung schnell genug für große Definitionen:** Die erste Fassung brauchte je Zelle bei vielen
+  Kennfeldern spürbar Zeit (synthetisch 3 000 Kennfelder: 613 ms); jetzt wächst der Aufwand nur linear und prüft nur
+  Achsen nahe dem Schreibbereich, mit gleichem Ergebnis.
+- **Verwaiste Kennlinienachsen** füllen Lücken nur mit mindestens drei Stützstellen (`ORPHAN_MIN_POINTS`, allgemeine
+  Regel, holdout-abgeleitet): behebt die drei in QP5 neuen unmarkierten Breitenfehler; Entwicklungsdaten
+  unverändert. Holdout nur als Regression: unmarkiert falsche Breiten MEVD17.2.3-B38I12 3 → 0, sonst
+  alles gleich (2D und 1D exakt, 0 verloren).
+- **Tester-Assistent:** Werkzeuge → Kennfelderkennung überprüfen (lokaler Test) … – sieben Schritte, Analyse im
+  Hintergrund mit Abbruch, Export nur nach Vorschau, Häkchen und Dateiwahl, freiwilliges Feedback mit festen
+  Antworten; keine Übertragung. Gleicher Bericht wie das Kommandozeilenwerkzeug.
+- **Benchmark-Vorprüfung:** Gewertete Läufe prüfen Importpfad, Commit und unveränderten Quellbaum und speichern ihre
+  Herkunft; ein Lauf, während dessen sich der Quellcode änderte, wurde verworfen und wiederholt.
+- **Untersucht, keine Regel möglich:** 41 unmarkierte falsche Breiten und 48 Vorzeichen (in Klassen mit Tausenden
+  richtiger Funde gleicher Form), gemeinsame Achsen MEVD17.2 (Nutzertabellen werden nicht gefunden).
+- **Doppellücken-Regel:** 13 synthetische Gegenbeispiele, bekannte Grenze als Test festgehalten.
+- **Release-Vorbereitung 1.21.0-rc2:** Review von PR #30, Versionsplan, tatsächlicher Signaturstatus, Release-Notes-
+  Entwurf ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)). Nichts veröffentlicht.
+
+### Qualitätsphase 5 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 10](docs/ENTWICKLUNG_NEXTGEN.md#10-qualitätsphase-5-25112026-code-kennlinien-achsidentität-sichere-bearbeitung).
+
+- **Kennlinien aus dem Programmcode (TriCore, experimentell):** Eine Routine, die Kennlinien aus ihrem eigenen
+  Datensatz (`n, X[n], W[n]`) interpoliert, wird als Kennlinienroutine erkannt, wenn bei mindestens 60 % ihrer Ziele
+  genau `n` Werte bis zum nächsten im Code genannten Objekt folgen. Jeder Aufruf benennt dann eine Kennlinie; die
+  Breite kommt aus der exakten Lücke oder ist mit „?“ als nur aus der Routine abgeleitet markiert. Das Vorzeichen
+  wird nicht aus der Routine übernommen. Achsen solcher Kennlinien nur zusammen mit der Kennlinie (Schalter
+  `CODE_CURVES`, `CURVE_ROUTINE_SIGN`, `CURVE_AXES_WITH_CURVE`). Entwicklungsdaten: exakte 1D-Funde MEVD17.2
+  44 801 → 50 829, MSD80 68 044 → 75 008, 0 verloren.
+- **Breitenregel „Doppellücke“:** Eine exakte 16-Bit-Passung, in deren Lücke auch zwei Bytetabellen passen, ist nur
+  eine schwache Stimme; einige Aufrufe derselben Routine entscheiden (`DOUBLE_GAP_WEAK`). Behebt 18 auf dem Holdout
+  verlorene Kennfelder (Regression, keine Validierung); Entwicklungsdaten unverändert.
+- **Achsidentität:** Gemeinsame Achsen tragen einen von vier Zuständen – eindeutig gemeinsam (Definition),
+  plausibel gemeinsam, wertgleich, unbekannt. Gleiche Werte begründen nie eine gemeinsame Achse; eine wertgleiche
+  Kopie an anderer Adresse macht die Identität „unbekannt“. Entwicklungsdaten: „plausibel gemeinsam“ 1 832 von 1 832
+  richtig, alle 34 falsch zusammengelegten Achsobjekte „unbekannt“.
+- **Sichere Bearbeitung:** Vor jedem Schreiben (Zelle, Fläche, Stapel, Rezept, Übertragung) werden Überschneidungen
+  mit anderen Kennfeldern und gemeinsamen Achsen mit allen betroffenen Kennfeldern und Adressen angezeigt und müssen
+  bestätigt werden. Schreiben in eine gemeinsame Achse mit unbekannter Identität wird abgelehnt. Keine automatische
+  Weitergabe; Original und Rückgängig/Wiederholen bleiben unverändert.
+- **Kennlinien-Datensätze widerlegen Muster mit Beginn im Datensatz** (`CURVE_RECORD_REFUTES_PITCH_START`): die 17 in
+  Qualitätsphase 4 verlorenen MSD80-1D-Funde sind zurück, ohne Adressregel.
+- **Vorzeichen folgt offener Byte-Reihenfolge:** Ist die Byte-Reihenfolge offen, ist auch das Vorzeichen offen („?“);
+  keine Anzeige „Vorzeichen bestätigt“ neben offener Byte-Reihenfolge mehr. Unmarkiert falsche Vorzeichen MEVD17.2
+  9 → 0.
+- **Endstand (Entwicklungsdaten):** exakte 2D-Kennfelder 35 226 → 35 276, Verwechslungen 4 478 → 4 117, 0 verloren;
+  1D 0 verloren. Holdout nur als Regression: 56 543 → 56 688 exakt, 0 verloren, Verwechslungen 9 744 → 9 150.
+- Das 8-Bit-Experiment für Kennlinien (`CURVE_U8_BY_HEAD`) bleibt aus (synthetisches Gegenbeispiel).
+
+### Qualitätsphase 4 (25.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert; der Holdout nur als Regression:
+[Bericht § 9](docs/ENTWICKLUNG_NEXTGEN.md#9-qualitätsphase-4-25112026-open-source-vergleich-adressauflösung-achsen).
+Fünf Open-Source-Projekte wurden im Quelltext verglichen; kein Code übernommen
+([Quellen und Lizenzen](docs/OPEN_SOURCE_RECOGNITION_RESEARCH.md)).
+
+- **Code-belegte Achsen (TriCore, experimentell):** Liest eine erkannte Interpolationsroutine einen Kopf als Achse,
+  gilt er auch mit wiederholten Stützstellen am Ende oder ganz ohne Bedatung (alle gleich) als Achse – nur wenn
+  dieselbe Routine an mindestens 5 streng lesbaren Aufrufen zu mindestens 90 % dieselbe Breite bzw. denselben
+  Datensatzaufbau zeigt. Die Werte wählen die Breite nie; der Fund nennt den Grund (Schalter `CODE_AXES`).
+  Entwicklungsdaten: exakte 2D-Kennfelder 32 058 → 35 159 (MEVD17.2 +1 767, MSD80 +1 334), 0 verloren; überwiegend
+  nicht bedatete Kennfelder.
+- **Vorabsuchen derselben Routine:** Ein Tabellenaufruf ohne benannte Achsen übernimmt die einzigen zwei
+  verschiedenen Achsensuchen derselben Routine davor (kein Rücksprung dazwischen); sonst bleibt er offen. Solche
+  Achsen verdrängen keine anderen Funde (Schalter `PRE_FUNCTION`). Allein +50 exakte Kennfelder (MSD80).
+- **Mehr „?“ statt stiller Fehlbreite:** 16-Bit-Datensatzachsen, deren Bytes auch einzeln steigen, und Kennlinien,
+  hinter deren 8-Bit-Lesart ebenfalls ein Datensatzkopf beginnt, tragen jetzt „Wertebreite offen“
+  (`WIDTH_BOTH_OPEN`). Unmarkierte falsche Breiten exakter 1D-Funde 85 → 46, ohne zusätzliches „?“ an richtigen
+  Breiten. Die 8-Bit-Lesung solcher Kennlinien ist ein ausgeschaltetes Experiment
+  (`CURVE_U8_BY_HEAD`).
+- **Kennlinien-Datensätze widerlegen Datenmuster-Funde:** Liegt der Kopf eines verketteten Kennlinien-Datensatzes
+  innerhalb eines reinen Datenmuster-Fundes, wird dieser verworfen (Schalter `CURVE_HEADS_REFUTE_PITCH`).
+  Entwicklungsdaten: Verwechslungen 5 113 → 4 469, exakte Kennlinien und Achsen +4 553, nichts verloren.
+- **Endstand Qualitätsphase 4 (Entwicklungsdaten):** exakte 2D-Kennfelder 32 058 → 35 226, Verwechslungen 5 113 →
+  4 478, 0 exakte Kennfelder verloren; exakte 1D-Funde +9 907, 35 verloren (Ursachen im Bericht). Holdout nur als
+  Regression: 52 701 → 56 543 exakt, 0 verloren.
+- **Nicht bedatete gemeinsame Achsen markiert:** Lesen alle Nutzer eines gemeinsamen Achsobjekts gleiche
+  Stützstellen, weist die Detailansicht darauf hin, dass wertgleiche Kopien an anderen Adressen möglich sind.
+  Entwicklungsdaten (MSD80): 34 falsch zusammengelegte Achsobjekte, vorher 0 – Kehrseite der zusätzlich gefundenen
+  Achsen, überwiegend nicht bedatet.
+- **Testbericht für Tester überarbeitet:** geführter Ablauf `--assistent` (drei Fragen, Vorschau, Speichern nur nach
+  „ja“), geprüfte Linienangabe (keine Software-/Fahrgestellnummern, Adressen, Dateinamen), Gesamtzahlen standardmäßig
+  gerundet, Fehlermeldungen ohne Pfade, strengere Prüfung des Exports; Format `ecu-studio-tester-report/2`. Kein
+  Netzwerkzugriff. Anleitungen: [englisch](docs/BETA_TESTER_GUIDE.md), [deutsch](docs/BETA_TESTER_ANLEITUNG.md).
+
+### Qualitätsphase 3 (24.11.2026, nicht veröffentlicht)
+
+Zahlen aus Entwicklungsdaten, nicht unabhängig validiert: [Bericht § 8](docs/ENTWICKLUNG_NEXTGEN.md#8-qualitätsphase-3-24112026-zuverlässige-funktionsidentifikation-und-achsenerkennung).
+
+- **„Funktion unbekannt“ statt eines fernen Namens:** Ein Funktionsvorschlag, der nur auf einer Belegfamilie beruht,
+  muss unter den nächstgelegenen Kennfeldern mit bekannter Funktion vorkommen; sonst bleibt die Funktion unbekannt,
+  und die Detailansicht nennt die zurückgehaltene Funktion, den Grund und den fehlenden Beleg (Schalter
+  `LOCAL_CHECK`). Entwicklungsdaten, 10 % Anker: falsche Namen MEVD17.2 983 → 288 bei nahezu gleicher Zahl richtiger (10 482 → 10 474); MSD80 2 370 → 1 143, dafür 17 % weniger richtige Namen. Eine Achse, deren Nutzer sich über die Punktzahl uneinig sind, stimmt nicht mehr ab.
+- **Achsenreferenzen:** Modell Kennfeld → Achsenreferenz → gespeichertes Achsenobjekt mit Status „gespeichert“,
+  „fest“ oder „ungeklärt“, Quelle, TriCore-Adressaliasen und Widersprüchen (`core/axis_refs.py`). Gemeinsam heißt
+  gleiche Speicheradresse; gleiche Werte allein verbinden nichts.
+- **Prüfhilfen:** Filter „Gemeinsame Achse“, „Achsenreferenz ungeklärt“, „Funktion unbekannt“, „Funktion vermutet“,
+  „Widersprüchliche Funktionsbelege“. Detailansicht mit Achsen (Adresse, Quelle, gemeinsame Nutzer, Widersprüche);
+  Funktionsgraph mit Achsenreferenzen, widersprüchlichen und zurückgehaltenen Funktionen; jeder nicht bestätigte Name
+  trägt „nicht bestätigt“.
+- **„?“ bei Byte-Reihenfolge und Wertebreite von Achsen und Kennlinien:** 16-Bit-Achsen, die gegen die Mehrheit der
+  Datensätze gelesen wurden, obwohl beide Lesarten steigen, und Kennlinienwerte ohne Datensatz direkt dahinter tragen
+  jetzt ein „?“ (Schalter `ENDIAN_AXES_OPEN`, `CURVE_WIDTH_OPEN`). Entwicklungsdaten: falsche Byte-Reihenfolgen exakter
+  1D-Funde vorher 0, jetzt alle markiert; falsche Breiten 1 448 von 1 533 markiert. Werte, Adressen, Formen und Typen
+  bleiben unverändert.
+- **Werkzeug für Tester:** `tools/tester_report.py` misst lokal mit eigener Datei und Definition und exportiert nur
+  Zählwerte – erst nach vollständiger Vorschau und mit einem an den Inhalt gebundenen Zustimmungscode.
+- **Benchmark:** `tools/function_benchmark.py` zählt „korrekt zurückgehalten“ und gibt Präzision und Abdeckung aus.
+
+### Qualitätsphase 2 (22.11.2026, nicht veröffentlicht)
+
+- **Datenfluss um TriCore-Interpolationsaufrufe (experimentell):** begrenzte Analyse (32 Befehle zurück, 24 vor)
+  ermittelt die Eingangsgrößen (d4/d5) und den Speicherort des Ergebnisses (d2). Was nicht sicher verfolgt werden
+  kann, bleibt offen und nennt den Grund (Sprungziel, Aufruf dazwischen, Wert aus dem Stapel, Fenster erschöpft …).
+  Prozessorunabhängiges Modell `core/code_flow.py`, TriCore-Schicht `core/tricore_flow.py`; keine PowerPC/C16x-Unterstützung
+  behauptet.
+- **Beziehungen aus dem Programmcode:** gleiche aufrufende Routine, Ergebnis in derselben Variablen, Ergebnis fließt in
+  die andere Tabelle; jede mit Art, Quell- und Zieladresse, Beleg, Verfahren und offenem Punkt. „Gleiche
+  Eingangsgröße“ wird angezeigt, stimmt aber nie für eine Funktion (gemeinsamer Betriebspunkt, keine gemeinsame
+  Funktion). Funktionsgraph: Abschnitte „Beziehungen aus dem Programmcode“, „Nicht eindeutig bestimmt“ und
+  „Funktionsgruppen ohne Namen“ („Unbekannte Funktionsgruppe N“, nur Struktur oder Programmcode, bekannte Funktionen nur
+  aus Definitionen, Widersprüche genannt).
+- **Funktionsstatus:** „Stark gestützt“ braucht zwei unabhängige Belegfamilien (Achse, Speicherlage, Programmcode);
+  mehrere Code-Beziehungen zählen als eine.
+- **Weniger falsche Funktionszuordnungen:** Ein direkter Nachbar stimmt nur noch, wenn Tabellen derselben Funktion die
+  Tabelle auf beiden Seiten einschließen (Schalter `NEIGHBOUR_BOTH_SIDES`). Entwicklungsdaten, ganze Funktionen
+  verdeckt: falsche Zuordnungen MSD80 86 108 → 7 857, MEVD17.2 19 212 → 779; dafür bleiben mehr Tabellen „Unbekannt“.
+  „Ergebnis fließt in die andere Tabelle“ wird angezeigt, stimmt aber nicht ab (Schutzregel).
+- **Namensübertragung nur zwischen Schwesterständen:** Decken die gemeinsamen Anker weniger als 0,5 % der Fenster ab,
+  wird nichts übertragen und der Grund genannt (Schalter `MIN_ANCHOR_SHARE`). Entwicklungsdaten: zwischen
+  Steuergerätefamilien waren alle 24 prüfbaren Funktionszuordnungen falsch, jetzt 0 Übertragungen.
+- **Datentyp-Status getrennt nach Herkunft:** „codebelegt“ (Ladebefehle), „wertgleich“ (beide Lesarten ergeben dieselben
+  Zahlen – kein Beleg für den Typ), „abgeleitet“, „alternativ“, „unbestimmt“; Widersprüche (Ladebefehle uneinig,
+  Byte-Reihenfolge offen, Konflikt Erkennung/Definition) werden genannt. Übertragene Namen, XDF-Vorschau,
+  Referenzsignaturen und manuell gewählte Rohdaten galten bisher als „bestätigt“ und sind jetzt „abgeleitet“ bzw.
+  „unbestimmt“; ihre Umrechnung bleibt Rohwert.
+- **Reihung unabhängig von der Eingabereihenfolge:** Bei exaktem Gleichstand (gleiche Stärke, Lage und Größe) entschied
+  bisher die Reihenfolge der Kandidaten (u16/s16 mit gleichen Werten); jetzt Typ und Form, vorzeichenlos zuerst. Eine Alternative mit eigenem
+  Beleg, die eine Überschneidung verliert, wird beim Gewinner genannt statt still verworfen.
+- **Qt-Abbau:** Verzögerte Aufrufe und Signale der Checksummenprüfung eines bereits gelöschten Hauptfensters greifen auf
+  nichts mehr zu (vorher „QLabel already deleted“ am Ende des Testlaufs). Die Fensterbereinigung des Testlaufs bleibt.
+- **Werkzeug:** `tools/function_benchmark.py` (Funktionsebene unter harten Aufteilungen: Anker-Anteile 50 … 0 %,
+  Speicherblöcke, ganze Funktionen; Zählung richtig/falsch/unbekannt mit auswertbarer Gesamtzahl).
+
 ## 1.21.0-rc1 (20.11.2026) – Release Candidate (Vorabversion)
 
 Erste Vorabversion (Release Candidate) von 1.21.0 für Praxistests, nicht für den produktiven Einsatz. Alle
@@ -31,7 +239,7 @@ Alle Einzelheiten: Abschnitt „1.21.0“ unten und [Release Notes](docs/RELEASE
   allgemein vertrauenswürdige OEM-Signaturvalidierung; kein Training mit den privaten Daten des Datengebers.
   Testversion, keine Empfehlung für produktive Fahrzeugkalibrierungen.
 
-## 1.21.0 (in Entwicklung, nicht veröffentlicht)
+## 1.21.0 (stabile Version geplant, nicht veröffentlicht; Inhalt als Vorabversion 1.21.0-rc1 veröffentlicht)
 
 Bessere Kennfelderkennung ohne Definition, gemessen an privaten Referenzdaten (A2L + HEX) eines Datengebers.
 Die Daten bleiben lokal; öffentlich sind nur zusammengefasste Zahlen. Entwicklung und Holdout wurden vor der Arbeit

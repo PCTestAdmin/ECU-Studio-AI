@@ -106,8 +106,9 @@ def _mapped(address: int,base: int,subtract: bool)->int:
 
 
 def _axis_read(axis:ET.Element|None, count:int, image: BinaryImage,
-                 base:int,subtract:bool,lookup:dict[str,ET.Element]) -> tuple[list[float],int|None]:
-    """Axis values and the file offset they are read from (None for labels/unread)."""
+                 base:int,subtract:bool,lookup:dict[str,ET.Element],cell:list|None=None) -> tuple[list[float],int|None]:
+    """Axis values and the file offset they are read from (None for labels/unread). ``cell`` receives the
+    cell type of the stored points (from the EMBEDDEDDATA the values are read with) when they come from the file."""
     if axis is None or count<=0 or count>512:return [],None
     labels=axis.findall('LABEL')
     if labels:
@@ -180,6 +181,10 @@ def _axis_read(axis:ET.Element|None, count:int, image: BinaryImage,
             v=evaluate_equation(expression,raw)
             if not math.isfinite(v):return [],None
             values.append(round(v,8))
+        # Cell type and the distance between points (0 = packed): the stored bytes reach from start to the last
+        # point + width, whatever the reading direction.
+        if cell is not None:
+            cell.append((('s' if flags&0x01 else 'u')+str(bits), 0 if stride==width else stride))
         return values,start
     except (ValueError,IndexError,OverflowError):return [],None
 
@@ -326,8 +331,9 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
             record['bin_offset']=f'0x{offset:X}' if offset>=0 else str(offset)
             if offset<0:
                 reject('Adresse außerhalb BIN');continue
-            ax_x,at_x=_axis_read(x,cols,image,result.base_offset,result.base_subtract,lookup) if table else ([],None)
-            ax_y,at_y=_axis_read(y,rows,image,result.base_offset,result.base_subtract,lookup) if table else ([],None)
+            cell_x,cell_y=[],[]
+            ax_x,at_x=_axis_read(x,cols,image,result.base_offset,result.base_subtract,lookup,cell_x) if table else ([],None)
+            ax_y,at_y=_axis_read(y,rows,image,result.base_offset,result.base_subtract,lookup,cell_y) if table else ([],None)
             kind='Unbekannt'
             unit=(z.findtext('units') or '').strip()
             categories=[]
@@ -345,6 +351,12 @@ def read_xdf(path: str, image:BinaryImage, *, include_constants:bool=True) -> XD
                       f' | Formel: {(z.find("MATH").get("equation") if z.find("MATH") is not None else "X")}',
                 ecu_address=ecu_address,axes_x=ax_x,axes_y=ax_y,
                 axis_x_offset=at_x if ax_x else None,axis_y_offset=at_y if ax_y else None,
+                axis_x_dtype=cell_x[0][0] if ax_x and at_x is not None and cell_x else '',
+                axis_y_dtype=cell_y[0][0] if ax_y and at_y is not None and cell_y else '',
+                axis_x_step=cell_x[0][1] if ax_x and at_x is not None and cell_x else 0,
+                axis_y_step=cell_y[0][1] if ax_y and at_y is not None and cell_y else 0,
+                axis_x_type_source='XDF EMBEDDEDDATA der X-Achse' if ax_x and at_x is not None and cell_x else '',
+                axis_y_type_source='XDF EMBEDDEDDATA der Y-Achse' if ax_y and at_y is not None and cell_y else '',
                 axis_x_unit=(x.findtext('units') or '').strip() if table and x is not None else '',
                 axis_y_unit=(y.findtext('units') or '').strip() if table and y is not None else '',
                 folder=categories[0] if categories else '',

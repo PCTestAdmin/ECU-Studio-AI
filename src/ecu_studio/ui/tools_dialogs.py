@@ -276,11 +276,12 @@ class CommandPalette(QDialog):
 
 
 class BatchEditDialog(QDialog):
-    def __init__(self, image, definition, parent=None):
+    def __init__(self, image, definition, parent=None, guard=None):
         super().__init__(parent)
         self.setWindowTitle('Kennfeld-Batchbearbeitung · Vorschau + ein Undo')
         self.setMinimumWidth(490)
         self.image=image;self.map=definition
+        self.guard=guard   # core/edit_guard check before writing
         self.plan=None
         outer=QVBoxLayout(self)
         outer.addWidget(QLabel(f'{definition.name} · {definition.rows}×{definition.cols} · {definition.unit}\n'
@@ -335,7 +336,15 @@ class BatchEditDialog(QDialog):
 
     def do_apply(self):
         if self.plan is None:return
-        try:apply_batch(self.image,self.plan)
+        from ..core.edit_guard import update_positions
+        approval=None
+        if self.guard is not None:
+            approval=self.guard(self.map,update_positions(self.plan.updates))
+            if not approval:return
+        else:
+            from ..core.edit_guard import silent_approval
+            approval=silent_approval(self.image,self.map,update_positions(self.plan.updates))
+        try:apply_batch(self.image,self.plan,approval=approval)
         except Exception as exc:
             QMessageBox.warning(self,'Bearbeitung abgebrochen',str(exc));return
         self.accept()

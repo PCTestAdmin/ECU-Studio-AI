@@ -32,7 +32,7 @@ from __future__ import annotations
 import bisect
 from dataclasses import dataclass, replace
 import numpy as np
-from .model import BinaryImage, MapDefinition
+from .model import FORMATS, BinaryImage, MapDefinition
 from .axis_groups import relocated_axis
 
 WINDOW = 32
@@ -41,6 +41,14 @@ MIN_CORR = .95
 MIN_DISTINCT_BYTES = 4   # fewer distinct bytes: a flat block, location not provable
 FLAT_CONTEXT = 16        # bytes before/after a flat block that confirm its place when anchors disagree
 FLAT_NEEDS_PLACE = True  # 1.21.0: MSD80/MEVD17.2 sister versions (development): wrong flat transfers 9 % -> 2 %
+# After 1.21.0-rc1: two images whose anchors cover less than this share of the source windows are not sister
+# versions; nothing is transferred. Development data (full images, A2L function as reference): sister versions
+# 1.8 ... 80 % anchored windows, other ECU families 0.03 / 0.04 % (54 / 75 anchors, mostly flat blocks) with
+# 24 of 24 evaluable function assignments wrong. Two weakly related MSD80 pairs (0.01 / 0.05 %) lose 44 right
+# assignments (0 wrong, 257 not evaluable).
+MIN_ANCHOR_SHARE = .005
+UNRELATED = ('Die Dateien sind keine Schwesterstände: nur {0} gemeinsame Anker ({1:.2%} der Fenster, '
+             'nötig {2:.1%}). Es wird nichts übertragen.')
 
 
 def _same_context(src: bytes, dst: bytes, s: int, t: int, n: int) -> bool:
@@ -64,6 +72,17 @@ class Transfer:
     detected_in_target: bool = False
     axes_dropped: tuple = ()          # 'X'/'Y': source axis not found at the moved place, values not carried over
     detection_conflict: str = ''      # target detection: same table, other axes
+
+
+class Transfers(list):
+    """Result of transfer_names; ``refused`` says why nothing was transferred (empty if not refused)."""
+    refused: str = ''
+
+
+def _refused(text: str) -> Transfers:
+    out = Transfers()
+    out.refused = text
+    return out
 
 
 def _informative(w: bytes) -> bool:
@@ -115,10 +134,11 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                    cancelled=None) -> list[Transfer]:
     src, dst = source.read(0, source.size), target.read(0, target.size)
     chain = anchors(src, dst)
-    if not chain:
-        return []
+    windows = max(1, (len(src) - WINDOW) // STEP + 1)
+    if not chain or len(chain) < MIN_ANCHOR_SHARE * windows:
+        return _refused(UNRELATED.format(len(chain), len(chain) / windows, MIN_ANCHOR_SHARE))
     starts = [s for s, _ in chain]
-    out = []
+    out = Transfers()
     for m in maps:
         if cancelled and cancelled():
             return []
@@ -162,8 +182,11 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                 'Ungeprüft: Funktion und Skalierung am Zielstand bestätigen.')
         # Axes and a stored header move with the map only where the target confirms them.
         region = m.candidate_region_start
-        ax = relocated_axis(source, target, m.axis_x_offset, m.cols, shift)
-        ay = relocated_axis(source, target, m.axis_y_offset, m.rows, shift)
+        # Compared with the stated axis cell width (unknown: the widest cell, so more bytes must agree).
+        ax = relocated_axis(source, target, m.axis_x_offset, m.cols, shift,
+                            FORMATS[m.axis_x_dtype][1] if m.axis_x_dtype in FORMATS else 0, m.axis_x_step)
+        ay = relocated_axis(source, target, m.axis_y_offset, m.rows, shift,
+                            FORMATS[m.axis_y_dtype][1] if m.axis_y_dtype in FORMATS else 0, m.axis_y_step)
         dropped = tuple(name for name, old, new in (('X', m.axis_x_offset, ax), ('Y', m.axis_y_offset, ay))
                         if old is not None and new is None)
         if dropped:
@@ -173,6 +196,9 @@ def transfer_names(source: BinaryImage, target: BinaryImage, maps: list[MapDefin
                         candidate_region_start=region + shift if region is not None and region + shift >= 0 else None,
                         axis_x_offset=ax, axis_y_offset=ay,
                         axes_x=[] if 'X' in dropped else m.axes_x, axes_y=[] if 'Y' in dropped else m.axes_y,
+                        # a dropped axis has no stored bytes at the target: its cell type goes with it
+                        **{f'axis_{k.lower()}_{f}': v for k in dropped
+                           for f, v in (('dtype', ''), ('type_source', ''), ('step', 0))},
                         label_origin=f'Namensübertragung · {evidence}', label_evidence=note,
                         notes=(m.notes + ' ' + note).strip())
         out.append(Transfer(m, moved, evidence, shift, axes_dropped=dropped))

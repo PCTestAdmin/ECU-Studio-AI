@@ -288,15 +288,37 @@ def main(argv=None):
     parser.add_argument('--markdown', type=Path)
     parser.add_argument('--memory', action='store_true', help='Spitzenspeicher in einem zweiten Lauf messen')
     parser.add_argument('--baseline', type=Path, help='Ergebnis-JSON eines früheren Laufs: Vorher/Nachher-Vergleich')
+    parser.add_argument('--expect-src', type=Path,
+                        help='Quellverzeichnis, aus dem ecu_studio importiert werden muss (sonst Abbruch)')
+    parser.add_argument('--expect-commit', help='Commit, der gemessen werden muss (sonst Abbruch)')
+    parser.add_argument('--allow-dirty', action='store_true',
+                        help='Lauf auf nicht committeten Änderungen zulassen (nur Diagnose, nicht gewertet)')
+    parser.add_argument('--role', default='', help='Datenrolle des Laufs, z. B. development, holdout, negative')
     args = parser.parse_args(argv)
+    from ecu_studio.tools import run_provenance
+    provenance = run_provenance.require(args.expect_src, args.expect_commit, allow_dirty=args.allow_dirty)
+    provenance['data_role'] = args.role
     result = run(json.loads(args.manifest.read_text(encoding='utf-8')), memory=args.memory)
+    provenance['source_changed'] = not run_provenance.unchanged(provenance)
+    result['provenance'] = provenance
+    if provenance['source_changed']:
+        print('WARNUNG: Quellcode wurde während des Laufs geändert – Ergebnis nicht vergleichbar.')
     if args.baseline:
-        result['comparison'] = compare_runs(json.loads(args.baseline.read_text(encoding='utf-8')), result)
+        before = json.loads(args.baseline.read_text(encoding='utf-8'))
+        result['comparison'] = compare_runs(before, result)
+        if 'provenance' in before:
+            result['comparison']['not_comparable_because'] = run_provenance.comparable(before['provenance'],
+                                                                                       provenance)
     if args.out:
         args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding='utf-8')
     table = markdown(result)
     if args.baseline:
         table += '\n\n' + comparison_markdown(result['comparison'])
+        if result['comparison'].get('not_comparable_because'):
+            table += '\n\nEingeschränkt vergleichbar: ' + '; '.join(result['comparison']['not_comparable_because'])
+    table += (f"\n\nGemessen: {provenance['ecu_studio_version']} Commit {provenance['git_commit'][:10] or '?'}"
+              f"{' (mit lokalen Änderungen)' if provenance['git_dirty'] else ''}, Python {provenance['python']}, "
+              f"Benchmark-Version {provenance['benchmark_version']}")
     if args.markdown:
         args.markdown.write_text(table + '\n', encoding='utf-8')
     print(table)

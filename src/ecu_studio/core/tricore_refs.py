@@ -252,10 +252,17 @@ class Sites(list):
     generic: tuple = ()     # set per instance by _walk; never shared between images
     unmapped: frozenset = frozenset()   # per call: flash argument addresses outside the image
     relocation: tuple = ()  # windows inferred by infer_relocation (empty: plain segments)
+    bases: dict = {}        # boot values of the global base registers (set by _analyse)
+    starts: object = None   # byte offsets of all instructions of the linear sweep (set by _analyse)
+    stream: tuple = ()      # the sweep's acting instructions (_stream; set by _analyse)
 
     def extended(self, more) -> 'Sites':
         out = Sites(list(self) + list(more))
+        # Every per-image attribute travels along. Until after 1.21.0-rc1 bases and starts were
+        # dropped here, so direct_loads found nothing on images with learned register roles
+        # (none in the development data).
         out.generic, out.unmapped, out.relocation = self.generic, self.unmapped, self.relocation
+        out.bases, out.starts, out.stream = self.bases, self.starts, self.stream
         return out
 
 
@@ -606,6 +613,7 @@ def _analyse(data: bytes, stack: bool = True) -> tuple[list[CallSite], list[int]
             sites = _walk(h, bases, len(data), slots, entries, branches=FOLLOW_BRANCHES, reloc=reloc,
                           stream=stream)[0]
     sites.relocation = reloc
+    sites.bases, sites.starts, sites.stream = bases, stream[3], stream
     return sites, h, entries
 
 
@@ -719,9 +727,249 @@ class CallDescriptor:
     record: bool = False      # the call passes a record header (counts + axes) in front of the data
     registers: tuple = (4, (5, 6))   # (data register, axis registers) of the calls
     pointer: bool = False     # named by a pointer triple (data, X, Y) in memory, not by a call (1.21.0)
+    # '' = all axes strictly increasing; otherwise the code-backed readings of code_axis (quality phase 4):
+    # 'plateau' (repeated breakpoints) and/or 'blank' (all breakpoints equal, e.g. unapplied)
+    axis_state: str = ''
+    # 'function': axes from the only two prelookups of the calling routine before the call, not from
+    # the call's own path (PRE_FUNCTION, quality phase 4)
+    pre_scope: str = ''
+    # the call passes a curve record head (n, X[n], W[n]) to a curve routine (CODE_CURVES, quality phase 5):
+    # 'exact' = its n values fill the gap to the next code-named object, 'routine' = width from the routine only
+    curve: str = ''
 
 
-MIN_ROLE_CALLS = 5       # calls before a routine's role (prelookup / table after prelookups) counts
+# Prelookups of the routine (quality phase 4; idea: BimmerStein MS41 runtime axes, which resolve axis state
+# cells over all predecessor paths - own implementation, no code taken). The sweep follows each path
+# forward and joins only near forward branches; a table call whose own path holds fewer than two
+# prelookups stays without axes. Here, for a table call no path names: the prelookup calls of the same
+# routine before the call, by address, with repeats folded. Exactly two different axes give X (earlier)
+# and Y (later); any other count (one, three, a return to an earlier axis) leaves the call open. Only for
+# data no other call names, so a path reading is never overruled. Development data (MSD80, two images,
+# A2L for evaluation only): 160 table calls with fewer than two prelookups on their path; the callers of
+# their routines held no further prelookups (0 resolved); the routine itself held exactly two axes in 22
+# calls of tables not yet named, all 22 with the reference axes; with more than two axes 2 of 25 had one
+# wrong axis, hence exactly two.
+PRE_FUNCTION = True
+
+
+# Code-backed axes (quality phase 4). axis_at and record_at demand strictly increasing breakpoints:
+# values decide whether a header is an axis. Where a learned routine reads the header, the code
+# already says so; repeated breakpoints at the end ("900, 900, 900") or unapplied axes (all equal)
+# are then real axes too. Development data: MSD80 8 857 table calls after two prelookups whose axes
+# both failed axis_at, the reference axes at exactly those two prelookups in 8 373 (plateau or blank
+# axes, the tables mostly unapplied zeros); MEVD17.2 one image: 192 map record heads passed to record
+# routines failed record_at with plausible counts, nearly all for a plateau axis.
+# Such a reading is accepted only with the axis width (prelookups) or record layout (records) the same
+# routine shows at its strictly readable calls: a 16-bit count 08 00 followed by zeros also reads as
+# an 8-bit count with zero values, and the width must not be chosen by the values.
+CODE_AXES = True
+CODE_AXES_MIN = 5          # strict calls of the routine that fix its width / layout (as MIN_ROLE_CALLS)
+CODE_AXES_SHARE = .9       # ... and the share of them in one width / layout
+
+
+def code_axis(data: bytes, header: int, width: int, *, count: int | None = None,
+              first: int | None = None) -> tuple[CountAxis, str] | None:
+    """(axis, state) of a count-prefixed axis read with a fixed width, accepting repeated breakpoints.
+
+    ``state`` is '' (strictly increasing), 'plateau' (never falling, some rise) or 'blank' (all equal).
+    The values are read unsigned and, when that falls, signed. Without ``count`` the count (same width
+    as the values) is read at ``header`` and the values follow it; records keep both counts in front of
+    both axes and pass ``count`` and the position of the ``first`` value instead.
+    """
+    if count is None:
+        if not 0 <= header or header + width > len(data):
+            return None
+        n, a = int.from_bytes(data[header:header + width], 'little'), header + width
+    else:
+        n, a = count, first
+    if not MIN_RECORD_POINTS <= n <= 32 or a % width or a + n * width > len(data):
+        return None
+    raw = data[a:a + n * width]
+    for kind in ('u', 'i'):
+        v = np.frombuffer(raw, np.dtype(kind + '1') if width == 1 else np.dtype('<' + kind + '2')).astype(np.int64)
+        d = np.diff(v)
+        if np.all(d >= 0):
+            state = '' if np.all(d > 0) else 'blank' if not np.any(d) else 'plateau'
+            return CountAxis(header, a, n, width, tuple(int(x) for x in v)), state
+    return None
+
+
+def code_record(data: bytes, head: int, layout: tuple[int, int, int]) -> tuple[CountAxis, CountAxis, str] | None:
+    """(X, Y, state) of a 2-D record at ``head`` read with a routine's learned layout (record_at layout)."""
+    cw, w1, w2 = layout
+    if head < 0 or head + 2 * cw > len(data) or head % cw:
+        return None
+    n1 = int.from_bytes(data[head:head + cw], 'little')
+    n2 = int.from_bytes(data[head + cw:head + 2 * cw], 'little')
+    x = code_axis(data, head, w1, count=n1, first=head + 2 * cw)
+    if x is None:
+        return None
+    y = code_axis(data, head + cw, w2, count=n2, first=x[0].end)
+    if y is None:
+        return None
+    return x[0], y[0], '+'.join(sorted({s for s in (x[1], y[1]) if s}))
+
+
+def _function_prelookups(data, sites, entries, pre, post, found, states, axis, code_widths, lo, hi) -> set:
+    """Add readings from the routine's own two prelookups (PRE_FUNCTION) to ``found``; the data offsets added."""
+    import bisect
+
+    def entry_of(at):
+        i = bisect.bisect_right(entries, at) - 1
+        return entries[i] if i >= 0 else None
+    by_entry: dict = {}
+    for c in sites:
+        if c.x_header is None and c.callee in pre:
+            by_entry.setdefault(entry_of(c.site), set()).add((c.site, c.data, c.callee))
+    # Returns end a routine; code reached without a direct call (no entry of its own) must not borrow the
+    # prelookups of the routine before it.
+    ats, lens, words, _ = sites.stream
+    ats, lens, words = (np.asarray(v, dtype=np.int64) for v in (ats, lens, words))
+    rets = np.sort(ats[((lens == 2) & (words & 0xFFFF == 0x9000)) | ((lens == 4) & (words == 0x0180000D))])
+    extra: dict[int, list] = {}
+    for c in sites:
+        if c.x_header is not None or c.callee not in post or c.data in found or not lo <= c.data < hi:
+            continue
+        entry = entry_of(c.site)
+        heads, first = [], None
+        for at, a, r in sorted(p for p in by_entry.get(entry, ()) if p[0] < c.site) if entry is not None else ():
+            if not heads or heads[-1][0] != a:
+                heads.append((a, r))
+                first = at if first is None else first
+        reading = None
+        if len(heads) == 2 and np.searchsorted(rets, first) == np.searchsorted(rets, c.site):
+            got = []
+            for a, r in heads:
+                ax, st = axis(a), ''
+                if ax is None and CODE_AXES and r in code_widths:
+                    ca = code_axis(data, a, code_widths[r])
+                    if ca is not None:
+                        ax, st = ca
+                got.append((ax, st))
+            if got[0][0] is not None and got[1][0] is not None:
+                reading = (got[0][0], got[1][0], c.callee, c.site, True, False, {s for _, s in got if s})
+        extra.setdefault(c.data, []).append(reading)
+    added = set()
+    for d, readings in extra.items():
+        if None in readings or len({(r[0].header, r[1].header) for r in readings}) != 1:
+            continue
+        found[d] = [r[:6] for r in readings]
+        for r in readings:
+            if r[6]:
+                states.setdefault(d, set()).update(r[6])
+        added.add(d)
+    return added
+
+
+# Quality phase 5: curve routines among the prelookup routines. A curve record ``n, X[n], W[n]`` starts like a
+# count-prefixed axis, so routines that interpolate a curve from its own record are learned as prelookups
+# (development data, A2L for evaluation only: on MEVD17.2 12 of 14 such routines received curve record heads
+# only; MSD80 likewise, besides genuine axis searches). Code-named addresses tell them apart: behind the axis
+# of a curve record lie exactly its n values up to the next object the code names (n bytes for 8-bit values,
+# 2n for 16-bit), behind a standalone axis the next object follows at once. Development data: curve routines
+# showed one such fixed value block in 76 ... 100 % of their strictly readable targets, genuine axis searches in
+# 3 ... 4 %. A routine whose targets agree on one value width (CURVE_ROUTINE_SHARE of at least CODE_AXES_MIN
+# strict targets) is a curve routine of that width; each of its calls then names a curve: axis at the head,
+# n values of that width behind it, provided no code-named address lies inside the values.
+CODE_CURVES = True
+CURVE_ROUTINE_SHARE = .6
+# The sign of the values from the curve routine's loads (all loads of the value width agree). Rejected
+# (ablation, development data): on MSD80 the routines load 16-bit values signed while the reference declares
+# most of these curves unsigned (498 curves lost their sign mark), so the sign stays open and marked.
+CURVE_ROUTINE_SIGN = False
+
+
+def _value_block(n: int, gap: int) -> int | None:
+    """Value width (1 or 2) whose n cells fill ``gap`` bytes up to MAX_PAD; None if none or both fit."""
+    fit = [w for w in (1, 2) if n * w <= gap <= n * w + MAX_PAD]
+    return fit[0] if len(fit) == 1 else None
+
+
+def curve_routines(data: bytes, sites, pre, named: list[int], axis) -> dict[int, int]:
+    """{prelookup routine: value width} of routines whose targets are curve records (see CODE_CURVES)."""
+    import bisect
+    votes: dict[int, Counter] = {}
+    seen = set()
+    for c in sites:
+        # Distinct targets vote, not calls: an axis search names few shared axes many times.
+        if c.x_header is not None or c.callee not in pre or (c.callee, c.data) in seen:
+            continue
+        seen.add((c.callee, c.data))
+        ax = axis(c.data)
+        if ax is None or ax.header != c.data:
+            continue
+        i = bisect.bisect_left(named, ax.end)
+        if i >= len(named):
+            continue
+        votes.setdefault(c.callee, Counter())[_value_block(ax.count, named[i] - ax.end)] += 1
+    out = {}
+    for r, v in votes.items():
+        total = sum(v.values())
+        best = max((w for w in v if w is not None), key=lambda w: v[w], default=None)
+        if best is not None and total >= CODE_AXES_MIN and v[best] >= CURVE_ROUTINE_SHARE * total:
+            out[r] = best
+    return out
+
+
+def _add_code_curves(out, data, sites, h, entries, pre, code_widths, axis, lo, hi) -> None:
+    """Curve descriptors (data = first value, X axis, no Y) of calls to curve routines (CODE_CURVES)."""
+    import bisect
+    named = sorted({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
+    routines = curve_routines(data, sites, pre, named, axis)
+    if not routines:
+        return
+    signs = {}
+    for r, w in routines.items():
+        k = bisect.bisect_right(entries, r)
+        end = min(entries[k] if k < len(entries) else r + MAX_BODY, r + MAX_BODY)
+        loads = cell_loads(h, r, end)
+        # The sign of the values counts only when the axis is read with another width (else the axis
+        # loads mix in) and all loads of the value width agree.
+        same = {s for (lw, s) in loads if lw == w}
+        widths_axis = {lw for (lw, _) in loads if lw != w}
+        signs[r] = same.pop() if CURVE_ROUTINE_SIGN and len(same) == 1 and widths_axis and sum(n for (lw, _), n in loads.items()
+                                                                          if lw == w) >= MIN_CELL_LOADS else None
+    found: dict[int, list] = {}
+    for c in sites:
+        if c.x_header is not None or c.callee not in routines:
+            continue
+        w = routines[c.callee]
+        ax, state = axis(c.data), ''
+        if ax is None and c.callee in code_widths:
+            got = code_axis(data, c.data, code_widths[c.callee])
+            if got is not None:
+                ax, state = got
+        if ax is None or ax.header != c.data:
+            continue
+        values = ax.end
+        if not lo <= values < hi or values % w or values + ax.count * w > len(data):
+            continue
+        i = bisect.bisect_right(named, values)
+        if i < len(named) and named[i] < values + ax.count * w:
+            continue   # a code-named address inside the values: not one curve
+        exact = i < len(named) and named[i] - (values + ax.count * w) <= MAX_PAD
+        found.setdefault(values, []).append((ax, c.callee, c.site, state, exact))
+    for d, readings in found.items():
+        if d in out or len({(r[0].header, r[0].count, r[1]) for r in readings}) != 1:
+            continue
+        ax, callee, _, state, exact = readings[0]
+        out[d] = CallDescriptor(d, ax, None, callee, tuple(sorted({r[2] for r in readings})),
+                                cell_width=routines[callee], cell_signed=signs[callee],
+                                curve='exact' if exact else 'routine', axis_state=state)
+
+
+def _learned(votes: dict) -> dict:
+    """{routine: value} where enough strict calls agree (CODE_AXES_MIN, CODE_AXES_SHARE)."""
+    out = {}
+    for r, c in votes.items():
+        total = sum(c.values())
+        value, n = c.most_common(1)[0]
+        if total >= CODE_AXES_MIN and n >= CODE_AXES_SHARE * total:
+            out[r] = value
+    return out
+
+
+MIN_ROLE_CALLS = 5      # calls before a routine's role (prelookup / table after prelookups) counts
 # Both shares are set on one MSD80 file only (development data, not independently validated).
 # Prelookup shares there are bimodal (none between 0.45 and 0.66), so .6 sits in a natural gap;
 # table-routine shares run continuously (0.30 ... 0.71), hence the extra code check in call_descriptors.
@@ -1013,16 +1261,66 @@ def pointer_triples(data: bytes, reloc: tuple = (), lo: int = 0, hi: int | None 
     return out if len(out) >= MIN_TRIPLES else {}
 
 
+# Direct loads of calibration objects (after 1.21.0-rc1). Besides passing tables to routines, the
+# code reads single values straight from the calibration: ``ld.bu/ld.h/ld.w d,[a1]off`` and the like,
+# relative to a global base register (a0, a1, a8, a9). Every such address starts an object of its
+# own. A smooth run with one strictly inside spans several objects (development data, full images
+# with code, rc1 row-pitch results: 289 such runs, none exact; 203 of them confusions on MSD80).
+# Only instructions outside data-like blocks count: the linear sweep also decodes calibration bytes.
+DIRECT_LOADS = True
+_DIRECT_OPS = (0x79, 0x39, 0xC9, 0xB9, 0x19, 0x99, 0xD9)   # ld.b ld.bu ld.h ld.hu ld.w ld.a lea (BOL)
+
+
+def direct_loads(data: bytes, starts, bases: dict, reloc: tuple = (), code_only=None) -> list[int]:
+    """Sorted file offsets that BOL loads address through a global base register.
+
+    ``starts`` are the byte offsets of the instructions of the linear sweep (_stream), ``bases``
+    the boot values of a0/a1/a8/a9 (global_bases). With ``code_only`` (per-byte boolean: True
+    inside data-like blocks, data_regions.data_mask) instructions inside data blocks are skipped.
+    ``lea``/``ld.a`` writing their own base register (boot initialisation) are skipped too.
+    """
+    if not bases or starts is None or not len(starts):
+        return []
+    hw = np.frombuffer(data[:len(data) // 2 * 2], '<u2')
+    s = np.asarray(starts, dtype=np.int64) // 2
+    s = s[s + 1 < len(hw)]
+    low = hw[s].astype(np.uint32)
+    wide = (low & 1).astype(bool)
+    s = s[wide]
+    w = low[wide] | (hw[s + 1].astype(np.uint32) << 16)
+    keep = np.isin(w & 0xFF, _DIRECT_OPS)
+    s, w = s[keep], w[keep]
+    if code_only is not None and len(code_only):
+        keep = ~np.asarray(code_only, dtype=bool)[np.minimum(s * 2, len(code_only) - 1)]
+        s, w = s[keep], w[keep]
+    op, a, b = w & 0xFF, (w >> 8) & 0xF, (w >> 12) & 0xF
+    keep = ~(np.isin(op, (0x99, 0xD9)) & (a == b))
+    w, b = w[keep], b[keep]
+    off = (((w >> 16) & 0x3F) | (((w >> 28) & 0xF) << 6) | (((w >> 22) & 0x3F) << 10)).astype(np.int64)
+    off[(off & 0x8000) != 0] -= 0x10000
+    found = set()
+    for reg, base in bases.items():
+        for address in np.unique((base + off[b == reg]) & 0xFFFFFFFF).tolist():
+            f = _file(int(address), len(data), reloc)
+            if f is not None:
+                found.add(f)
+    return sorted(found)
+
+
 class Descriptors(dict):
     """{data offset: CallDescriptor}; ``named`` holds every data address the code passes
     in a4 to one of the descriptors' routines, with or without resolved axes.
     ``addressed`` holds every address any routine call passes in an argument register
-    (data, axis headers, records): objects the code reads one by one (1.21.0)."""
+    (data, axis headers, records): objects the code reads one by one (1.21.0).
+    ``loaded`` holds every address the code reads directly through a global base register
+    (direct_loads, after 1.21.0-rc1)."""
     named: frozenset = frozenset()
     addressed: frozenset = frozenset()
+    loaded: frozenset = frozenset()
 
 
-def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[int, CallDescriptor]:
+def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None, *, keep_context: bool = False
+                     ) -> dict[int, CallDescriptor]:
     """{data offset: descriptor} for calls naming table data plus parsable axis headers.
 
     Axes come from a5/a6 of the call; from a record header passed in a4 whose
@@ -1036,6 +1334,8 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     The result also lists all data addresses passed to the same routines
     (``Descriptors.named``): neighbours whose axes stay unresolved still bound
     a table (MSD80: two tables only fit exactly once their neighbour counts).
+    With ``keep_context`` the result carries ``context`` = (sweep sites, routine entries) for
+    the data-flow analysis (core/tricore_flow); the scan does not keep it (memory).
     """
     hi = len(data) if hi is None else hi
     if not looks_like_tricore(data):
@@ -1059,6 +1359,27 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     record_readings = {c.data: set(record_at(data, c.data)) for c in sites
                        if c.x_header is None and c.callee in records and lo <= c.data < hi}
     layouts = _record_layouts(sites, records, record_readings)
+    strict: dict[int, CountAxis | None] = {}
+
+    def axis(at):
+        if at not in strict:
+            strict[at] = axis_at(data, at)
+        return strict[at]
+    code_layouts: dict[int, tuple] = {}
+    code_widths: dict[int, int] = {}
+    if CODE_AXES:
+        votes: dict[int, Counter] = {}
+        for c in sites:
+            r = record_readings.get(c.data) if c.callee in records and c.x_header is None else None
+            if r and len(r) == 1:
+                votes.setdefault(c.callee, Counter())[_layout(*next(iter(r)))] += 1
+        code_layouts = _learned(votes)
+        votes = {}
+        for c in sites:
+            if c.x_header is None and c.callee in pre and (ax := axis(c.data)) is not None:
+                votes.setdefault(c.callee, Counter())[ax.width] += 1
+        code_widths = _learned(votes)
+    states: dict[int, set] = {}
     found: dict[int, list] = {}
     for c in sites:
         if not lo <= c.data < hi:
@@ -1072,19 +1393,40 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
                 x, y = next(iter(readings))
                 if lo <= y.end < hi:
                     found.setdefault(y.end, []).append((x, y, c.callee, c.site, False, True))
+            elif not readings and c.callee in code_layouts:
+                got = code_record(data, c.data, code_layouts[c.callee])
+                if got is not None and lo <= got[1].end < hi:
+                    x, y, state = got
+                    found.setdefault(y.end, []).append((x, y, c.callee, c.site, False, True))
+                    states.setdefault(y.end, set()).add(state)
             continue
         x_header, y_header, via = c.x_header, c.y_header, False
+        routines = (None, None)
         if x_header is None and c.callee in post:
-            axes = [a for r, a in c.pre if r in pre]
-            if len(axes) >= 2 and axes[-2] != axes[-1]:
-                x_header, y_header, via = axes[-2], axes[-1], True
-        x = axis_at(data, x_header) if x_header is not None else None
+            pairs = [(r, a) for r, a in c.pre if r in pre]
+            if len(pairs) >= 2 and pairs[-2][1] != pairs[-1][1]:
+                x_header, y_header, via = pairs[-2][1], pairs[-1][1], True
+                routines = (pairs[-2][0], pairs[-1][0])
+        x = axis(x_header) if x_header is not None else None
+        y = axis(y_header) if y_header is not None else None
+        state = set()
+        if via and (x is None or y is None):
+            # Axes of learned prelookup routines: repeated or equal breakpoints (code_axis).
+            for k, (head, routine) in enumerate(zip((x_header, y_header), routines)):
+                if (x, y)[k] is None and routine in code_widths:
+                    got = code_axis(data, head, code_widths[routine])
+                    if got is not None:
+                        x, y = (got[0], y) if k == 0 else (x, got[0])
+                        state.add(got[1])
         if x is None:
             continue
-        y = axis_at(data, y_header) if y_header is not None else None
         if via and y is None:
             continue
         found.setdefault(c.data, []).append((x, y, c.callee, c.site, via, False))
+        if state:
+            states.setdefault(c.data, set()).update(state)
+    function_level = _function_prelookups(data, sites, entries, pre, post, found, states, axis, code_widths,
+                                          lo, hi) if PRE_FUNCTION and post else set()
     triples = pointer_triples(data, sites.relocation, lo, hi) if POINTER_TRIPLES else {}
     if len({d for d in found}) < MIN_CALLS:
         if not triples:
@@ -1100,9 +1442,15 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
     rec_cells = record_cells(h, entries, {r: c.most_common(1)[0][0] for r, c in count_width.items()})
     cells.update({r: (None, None) for r in rec_cells if r not in cells})
     out = Descriptors()
+    if keep_context:
+        out.context = (sites, entries)
     out.named = frozenset({c.data for c in sites if c.callee in cells and lo <= c.data < hi} | set(triples))
     out.addressed = frozenset(v for v in ({c.data for c in sites} | {v for _, _, regs in sites.generic for _, v in regs})
                               if lo <= v < hi)
+    if DIRECT_LOADS:
+        from .data_regions import data_mask
+        out.loaded = frozenset(v for v in direct_loads(data, sites.starts, sites.bases, sites.relocation,
+                                                       data_mask(data)) if lo <= v < hi)
     for d, readings in found.items():
         shapes = {(x.header, y.header if y else None) for x, y, *_ in readings}
         if len(shapes) != 1:
@@ -1114,7 +1462,11 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
         cell = rec_cells[callee] if rec else cells[callee]
         out[d] = CallDescriptor(d, x, y, callee, tuple(sorted({r[3] for r in readings})),
                                 all(r[4] for r in readings), *cell, record=rec,
-                                registers=roles.get(callee, DEFAULT_ROLES))
+                                registers=roles.get(callee, DEFAULT_ROLES),
+                                axis_state='+'.join(sorted({p for s in states.get(d, ()) for p in s.split('+') if p})),
+                                pre_scope='function' if d in function_level else '')
+    if CODE_CURVES and found:
+        _add_code_curves(out, data, sites, h, entries, pre, code_widths, axis, lo, hi)
     for d, (x, y, at) in triples.items():
         if d not in out:
             # No routine: the cell width comes from the gap to the next object (cell_widths);
@@ -1124,6 +1476,7 @@ def call_descriptors(data: bytes, lo: int = 0, hi: int | None = None) -> dict[in
 
 
 MAX_PAD = 3   # alignment bytes allowed between a table and the next object
+DOUBLE_GAP_WEAK = True   # quality phase 5: an exact 16-bit fit that also holds two byte tables is a weak vote
 
 
 def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -> dict[int, int]:
@@ -1144,7 +1497,7 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
     """
     import bisect
     bounds = sorted(set(boundaries))
-    options = {}
+    options, weak = {}, set()
     for d, desc in descriptors.items():
         cells = desc.x_axis.count * (desc.y_axis.count if desc.y_axis else 1)
         k = bisect.bisect_right(bounds, d)
@@ -1161,15 +1514,29 @@ def cell_widths(descriptors: dict[int, CallDescriptor], boundaries: list[int]) -
             options[d] = exact if len(exact) == 1 else []
             continue
         options[d] = exact if len(exact) == 1 else fits
+        if DOUBLE_GAP_WEAK and exact == [2] and 1 in fits:
+            weak.add(d)
     votes: dict[int, Counter] = {}
+    strong: dict[int, Counter] = {}
     for d, opts in options.items():
         if len(opts) == 1 and not descriptors[d].prelookup:
             votes.setdefault(descriptors[d].callee, Counter())[opts[0]] += 1
+            if d not in weak:
+                strong.setdefault(descriptors[d].callee, Counter())[opts[0]] += 1
     routine = {c: v.most_common(1)[0][0] for c, v in votes.items()
                if len(v) == 1 and sum(v.values()) >= 3}
+    # Quality phase 5: a gap exactly twice a byte table also holds two byte tables in a row, so the exact
+    # 16-bit fit is a weak vote. A routine whose other calls agree (at least three) settles it; otherwise
+    # the exact fit stays. Found as a regression on the known holdout (new curve heads as boundaries);
+    # no effect on the development data.
+    decided = {c: v.most_common(1)[0][0] for c, v in strong.items()
+               if len(v) == 1 and sum(v.values()) >= 3}
+    routine.update(decided)
     out = {}
     for d, opts in options.items():
-        if len(opts) == 1:
+        if d in weak and descriptors[d].callee in decided:
+            out[d] = decided[descriptors[d].callee]
+        elif len(opts) == 1:
             out[d] = opts[0]
         elif len(opts) == 2 and descriptors[d].callee in routine:
             out[d] = routine[descriptors[d].callee]

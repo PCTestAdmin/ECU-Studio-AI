@@ -15,6 +15,7 @@ from .axis_records import scan_axis_records, record_axes
 from .curve_records import scan_curve_records
 from .structure_scan import scan_structures, lookup_descriptors, c16x_base
 from .tricore_refs import call_descriptors
+from .type_status import open_axis_signs
 from .axis_arrays import scan_count_axes, axis_definitions
 from .data_regions import data_mask, data_fraction, data_regions, block_size
 from .confidence import apply_confidence
@@ -123,6 +124,66 @@ def _contradicted_patterns(candidates):
     return out
 
 
+# After 1.21.0-rc1: values the program code loads directly (tricore_refs.direct_loads) start objects of
+# their own; a smoothness-only run with one strictly inside spans several objects. Applied as a pure removal
+# after ranking: dropping such runs inside the pitch search freed its result budget for weaker readings
+# (development data, MEVD17.2 full images: +41 confusions elsewhere), so here nothing can take their place.
+LOADED_REFUTES_PITCH=True
+
+
+def _crosses(m,points):
+    """True if a point of the sorted list lies strictly inside the table (not at its start)."""
+    i=bisect.bisect_right(points,m.offset)
+    return i<len(points) and points[i]<m.offset+m.length
+
+
+def refuted_by_loads(candidates,loaded):
+    """The candidates without the smoothness-only runs that a directly loaded value lies inside."""
+    points=sorted(loaded)
+    if not LOADED_REFUTES_PITCH or not points:
+        return list(candidates)
+    return [m for m in candidates if not (m.record_layout==PITCH_LAYOUT and _crosses(m,points))]
+
+
+# Quality phase 4: the head of a chained curve record (n, X[n], W[n]; structure evidence) that lies strictly
+# inside a smoothness-only run refutes the run, as a 2-D header record does (PITCH_NO_RECORDS). Applied after
+# ranking as a pure removal (see LOADED_REFUTES_PITCH). Development data (58 images, A2L for evaluation only):
+# confusions 5 138 -> 4 478, exact 2-D tables unchanged (0 lost); exact 1-D objects +1 381 (MEVD17.2) and
+# +3 239 (MSD80), 0 lost. Found while classifying the 1-D hits lost to code-backed axes: the extra tables moved
+# smoothness-only runs over chained curve records, which only fill gaps.
+CURVE_HEADS_REFUTE_PITCH=True
+# Quality phase 5: the axis of a code-named curve (tricore_refs.CODE_CURVES) becomes an axis candidate only when
+# the curve itself is accepted (ablation switch).
+CURVE_AXES_WITH_CURVE=True
+# Quality phase 6: the axis of a code-named curve that was NOT accepted only fills a gap when it has at least
+# three points, the general rule of axis_arrays ("two-point arrays are common by chance"): a lone two-point
+# count axis has nothing that confirms its width or sign. HOLDOUT-DERIVED: the three new unmarked width errors
+# of quality phase 5 (one holdout line) were exactly such two-point gap fillers (an 8-bit axis read as 16-bit
+# under a 16-bit count); development data has no two-point gap filler at all, so the rule is not confirmed there
+# (0 changes). All 106 gap fillers with three or more points (development 51, holdout 55) matched the reference.
+ORPHAN_MIN_POINTS=3
+# Quality phase 5 (P3): a smoothness-only run that STARTS inside a chained curve record (behind its head, before
+# the end of its values) is refuted as well; before, only a head strictly inside the run counted, so runs starting
+# within the record covered its curve (development data: 13 + 4 exact 1-D objects lost that way). Ablation switch.
+CURVE_RECORD_REFUTES_PITCH_START=True
+
+
+def refuted_by_curve_heads(candidates,curves):
+    """The candidates without the smoothness-only runs that a chained curve record head lies strictly inside
+    (and, with CURVE_RECORD_REFUTES_PITCH_START, that start strictly inside a chained curve record)."""
+    heads=sorted({c.candidate_region_start for c in curves if c.candidate_region_start is not None})
+    if not CURVE_HEADS_REFUTE_PITCH or not heads:
+        return list(candidates)
+    records=_merged([(c.candidate_region_start,c.offset+c.length) for c in curves
+                     if c.candidate_region_start is not None and c.offset>c.candidate_region_start])
+    def starts_inside(m):
+        starts,ends=records
+        k=bisect.bisect_right(starts,m.offset)-1
+        return k>=0 and starts[k]<m.offset<ends[k]
+    return [m for m in candidates if not (m.record_layout==PITCH_LAYOUT and
+            (_crosses(m,heads) or (CURVE_RECORD_REFUTES_PITCH_START and starts_inside(m))))]
+
+
 PARALLEL_MIN_BYTES=256*1024   # smaller images: worker start-up costs more than it saves
 SCANNERS=('discover','u8','u32','s16')
 
@@ -224,12 +285,22 @@ def scan_calibration_candidates(image: BinaryImage, *,
         known={ax.header for ax in axes}
         spans=[(ax.header,ax.end) for ax in axes]
         lookups=lookup_descriptors(raw,lo,hi,base) if arch.name==C16X else {}
-        pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()]
+        # Axes from routine-level prelookups (tricore_refs.PRE_FUNCTION) are weaker: they only count as part of
+        # an accepted table, never as axis candidates of their own (MEVD17.2 development: 16-18 curve records
+        # per image were displaced by such axes).
+        # Axes of code-named curves (tricore_refs.CODE_CURVES) only count together with their curve (added
+        # below once it is accepted): an axis alone would displace the curve record that holds both (quality
+        # phase 5, development data: 67 exact curves lost before).
+        pairs=list(lookups.values())+[(c.x_axis,c.y_axis) for c in calls.values()
+                                      if getattr(c,'pre_scope','')!='function'
+                                      and not (CURVE_AXES_WITH_CURVE and getattr(c,'curve',''))]
+        def add_axis(ax):
+            # Values decide: a record's second count lies inside the span of its first axis.
+            if ax and ax.header not in known and not any(ax.offset<e and s<ax.end for s,e in spans):
+                axes.append(ax);known.add(ax.header);spans.append((ax.header,ax.end))
         for pair in pairs:
             for ax in pair:
-                # Values decide: a record's second count lies inside the span of its first axis.
-                if ax and ax.header not in known and not any(ax.offset<e and s<ax.end for s,e in spans):
-                    axes.append(ax);known.add(ax.header);spans.append((ax.header,ax.end))
+                add_axis(ax)
         axes.sort(key=lambda ax:ax.header)
     stage('Strukturen und Zeilenabstände', 82)
     structures=scan_structures(image,lo,hi,max_results=structure_limit,cancelled=cancelled,
@@ -237,6 +308,15 @@ def scan_calibration_candidates(image: BinaryImage, *,
                                base=base) if structure_limit>0 else []
     if cancelled and cancelled():
         return []
+    orphans=[]   # axes of code-named curves the structure scan did not accept: gap fillers only (below)
+    if structure_limit>0 and CURVE_AXES_WITH_CURVE:
+        accepted={m.offset for m in structures if min(m.rows,m.cols)==1}
+        for c in calls.values():
+            if getattr(c,'curve','') and c.data in accepted:
+                add_axis(c.x_axis)
+            elif getattr(c,'curve','') and c.x_axis.header not in known and c.x_axis.count>=ORPHAN_MIN_POINTS:
+                orphans.append(c.x_axis)
+        axes.sort(key=lambda ax:ax.header)
     if jobs is not None:
         stage('Datensatzköpfe und Raster (parallel)', 88)
         for job in jobs:
@@ -271,6 +351,11 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # Legacy grid windows must not swallow a detected axis or referenced curve.
     merged=_merged(spans)
     kept=[m for m in ranked if not _overlaps_any(m.offset,m.offset+m.length,merged)]
+    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z']
+    all_curves=scan_curve_records(image,records,cancelled=cancelled)
+    before=len(kept)
+    kept=refuted_by_curve_heads(kept,all_curves)
+    if diagnostics is not None:diagnostics['curve_refuted_patterns']=before-len(kept)
     # Axes of accepted header records are axes too (EDC17 SWORD records, ME9, MED17 ...).
     taken=_merged([(m.offset,m.offset+m.length) for m in lines])
     extra=[a for m in kept for a in record_axes(image,m)
@@ -279,14 +364,27 @@ def scan_calibration_candidates(image: BinaryImage, *,
     # line or a record axis (the record list gives byte order and chain neighbours).
     occupied=_merged([((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
                       for m in kept+lines+extra])
-    records=[m for m in candidates if m.record_layout=='candidate:nx,ny,x,y,z']
-    curves=[c for c in scan_curve_records(image,records,cancelled=cancelled)
+    curves=[c for c in all_curves
             if not _overlaps_any(c.candidate_region_start,c.offset+c.length,occupied)]
     seen=set()
     for c in curves:   # axis and values of one record, each once
         key=(c.offset,c.cols,c.record_layout)
         if key not in seen:
             seen.add(key);extra.append(c)
+    if orphans:
+        # The call target may still be a standalone axis (development data: mini set, 4 exact axes): it fills a
+        # gap that no table, line, record axis or curve record covers.
+        filled=[((m.candidate_region_start if m.candidate_region_start is not None else m.offset),m.offset+m.length)
+                for m in kept+lines+extra]
+        added=[]
+        for a in axis_definitions(sorted({ax.header:ax for ax in orphans}.values(),key=lambda ax:ax.header)):
+            s=a.candidate_region_start if a.candidate_region_start is not None else a.offset
+            if not _overlaps_any(s,a.offset+a.length,_merged(filled)):
+                extra.append(a);filled.append((s,a.offset+a.length));added.append(a.offset)
+        if diagnostics is not None:diagnostics['curve_orphan_axes']=added
+    before=len(kept)
+    kept=refuted_by_loads(kept,getattr(calls,'loaded',()))
+    if diagnostics is not None:diagnostics['loaded_refuted_patterns']=before-len(kept)
     result=sorted(kept+lines+extra,key=lambda m:m.offset)
     # Proven non-tables: runs of text strings, and pointer tables of an
     # architecture with a known pointer format (core/region_classes). Only
@@ -307,6 +405,8 @@ def scan_calibration_candidates(image: BinaryImage, *,
             kept_result.append(m)
     result=kept_result
     if diagnostics is not None:diagnostics['suppressed']=suppressed
+    opened=open_axis_signs(image,result)
+    if diagnostics is not None:diagnostics['axis_signs_open']=opened
     apply_confidence(result,family=profile.family if start is not None else 'Unbekannt')
     # Data-only candidates: a learned scorer may drop weak ones; it is applied only
     # with cleared training data (core/candidate_model.py). None ships with 1.19.

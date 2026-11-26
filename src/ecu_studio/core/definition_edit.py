@@ -18,7 +18,11 @@ EDITABLE = ('name', 'notes', 'offset', 'rows', 'cols', 'dtype', 'endian', 'facto
             'axis_x_offset', 'axis_y_offset', 'axis_x_unit', 'axis_y_unit', 'verified')
 # Changes that make an earlier review meaningless (where and how values and axes are read and scaled).
 STRUCTURAL = ('offset', 'rows', 'cols', 'dtype', 'endian', 'factor', 'bias', 'axis_x_offset', 'axis_y_offset',
-              'axes_x', 'axes_y')
+              'axes_x', 'axes_y', 'axis_x_dtype', 'axis_y_dtype', 'axis_x_step', 'axis_y_step')
+# Set from an AxisSpec (the user's explicit choice of how a stored axis is read); shown as changes as well.
+AXIS_TYPE_FIELDS = ('axis_x_dtype', 'axis_y_dtype', 'axis_x_type_source', 'axis_y_type_source',
+                    'axis_x_step', 'axis_y_step')
+USER_TYPE_SOURCE = 'vom Benutzer angegeben (Definition bearbeitet)'
 
 
 @dataclass
@@ -41,7 +45,7 @@ class EditProposal:
     def changes(self) -> dict[str, tuple[object, object]]:
         """Field -> (before, after) for every edited field that differs."""
         a, b = self.original.asdict(), self.proposed.asdict()
-        keys = [*EDITABLE, 'axes_x', 'axes_y']
+        keys = [*EDITABLE, 'axes_x', 'axes_y', *AXIS_TYPE_FIELDS]
         return {k: (a.get(k), b.get(k)) for k in keys if a.get(k) != b.get(k)}
 
 
@@ -93,12 +97,23 @@ def propose(image: BinaryImage, current: MapDefinition, fields: dict, *,
             if spec.offset is not None and len(set(values)) == len(values) and values != sorted(values) \
                     and values != sorted(values, reverse=True):
                 warnings.append(f'{which.upper()}-Achse ist nicht monoton – Adresse oder Datentyp prüfen.')
+            # The cell type the user chose to read the stored axis with (packed).
+            if spec.offset is not None:
+                setattr(proposed, f'axis_{which}_dtype', spec.dtype)
+                setattr(proposed, f'axis_{which}_type_source', USER_TYPE_SOURCE)
+                setattr(proposed, f'axis_{which}_step', 0)
         elif geometry_changed and values and len(values) != count:
             # Old axis values no longer fit the new size: drop them instead of mislabelling cells.
             values = []
             setattr(proposed, f'axis_{which}_offset', None)
             warnings.append(f'{which.upper()}-Achsenwerte passen nicht mehr zur neuen Größe und wurden entfernt.')
         setattr(proposed, f'axes_{which}', values)
+        # Without a stored axis there is no cell type; an address changed without saying how the axis is read
+        # leaves it unknown (never the value type, never the old axis' type).
+        offset_now = getattr(proposed, f'axis_{which}_offset')
+        if offset_now is None or (spec is None and offset_now != getattr(current, f'axis_{which}_offset')):
+            for field_, empty in (('dtype', ''), ('type_source', ''), ('step', 0)):
+                setattr(proposed, f'axis_{which}_{field_}', empty)
     proposed.validate(image.size)
     for which, count in (('x', proposed.cols), ('y', proposed.rows)):
         values = getattr(proposed, f'axes_{which}')

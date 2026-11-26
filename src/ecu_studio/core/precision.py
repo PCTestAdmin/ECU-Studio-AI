@@ -70,9 +70,21 @@ def _header_inside(plain):
     return inside
 
 
+# After 1.21.0-rc1: a candidate with program-code evidence (interpolation call, code reference, pointer
+# descriptor) always wins an overlap against a smoothness-only candidate. Until rc1 every evidenced candidate
+# yielded when its own start lay inside an earlier smooth run. That exception stays for stored header records:
+# smooth tables contain runs that read like a count header with axes (bundled synthetic demo: without it two
+# false records displace both real tables). A program-code address is not read from the values.
+CODE_EVIDENCE_ALWAYS_WINS=True
+CODE_LAYOUTS=('candidate:code-reference','candidate:code-reference-generic','candidate:pointer-descriptor',
+              'candidate:code-call')
+
+
 def _priority(m, inside) -> bool:
     if m.record_layout not in EVIDENCED_LAYOUTS:
         return False
+    if CODE_EVIDENCE_ALWAYS_WINS and m.record_layout in CODE_LAYOUTS:
+        return True
     head=m.candidate_region_start if m.candidate_region_start is not None else m.offset
     return not inside(head)
 
@@ -150,17 +162,21 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
             evaluated.append((strength,m,ev,ambiguous,synthetic_hint,preset_score))
         except (IndexError,ValueError,OverflowError,TypeError):
             reject(m,'invalid-layout-or-values');continue
-    # Evidenced candidates win overlaps, unless their own header lies inside a
-    # smoothness candidate that starts earlier: smooth tables contain runs that
-    # read like a count header with axes (then strength decides, as before).
+    # Evidenced candidates win overlaps. Header records (and, with CODE_EVIDENCE_ALWAYS_WINS
+    # off as in 1.21.0-rc1, code candidates) not when their own header lies inside a
+    # smoothness candidate that starts earlier: then strength decides.
     inside=_header_inside([z[1] for z in evaluated if z[1].record_layout not in EVIDENCED_LAYOUTS])
     # Among evidenced candidates, an interpolation call in the code beats a data
     # pattern (MSD80: code calls 0 conflicts with the XDF, header records 2).
+    # The last keys only break ties, so that the result never depends on the order of the input; unsigned before
+    # signed as in preferred_sign (the scanners list the unsigned reading first, rc1 kept it by input order).
     evaluated.sort(key=lambda z:(not _priority(z[1],inside),z[1].record_layout!='candidate:code-call',
-                                 -z[0],z[1].offset,z[1].length))
+                                 -z[0],z[1].offset,z[1].length,z[1].record_layout or '',z[1].dtype[:1]=='s',z[1].dtype,
+                                 z[1].endian,z[1].rows,z[1].cols))
     selected=[]
     spans=[]
     plain=0
+    displaced={}
     for strength,m,ev,ambiguous,synthetic_hint,preset_score in evaluated:
         # The limit bounds smoothness-only guesses. Header records, code
         # references and descriptors carry their own evidence and are not cut.
@@ -171,8 +187,12 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
         end=m.offset+m.length
         # Heuristics are competing hypotheses, not definition-backed aliases.
         # Even partial overlap must not yield contradictory editable tables.
-        if any(start<e and s<end for s,e in spans):
+        hit=next((k for k,(s,e) in enumerate(spans) if start<e and s<end),None)
+        if hit is not None:
             reject(m,'competing-overlapping-layout')
+            # An alternative with its own evidence does not vanish silently: the winner names it.
+            if evidenced:
+                displaced.setdefault(hit,[]).append(m)
             continue
         m.confidence=round(min(.49, .48*strength),4)
         note=('Präzisionsprüfung: '+ev['reason']+'; normierte Kanten-Sprünge '
@@ -192,7 +212,15 @@ def rank_candidates(image:BinaryImage, candidates:list[MapDefinition], *,
         m.verified=False
         selected.append(m);spans.append((start,end))
         plain+=not evidenced
+    for k,others in displaced.items():
+        w=selected[k]
+        text=('Überlagernde Alternative mit eigenem Beleg verworfen: '+
+              '; '.join(f'{o.record_layout.removeprefix("candidate:")} {o.rows}×{o.cols} {o.dtype} @ 0x{o.offset:X}'
+                        for o in others[:3])+(f' (+{len(others)-3})' if len(others)>3 else '')+'.')
+        w.notes=(w.notes+' '+text).strip()
+        w.label_evidence=(w.label_evidence+' '+text).strip()
     if diagnostics is not None:
+        diagnostics['displaced_evidenced']=sum(len(v) for v in displaced.values())
         diagnostics['accepted']=[{'offset':m.offset,'rows':m.rows,'cols':m.cols,'dtype':m.dtype,
             'endian':m.endian,'source':m.source,'verified':m.verified} for m in selected]
     return sorted(selected,key=lambda m:m.offset)

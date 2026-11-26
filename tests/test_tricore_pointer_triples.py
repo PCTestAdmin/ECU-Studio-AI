@@ -112,12 +112,25 @@ def blank_image():
 
 def test_unapplied_axes_count_towards_the_prelookup_share(monkeypatch):
     data, tables = blank_image()
+    monkeypatch.setattr(tricore_refs, 'CODE_AXES', False)
     desc = call_descriptors(data)
-    # Tables after the real X lookup are named; those after the blank axis have no X to read.
+    # Without code-backed axes: tables after the real X lookup are named, those after the blank axis are not.
     assert set(desc) == set(tables[1::2])
     assert all((d.x_axis.header, d.y_axis.header, d.prelookup) == (X, Y, True) for d in desc.values())
     monkeypatch.setattr(tricore_refs, 'BLANK_AXES', False)
     assert call_descriptors(data) == {}                  # 50 % parsable axes: below PRELOOKUP_SHARE
+
+
+def test_code_backed_blank_axes_name_the_remaining_tables_and_are_marked():
+    """Quality phase 4: the routine reads the blank header as its axis (learned width), so the table is
+    named with that axis - and the descriptor says the axis is only code-backed (all points equal)."""
+    data, tables = blank_image()
+    desc = call_descriptors(data)
+    assert set(desc) == set(tables)
+    for i, t in enumerate(tables):
+        d = desc[t]
+        assert (d.x_axis.header, d.y_axis.header, d.prelookup) == ((X, Y, True) if i % 2 else (BLANK, Y, True))
+        assert d.axis_state == ('' if i % 2 else 'blank')
 
 
 def test_plain_prelookups_are_unchanged_by_blank_axes(monkeypatch):

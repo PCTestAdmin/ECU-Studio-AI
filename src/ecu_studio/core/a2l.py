@@ -126,6 +126,8 @@ class Characteristic:
     dims: tuple[int, int]
     axes: list[tuple[str, str, int]] = field(default_factory=list)
     axis_descriptors: list[Block] = field(default_factory=list)
+    # LowerLimit / UpperLimit of the CHARACTERISTIC (physical values); None when unreadable
+    limits: tuple[float, float] | None = None
 
 
 @dataclass
@@ -160,6 +162,8 @@ class A2LCatalog:
     alignment: dict[str, int] = field(default_factory=dict)
     epk: str | None = None          # MOD_PAR EPK: software identifier stored in the ECU
     epk_address: int | None = None  # MOD_PAR ADDR_EPK
+    # characteristic name -> FUNCTIONs that define it (DEF_CHARACTERISTIC), as declared by the A2L
+    functions: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def identity(self, data: bytes, ecu_anchor: int = 0, file_anchor: int = 0,
                  segments: list[AddressSegment] | None = None) -> dict:
@@ -459,7 +463,8 @@ class A2LCatalog:
                         break
                     counts[name], axis_values[name] = len(rec['X']), ('raw', rec['X'], desc.head[2])
                     shared_axes.append((f'{ref[0]}', rec['X_at'], len(rec['X'])))
-                    shared_at[name] = (ref[0], rec['X_at'][0])
+                    shared_at[name] = (ref[0], rec['X_at'][0], rec['X_at'][1],
+                                       f'A2L AXIS_PTS {ref[0]} (RECORD_LAYOUT {pts.layout})')
                 elif kind == 'STD_AXIS':
                     axis_values[name] = ('std', maxpts, desc.head[2])
                 else:
@@ -487,11 +492,13 @@ class A2LCatalog:
                 continue
             factor, bias, unit, convert_error = self._conversion(ch.conversion)
             note = ''
+            scaling_source = self.conversion_source(ch.conversion)
             if convert_error:
                 if not raw_unsupported:
                     result.unsupported.append(prefix + ': Umrechnung nicht unterstützt (' + convert_error + ')')
                     continue
                 factor, bias, note = 1, 0, f' Umrechnung {convert_error} nicht unterstützt: Rohwerte.'
+                scaling_source += f': {convert_error} nicht unterstützt: Rohwerte'
             axes = {}
             for name in 'XY':
                 if name in rec:
@@ -512,6 +519,7 @@ class A2LCatalog:
                         name=label, offset=at, rows=1, cols=count, dtype=adt, endian=endian, source=source,
                         verified=False, notes=f'Stützstellen ({label}) aus dem A2L-Datensatz.'))
             prediction = classify_metadata(ch.name, ch.description, unit, ' '.join(a[1] for a in ch.axes))
+            owners = self.functions.get(ch.name, ())
             m = MapDefinition(name=ch.name, offset=offset, rows=ny, cols=nx, dtype=dtype, endian=endian,
                               storage_order=order, factor=factor, bias=bias, unit=unit, kind=prediction.kind,
                               source=source, verified=False, label_origin=prediction.origin,
@@ -521,12 +529,22 @@ class A2LCatalog:
                                     f'(Anzahl/Achsen aus der Datei gelesen). ANKER prüfen!{note}',
                               ecu_address=ch.address, record_layout=ch.layout,
                               axes_info=' | '.join(f'{a}:{b}({n})' for a, b, n in ch.axes),
-                              axes_x=axes.get('X', []), axes_y=axes.get('Y', []))
-            # Where each axis is stored: inline in the record, or a shared AXIS_PTS object.
+                              axes_x=axes.get('X', []), axes_y=axes.get('Y', []),
+                              scaling_source=scaling_source, function=' / '.join(owners),
+                              function_source='A2L FUNCTION (DEF_CHARACTERISTIC)' if owners else '')
+            # Where each axis is stored: inline in the record, or a shared AXIS_PTS object; with the cell type
+            # the record layout gives for the axis points (it can differ from the value type).
             for name in 'XY':
-                ref, at = shared_at.get(name, ('', rec[name + '_at'][0] if name + '_at' in rec else None))
+                if name in shared_at:
+                    ref, at, adt, origin = shared_at[name]
+                elif name + '_at' in rec:
+                    ref, (at, adt), origin = '', rec[name + '_at'], f'A2L RECORD_LAYOUT {ch.layout}'
+                else:
+                    ref, at, adt, origin = '', None, '', ''
                 setattr(m, f'axis_{name.lower()}_offset', at)
                 setattr(m, f'axis_{name.lower()}_ref', ref)
+                setattr(m, f'axis_{name.lower()}_dtype', adt if at is not None else '')
+                setattr(m, f'axis_{name.lower()}_type_source', origin if at is not None else '')
             try:
                 m.validate(size)
             except ValueError:
@@ -570,6 +588,14 @@ class A2LCatalog:
             return [float((start + i*step)*factor+bias) for i in range(count)], ''
         except (ValueError, OverflowError):
             return [], 'Ungültige feste Achse'
+
+    def conversion_source(self, name: str) -> str:
+        """Where a characteristic's factor, offset and unit come from, e.g. 'A2L COMPU_METHOD CM_X (LINEAR)'."""
+        if not name or name == 'NO_COMPU_METHOD':
+            return 'A2L: keine Umrechnung (NO_COMPU_METHOD)'
+        block = self.conversions.get(name)
+        kind = block.head[2] if block is not None and len(block.head) > 2 else 'unbekannt'
+        return f'A2L COMPU_METHOD {name} ({kind})'
 
     def _conversion(self, name: str) -> tuple[float, float, str, str]:
         if not name or name == 'NO_COMPU_METHOD':
@@ -715,6 +741,30 @@ def decode_a2l(payload: bytes) -> str:
     return text
 
 
+def _limits(head: list[str]) -> tuple[float, float] | None:
+    """LowerLimit / UpperLimit of a CHARACTERISTIC head (positions 8 and 9), physical values."""
+    try:
+        low, high = float(head[7]), float(head[8])
+    except (IndexError, ValueError):
+        return None
+    return (low, high) if low <= high else None
+
+
+def limit_violations(values, limits: tuple[float, float] | None, factor: float = 1.0) -> int:
+    """Cells whose physical value lies outside the declared A2L limits (0 without limits).
+
+    A reference check that can only contradict: values inside the limits establish nothing
+    (a plausible range is no proof), values outside show that the conversion, the data type
+    or the address does not fit the declaration (or the calibration leaves its own limits).
+    The tolerance is half a raw step, so rounding of the stored limits does not count.
+    """
+    if limits is None:
+        return 0
+    low, high = limits
+    tol = abs(factor) / 2 + 1e-9 * max(1.0, abs(low), abs(high))
+    return sum(1 for v in values if v < low - tol or v > high + tol)
+
+
 def parse_a2l(source: str) -> A2LCatalog:
     root = scan_blocks(source)
     layouts = {c.head[0]: c for c in descendants(root, 'RECORD_LAYOUT') if c.head}
@@ -758,6 +808,7 @@ def parse_a2l(source: str) -> A2LCatalog:
         try:
             name, desc, form, address, layout, conversion = (
                 h[0], unquote(h[1]), h[2], parse_num(h[3]), h[4], h[6])
+            limits = _limits(h)
             if form not in CAL_TYPES:
                 continue
             axes = []
@@ -789,7 +840,17 @@ def parse_a2l(source: str) -> A2LCatalog:
             if len(chars) >= 100_000:
                 raise ValueError('Mehr als 100.000 CHARACTERISTIC-Einträge')
             chars.append(Characteristic(name, desc, form, address, layout, conversion,
-                                        (ydim, xdim), axes, axis_descriptors))
+                                        (ydim, xdim), axes, axis_descriptors, limits))
         except (ValueError, IndexError) as exc:
             warnings.append(f'{h[0] if h else "?"}: {exc}')
-    return A2LCatalog(chars, layouts, conversions, byte_order, warnings, axis_pts, alignment, epk, epk_address)
+    functions: dict[str, list[str]] = {}
+    for block in descendants(root, 'FUNCTION'):
+        if not block.head:
+            continue
+        for member in block.each('DEF_CHARACTERISTIC'):
+            for name in member.head:
+                owners = functions.setdefault(name, [])
+                if block.head[0] not in owners:
+                    owners.append(block.head[0])
+    return A2LCatalog(chars, layouts, conversions, byte_order, warnings, axis_pts, alignment, epk, epk_address,
+                      {k: tuple(v) for k, v in functions.items()})

@@ -42,7 +42,11 @@ def test_dialog_checks_previews_and_blocks_invalid_input(window):
     d.offset.setText('0xFF0')                                                # 32 bytes past the end
     assert not d.check() and not d.apply_button.isEnabled() and 'außerhalb' in d.result.text()
     d.offset.setText('0x100'); d.axis_x['offset'].setText('0x200')
+    # 1.21.0-rc2: the value type is not taken for the axis; its cell type must be chosen
+    assert not d.check() and 'Zelltyp der Achse wählen' in d.result.text()
+    d.axis_x['dtype'].setCurrentText('u16')
     assert d.check() and d.proposal.proposed.axes_x == [800, 1600, 2400, 3200]
+    assert d.proposal.proposed.axis_x_dtype == 'u16' and 'Benutzer' in d.proposal.proposed.axis_x_type_source
     assert d.table.horizontalHeaderItem(0).text() == '800'
 
 

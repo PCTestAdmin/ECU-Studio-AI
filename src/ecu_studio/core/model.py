@@ -77,6 +77,25 @@ class MapDefinition:
     # Other data types the stored bytes allow when the detected one is not proven
     # (e.g. sign from a smoother reading, not from the code's load instructions).
     dtype_alternatives: list[str] = field(default_factory=list)
+    # Where factor, offset and unit come from (e.g. "A2L COMPU_METHOD name (LINEAR)"); empty:
+    # the definition's source or no conversion (core/type_status.scaling_of).
+    scaling_source: str = ""
+    # ECU function the table belongs to, only from a definition (A2L FUNCTION / DEF_CHARACTERISTIC)
+    # or set by the user; never derived from values or guessed (core/function_id).
+    function: str = ""
+    function_source: str = ""
+    # Cell type of the stored X/Y axis points (1.21.0-rc2). An axis can have another type than the table
+    # values, so the value type is never taken for it. '' = not known (also every project or map pack of an
+    # older version): the write check then protects the widest cell an axis can have (core/axis_refs).
+    # *_type_source names where the type comes from (definition record layout, detected record, user).
+    axis_x_dtype: str = ""
+    axis_y_dtype: str = ""
+    axis_x_type_source: str = ""
+    axis_y_type_source: str = ""
+    # Distance in bytes between two stored axis points (0 = packed, the usual case); e.g. XDF axes whose
+    # points lie in every fourth byte. The stored bytes reach to the last point + cell width.
+    axis_x_step: int = 0
+    axis_y_step: int = 0
     # Fields introduced by a newer application are kept verbatim while this
     # version is editing the known part of the definition.  This is deliberately
     # an internal dataclass field so ``dataclasses.replace`` carries the data to
@@ -142,9 +161,24 @@ class MapDefinition:
         if self.candidate_region_start is not None and (type(self.candidate_region_start) is not int or
                 not 0<=self.candidate_region_start<=self.offset):
             raise ValueError('Ungültiger Beginn des vermuteten Records')
-        for axis_offset in (self.axis_x_offset, self.axis_y_offset):
+        for axis_offset, axis_type, step, points in (
+                (self.axis_x_offset, self.axis_x_dtype, self.axis_x_step, self.cols),
+                (self.axis_y_offset, self.axis_y_dtype, self.axis_y_step, self.rows)):
             if axis_offset is not None and (type(axis_offset) is not int or not 0 <= axis_offset < size):
                 raise ValueError('Achsenadresse außerhalb der BIN-Datei')
+            if not isinstance(axis_type, str) or (axis_type and axis_type not in FORMATS):
+                raise ValueError('Nicht unterstützter Achsen-Datentyp')
+            if type(step) is not int or not 0 <= step <= 4096:
+                raise ValueError('Ungültiger Abstand der Achsstützstellen')
+            if axis_type and step and step < FORMATS[axis_type][1]:
+                raise ValueError('Abstand der Achsstützstellen kleiner als ihre Zellbreite')
+            # A stated axis type fixes the stored bytes: they must lie in the file.
+            if axis_offset is not None and axis_type and points > 1 and \
+                    axis_offset + (points - 1) * (step or FORMATS[axis_type][1]) + FORMATS[axis_type][1] > size:
+                raise ValueError('Achse reicht über das Ende der BIN-Datei hinaus')
+        for text in (self.axis_x_type_source, self.axis_y_type_source):
+            if not isinstance(text, str):
+                raise ValueError('Ungültige Herkunft des Achsen-Datentyps')
         if self.dtype not in FORMATS:
             raise ValueError("Nicht unterstützter Datentyp")
         if self.storage_order not in ("row-major", "column-major"):
@@ -213,6 +247,10 @@ class BinaryImage:
         self.revision = 0  # Invalidates plot caches even if patch count is unchanged.
         self.journal: list[dict] = []
         self.last_change_metadata = False
+        # Quality phase 6: central write protection (core/edit_guard.WritePolicy). When set, every byte
+        # transaction is re-checked against the current tables right before it is applied; None = no tables
+        # known (plain byte image, scripts without definitions). Snapshots never carry it.
+        self.write_policy = None
 
     @classmethod
     def from_file(cls, path: str) -> BinaryImage:
@@ -264,8 +302,11 @@ class BinaryImage:
             else:
                 self._patches[idx] = v
 
-    def commit(self, changes, *, label='Bearbeitung', expected_revision=None) -> bool:
-        """Validate every byte before applying a transaction in one undo step."""
+    def commit(self, changes, *, label='Bearbeitung', expected_revision=None, approval=None) -> bool:
+        """Validate every byte before applying a transaction in one undo step.
+
+        With a write policy, ``approval`` (edit_guard.Approval) must cover the transaction: the policy checks
+        shared axes, overlaps, unverified users and the revision immediately before the bytes change."""
         if expected_revision is not None and self.revision != expected_revision:
             raise ValueError('Vorschau ist veraltet – erneut berechnen')
         edits = sorted(changes)
@@ -279,6 +320,8 @@ class BinaryImage:
         edits = [e for e in edits if e[1] != e[2]]
         if not edits:
             return False
+        if self.write_policy is not None:
+            self.write_policy.check(self, {p for p, _, _ in edits}, approval)
         self._apply(edits, True)
         self._undo.append(edits)
         self._redo.clear()
@@ -290,13 +333,13 @@ class BinaryImage:
         self.journal.append({'utc': datetime.now(timezone.utc).isoformat(), 'label': label,
                              'revision': self.revision, 'changes': [list(e) for e in changes]})
 
-    def write(self, offset: int, data: bytes) -> None:
+    def write(self, offset: int, data: bytes, *, approval=None) -> None:
         if offset < 0 or offset + len(data) > self.size:
             raise ValueError("Schreibzugriff außerhalb der Datei")
         changes = [(offset+i, self.byte(offset+i), b) for i, b in enumerate(data) if self.byte(offset+i) != b]
         if not changes:
             return
-        self.commit(changes, label=f'Bytes ab 0x{offset:X}')
+        self.commit(changes, label=f'Bytes ab 0x{offset:X}', approval=approval)
 
     def undo(self) -> bool:
         if not self._undo:
@@ -373,7 +416,7 @@ class BinaryImage:
             return raw.astype(float)*m.factor+m.bias
         return raw
 
-    def write_physical(self, m: MapDefinition, row: int, col: int, value: float) -> None:
+    def write_physical(self, m: MapDefinition, row: int, col: int, value: float, *, approval=None) -> None:
         m.validate(self.size)
         if m.equation:
             raise ValueError("Nichtlineare XDF-Formel: Kennfeld schreibgeschützt (keine geprüfte Umkehrfunktion)")
@@ -385,7 +428,7 @@ class BinaryImage:
         if not low <= raw <= high:
             raise ValueError(f"Rohwert {raw} liegt außerhalb {low} … {high}")
         pos = m.cell_offset(row,col)
-        self.write(pos, struct.pack((">" if m.endian == "big" else "<") + code, raw))
+        self.write(pos, struct.pack((">" if m.endian == "big" else "<") + code, raw), approval=approval)
 
     def snapshot(self) -> BinaryImage:
         """Independent copy of the current bytes for background work (no undo history).

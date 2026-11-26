@@ -216,7 +216,7 @@ def plan_transfer(source: BinaryImage, target: BinaryImage,
                         hashlib.sha256(target.materialize()).hexdigest(),target.revision,mode,tuple(plans),bool(interpolate))
 
 
-def apply_transfer(target: BinaryImage, plan: TransferPlan, selected: list[int], *, confirmed=False):
+def apply_transfer(target: BinaryImage, plan: TransferPlan, selected: list[int], *, confirmed=False, approval=None):
     if not confirmed:
         raise ValueError('Ausdrückliche Bestätigung der ausgewählten Änderungen erforderlich')
     if (target.digest != plan.target_identity.sha256 or target.revision != plan.target_revision or
@@ -231,4 +231,4 @@ def apply_transfer(target: BinaryImage, plan: TransferPlan, selected: list[int],
         for cell in plan.maps[i].cells:
             changes.extend((cell.offset+j,b,a) for j,(b,a) in enumerate(zip(cell.before,cell.after)))
     return target.commit(changes,label='Smart Map Transfer · '+plan.source_modified_sha256,
-                         expected_revision=plan.target_revision)
+                         expected_revision=plan.target_revision, approval=approval)

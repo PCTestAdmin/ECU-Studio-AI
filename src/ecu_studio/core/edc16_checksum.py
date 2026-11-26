@@ -147,13 +147,13 @@ def plan_correction(image, *, require_oem_validation: bool = True) -> list[tuple
     return steps
 
 
-def apply_correction(image, steps, *, require_oem_validation: bool = True) -> dict:
+def apply_correction(image, steps, *, require_oem_validation: bool = True, approval=None) -> dict:
     fresh = plan_correction(image, require_oem_validation=require_oem_validation)
     if [(o, n) for o, _, n in fresh] != [(o, n) for o, _, n in steps]:
         raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
     changes = [(off + i, old[i], new[i]) for off, old, new in steps
                for i in range(4) if old[i] != new[i]]
-    if not image.commit(changes, label='EDC16-Prüfsummenkorrektur'):
+    if not image.commit(changes, label='EDC16-Prüfsummenkorrektur', approval=approval):
         return check_current(image)
     result = check_current(image)
     if result['mismatches']:

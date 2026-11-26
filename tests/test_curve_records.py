@@ -56,3 +56,96 @@ def test_curves_only_in_the_dominant_byte_order():
     image = _image(a, b)
     assert scan_curve_records(image, _records(endian='big')) == []        # image records are big-endian
     assert scan_curve_records(image, _records(n=MIN_RECORDS - 1)) == []   # no record convention
+
+def test_value_width_stays_open_without_a_record_right_behind_the_16_bit_values(monkeypatch):
+    """Quality phase 3: the last curve of a chain has no record behind its values; they may as well be 8 bit
+    ("?"). The first curve is followed by the second record, so its 16-bit width is fixed by the structure."""
+    from ecu_studio.core import curve_records
+    from ecu_studio.core.confidence import type_doubts
+    a, b = _curve([50, 9, 14, 20, 27, 35]), _curve([-3, -1, 0, 2, 4, 9])
+    image = _image(a, b)
+
+    def doubts():
+        found = sorted((m for m in scan_curve_records(image, _records()) if m.record_layout == CURVE_LAYOUT),
+                       key=lambda m: m.offset)
+        return [(m.offset, m.cols, m.dtype, sorted(k for k, _ in type_doubts(m))) for m in found]
+    now = doubts()
+    assert 'width' not in now[0][3] and 'width' in now[1][3]
+    monkeypatch.setattr(curve_records, 'CURVE_WIDTH_OPEN', False)
+    old = doubts()
+    assert [x[:3] for x in old] == [x[:3] for x in now] and not any('width' in x[3] for x in old)
+
+
+
+def _found(image, layout=CURVE_LAYOUT):
+    from ecu_studio.core.confidence import type_doubts
+    return sorted(((m.offset, m.cols, m.dtype, sorted(k for k, _ in type_doubts(m)))
+                   for m in scan_curve_records(image, _records()) if m.record_layout == layout))
+
+
+def test_width_stays_open_when_a_record_also_begins_behind_the_8_bit_values(monkeypatch):
+    """Quality phase 4: a record behind the 16-bit values, but also a record head right behind the 8-bit values.
+    Both widths fit the structure: '?'. A mere count-prefixed axis there (bytes 4, 10, 20, 30, 40) is not enough:
+    such byte runs are common in data (development: 18 wrong widths caught for 311 right ones marked)."""
+    from ecu_studio.core import curve_records
+    raw = bytes([50, 0, 9, 0, 14, 0]) + bytes([4, 10, 20, 30, 40, 0])
+    a = np.array([len(X)] + X, '<i2').tobytes() + raw
+    b = _curve([-3, -1, 0, 2, 4, 9])
+    image = _image(a, b)
+    values = 0x200 + 14
+
+    def found(records):
+        from ecu_studio.core.confidence import type_doubts
+        return sorted(((m.offset, m.dtype, sorted(k for k, _ in type_doubts(m)))
+                       for m in scan_curve_records(image, records) if m.record_layout == CURVE_LAYOUT))
+    assert 'width' not in found(_records())[0][2]                       # only an axis behind the 8-bit values
+    head = MapDefinition('r', values + 6 + 20, 4, 4, 's16', 'little', record_layout='candidate:nx,ny,x,y,z',
+                         candidate_region_start=values + 6)
+    first = found(_records() + [head])[0]
+    assert first[:2] == (values, 'u16') and 'width' in first[2]
+    monkeypatch.setattr(curve_records, 'WIDTH_BOTH_OPEN', False)
+    assert 'width' not in found(_records() + [head])[0][2]
+
+
+def test_16_bit_axis_whose_bytes_also_rise_keeps_its_width_open():
+    rising = [0x0201, 0x0403, 0x0605, 0x0807, 0x0A09, 0x0C0B]          # bytes 1, 2, 3, ... rise one by one
+    image = _image(_curve([50, 9, 14, 20, 27, 35], x=rising), _curve([-3, -1, 0, 2, 4, 9]))
+    axes = _found(image, layout='candidate:record-axis')
+    assert 'width' in axes[0][3] and 'width' not in axes[1][3]        # the second axis is X (0, 400, ...)
+
+
+def test_8_bit_values_by_head_is_an_experiment_and_off_by_default(monkeypatch):
+    """A record right behind the 8-bit values and none behind the 16-bit values: with CURVE_U8_BY_HEAD the
+    values are read as 8 bit (marked as derived); without it they stay 16 bit with the width open."""
+    from ecu_studio.core import curve_records
+    lead = _curve([-30, -10, 0, 20, 40, 90])
+    head = np.array([len(X)] + X, '<i2').tobytes()
+    a = head + bytes([5, 7, 9, 11, 13, 15])                            # six 8-bit values, then the next record
+    b = _curve([-3, -1, 0, 2, 4, 9])
+    image = _image(lead, a, b, b)
+    at = 0x200 + len(lead) + 14
+    default = {o: rest for o, *rest in _found(image)}
+    assert default[at][1] == 'u16' and 'width' in default[at][2]
+    monkeypatch.setattr(curve_records, 'CURVE_U8_BY_HEAD', True)
+    switched = {o: rest for o, *rest in _found(image)}
+    assert switched[at][:2] == [6, 'u8'] and switched[at][2] == ['width-derived']
+    # negative: with a record behind the 16-bit values nothing switches
+    assert switched[0x200 + 14][1] in ('u16', 's16')
+
+
+def test_8_bit_by_head_counterexample_a_16_bit_tail_reads_like_a_head(monkeypatch):
+    """Counterexample for CURVE_U8_BY_HEAD (quality phase 5, synthetic): the last 16-bit values of a curve
+    (6, 0, 400) followed by an unrelated rising table (900, 1600, ...) read like a record head right behind
+    the 8-bit values, and no record follows the 16-bit values. The rule would read this 16-bit curve as 8 bit,
+    so it stays off; by default the curve stays 16 bit with its width open ('?')."""
+    from ecu_studio.core import curve_records
+    lead = _curve([-30, -10, 0, 20, 40, 90])
+    a = _curve([50, 70, 90, 6, 0, 400])
+    tail = np.array([900, 1600, 2500, 3600, 4900, 6400], '<i2').tobytes()
+    image = _image(lead, a, tail)
+    at = 0x200 + len(lead) + 14
+    default = {o: rest for o, *rest in _found(image)}
+    assert default[at][:2] == [6, 'u16'] and 'width' in default[at][2]
+    monkeypatch.setattr(curve_records, 'CURVE_U8_BY_HEAD', True)
+    switched = {o: rest for o, *rest in _found(image)}
+    assert switched[at][:2] == [6, 'u8']          # the experiment is wrong here: the switch stays off

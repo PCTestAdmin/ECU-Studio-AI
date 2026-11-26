@@ -159,7 +159,12 @@ def test_gui_worker_transfer_preview_and_virtual_catalogue(tmp_path,monkeypatch)
     from ecu_studio.core.scoped_scan import scan_calibration_candidates
     assert scan_calibration_candidates(image,cancelled=lambda:True)==[]
     w.set_byte_radix(10)
+    # Quality phase 6: byte 0 belongs to the table 'test'; a hex write there names it and needs a confirmation.
+    from PySide6.QtWidgets import QMessageBox
+    asked=[]
+    monkeypatch.setattr(QMessageBox,'question',lambda *a,**k:asked.append(a[2]) or QMessageBox.StandardButton.Yes)
     assert w.hex_model.setData(w.hex_model.index(0,0),'255')
+    assert asked and "'test'" in asked[0] or 'test' in asked[0]
     assert w.hex_model.data(w.hex_model.index(0,0))=='255'
     assert not w.hex_model.setData(w.hex_model.index(0,0),'256')
     w.autosave()

@@ -126,15 +126,16 @@ def axis_value_hints(maps: list[MapDefinition], groups: list[AxisGroup] | None =
 
 
 def relocated_axis(source: BinaryImage, target: BinaryImage, at: int | None, count: int,
-                   shift: int) -> int | None:
+                   shift: int, width: int = 0, step: int = 0) -> int | None:
     """Axis offset after moving a map by ``shift``; None unless the target confirms the bytes.
 
-    The axis width is not stored, so 2 bytes per point are compared: conservative
-    for 8-bit axes (more bytes must agree), exact for 16-bit ones.
+    ``width``: bytes per point the axis is stored with (``step``: distance between points, 0 = packed). Without
+    a stated width the widest cell (4 bytes per point) is compared: more bytes must agree, never fewer.
     """
     if at is None:
         return None
-    n, new = 2 * count, at + shift
+    width = width or 4
+    n, new = (count - 1) * max(step, width) + width, at + shift
     if at + n > source.size or new < 0 or new + n > target.size:
         return None
     return new if source.read(at, n) == target.read(new, n) else None

@@ -21,6 +21,7 @@ def run(output):
     from ..core.smart_transfer import FirmwareIdentity,plan_transfer,apply_transfer
     from ..core.editing import plan_surface_edit
     from ..core.workflows import apply_batch
+    from ..core.edit_guard import silent_approval,update_positions,written_positions
     from dataclasses import replace
     out=Path(output).resolve()
     out.mkdir(parents=True,exist_ok=True)
@@ -53,7 +54,10 @@ def run(output):
         pane=window.map_editors[0]
         pane.table.selectAll()
         preview=plan_surface_edit(image,m,'add',cells=[(1,1)],amount=10)
-        apply_batch(image,preview)
+        # The window guards its image: a table edit needs an approval (here: only the own table is affected).
+        approval=silent_approval(image,m,update_positions(preview.updates))
+        assert approval is not None
+        apply_batch(image,preview,approval=approval)
         window.on_edited()
         assert pane.model.data(pane.model.index(1,1))=='1061'
         window.undo()
@@ -164,7 +168,8 @@ def run(output):
         data,axis=window.curve_view.curve_data()
         assert axis and data[0][1]==1.25
         from ..core.compare_maps import compare_images
-        float_image.write_physical(fm,0,0,1.375)
+        float_image.write_physical(fm,0,0,1.375,
+                                   approval=silent_approval(float_image,fm,written_positions(fm,[(0,0)])))
         assert compare_images(float_image.original,float_image,[fm])['maps_changed']==1
         assert float_image.undo() and not float_image.dirty_bytes
         app.processEvents()

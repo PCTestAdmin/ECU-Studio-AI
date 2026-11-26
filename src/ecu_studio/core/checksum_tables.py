@@ -161,15 +161,18 @@ def plan_table_correction(image) -> list[tuple[int, bytes, bytes]]:
             for b in blocks if start[b.record + 8:b.record + 16] != bytes(data[b.record + 8:b.record + 16])]
 
 
-def apply_table_correction(image, steps) -> dict:
-    """Write a plan from plan_table_correction, verify, roll back on any mismatch."""
+def apply_table_correction(image, steps, *, approval=None) -> dict:
+    """Write a plan from plan_table_correction as ONE transaction, verify, roll back on any mismatch."""
     if [(o, n) for o, _, n in plan_table_correction(image)] != [(o, n) for o, _, n in steps]:
         raise ValueError('Datei hat sich seit der Planung geändert – bitte neu planen')
+    changes = []
     for offset, _, new in steps:
-        image.write(offset, new)
+        old = image.read(offset, len(new))
+        changes += [(offset + i, o, n) for i, (o, n) in enumerate(zip(old, new)) if o != n]
+    written = image.commit(changes, label='Prüfsummen-Tabellen-Korrektur', approval=approval)
     result = check_tables(image)
     if result['mismatches']:
-        for offset, old, _ in steps:
-            image.write(offset, old)
+        if written:
+            image.undo()
         raise ValueError('Nach der Korrektur stimmen nicht alle Blöcke – zurückgesetzt')
     return result

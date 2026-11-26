@@ -88,6 +88,8 @@ _WIDTH_GUESSED = ('Wertebreite = Achsenbreite (ungeprüft)', 'Wertebreite 1 Byte
 
 
 WIDTH_OPEN = 'Wertebreite offen: auch eine 8-Bit-Tabelle'
+ROUTINE_WIDTH = 'nur aus der Kennlinienroutine abgeleitet'
+SIGN_FOLLOWS_BYTE_ORDER = True   # quality phase 5: an open byte order leaves the sign open as well (switch)
 # Keys of the open questions about a data type, in the order they are shown (1.21.0).
 WIDTH, SIGN, BYTE_ORDER, PATTERN, WIDTH_DERIVED = 'width', 'sign', 'byte-order', 'pattern', 'width-derived'
 
@@ -115,7 +117,7 @@ def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
     """
     if m.source != 'heuristic' or m.verified:
         return []
-    from .axis_records import ENDIAN_OPEN
+    from .axis_records import ENDIAN_OPEN, ENDIAN_OPEN_AXES
     notes = m.notes or ''
     out = []
     if WIDTH_OPEN in notes:
@@ -123,12 +125,22 @@ def type_doubts(m: MapDefinition) -> list[tuple[str, str]]:
     if m.dtype_alternatives:
         out.append((SIGN, 'Vorzeichen nicht belegt (auch möglich: ' + ', '.join(m.dtype_alternatives) + ')'))
     if ENDIAN_OPEN in notes and m.width > 1:
-        out.append((BYTE_ORDER, 'Byte-Reihenfolge nicht belegt (Datensätze dieses Abbilds uneinig; auch möglich: '
+        why = ('gegen die Mehrheit der Datensätze gelesen, beide Lesarten steigen' if ENDIAN_OPEN_AXES in notes
+               else 'Datensätze dieses Abbilds uneinig')
+        out.append((BYTE_ORDER, f'Byte-Reihenfolge nicht belegt ({why}; auch möglich: '
                     + ('little' if m.endian == 'big' else 'big') + ')'))
+        if SIGN_FOLLOWS_BYTE_ORDER and SIGN not in {k for k, _ in out} and not m.dtype.startswith('f'):
+            # Quality phase 5: which bit is the sign bit depends on the byte order; with the byte order open the
+            # sign is open too (development data: 9 wrong signs newly marked for 13 right ones).
+            out.append((SIGN, 'Vorzeichen nicht belegt (hängt von der offenen Byte-Reihenfolge ab)'))
     if evidence_level(m) == DATA_PATTERN:
         out.append((PATTERN, 'Datentyp nur aus der Glätte der Werte geschätzt'))
     elif not out and any(text in notes for text in _WIDTH_GUESSED):
         out.append((WIDTH_DERIVED, 'Wertebreite nur aus dem Datensatzaufbau abgeleitet'))
+    if ROUTINE_WIDTH in notes and WIDTH not in {k for k, _ in out}:
+        # Quality phase 5: the width of a code curve whose own values do not fill the gap to the next named
+        # object comes from the curve routine only; shown even when the sign is open too.
+        out.append((WIDTH_DERIVED, 'Wertebreite nur aus der Kennlinienroutine abgeleitet'))
     return out
 
 

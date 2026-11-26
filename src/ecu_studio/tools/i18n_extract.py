@@ -19,7 +19,7 @@ from pathlib import Path
 
 PKG = Path(__file__).resolve().parents[1]
 CATALOG = PKG / 'recognition' / 'data' / 'i18n' / 'en.json'
-SOURCES = ['ui/*.py', 'core/*.py', 'formats/*.py', 'recognition/*.py', 'main.py']
+SOURCES = ['ui/*.py', 'core/*.py', 'formats/*.py', 'recognition/*.py', 'main.py', 'tools/tester_core.py']
 SKIP_FILES = {'i18n.py'}
 GERMAN = re.compile(r'[äöüÄÖÜß]|\b(der|die|das|den|dem|des|und|nicht|mit|für|wird|werden|ist|sind|Datei|Dateien|'
                     r'Kennfeld\w*|bitte|Bitte|kein\w*|Kein\w*|aus|auf|oder|eine?|zum|zur|nach|alle|Alle|wählen|'

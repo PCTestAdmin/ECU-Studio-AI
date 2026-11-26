@@ -77,3 +77,33 @@ def test_sign_stays_open_after_the_byte_order_is_turned():
     found = at_z()
     assert found and found[0].endian == 'little' and 'Mehrheit' in found[0].notes
     assert found[0].dtype_alternatives == ['u16' if found[0].dtype == 's16' else 's16']
+
+
+def test_axes_read_against_the_majority_stay_open_when_both_readings_rise(monkeypatch):
+    """Quality phase 3: a flat 8-bit record bounded by the next header is outside the byte-order vote; its 16-bit
+    axes were read big (tried first) in a little-endian image although both readings rise. The order stays open
+    ("?") on the record axes; values, addresses and shapes do not change."""
+    from ecu_studio.core.axis_records import record_axes
+    from ecu_studio.core.confidence import type_doubts
+
+    def axis(n):
+        return b''.join(bytes([k + 1, 2 * k + 1]) for k in range(n))      # rises read little and read big
+    record = bytes([8, 6]) + axis(8) + axis(6) + bytes([40]) * 48
+    buf = bytearray(0x200)
+    for i in range(24):
+        buf += wide_record(i) + bytes(8)
+    z = len(buf) + 2 + 28
+    buf += record + wide_record(99) + bytes(0x200)
+    img = BinaryImage(bytes(buf))
+
+    def at_z():
+        return [m for m in scan_axis_records(img, max_results=300) if m.offset == z]
+    found = at_z()
+    assert found and axis_records.ENDIAN_OPEN_AXES in found[0].notes
+    axes = record_axes(img, found[0])
+    assert len(axes) == 2 and all(any(k == 'byte-order' for k, _ in type_doubts(a)) for a in axes)
+    monkeypatch.setattr(axis_records, 'ENDIAN_AXES_OPEN', False)
+    old = at_z()
+    assert [(m.offset, m.rows, m.cols, m.dtype, m.endian, m.axes_x) for m in old] == \
+           [(m.offset, m.rows, m.cols, m.dtype, m.endian, m.axes_x) for m in found]
+    assert not any(k == 'byte-order' for a in record_axes(img, old[0]) for k, _ in type_doubts(a))

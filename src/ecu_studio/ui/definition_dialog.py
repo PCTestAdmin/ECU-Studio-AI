@@ -13,6 +13,7 @@ from ..core.definition_edit import AxisSpec, preview_values, propose
 from ..core.model import FORMATS
 
 PREVIEW_LIMIT = 32
+AXIS_TYPE_CHOOSE = '— Zelltyp wählen —'
 
 
 def _offset(text: str) -> int | None:
@@ -56,8 +57,9 @@ class DefinitionDialog(QDialog):
         if m.equation:
             form.addRow('Formel', QLabel(f'{m.equation} (aus der Definition, schreibgeschützt)'))
         left.addLayout(form)
-        self.axis_x = self._axis_box('X-Achse (Spalten)', m.axis_x_offset, m.axis_x_unit, m.dtype, m.endian)
-        self.axis_y = self._axis_box('Y-Achse (Zeilen)', m.axis_y_offset, m.axis_y_unit, m.dtype, m.endian)
+        # The axis cell type is its own property: the value type is never preselected for it.
+        self.axis_x = self._axis_box('X-Achse (Spalten)', m.axis_x_offset, m.axis_x_unit, m.axis_x_dtype, m.endian)
+        self.axis_y = self._axis_box('Y-Achse (Zeilen)', m.axis_y_offset, m.axis_y_unit, m.axis_y_dtype, m.endian)
         left.addWidget(self.axis_x['box']); left.addWidget(self.axis_y['box'])
         left.addStretch()
         layout.addLayout(left, 2)
@@ -98,7 +100,8 @@ class DefinitionDialog(QDialog):
              'dtype': QComboBox(), 'endian': QComboBox(), 'factor': QDoubleSpinBox(), 'unit': QLineEdit(unit)}
         w['offset'].setPlaceholderText('leer = keine gespeicherte Achsenadresse')
         w['stored'] = offset
-        w['dtype'].addItems(list(FORMATS)); w['dtype'].setCurrentText(dtype)
+        w['dtype'].addItems([AXIS_TYPE_CHOOSE, *FORMATS])
+        w['dtype'].setCurrentText(dtype if dtype in FORMATS else AXIS_TYPE_CHOOSE)
         w['endian'].addItems(['big', 'little']); w['endian'].setCurrentText(endian)
         w['factor'].setDecimals(8); w['factor'].setRange(-1e9, 1e9); w['factor'].setValue(1.0)
         for label, key in (('Adresse', 'offset'), ('Datentyp', 'dtype'), ('Byte-Reihenfolge', 'endian'),
@@ -123,6 +126,9 @@ class DefinitionDialog(QDialog):
         if offset is None:
             # Emptied field of a stored axis = remove that address; otherwise keep the imported values.
             return AxisSpec(None) if w['stored'] is not None else None
+        if w['dtype'].currentText() not in FORMATS:
+            raise ValueError(f'{w["box"].title()}: Zelltyp der Achse wählen (der Datentyp der Kennfeldwerte gilt '
+                             'nicht automatisch für die Achse)')
         return AxisSpec(offset, w['dtype'].currentText(), w['endian'].currentText(), w['factor'].value())
 
     def fields(self) -> dict:

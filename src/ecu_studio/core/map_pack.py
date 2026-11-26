@@ -69,7 +69,7 @@ def _validate_map(record, size):
     if not isinstance(record, dict):
         raise ValueError('Invalid package map')
     m = map_from_record(record, set())
-    ints = ('offset', 'rows', 'cols', 'major_stride_bits', 'minor_stride_bits')
+    ints = ('offset', 'rows', 'cols', 'major_stride_bits', 'minor_stride_bits', 'axis_x_step', 'axis_y_step')
     if any(type(getattr(m, k)) is not int for k in ints):
         raise ValueError('Map addresses and dimensions must be integers')
     if type(m.verified) is not bool:
@@ -98,8 +98,8 @@ def _validate_map(record, size):
             raise ValueError('Axis point count mismatch')
         if any(type(v) not in (int, float) or not math.isfinite(v) for v in values):
             raise ValueError('Invalid axis value')
-        # The current model has no independent axis storage type. Even the
-        # minimum possible byte span must fit; do not invent an axis width.
+        # A stated axis cell type is checked by m.validate() (all points in the image). Without one (packs of
+        # older versions) the width is unknown: the minimum byte span must fit; no width is invented.
         if offset is not None and offset + count > size:
             raise ValueError('Axis storage exceeds source image')
     return m
@@ -189,6 +189,9 @@ def make_pack(image, maps, *, include_axes=True, include_annotations=False) -> M
             for key in ('axis_x_offset', 'axis_y_offset'):
                 record[key] = None
             record['axis_x_ref'] = record['axis_y_ref'] = ''
+            for axis in ('x', 'y'):
+                record[f'axis_{axis}_dtype'] = record[f'axis_{axis}_type_source'] = ''
+                record[f'axis_{axis}_step'] = 0
         # Reject absolute paths in explicit names instead of silently exporting them.
         for v in [*record.values(), *record['type_alternatives']]:
             if isinstance(v, str) and re.search(r'[A-Za-z]:[\\/]|\\\\|(?:^|\s)/(?:home|Users|tmp)/', v):

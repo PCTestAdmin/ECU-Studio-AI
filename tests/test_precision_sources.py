@@ -83,3 +83,36 @@ def test_bundled_two_known_synthetic_maps_are_kept_and_noise_is_not_promoted():
     assert all(m.kind=='Unbekannt' and not m.verified for m in candidates)
     noise=np.random.default_rng(121).integers(0,256,32*1024,dtype=np.uint8).tobytes()
     assert scan_calibration_candidates(BinaryImage(noise))==[]
+
+
+def _smooth_with_candidate_inside(layout):
+    y,x=np.mgrid[:16,:16]
+    raw=bytearray(4096)
+    for n,v in enumerate((400+12*y+7*x).astype(int).flat):raw[512+2*n:514+2*n]=int(v).to_bytes(2,'big')
+    smooth=MapDefinition('smooth',512,16,16,'u16','big',source='heuristic',confidence=.45)
+    inner=MapDefinition('inner',512+2*48,4,16,'u16','big',source='heuristic',confidence=.20,
+                        record_layout=layout,candidate_region_start=512+2*40)
+    return BinaryImage(bytes(raw)),smooth,inner
+
+
+def test_code_evidence_is_not_displaced_by_a_smooth_run_around_it():
+    """After 1.21.0-rc1: a program-code reference wins even inside an earlier smoothness-only candidate."""
+    from ecu_studio.core import precision
+    img,smooth,inner=_smooth_with_candidate_inside('candidate:code-reference')
+    assert [m.name for m in rank_candidates(img,[smooth,inner])]==['inner']
+    inside=precision._header_inside([smooth])
+    assert precision._priority(inner,inside)
+    old=precision.CODE_EVIDENCE_ALWAYS_WINS
+    precision.CODE_EVIDENCE_ALWAYS_WINS=False      # ablation: rc1 behaviour, strength decides
+    try:
+        assert not precision._priority(inner,inside)
+    finally:
+        precision.CODE_EVIDENCE_ALWAYS_WINS=old
+
+
+def test_header_record_inside_a_smooth_run_still_yields():
+    """A smooth table contains runs that read like a record header: such a record does not win by layout."""
+    from ecu_studio.core import precision
+    img,smooth,inner=_smooth_with_candidate_inside('candidate:nx,ny,x,y,z')
+    assert not precision._priority(inner,precision._header_inside([smooth]))
+    assert [m.name for m in rank_candidates(img,[smooth,inner])]==['smooth']

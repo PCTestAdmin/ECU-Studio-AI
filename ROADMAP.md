@@ -17,7 +17,7 @@
 
 # Roadmap
 
-Stand: 20.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
+Stand: 25.11.2026. Diese Seite beschreibt, was veröffentlicht ist, was in Entwicklung ist und was als Nächstes
 geplant ist. Grundlage sind Code, Tags, [CHANGELOG](CHANGELOG.md), Release Notes, Pull Requests, Tests und
 Prüfberichte.
 
@@ -25,23 +25,26 @@ Prüfberichte.
 |---|---|---|
 | 🟢 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** · 14.11.2026 | **aktuelle Version** ([Release Notes](docs/RELEASE_NOTES_1.20.1.md)) |
 | 🧪 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** · 20.11.2026 | **veröffentlichte Vorabversion** (GitHub-Pre-Release, nicht „Latest“) für freiwillige Tests, keine stabile Version; der stabile Update-Kanal bietet sie nicht an ([Release Notes](docs/RELEASE_NOTES_1.21.0-rc1.md)) |
-| 🟠 | **1.21.0** | **geplante stabile Version, nicht veröffentlicht** ([PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
+| 📋 | **1.21.0** | **geplante stabile Version, nicht veröffentlicht**; ihr Inhalt ist bisher als Vorabversion 1.21.0-rc1 veröffentlicht ([PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Entwicklungsbericht](docs/ENTWICKLUNG_1.21.0.md)) |
+| 🟠 | **Nach 1.21.0-rc1** | **in Entwicklung, nicht veröffentlicht**: nächste Generation der Kennfelderkennung (Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, [Bericht](docs/ENTWICKLUNG_NEXTGEN.md)); als experimentelle Vorabversion **1.21.0-rc2 vorbereitet (einschließlich Release-Fix Zellbreite der Achsen), nicht freigegeben** ([Entscheidungsvorlage](docs/RELEASE_READINESS_RC2.md)) |
 
 Termine gibt es bewusst nicht: Ein Punkt gilt erst als fertig, wenn er an echten, rechtmäßig nutzbaren Daten
 gemessen und veröffentlicht ist.
 
 **Inhalt:** [Statusbegriffe](#statusbegriffe) · [A. Versionen](#a-versionen) ·
-[B. Erkennungsgüte 1.20.1 → 1.21.0](#b-erkennungsgüte-1201--1210-in-entwicklung) ·
+[B. Erkennungsgüte 1.20.1 → 1.21.0-rc1](#b-erkennungsgüte-1201--1210-rc1-vorabversion) ·
 [C. Funktionen und Stand](#c-funktionen-und-stand) · [D. Plan](#d-plan) ·
-[E. Nicht geplant, fehlende Daten](#e-bewusst-nicht-geplant-und-fehlende-daten)
+[E. Nicht geplant, fehlende Daten](#e-bewusst-nicht-geplant-und-fehlende-daten) ·
+[F. Langfristiges Ziel](#f-langfristiges-ziel-automatische-kennfeldidentifikation-und-physikalische-skalierung)
 
 ## Statusbegriffe
 
 | Status | Bedeutung |
 |---|---|
 | ✅ **veröffentlicht** | In einem GitHub-Release enthalten |
-| 🟠 **implementiert, nicht veröffentlicht** | Im Entwicklungszweig umgesetzt und getestet, aber in keinem stabilen Release (derzeit: 1.21.0, PR #29; als Vorabversion in 1.21.0-rc1 enthalten) |
-| 🧪 **experimentell** | Veröffentlicht oder implementiert, aber ausdrücklich als ungeprüft/experimentell gekennzeichnet; Ergebnisse sind Vorschläge. Auch Vorabversionen (GitHub-Pre-Release, nie „Latest“) |
+| 🧪 **Vorabversion** | In der veröffentlichten Vorabversion 1.21.0-rc1 enthalten (GitHub-Pre-Release, nie „Latest“), noch in keinem stabilen Release |
+| 🟠 **implementiert, nicht veröffentlicht** | Im Entwicklungszweig umgesetzt und getestet, in keinem Release und keiner Vorabversion (derzeit: Zweig nach 1.21.0-rc1, Draft-PR) |
+| ⚗️ **experimentell** | Ausdrücklich als ungeprüft/experimentell gekennzeichnet (veröffentlicht oder nicht); Ergebnisse sind Vorschläge |
 | 🟡 **teilweise** | Veröffentlicht, deckt aber nur einen Teil ab (welcher, steht in der Zeile) |
 | 📋 **geplant** | Noch nicht begonnen oder ohne lauffähigen Stand |
 | 🚫 **nicht unterstützt** | Nicht vorhanden; bei 🚫 in [E](#e-bewusst-nicht-geplant-und-fehlende-daten) bewusst ausgeschlossen |
@@ -56,7 +59,8 @@ veröffentlicht; sie stehen nur im [CHANGELOG](CHANGELOG.md).
 | Version | Datum | Status | Schwerpunkte | Belege |
 |---|---|---|---|---|
 | **[1.21.0-rc1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1)** | 20.11.2026 | 🧪 Vorabversion veröffentlicht (Pre-Release, nicht „Latest“) | Vorabversion des Stands unten zum Praxistest; Testkanal für Vorabversionen (stabiler Kanal bietet sie nie an), Versionsschema `X.Y.Z-rcN`, Release-Workflow nur als Pre-Release mit Schutzprüfungen; TriCore-Vorzeichen nur bei einheitlichen Ladebefehlen belegt | [Notes](docs/RELEASE_NOTES_1.21.0-rc1.md), [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29) |
-| **1.21.0** | – | 🟠 in Entwicklung (stabile Version geplant) | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, unbelegte Byte-Reihenfolge sichtbar, Prüfhilfen (Filter, fehlender Beleg, Lesarten nebeneinander), gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
+| **Nach 1.21.0-rc1** | – | 🟠 in Entwicklung, nicht veröffentlicht | Nächste Generation: Codebeleg aus direkt geladenen Werten gegen Datenmuster-Fehlfunde, Funktionsebene (Prototyp, Status Bestätigt/Stark gestützt/Vermutet/Unbekannt), Datentyp-Status je Eigenschaft und Umrechnung mit Herkunft; nicht unabhängig validiert | [Bericht](docs/ENTWICKLUNG_NEXTGEN.md) |
+| **1.21.0** | – | 📋 stabile Version geplant; Inhalt als 1.21.0-rc1 veröffentlicht | Kennfelderkennung mit privaten A2L-/HEX-Referenzdaten: verlagerte TriCore-Kalibrierung, Zeigertripel, gemischte Achsbreiten, Wertebreite aus Datensatzgrenzen, widersprochene Datenmuster verworfen, Datentyp mit „?“, unbelegte Byte-Reihenfolge sichtbar, Prüfhilfen (Filter, fehlender Beleg, Lesarten nebeneinander), gelber Preflight-Befund für ungeprüfte Vorschläge; Testisolierung der Einstellungen (Registry) | [PR #29](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/29), [Bericht](docs/ENTWICKLUNG_1.21.0.md) |
 | **[1.20.1](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.20.1)** | 14.11.2026 | ✅ veröffentlicht, aktuelle stabile Version | Deinstallation nach In-App-Update ohne Rückstände (Inventar), Updates von Installer-Installationen über den geprüften Installer, weitere ME7-Prüfsummen (nur Prüfung), Signaturstatus mit sechs Zuständen, Release-Prüfungen | [Notes](docs/RELEASE_NOTES_1.20.1.md), PR [#24](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/24)–[#28](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/28) |
 | **1.20.0** | 11.11.2026 | ✅ veröffentlicht | Checksummen & Integrität mit fünf Status, Bosch-Multipoint unabhängig belegt (199/199), sichere Korrektur, getrennte Preflight-Stufen, stabiler Definitionseditor | [Notes](docs/RELEASE_NOTES_1.20.0.md), PR [#19](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/19)–[#22](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/22) |
 | **1.19.1** | 08.11.2026 | ✅ veröffentlicht | Architektur nur mit zwei Merkmalen, weniger Fehlfunde (offene Firmware: nachweislich falsche Funde 921 → 0), A2L-Zwischenspeicher, Dateiversion | [Notes](docs/RELEASE_NOTES_1.19.1.md), PR [#16](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/16)–[#18](https://github.com/PCTestAdmin/ECU-Studio-AI/pull/18) |
@@ -75,11 +79,11 @@ veröffentlicht; sie stehen nur im [CHANGELOG](CHANGELOG.md).
 
 ---
 
-## B. Erkennungsgüte 1.20.1 → 1.21.0 (in Entwicklung)
+## B. Erkennungsgüte 1.20.1 → 1.21.0-rc1 (Vorabversion)
 
 > [!IMPORTANT]
-> **Nichts aus dieser Tabelle ist veröffentlicht.** Die Zahlen beschreiben den Entwicklungszweig von 1.21.0
-> (PR #29), gemessen an privaten A2L-/HEX-Referenzdaten eines Datengebers (163 Abbilder, 80 A2L, BMW-Linien der
+> **Der Stand der letzten Spalte ist als Vorabversion 1.21.0-rc1 veröffentlicht, nicht als stabile Version.**
+> Die Zahlen beschreiben den Entwicklungszweig von 1.21.0 (PR #29, Funde identisch mit rc1), gemessen an privaten A2L-/HEX-Referenzdaten eines Datengebers (163 Abbilder, 80 A2L, BMW-Linien der
 > Familien ME9, MEVD17.2, MEVD17.2.3, MSD80, MSV90). Sie gelten **nur für diese Daten** und nur für
 > **verifizierbare 2D-Kennfelder** (A2L-Objekte, deren Lage und Form sich am Abbild prüfen lassen). Die Daten
 > bleiben lokal; mit ihnen wurde **kein Modell trainiert** (Nutzungsrechte dafür ungeklärt).
@@ -146,22 +150,25 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 
 | Bereich | Status | Seit | Was es heute kann | Grenzen |
 |---|---|---|---|---|
-| **Automatische Kennfelderkennung** | ✅ veröffentlicht · 🟠 Ausbau in 1.21.0 | 1.15.0, Ebenen 1.19.0 | Code-Verweise (C16x, TriCore, 68k, SH-2, HC11, 8051), Datensätze mit Anzahl und Achsen, Achsen-Arrays, Datenmuster; jeder Fund mit Belegstufe | Funde sind Geometrie-Hypothesen, nicht unabhängig validiert; TriCore-Code 🧪; Präzision nur für einzelne Referenzen bekannt |
-| **A2L / DAMOS** | ✅ veröffentlicht · 🟠 Korrekturen in 1.21.0 | 1.15.0 | Kennfelder, Kennlinien und Werte mit Achsen und Umrechnung, EPK-Prüfung gegen die Datei, Zwischenspeicher | Keine vollständige ASAP2-Implementierung; 1.21.0: verdoppelte Anführungszeichen, VAL_BLK mit `NUMBER` |
+| **Automatische Kennfelderkennung** | ✅ veröffentlicht · 🧪 Ausbau in 1.21.0-rc1 · 🟠 nächste Generation | 1.15.0, Ebenen 1.19.0 | Code-Verweise (C16x, TriCore, 68k, SH-2, HC11, 8051), Datensätze mit Anzahl und Achsen, Achsen-Arrays, Datenmuster; jeder Fund mit Belegstufe. 🟠 Nächste Generation: direkt geladene Werte widerlegen Datenmuster-Funde | Funde sind Geometrie-Hypothesen, nicht unabhängig validiert; TriCore-Code ⚗️; Präzision nur für einzelne Referenzen bekannt |
+| **A2L / DAMOS** | ✅ veröffentlicht · 🧪 Korrekturen in 1.21.0-rc1 · 🟠 Umrechnung mit Herkunft, A2L-Funktionen | 1.15.0 | Kennfelder, Kennlinien und Werte mit Achsen und Umrechnung, EPK-Prüfung gegen die Datei, Zwischenspeicher | Keine vollständige ASAP2-Implementierung; 1.21.0: verdoppelte Anführungszeichen, VAL_BLK mit `NUMBER` |
 | **Weitere Definitionen** | ✅ veröffentlicht | ≤ 1.14, Pakete 1.17.0 | XDF (Import, Export mit Rückimport-Prüfung), RomRaider, CSV, HEX/S19, offenes Kennfeldpaket | XDF-Export nur für Tabellen, Kennlinien, Konstanten |
 | **Editor und Visualisierung** | ✅ veröffentlicht | ≤ 1.14 | Tabelle, Heatmap, 2D, 3D, Hex, Speicheratlas, ORI/MOD-Vergleich, Definition bearbeiten mit Vorschau, Undo, Projektstände | Original bleibt unverändert; Änderungen als Ebene |
-| **Steuergeräte-Identifikation** | ✅ veröffentlicht · 🟡 teilweise | 1.16.0, Stufen 1.19.0 | Familie und Softwarestand mit Stufe und Grund | Siemens-Familien ohne Klartext „unbekannt“; ME9-Referenz nicht erkannt; 1.21.0 🟠: EPK verfeinert Plattformfamilie |
-| **Wiedererkennung über Versionen** | ✅ veröffentlicht · 🟠 Ausbau in 1.21.0 | 1.16.0 / 1.16.4 | Softwarestand-Vergleich (auch verschoben), Namensübertragung, Werteübernahme mit Vorschau | Übertragene Namen sind Vorschläge; 1.21.0: flache Blöcke nur mit Ankern |
-| **KI / Lernmodelle** | 🧪 eingeschränkt | vor 1.15.0; Rückzug 1.19.0 | Zwei kleine Modelle mit geklärter Herkunft sortieren Strukturvorschläge nur um (Strukturprüfung aus synthetischen Flächen; Reihung aus rusEFI-Quellen, GPL-3.0) und entfernen keine; Modellsperre für überwacht trainierte Typmodelle | Lernmodell für Datenmuster und angezeigte Trefferquoten 1.19.0 entfernt (Herkunft nicht nachweisbar); kein Training mit den 1.21.0-Referenzdaten ([Modellkarte](docs/MODELLKARTE.md)) |
-| **Getriebesteuergeräte (TCU)** | 🧪 experimentell | 1.9.0 | Opt-in-Suche nach 1D-Wortpaar-Kurven, Familienhinweise (u. a. GS20) | Keine validierte TCU-Kennfelderkennung, keine TCU-Referenzdaten |
+| **Steuergeräte-Identifikation** | ✅ veröffentlicht · 🟡 teilweise | 1.16.0, Stufen 1.19.0 | Familie und Softwarestand mit Stufe und Grund | Siemens-Familien ohne Klartext „unbekannt“; ME9-Referenz nicht erkannt; 1.21.0-rc1 🧪: EPK verfeinert Plattformfamilie |
+| **Wiedererkennung über Versionen** | ✅ veröffentlicht · 🧪 Ausbau in 1.21.0-rc1 | 1.16.0 / 1.16.4 | Softwarestand-Vergleich (auch verschoben), Namensübertragung, Werteübernahme mit Vorschau | Übertragene Namen sind Vorschläge; 1.21.0: flache Blöcke nur mit Ankern |
+| **KI / Lernmodelle** | ⚗️ eingeschränkt | vor 1.15.0; Rückzug 1.19.0 | Zwei kleine Modelle mit geklärter Herkunft sortieren Strukturvorschläge nur um (Strukturprüfung aus synthetischen Flächen; Reihung aus rusEFI-Quellen, GPL-3.0) und entfernen keine; Modellsperre für überwacht trainierte Typmodelle | Lernmodell für Datenmuster und angezeigte Trefferquoten 1.19.0 entfernt (Herkunft nicht nachweisbar); kein Training mit den 1.21.0-Referenzdaten ([Modellkarte](docs/MODELLKARTE.md)) |
+| **Getriebesteuergeräte (TCU)** | ⚗️ experimentell | 1.9.0 | Opt-in-Suche nach 1D-Wortpaar-Kurven, Familienhinweise (u. a. GS20) | Keine validierte TCU-Kennfelderkennung, keine TCU-Referenzdaten |
 | **Checksummen** | ✅ veröffentlicht · 🟡 teilweise | 1.15.0, System 1.20.0 | Bosch-Multipoint (ME7.x, ME9, MED9) prüfen und korrigieren (199/199 Herstellerwerte); weitere ME7-Prüfsummen und EDC16/EDC17-Blöcke nur prüfen | Keine Datei bisher vollständig abgedeckt; Siemens/Continental „nicht unterstützt“ ([Details](docs/CHECKSUMMEN.md)) |
 | **Signaturprüfung** | 🟡 teilweise | 1.20.1 | Herstellersignaturen mit sechs getrennten Status; „gültig“ nur mit vertrauenswürdigem Schlüssel | Für keine Familie liegt ein solcher Schlüssel vor; keine Funktion erzeugt, entfernt oder umgeht Signaturen |
-| **Firmware-Schutz und Flash-Sicherheit** | ✅ veröffentlicht | 1.18.0 – 1.18.2 | Git-Hooks gegen Firmware im Repository, strukturelle Bildprüfung, Preflight mit getrennten Stufen; 1.21.0 🟠: Befund für Änderungen in ungeprüften Vorschlägen | **Keine Flashfreigabe**; Pixelinhalte von Bildern nicht prüfbar ([Details](docs/FIRMWARE_PROTECTION.md)) |
+| **Firmware-Schutz und Flash-Sicherheit** | ✅ veröffentlicht | 1.18.0 – 1.18.2 | Git-Hooks gegen Firmware im Repository, strukturelle Bildprüfung, Preflight mit getrennten Stufen; 1.21.0-rc1 🧪: Befund für Änderungen in ungeprüften Vorschlägen | **Keine Flashfreigabe**; Pixelinhalte von Bildern nicht prüfbar ([Details](docs/FIRMWARE_PROTECTION.md)) |
 | **Updates und Deinstallation** | ✅ veröffentlicht · 🧪 Testkanal in der Vorabversion 1.21.0-rc1 | 1.15.0, Offline zuerst 1.18.0, Inventar 1.20.1 | Update-Suche ab Werk aus, SHA-256 und Build-Herkunft, Rücksicherung, Deinstallation nach Inventar | Signierte Updates eingebaut, aber ohne Schlüssel inaktiv; EXE nicht code-signiert (SmartScreen); Updates mit dem Updater von 1.20.0 hinterlassen Dateien; 1.21.0-rc1: stabiler Kanal bietet nie eine Vorabversion an, Testkanal nur nach Rückfrage, ein Release mit widersprüchlicher Markierung wird in keinem Kanal angeboten |
-| **Leistung** | ✅ veröffentlicht · 🟠 1.21.0 | 1.16.0 | Alle CPU-Kerne; 1.21.0: Leistungssatz 160 s → 144 s bei 48 % mehr exakten Funden | Messstreuung zwischen Tagen bis 7 %; 10-MB-Vollflashs brauchen rund 18 s |
-| **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0 🟠: Datentyp mit „?“, Filter „Datentyp nicht belegt“ und „Überschneidung“, fehlender Beleg je offener Frage, Lesarten derselben Bytes nebeneinander, Prüfliste nach Prüfgrund, geprüfte Einträge hervorgehoben | Windows 10/11; Lesarten zeigen Rohwerte, keine Bewertung |
+| **Leistung** | ✅ veröffentlicht · 🧪 1.21.0-rc1 | 1.16.0 | Alle CPU-Kerne; 1.21.0: Leistungssatz 160 s → 144 s bei 48 % mehr exakten Funden | Messstreuung zwischen Tagen bis 7 %; 10-MB-Vollflashs brauchen rund 18 s |
+| **Funktionsebene** | 🟠 Prototyp, nicht veröffentlicht | – | Funktion je Kennfeld nur aus A2L `FUNCTION` oder über Beziehungen (gemeinsame Achse, Programmcode, Nachbar nur zwischen Tabellen derselben Funktion) zu Kennfeldern mit bekannter Funktion; Status Bestätigt / Stark gestützt / Vermutet / Unbekannt, Widersprüche und Belege mit Herkunft; Funktionsgruppen ohne Namen | Ohne Definition bleibt jede Funktion „Unbekannt“; Namen werden nie aus Werten abgeleitet; unter harten Aufteilungen geprüft, nur an zwei BMW-Linien der Entwicklungsdaten, nicht unabhängig validiert |
+| **Code-Datenfluss (TriCore)** | 🟠 ⚗️ experimentell, nicht veröffentlicht | – | Eingangsgrößen und Ergebnisort der Interpolationsaufrufe in begrenzten Fenstern; Beziehungen gleiche Routine, gleiche Ergebnisvariable, Datenfluss; offene Fälle mit Grund | Nur TriCore; keine PowerPC/C16x-Datenflussanalyse; an zwei Vollabbildern gegen A2L-Messgrößen geprüft |
+| **Datentyp und Umrechnung mit Herkunft** | 🟠 nicht veröffentlicht | – | Wertebreite, Vorzeichen, Byte-Reihenfolge je mit Status (bestätigt, codebelegt, abgeleitet, wertgleich, alternativ, unbestimmt), Quelle und Widerspruch; Faktor/Offset/Einheit mit Quelle (A2L COMPU_METHOD) | Erkannte Kennfelder bleiben Rohwerte; nicht unterstützte A2L-Umrechnungen ebenso; A2L-Grenzen nur als Hinweis; „wertgleich“ ist kein Typbeleg |
+| **Oberfläche** | ✅ veröffentlicht | – | Prüfliste, Belegstufen, Filter, Detailansicht; 1.21.0-rc1 🧪: Datentyp mit „?“, Filter „Datentyp nicht belegt“ und „Überschneidung“, fehlender Beleg je offener Frage, Lesarten derselben Bytes nebeneinander, Prüfliste nach Prüfgrund, geprüfte Einträge hervorgehoben | Windows 10/11; Lesarten zeigen Rohwerte, keine Bewertung |
 | **Sprachen** | ✅ veröffentlicht | 1.16.0 | Deutsch und Englisch (Systemsprache als Standard) | Dokumentation überwiegend Deutsch |
-| **Tests und CI/CD** | ✅ veröffentlicht · 🟠 Isolierung in 1.21.0 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter, Updater ohne echten Deinstallationseintrag im Testlauf, Tests für Abbruch und Fehlerfälle; echte Daten nur lokal. 1.21.0-rc1 🟠: Release-Wächter (Pre-Release-Plan, Prüfung von Entwurf und Veröffentlichung, Vergleich aller anderen Releases), Negativtests für falsche Versionierung, Probelauf ohne Veröffentlichung, Installer-QA auf Windows Server 2022/2025 |
+| **Tests und CI/CD** | ✅ veröffentlicht · 🧪 Isolierung in 1.21.0-rc1 | – | pytest unter Python 3.11/3.12 in CI, CodeQL, Release-Workflow mit Update-Praxistest auf Windows Server 2022/2025 und Build-Herkunft | 1.21.0-rc1: Testlauf mit eigenem Einstellungsprofil, Registry-Wächter, Updater ohne echten Deinstallationseintrag im Testlauf, Tests für Abbruch und Fehlerfälle; echte Daten nur lokal. 1.21.0-rc1 🧪: Release-Wächter (Pre-Release-Plan, Prüfung von Entwurf und Veröffentlichung, Vergleich aller anderen Releases), Negativtests für falsche Versionierung, Probelauf ohne Veröffentlichung, Installer-QA auf Windows Server 2022/2025 |
 
 ---
 
@@ -171,15 +178,159 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 
 | Punkt | Stand |
 |---|---|
-| Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🟠 umgesetzt: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht; Phase 5: Updater-Tests und Abbruchfälle abgesichert |
-| MS43-Regression aus Runde 3 | 🟠 behoben (196 → 197), allgemeine Regel, keine Sonderregel |
-| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🟠 umgesetzt; Phase 5: unbelegte Byte-Reihenfolge, Filter, fehlender Beleg, Lesarten nebeneinander; rc1: Vorzeichen nur bei einheitlicher Ladebreite belegt (MSV90 ohne „?“ falsch: 48 → 0, Holdout nur als Regression) |
-| Englische Oberfläche der Prüfhilfen | 🟠 rc1: Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste übersetzt, GUI-Test |
+| Testisolierung: keine Registry-Änderung durch Tests, Selbsttest oder Smoke | 🧪 in rc1: Selbsttest überschrieb nach Updates das Fensterlayout (behoben); Testlauf nur lesend überwacht; Phase 5: Updater-Tests und Abbruchfälle abgesichert |
+| MS43-Regression aus Runde 3 | 🧪 in rc1 behoben (196 → 197), allgemeine Regel, keine Sonderregel |
+| Unsichere Datentypen sichtbar halten („?“, Alternativen, Prüfliste) | 🧪 in rc1; Phase 5: unbelegte Byte-Reihenfolge, Filter, fehlender Beleg, Lesarten nebeneinander; rc1: Vorzeichen nur bei einheitlicher Ladebreite belegt (MSV90 ohne „?“ falsch: 48 → 0, Holdout nur als Regression) |
+| Englische Oberfläche der Prüfhilfen | 🧪 rc1: Prüfliste, Detailansicht, Preflight-Bericht und Markierungen der Kennfeldliste übersetzt, GUI-Test |
 | Release Candidate: Versionen, Testkanal, Workflow nur als Pre-Release | 🧪 in 1.21.0-rc1 veröffentlicht; Installer-QA Windows Server 2022/2025 und Release-Probelauf vor der Veröffentlichung bestanden |
 | Neue unabhängige Referenzdaten | 📋 offen: zweimal öffentlich gesucht (15. und 17.11.2026), keine rechtmäßig nutzbaren Paare realer Steuergeräte; nur eine synthetische externe Stichprobe |
 | Release-Prüfung (Tests, Smoke, Firmware-Guard, Leistung) und **ausdrückliche Freigabe** | 🧪 1.21.0-rc1: Prüfung abgeschlossen, Freigabe erteilt, am 20.11.2026 als [Pre-Release](https://github.com/PCTestAdmin/ECU-Studio-AI/releases/tag/v1.21.0-rc1) veröffentlicht (Leistung nur unter Fremdlast gemessen). Für die stabile Version 1.21.0: Rückmeldungen der Tester, neue Prüfung und neue Freigabe offen |
 
-### Danach (Reihenfolge = Priorität, ohne Termine)
+### Nach 1.21.0-rc1 – nächste Generation (🟠 in Entwicklung, nicht veröffentlicht)
+
+Zweig `feat/post-rc1-recognition-nextgen`, Draft-PR, Bericht [ENTWICKLUNG_NEXTGEN.md](docs/ENTWICKLUNG_NEXTGEN.md).
+Kein Teil davon ist unabhängig validiert; gemessen nur an den Entwicklungsdaten, der Holdout nur als Regression.
+
+| Punkt | Stand |
+|---|---|
+| Datenmuster-Funde durch Programmcode widerlegen (direkt geladene Werte) | 🟠 umgesetzt: Entwicklungsdaten Verwechslungen 5 316 → 5 113, exakte Treffer unverändert (0 verloren); nur Vollabbilder mit TriCore-Code |
+| Codebeleg wird nicht von Datenmuster-Fund verdrängt | 🟠 umgesetzt, ohne messbare Wirkung; Datensatzköpfe behalten die rc1-Ausnahme (sonst Fehler im synthetischen Demoabbild) |
+| Funktionsebene: Belege, Beziehungen, Status, Widersprüche, Herkunft | 🟠 Prototyp; A2L `FUNCTION` gelesen; keine Namen aus Werten |
+| Datentyp-Status je Eigenschaft, Umrechnung mit Quelle | 🟠 umgesetzt; Anzeige in Detailansicht und Funktionsgraph |
+| Benchmark je Eigenschaft (Start, Breite, Form, Achsen, Vorzeichen, Byte-Reihenfolge) | 🟠 privates Werkzeug; Umrechnung und Funktion für Funde „nicht ausgegeben“ |
+| Neue unabhängige Testgruppe | 📋 offen: Suche 21. und 22.11.2026 ohne rechtmäßig nutzbare Paare realer Steuergeräte |
+
+#### Stand nach Qualitätsphase 2 (22.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung: **🧪 rc1 veröffentlicht** = in 1.21.0-rc1; **🟠 PR #30** = im Zweig, nicht veröffentlicht; **⚗️
+experimentell**; **❔ nicht unabhängig validiert** = nur Entwicklungsdaten (Holdout nur Regression); **🔭 langfristig**.
+Zahlen: [Bericht § 7](docs/ENTWICKLUNG_NEXTGEN.md#7-qualitätsphase-2-22112026-funktionsanalyse-code-datenfluss-gegenbeispiele).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Funktionsidentifikation | 🟠 ❔ | Harte Aufteilungen (Anker 50 … 0 %, Speicherblöcke, ganze Funktionen) gemessen; Nachbar stimmt nur bei Einschluss durch dieselbe Funktion: falsche Zuordnungen −90 … 99 %, Abdeckung etwa halbiert; schwach bei sehr wenigen Ankern (MEVD17.2) |
+| Code-Datenfluss | 🟠 ⚗️ ❔ | TriCore: Eingänge und Ergebnisort gegen A2L-Messgrößen geprüft (88–96 % der aufgelösten Eingänge = A2L-Eingangsgröße); offene Fälle mit Grund |
+| Funktionsgruppen ohne A2L | 🟠 ❔ | „Unbekannte Funktionsgruppe N“, rein in 82–92 % der Gruppen (mit Programmcode 87–92 %); Funktionsgraph zeigt Herkunft, Code/Struktur, Widersprüche, Offenes |
+| Wenige Anker, andere Stände/Familien | 🟠 ❔ | Andere Stände derselben Linie: 99,9 % der prüfbaren übertragenen Funktionen richtig; andere Familie: Übertragung jetzt gesperrt (vorher 24 von 24 falsch) |
+| Kennlinien und Achsen (1D) | 🧪 rc1 · 🟠 ❔ | Eigene Auswertung (Breite, Vorzeichen, Byte-Reihenfolge, gemeinsame/feste Achsen); unverändert gegenüber rc1; gemeinsame Achsen bei MEVD17.2 nicht gefunden |
+| Typbelege | 🟠 | „codebelegt“ und „wertgleich“ getrennt, Widersprüche genannt; Vorschläge nie mehr „bestätigt“ |
+| Test- und GUI-Stabilität | 🟠 | „QLabel already deleted“ behoben; drei vollständige Testläufe mit Exit-Code 0 |
+| Direktlade-Regel | 🟠 ❔ | Gegenbeispiele gemessen (0,09 % echter Tabellen mit Ladebefehl innen, kein heutiger Fund betroffen); Reihenfolgeabhängigkeit bei Gleichstand behoben |
+| Unabhängige Validierung, physikalische Umrechnung | 🔭 | wartet auf rechtmäßig nutzbare neue Daten |
+
+#### Stand nach Qualitätsphase 3 (24.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben; zusätzlich **📐 entwicklungsgeprüft** = an Entwicklungsdaten entworfen und an der anderen Linie
+gegengeprüft, nicht unabhängig validiert. Zahlen: [Bericht § 8](docs/ENTWICKLUNG_NEXTGEN.md#8-qualitätsphase-3-24112026-zuverlässige-funktionsidentifikation-und-achsenerkennung).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Funktionsidentifikation: Enthaltung | 🟠 📐 ❔ | „Funktion unbekannt“ mit Grund, zurückgehaltener Funktion und fehlendem Beleg; Speicherlage-Prüfung für Vorschläge mit nur einer Belegfamilie. MEVD17.2: falsche Namen −33 … −92 % bei nahezu gleicher Abdeckung; MSD80: Präzision höher in allen Aufteilungen, Abdeckung −10 … −22 % (Speicherblöcke −38 … −58 %) |
+| Gemeinsame Achsen | 🟠 ❔ | Modell Kennfeld → Achsenreferenz → Achsobjekt (gespeichert/fest/ungeklärt, Quelle, TriCore-Aliase, Widersprüche); 0 falsche Zusammenlegungen; MEVD17.2 weiter 0 von 1 466 gefunden (Nutzer werden nicht erkannt) |
+| Kennlinien und Achsen (1D): „?“ | 🟠 📐 ❔ | falsche Byte-Reihenfolge jetzt markiert (vorher nie), falsche Breite 1 448 von 1 533 markiert; Typen, Werte und Geometrie unverändert |
+| Prüfhilfen in der Oberfläche | 🟠 | Filter „Gemeinsame Achse“, „Achsenreferenz ungeklärt“, „Funktion unbekannt/vermutet“, „Widersprüchliche Funktionsbelege“; Achsen und Funktionsstatus in Detailansicht und Funktionsgraph |
+| Lokales Testverfahren | 🟠 | `tools/tester_report.py`: nur Zählwerte, Export erst nach Vorschau und inhaltsgebundener Zustimmung |
+| Datenfluss für Achsen | 📋 | keine neue Regel: hilft erst mit Adressrechnung für Laufzeitadressen |
+| Neue unabhängige Daten | 📋 | gezielte Suche 24.11.2026 ohne geeignete Paare (Herkunft/Rechte fehlen) |
+
+#### Stand nach Qualitätsphase 4 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung je Punkt: **rc1** (veröffentlicht) · **Draft-PR** (PR #30, nicht veröffentlicht) · **experimentell**
+(Schalter aus) · **entwicklungsgemessen** (nur Entwicklungsdaten) · **Holdout-Regression** (bekannter Holdout, nur
+„nichts kaputt“) · **unabhängig validiert** · **nur Idee** · **verworfen**. Zahlen:
+[Bericht § 9](docs/ENTWICKLUNG_NEXTGEN.md#9-qualitätsphase-4-25112026-open-source-vergleich-adressauflösung-achsen),
+Quellen: [Open-Source-Vergleich](docs/OPEN_SOURCE_RECOGNITION_RESEARCH.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Code-belegte Achsen (wiederholte und nicht bedatete Stützstellen) | Draft-PR · entwicklungsgemessen · Holdout-Regression | exakte 2D-Kennfelder 32 058 → 35 159, 0 verloren; meist nicht bedatete Kennfelder |
+| Vorabsuchen derselben Routine | Draft-PR · entwicklungsgemessen | +50 exakte Kennfelder (MSD80); Achsen nur als Teil einer angenommenen Tabelle |
+| Kennlinien-Datensätze widerlegen Datenmuster-Funde | Draft-PR · entwicklungsgemessen · Holdout-Regression | Verwechslungen 5 113 → 4 469 allein, 4 478 im Endstand; Holdout 10 541 → 9 744 |
+| MEVD17.2 dynamische Adressen | entwicklungsgemessen | Annahme „Laufzeitadressen“ weitgehend widerlegt: Köpfe statisch adressiert; Kennlinien an Vorabsuche-Routinen und reine Lade-/Speicherzugriffe offen; gemeinsame Achsen weiter 0 |
+| MSD80 gemeinsame Achsen | Draft-PR · entwicklungsgemessen | gefunden 2 238 → 2 701 (von 12 994); 34 falsch zusammengelegte Achsobjekte (vorher 0), nicht bedatete markiert |
+| 1D: „?“ statt stiller Fehlbreite | Draft-PR · entwicklungsgemessen | unmarkierte falsche Breiten 85 → 46 ohne zusätzlichen Preis; 57 falsche Vorzeichen klassifiziert (48 widersprechen der Monotonie, 9 Folgefehler) |
+| 8-Bit-Lesart von Kennlinien | experimentell | +972 richtige Breiten, 0 verloren; aus, weil Typänderung und nur an Entwicklungsdaten entworfen |
+| Testbericht für Tester | Draft-PR | geführter Ablauf, Rundung, geprüfte Linie, keine Pfade, kein Netzwerk; Anleitungen DE/EN; selbst keine Validierung |
+| Vorabsuchen im Aufrufer, Flash-Zeigertabellen, Basisregister mit einer Definition | verworfen | 0 bzw. 4 Auflösungen |
+| Serien gleicher Geometrie, Basiswahl nach Treffern (OpenRemap) | nur Idee | kein erwarteter Nutzen bei uns |
+| Familienvorlagen, Namen aus Wertebereichen (ZedSuite) | verworfen | widerspricht „Werte benennen keine Funktion“ |
+| Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
+
+#### Stand nach Qualitätsphase 5 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben. Zahlen:
+[Bericht § 10](docs/ENTWICKLUNG_NEXTGEN.md#10-qualitätsphase-5-25112026-code-kennlinien-achsidentität-sichere-bearbeitung).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Kennlinien aus dem Programmcode (Kennlinienroutinen, TriCore) | Draft-PR · entwicklungsgemessen · Holdout-Regression | exakte 1D-Funde MEVD17.2 44 801 → 50 829, MSD80 68 044 → 75 008, 0 verloren; 2D 35 226 → 35 276, Verwechslungen 4 478 → 4 117 |
+| Vorzeichen aus der Kennlinienroutine | verworfen | MSD80: 671 statt 48 unmarkierte falsche Vorzeichen |
+| Breitenregel „Doppellücke“ | Draft-PR · Holdout-Regression (Befund) | behebt 18 auf dem Holdout verlorene Kennfelder; an Entwicklungsdaten wirkungslos, dort nicht geprüft |
+| Achsidentität (eindeutig / plausibel / wertgleich / unbekannt) | Draft-PR · entwicklungsgemessen | „plausibel gemeinsam“ 1 832 von 1 832 richtig; alle 34 falschen Zusammenlegungen „unbekannt“; 861 richtige ebenfalls „unbekannt“ |
+| Bearbeitungssicherheit (Konflikte, Bestätigung, Ablehnung bei unklarer Identität) | Draft-PR | synthetisch getestet; keine automatische Weitergabe |
+| Datensatzspanne widerlegt Musterbeginn | Draft-PR · entwicklungsgemessen | die 17 in QP4 verlorenen MSD80-1D-Funde zurück; Verwechslungen −85 |
+| Vorzeichen folgt offener Byte-Reihenfolge | Draft-PR · entwicklungsgemessen | unmarkierte falsche Vorzeichen MEVD17.2 9 → 0 (13 richtige zusätzlich mit „?“); MSD80 48 unverändert |
+| 8-Bit-Lesart von Kennlinien | experimentell (aus) | synthetisches Gegenbeispiel; keine unabhängigen Referenzen |
+| Testerablauf in der Oberfläche | nur Idee | nicht gebaut |
+| Unabhängige Validierung | – (nicht erreicht) | keine neuen rechtmäßig nutzbaren Daten |
+
+#### Stand nach Qualitätsphase 6 (25.11.2026, PR #30, nicht veröffentlicht)
+
+Einordnung wie oben. Zahlen:
+[Bericht § 11](docs/ENTWICKLUNG_NEXTGEN.md#11-qualitätsphase-6-25112026-schreibsicherheit-erkennungsqualität-tester-assistent-vorbereitung-rc2).
+Release-Entscheidung: [Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Zentrale Schreibprüfung (alle Schreibwege, Ablehnung bei unbekannter Achsidentität, technische Klärung mit Verfall) | Draft-PR | synthetisch getestet; Kosten je Zelle linear (§ 11.9) |
+| Verwaiste Kennlinienachsen erst ab drei Stützstellen | Draft-PR · Holdout-Regression (Befund) | Holdout: unmarkiert falsche Breiten B38I12 3 → 0, sonst unverändert; Entwicklungsdaten unverändert, dort nicht geprüft |
+| Doppellücken-Regel | Draft-PR · synthetische Gegenbeispiele | 13 Fälle, bekannte Grenze festgehalten |
+| Restliche 1D-Typfehler, gemeinsame Achsen MEVD17.2 | untersucht | keine Regel ohne Fehlmarkierung; Ursache MEVD17.2: Nutzertabellen nicht gefunden |
+| Tester-Assistent in der Oberfläche | Draft-PR | sieben Schritte, nur Zählwerte, keine Übertragung |
+| Benchmark-Vorprüfung (Importpfad, Commit, Quellbaum, Herkunft) | Draft-PR | ein verunreinigter Lauf erkannt und verworfen |
+| 1.21.0-rc2 | 📋 vorbereitet, nicht veröffentlicht | Review, Versionsplan, Signaturstatus (nicht signiert), Release-Notes-Entwurf, Testbuild nur auf Runnern |
+| Unabhängige Validierung | – (nicht erreicht) | erneute Suche ohne Paar; keine neuen rechtmäßig nutzbaren Daten |
+
+#### rc2-Release-Fix (26.11.2026, PR #30, nicht veröffentlicht)
+
+Letzter Schreibsicherheits-Fix vor rc2, keine Erkennungsarbeit. Einzelheiten:
+[Schreibsicherheit § 4a](docs/EDIT_SAFETY_REVIEW.md#4a-zellbreite-gespeicherter-achsen-rc2-release-fix),
+[Vorlage rc2](docs/RELEASE_READINESS_RC2.md).
+
+| Bereich | Einordnung | Fortschritt |
+|---|---|---|
+| Zellbreite gespeicherter Achsen in der Schreibprüfung (vorher fest 2 Byte je Stützstelle) | Draft-PR | eigenes Merkmal aus A2L/XDF/Erkennung; unbekannt = 4 Byte, Widerspruch = abgelehnt; Klärung nutzt ihre Breite; 39 synthetische Tests; Erkennung unverändert |
+
+### 1.21.0-rc2 (experimentelle Vorabversion)
+
+| Punkt | Stand |
+|---|---|
+| Abschluss der sechs Qualitätsphasen (Erkennung, Achsidentität, Funktionsebene, Tester-Assistent, Schreibprüfung) | 🟠 im Draft-PR #30 |
+| Letzter Schreibsicherheits-Fix: Zellbreite gespeicherter Achsen | 🟠 umgesetzt und getestet ([§ 4a](docs/EDIT_SAFETY_REVIEW.md#4a-zellbreite-gespeicherter-achsen-rc2-release-fix)) |
+| Probelauf und Installer-QA für rc2 auf frischen Runnern | siehe [Vorlage rc2](docs/RELEASE_READINESS_RC2.md) |
+| Veröffentlichung als Pre-Release (nie „Latest“, stabiler Kanal bietet sie nicht an) | ⛔ nur nach ausdrücklicher Freigabe |
+| Danach: Rückmeldungen und lokale Testberichte der Tester sammeln | 📋 |
+
+### 1.21.0 stabil
+
+Keine großen Qualitätsphasen mehr. Bekannte Sicherheitsprobleme gelten nicht dadurch als behoben, dass eine Warnung
+angezeigt wird.
+
+| Punkt | Voraussetzung |
+|---|---|
+| Rückmeldungen und Testberichte zu rc2 auswerten | Tester mit eigener Firmware und Definition |
+| Echte Blocker beheben (Datenverlust, Absturz, Schreibsicherheit, Installer, Update) | nur belegte Fehler, keine neue Erkennungsarbeit |
+| Schreibsicherheit erneut prüfen | alle Schreibwege, synthetische Gegenbeispiele |
+| Installations- und Update-Wege erneut prüfen | frische Runner; Update von 1.20.1 und von rc2; stabiler Kanal |
+| Unabhängige Validierung im Umfang der standardmäßig eingeschalteten Funktionen | neue, rechtmäßig nutzbare Referenzdaten; ohne sie bleiben Funktionen experimentell oder ausgeschaltet |
+| Abschließende Stable-Prüfung und ausdrückliche Freigabe | ⛔ |
+
+### 1.22.0 und später (Reihenfolge = Priorität, ohne Termine)
+
+Themen: KI-Modelle und Training nur mit rechtmäßig nutzbaren Daten (nie mit privaten Daten des Datengebers), mehr
+Referenzen, EDC16/EDC17/MED17, MD1/MG1, Simos/SID, Getriebesteuergeräte, Funktionsidentifikation, gemeinsame Achsen
+bei MEVD17.2, Skalierung und Einheitenerkennung, weitere Prozessorarchitekturen, Werkzeuge für Tuner,
+Open-Source-Vergleiche, Signaturstrategie (Authenticode und Update-Signatur).
 
 | | Vorhaben | Warum / Voraussetzung |
 |:--:|---|---|
@@ -197,6 +348,10 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 | 12 | **TunerStudio-Abstimmungen öffnen** | Speeduino/rusEFI: Definition (.ini) ist öffentlich |
 | 13 | **Signierte Updates aktivieren, Code-Signatur** | Schlüssel bzw. Zertifikat einrichten ([Anleitung](docs/RELEASE.md)) |
 | 14 | **Dokumentation** | Zweisprachiges Handbuch, Seite je Steuergerät, Anleitungen mit Aufnahmen synthetischer Dateien |
+| 15 | **Funktionsidentifikation und gemeinsame Achsen MEVD17.2** | Nutzertabellen gemeinsamer Achsen erkennen; Funktionsebene über den Prototyp hinaus |
+| 16 | **Skalierung und Einheiten** | Faktor, Offset und Einheit für Funde ohne Definition; nur mit Beleg |
+| 17 | **KI-Modelle und Training** | nur mit rechtmäßig nutzbaren Trainingsdaten; keine privaten Daten des Datengebers |
+| 18 | **Weitere Architekturen und Open-Source-Vergleiche** | jenseits TriCore; Vergleich mit offenen Werkzeugen wie in Qualitätsphase 4 |
 
 ---
 
@@ -222,6 +377,24 @@ Die öffentlichen Messungen bis 1.19.1 an anderen Referenzen: [docs/ECU_SUPPORT.
 [Bericht § 6c](docs/ENTWICKLUNG_1.21.0.md)). **Du kannst helfen:** Hast du ein Original **und** die passende A2L,
 die du nutzen darfst? Ein Befehl misst sie lokal ([so geht's](docs/ECU_SUPPORT.md#was-für-die-offenen-varianten-gebraucht-wird)).
 Bitte keine Firmware hochladen.
+
+## F. Langfristiges Ziel: automatische Kennfeldidentifikation und physikalische Skalierung
+
+Ziel ist, dass die App eine Tabelle ohne Definition nicht nur findet, sondern belegt sagen kann, **was** sie ist
+(Funktion, Achsen mit Bedeutung) und **wie** ihre Werte umzurechnen sind (Datentyp, Faktor, Offset, Einheit). Jede
+Angabe soll ihre Herkunft tragen; was nicht belegt ist, bleibt offen. Lieber wenige zuverlässig belegte Kennfelder
+als viele scheinbar erkannte mit falschen Angaben.
+
+| Stufe | Inhalt | Stand |
+|---|---|---|
+| 1 | Lage, Form, Zellbreite, Achsen aus Programmcode und Datensätzen | 🧪 1.21.0-rc1 (Teil der Familien), 🟠 Ausbau |
+| 2 | Datentyp je Eigenschaft mit Status und Quelle | 🟠 nach rc1 |
+| 3 | Funktion aus Definitionen und Beziehungen, nie aus Werten | 🟠 Prototyp |
+| 4 | Physikalische Umrechnung aus Programmcode (z. B. Konstanten von Umrechnungsroutinen) oder aus Definitionen verwandter Softwarestände | 📋 geplant; braucht Referenzen mit Umrechnung je Familie |
+| 5 | Unabhängige Validierung je Familie mit vorab eingefrorener Testgruppe | 📋 wartet auf rechtmäßig nutzbare Daten |
+
+Voraussetzungen: rechtmäßig nutzbare Referenzpaare (Original + passende A2L) weiterer Familien; kein Modelltraining
+mit privaten Referenzdaten ohne geklärte Rechte; Ghidra/REA nur als externe Werkzeuge.
 
 <details>
 <summary><b>Clips der veröffentlichten Funktionen</b></summary>

@@ -11,6 +11,7 @@ from .model import BinaryImage, MapDefinition
 from .structure_scan import _counted_values, c16x_reference_anchors
 
 MAX_IMAGE = 4 * 1024**2
+COUNT_AXIS_SOURCE = 'Achse mit Anzahl-Kopf (in dieser Breite gelesen)'
 MAX_ANCHORS = 20_000
 
 
@@ -20,6 +21,8 @@ def _candidate(at, rows, cols, width, x, y, header, layout):
         dtype='u8' if width == 1 else 'u16', endian='little', source='heuristic',
         confidence=0.0, verified=False, axes_x=list(x.values), axes_y=list(y.values),
         axis_x_offset=x.offset, axis_y_offset=y.offset, candidate_region_start=header,
+        axis_x_dtype=x.dtype, axis_y_dtype=y.dtype,
+        axis_x_type_source=COUNT_AXIS_SOURCE, axis_y_type_source=COUNT_AXIS_SOURCE,
         record_layout=layout, label_origin='Experimental structural hypothesis',
         label_evidence='Counts and stored axes with exact successor boundary; target review required.',
         type_alternatives=['s16'] if width == 2 else ['s8'],
