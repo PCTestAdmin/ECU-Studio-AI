@@ -1,4 +1,4 @@
-## 1.21.0-rc2 – Release Candidate (experimentelle Vorabversion; geplant, nicht veröffentlicht)
+## 1.21.0-rc2 (26.11.2026) – Release Candidate (experimentelle Vorabversion)
 
 Experimentelle Vorabversion zum Testen, nicht für den produktiven Einsatz. Inhalt: die Entwicklung nach 1.21.0-rc1 (Abschnitt
 darunter, Draft-PR #30). Alle automatisch erkannten Kennfelder, Achsen und Funktionsnamen bleiben **ungeprüfte
